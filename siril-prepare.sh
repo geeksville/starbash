@@ -11,15 +11,21 @@ SRCDIR=$1
 echo "Preparing Siril for processing directory $SRCDIR"
 SRCDIR=$(realpath "$SRCDIR")
 
+DESTDIR=~/Pictures/telescope/siril_work/
+
 # Create the directory only if it doesn't exist
-mkdir -p siril_work
-rm -r siril_work/*
-cd siril_work
+mkdir -p $DESTDIR
+cd $DESTDIR
+rm -r $DESTDIR/*
 
 mkdir lights flats biases
+
+# Keep results on the persistent volume
+mkdir -p "$SRCDIR/results"
 
 ln -s "$SRCDIR/LIGHT/"* lights
 ln -s "$SRCDIR/FLAT/"* flats
 ln -s "$SRCDIR/BIAS/"* biases
+ln -s "$SRCDIR/results" results
 
 echo "Workspace successfully prepared."

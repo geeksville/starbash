@@ -76,7 +76,10 @@ register Ha_bkg_pp_light
 # FIXME - change rejection sigmas to be more selective?
 
 # Stack calibrated Ha lights to Ha_stack (temporary)
-stack r_Ha_bkg_pp_light rej 3 3 -norm=addscale -output_norm -32b -out=results_00001
+# stack r_Ha_bkg_pp_light rej 3 3 -norm=addscale -output_norm -32b -out=results_00001
+# GESDT generalized extreme studentized deviation test supposedly better
+# https://www.cloudynights.com/topic/787764-winsorized-sigma-rejection-sigma-high/
+stack r_Ha_bkg_pp_light rej g 0.3 0.05 -norm=addscale -output_norm -32b -out=results_00001
 
 # and flip if required
 mirrorx_single results_00001
@@ -85,7 +88,7 @@ mirrorx_single results_00001
 register OIII_bkg_pp_light
 
 # Stack calibrated OIII lights to OIII_stack (temporary)
-stack r_OIII_bkg_pp_light rej 3 3 -norm=addscale -output_norm -32b -out=results_00002
+stack r_OIII_bkg_pp_light rej g 0.3 0.05 -norm=addscale -output_norm -32b -out=results_00002
 
 # and flip if required
 mirrorx_single results_00002
@@ -114,7 +117,7 @@ save ../results/result_Ha_$LIVETIME:%d$s
 
 # then crop
 
-# then Color Calibration (see video)
+# then Color Calibration (see video) - mark background box and a box more representative
 
 # then remove stars with starnet
 
