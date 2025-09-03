@@ -62,23 +62,30 @@ cd ../process
 # calibrate light -dark=../masters/dark_stacked -flat=../masters/pp_flat_stacked -cc=dark -cfa -equalize_cfa
 calibrate light -bias=../masters/bias_stacked -flat=../masters/pp_flat_stacked -cfa -equalize_cfa
 
+# Remove background gradient on a per-frame basis
+seqsubsky pp_light 1
+
+# FIXME, possibly do https://siril.org/tutorials/tuto-manual/#platesolving-reference-image at this step?
+
 # Extract Ha and OIII
-seqextract_HaOIII pp_light -resample=ha
+seqextract_HaOIII bkg_pp_light -resample=ha
 
 # Align Ha lights
-register Ha_pp_light
+register Ha_bkg_pp_light
+
+# FIXME - change rejection sigmas to be more selective?
 
 # Stack calibrated Ha lights to Ha_stack (temporary)
-stack r_Ha_pp_light rej 3 3 -norm=addscale -output_norm -32b -out=results_00001
+stack r_Ha_bkg_pp_light rej 3 3 -norm=addscale -output_norm -32b -out=results_00001
 
 # and flip if required
 mirrorx_single results_00001
 
 # Align OIII lights
-register OIII_pp_light
+register OIII_bkg_pp_light
 
 # Stack calibrated OIII lights to OIII_stack (temporary)
-stack r_OIII_pp_light rej 3 3 -norm=addscale -output_norm -32b -out=results_00002
+stack r_OIII_bkg_pp_light rej 3 3 -norm=addscale -output_norm -32b -out=results_00002
 
 # and flip if required
 mirrorx_single results_00002
@@ -93,5 +100,24 @@ save ../results/result_OIII_$LIVETIME:%d$s
 # Save Ha final result
 load r_results_00001
 save ../results/result_Ha_$LIVETIME:%d$s
+
+# Remaining interactive workflow per https://www.youtube.com/watch?v=fDhOrKvM7GU
+# and https://www.cloudynights.com/topic/943109-osc-processing-hasii-narrowband-filters-with-siril/?p=13777856
+
+# Do background extraction on each of the two output files
+# manually place the sample points, not very many pints needed (only about 8) - don't place near edges
+
+# Go to "Pixel Math" and add the two files with plus icon
+# Ha on Red
+# Oii on B
+# G = 0.6*Ha+0.4*Oii
+
+# then crop
+
+# then Color Calibration (see video)
+
+# then remove stars with starnet
+
+# then gen-hyp-stretch, but change to modifiedarcsin+evenweight (see video)
 
 close
