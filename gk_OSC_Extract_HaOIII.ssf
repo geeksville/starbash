@@ -1,10 +1,4 @@
-############################################
-#
-# Script for Siril 1.4
-# December 2024
-# (C) Cyril Richard
-# ExtractHaOIII v1.5
-#
+
 ########### PREPROCESSING SCRIPT ###########
 #
 # Script for color camera preprocessing that
@@ -24,7 +18,7 @@ requires 1.3.4
 
 # Convert Bias Frames to .fit files
 cd biases
-convert bias -out=../process
+link bias -out=../process
 cd ../process
 
 # Stack Bias Frames to bias_stacked.fit
@@ -33,7 +27,7 @@ cd ..
 
 # Convert Flat Frames to .fit files
 cd flats
-convert flat -out=../process
+link flat -out=../process
 cd ../process
 
 # Calibrate Flat Frames
@@ -55,7 +49,7 @@ cd ..
 
 # Convert Light Frames to .fit files
 cd lights
-convert light -out=../process
+link light -out=../process
 cd ../process
 
 # Calibrate Light Frames
@@ -73,7 +67,18 @@ seqextract_HaOIII bkg_pp_light -resample=ha
 # Align Ha lights
 register Ha_bkg_pp_light
 
+# FIXME
+# You may wish to use drizzling to upscale the Ha data instead of upscaling. As drizzling 
+# is a stacking method, in this case you must use seqextract_HaOiii to extract the Ha and OIII 
+# from each frame of the sequence, and then stack the OIII images in the usual way and the Ha 
+# images with a 2x drizzle.
+# see https://siril.readthedocs.io/en/stable/processing/extraction.html
+
 # FIXME - change rejection sigmas to be more selective?
+
+# FIXME use -filter-quality with stack to exclude the worst few frame
+
+# Note: For these sorts of images (and my hires camera) I don't think I need drizzling
 
 # Stack calibrated Ha lights to Ha_stack (temporary)
 # stack r_Ha_bkg_pp_light rej 3 3 -norm=addscale -output_norm -32b -out=results_00001
@@ -110,6 +115,8 @@ save ../results/result_Ha_$LIVETIME:%d$s
 # Do background extraction on each of the two output files
 # manually place the sample points, not very many pints needed (only about 8) - don't place near edges
 
+# FIXME try graxpert AI background extraction instead (because it can be scripted)
+
 # Go to "Pixel Math" and add the two files with plus icon
 # Ha on Red
 # Oii on B
@@ -122,5 +129,16 @@ save ../results/result_Ha_$LIVETIME:%d$s
 # then remove stars with starnet
 
 # then gen-hyp-stretch, but change to modifiedarcsin+evenweight (see video)
+
+# Note: If modifying this script to also do SiiOii extraction:
+# Oii is equally present (ish) on green and blue pixels (same as for HaOiii filters)
+# But instead of Ha appearing on the red channel we get Sii there.  So extract and register the same way,
+# but stack all of teh Oiii together and stack Sii similar to how Ha was stacked here.
+# Then in "pixel math" map:
+# Sii -> Red
+# Oiii -> Blue
+# Ha -> Green
+
+
 
 close

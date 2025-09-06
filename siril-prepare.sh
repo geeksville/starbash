@@ -7,9 +7,14 @@ if [ -z "$1" ] || [ ! -d "$1" ]; then
     exit 1
 fi
 
-SRCDIR=$1
+SRCDIR=$(realpath "$1")
+
+if [ ! -d "$SRCDIR/LIGHT" ]; then
+    echo "Error: '$SRCDIR' does not contain a LIGHT directory." >&2
+    exit 1
+fi
+
 echo "Preparing Siril for processing directory $SRCDIR"
-SRCDIR=$(realpath "$SRCDIR")
 
 DESTDIR=~/Pictures/telescope/siril_work/
 
