@@ -56,16 +56,20 @@ cd ../process
 # calibrate light -dark=../masters/dark_stacked -flat=../masters/pp_flat_stacked -cc=dark -cfa -equalize_cfa
 calibrate light -bias=../masters/bias_stacked -flat=../masters/pp_flat_stacked -cfa -equalize_cfa
 
-# Remove background gradient on a per-frame basis
-seqsubsky pp_light 1
+# Note: all of the preceeding should be performed on a per session basis, then all of the pp_lights from each session
+# should be merged into one big pp_light sequence
 
 # FIXME, possibly do https://siril.org/tutorials/tuto-manual/#platesolving-reference-image at this step?
 
 # Extract Ha and OIII
-seqextract_HaOIII bkg_pp_light -resample=ha
+seqextract_HaOIII pp_light -resample=ha
+
+# Remove background gradient on a per-frame basis, but I think it is better to this after the frames have been
+# split into their two narrowband channels?
+seqsubsky Ha_pp_light 1
 
 # Align Ha lights
-register Ha_bkg_pp_light
+register bkg_Ha_pp_light
 
 # FIXME
 # You may wish to use drizzling to upscale the Ha data instead of upscaling. As drizzling 
@@ -76,24 +80,33 @@ register Ha_bkg_pp_light
 
 # FIXME - change rejection sigmas to be more selective?
 
-# FIXME use -filter-quality with stack to exclude the worst few frame
-
 # Note: For these sorts of images (and my hires camera) I don't think I need drizzling
 
 # Stack calibrated Ha lights to Ha_stack (temporary)
 # stack r_Ha_bkg_pp_light rej 3 3 -norm=addscale -output_norm -32b -out=results_00001
 # GESDT generalized extreme studentized deviation test supposedly better
 # https://www.cloudynights.com/topic/787764-winsorized-sigma-rejection-sigma-high/
-stack r_Ha_bkg_pp_light rej g 0.3 0.05 -norm=addscale -output_norm -32b -out=results_00001
+
+# note: siril only populates quality if using a couple of particular registration methods - and those
+# methods are only good for planets.  Instead use # of stars or wFWHM as a filter on what to stack.  From looking at
+# my from_astroboy/IC 1848/2025-09-06 set, it seems like good safe threshold to easily strip out frames that are obviously
+# crummy is exclude wFWHM > 4 but that only seems right for the Ha channel, Oiii would need > 3 to get rid of the trash.
+# Instead try using the k.sigma threshold to totally exclude frames that are awful
+
+stack r_bkg_Ha_pp_light rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out=results_00001
 
 # and flip if required
 mirrorx_single results_00001
 
+# Remove background gradient on a per-frame basis, but I think it is better to this after the frames have been
+# split into their two narrowband channels?
+seqsubsky OIII_pp_light 1
+
 # Align OIII lights
-register OIII_bkg_pp_light
+register bkg_OIII_pp_light
 
 # Stack calibrated OIII lights to OIII_stack (temporary)
-stack r_OIII_bkg_pp_light rej g 0.3 0.05 -norm=addscale -output_norm -32b -out=results_00002
+stack r_bkg_OIII_pp_light rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out=results_00002
 
 # and flip if required
 mirrorx_single results_00002
