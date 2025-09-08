@@ -62,25 +62,22 @@ calibrate light -bias=../masters/bias_stacked -flat=../masters/pp_flat_stacked -
 # FIXME, possibly do https://siril.org/tutorials/tuto-manual/#platesolving-reference-image at this step?
 
 # Extract Ha and OIII
-seqextract_HaOIII pp_light -resample=ha
-
-# Remove background gradient on a per-frame basis, but I think it is better to this after the frames have been
-# split into their two narrowband channels?
-seqsubsky Ha_pp_light 1
-
-# Align Ha lights
-register bkg_Ha_pp_light
-
-# FIXME
 # You may wish to use drizzling to upscale the Ha data instead of upscaling. As drizzling 
 # is a stacking method, in this case you must use seqextract_HaOiii to extract the Ha and OIII 
 # from each frame of the sequence, and then stack the OIII images in the usual way and the Ha 
 # images with a 2x drizzle.
-# see https://siril.readthedocs.io/en/stable/processing/extraction.html
+# per https://siril.readthedocs.io/en/stable/processing/extraction.html
+# Note: tried "-resample=ha" because instead we would do a 2x drizzle on Ha stacking, but it failed later in the script
+# Note: For these sorts of images (and my hires camera) I don't think I need drizzling but trying it as an experiment
+seqextract_HaOIII pp_light -resample=ha
 
-# FIXME - change rejection sigmas to be more selective?
+# Remove background gradient on a per-frame basis, but I think it is better to this after the frames have been
+# split into their two narrowband channels.  I looked at both options and visually no difference though.
+seqsubsky Ha_pp_light 1
 
-# Note: For these sorts of images (and my hires camera) I don't think I need drizzling
+# Align Ha lights
+# Tried "-drizzle -pixfrac=2" (with drizzle because they are currently half sized vs Oiii)
+register bkg_Ha_pp_light
 
 # Stack calibrated Ha lights to Ha_stack (temporary)
 # stack r_Ha_bkg_pp_light rej 3 3 -norm=addscale -output_norm -32b -out=results_00001
