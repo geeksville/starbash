@@ -28,6 +28,19 @@ mkdir -p lights flats biases darks process
 # Keep results on the persistent volume
 mkdir -p "$SRCDIR/results"
 
+# To accomodate multiday runs
+# Use the following layout:
+# siril_work/
+#   biases
+#   DATEx/
+#     lights/
+#       FILTERa/
+#       FILTERb/
+#     flats/
+#       FILTERa/
+#       FILTERb/
+
+
 ln -s "$SRCDIR/LIGHT/"* lights
 ln -s "$SRCDIR/FLAT/"* flats
 
