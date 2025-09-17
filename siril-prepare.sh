@@ -23,14 +23,19 @@ mkdir -p $DESTDIR
 cd $DESTDIR
 rm -r $DESTDIR/*
 
-mkdir lights flats biases
+mkdir -p lights flats biases darks process
 
 # Keep results on the persistent volume
 mkdir -p "$SRCDIR/results"
 
 ln -s "$SRCDIR/LIGHT/"* lights
 ln -s "$SRCDIR/FLAT/"* flats
-ln -s "$SRCDIR/BIAS/"* biases
+
+# ln -s "$SRCDIR/BIAS/"* biases
+ln -s "/home/kevinh/Pictures/telescope/from_astroboy/masters-raw/2025-09-09/BIAS/"* biases
+# FIXME won't work yet - because i have darks of different lens in that dir
+# ln -s "/home/kevinh/Pictures/telescope/from_astroboy/masters-raw/2025-09-09/DARK/"* darks
+
 ln -s "$SRCDIR/results" results
 
 echo "Workspace successfully prepared."

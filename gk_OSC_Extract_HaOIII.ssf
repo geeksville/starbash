@@ -52,6 +52,8 @@ cd lights
 link light -out=../process
 cd ../process
 
+# FIXME read about DBExract script https://www.reddit.com/r/AskAstrophotography/comments/1napads/best_way_to_proces_osc_dual_narrowband_siril/ncw623n/
+
 # Calibrate Light Frames
 # calibrate light -dark=../masters/dark_stacked -flat=../masters/pp_flat_stacked -cc=dark -cfa -equalize_cfa
 calibrate light -bias=../masters/bias_stacked -flat=../masters/pp_flat_stacked -cfa -equalize_cfa

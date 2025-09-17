@@ -43,13 +43,13 @@ stack pp_flat rej 3 3 -norm=mul -out=../masters/pp_flat_stacked
 cd ..
 
 # Convert Dark Frames to .fit files
-cd darks
-convert dark -out=../process
-cd ../process
+#cd darks
+#convert dark -out=../process
+#cd ../process
 
 # Stack Dark Frames to dark_stacked.fit
-stack dark rej 3 3 -nonorm -out=../masters/dark_stacked
-cd ..
+#stack dark rej 3 3 -nonorm -out=../masters/dark_stacked
+#cd ..
 
 # Convert Light Frames to .fit files
 cd lights
@@ -57,18 +57,27 @@ convert light -out=../process
 cd ../process
 
 # Calibrate Light Frames
-calibrate light -dark=../masters/dark_stacked -flat=../masters/pp_flat_stacked -cc=dark -cfa -equalize_cfa -debayer
+# calibrate light -dark=../masters/dark_stacked -flat=../masters/pp_flat_stacked -cc=dark -cfa -equalize_cfa -debayer
+calibrate light -bias=../masters/bias_stacked -flat=../masters/pp_flat_stacked -cfa -equalize_cfa -debayer
+
+# Remove background gradient on a per-frame basis.
+seqsubsky pp_light 1
 
 # Align lights
-register pp_light
+register bkg_pp_light
 
 # Stack calibrated lights to result.fit
-stack r_pp_light rej 3 3 -norm=addscale -output_norm -rgb_equal -32b -out=result
+# note: siril only populates quality if using a couple of particular registration methods - and those
+# methods are only good for planets.  Instead use # of stars or wFWHM as a filter on what to stack.  From looking at
+# my from_astroboy/IC 1848/2025-09-06 set, it seems like good safe threshold to easily strip out frames that are obviously
+# crummy is exclude wFWHM > 4 but that only seems right for the Ha channel, Oiii would need > 3 to get rid of the trash.
+# Instead try using the k.sigma threshold to totally exclude frames that are awful
+stack r_bkg_pp_light rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -rgb_equal -32b -out=result
 
 # flip if required
 load result
 mirrorx -bottomup
-save ../result_$LIVETIME:%d$s
+save ../results/result_$LIVETIME:%d$s
 
 cd ..
 close
