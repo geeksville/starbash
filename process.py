@@ -107,6 +107,19 @@ def strip_extension(path: str) -> str:
     """Removes the file extension from a given path."""
     return os.path.splitext(path)[0]
 
+def find_frames(target: str, sessionid: str, sessionconfig: str, frametype: str) -> list[str]:
+    """
+    Finds all frames of a given type (e.g., 'FLAT', 'LIGHT') for a specific target,
+    session, and filter configuration.
+    """
+    frames_path = f"{repo}/{target}/{sessionid}/{frametype}/*_{sessionconfig}_*.fits"
+    frames = glob(frames_path)
+    if not frames:
+        logger.error(f"No {frametype} frames found for session {sessionid}, config {sessionconfig} at {frames_path}")
+        raise FileNotFoundError(f"No {frametype} frames found for {sessionid}/{sessionconfig}")
+    return frames
+
+
 def get_flat_path(sessionid: str, sessionconfig: str, bias: str) -> str:
     """
     Finds or creates a master flat for a given session and filter configuration.
@@ -125,10 +138,7 @@ def get_flat_path(sessionid: str, sessionconfig: str, bias: str) -> str:
         os.makedirs(process_dir, exist_ok=True)
 
         # Find all raw flat frames for the given session and filter (sessionconfig)
-        frames = glob(f"{repo}/{target}/{sessionid}/FLAT/*_{sessionconfig}_*.fits")
-        if not frames:
-            logger.error(f"No FLAT frames found for session {sessionid}, config {sessionconfig} at {flat_frames_path}")
-            raise FileNotFoundError(f"No FLAT frames found for {sessionid}/{sessionconfig}")
+        frames = find_frames(target, sessionid, sessionconfig, "FLAT")
 
         # Siril commands to create the master flat.
         # Paths for bias and output must be absolute since Siril runs in a temp directory.
@@ -143,6 +153,38 @@ def get_flat_path(sessionid: str, sessionconfig: str, bias: str) -> str:
             """)
         siril_run_in_temp_dir(frames, commands)
         return output
+
+def make_pp_light(sessionid: str, sessionconfig: str, bias: str, flat: str):
+    """
+    Calibrates light frames for a given session and filter configuration.
+    This creates a pre-processed (pp_) sequence in the process directory.
+    """
+    light_base = f"light_s{sessionid}_c{sessionconfig}"
+    output_base = f"pp_{light_base}"
+
+    # If the calibrated sequence already exists, skip creation
+    if glob(f"{process_dir}/{output_base}_*.fits"):
+        logger.info(f"Using existing calibrated light sequence: {output_base}")
+        return output_base
+
+    logger.info(f"Creating calibrated light sequence for session {sessionid}, config {sessionconfig} -> {output_base}")
+    os.makedirs(process_dir, exist_ok=True)
+
+    # Find all raw light frames for the given session and filter
+    frames = find_frames(target, sessionid, sessionconfig, "LIGHT")
+
+    # Siril commands to calibrate the light frames.
+    # This runs in a temp dir with symlinks to raw files, but cds into process_dir to work.
+    commands = textwrap.dedent(f"""
+        # Create a sequence from the raw light frames, seq file goes to process_dir
+        link {light_base} -out={process_dir}
+        cd {process_dir}
+        # Calibrate the light frames using master bias and flat
+        # Output sequence pp_{light_base} will be created in the current dir (process_dir)
+        calibrate {light_base} -bias={strip_extension(bias)} -flat={strip_extension(flat)} -cfa -equalize_cfa
+        """)
+    siril_run_in_temp_dir(frames, commands)
+
 
 def get_sessions(target: str) -> list[str]:
     """
@@ -255,7 +297,7 @@ def main() -> None:
         for sessionconfig in get_session_configs(sessionid):
             # find/create flat.fits as needed
             flat = get_flat_path(sessionid, sessionconfig, bias)
-            make_pp_light()
+            make_pp_light(sessionid, sessionconfig, bias, flat)
             make_bkg_pp_light()
             seqextract_HaOiii()
     
