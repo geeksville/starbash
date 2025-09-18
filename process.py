@@ -137,9 +137,9 @@ def get_flat_path(sessionid: str, sessionconfig: str, bias: str) -> str:
             link {output_base} -out={process_dir}
             cd {process_dir}
             # Calibrate the flat frames using the master bias
-            calibrate {output_base} -bias="{strip_extension(bias)}"
+            calibrate {output_base} -bias={strip_extension(bias)}
             # Stack the pre-processed (calibrated) flat frames
-            stack pp_{output_base} rej 3 3 -norm=mul -out="{output}"
+            stack pp_{output_base} rej 3 3 -norm=mul -out={output}
             """)
         siril_run_in_temp_dir(frames, commands)
         return output
