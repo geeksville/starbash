@@ -191,6 +191,34 @@ def make_bkg_pp_light(sessionid: str, sessionconfig: str, bias: str, flat: str):
         """)
     siril_run_in_temp_dir(frames, commands)
 
+def make_stacked(sessionconfig: str, variant: str, output_file: str):
+    """
+    Registers and stacks all pre-processed light frames for a given filter configuration
+    across all sessions.
+    """
+    # The sequence name for all frames of this variant and config, across all sessions
+    # e.g. Ha_bkg_pp_light_cHaOiii
+    merged_seq_base = f"{variant}_bkg_pp_light_c{sessionconfig}"
+
+    # Absolute path for the output stacked file
+    stacked_output_path = f"{process_dir}/{output_file}.fits"
+
+    if os.path.exists(stacked_output_path):
+        logger.info(f"Using existing stacked file: {stacked_output_path}")
+        return
+
+    logger.info(f"Registering and stacking for {sessionconfig}/{variant} -> {stacked_output_path}")
+
+    # Siril commands for registration and stacking. We run this in process_dir.
+    commands = textwrap.dedent(f"""
+        register {merged_seq_base}
+        stack r_{merged_seq_base} rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
+        
+        # and flip if required
+        mirrorx_single {output_file}
+        """)
+    
+    siril_run(process_dir, commands)
 
 def get_sessions(target: str) -> list[str]:
     """
@@ -308,13 +336,12 @@ def main() -> None:
             make_bkg_pp_light(sessionid, sessionconfig, bias, flat)
     
     logger.info(f"All session configs: {all_configs}")
-    # for sessionconfig in all_configs:
-    make_registered()
-    make_stacked()
-    make_flipped()
-    make_registered_flipped()
-    make_result_Ha()
-    make_result_Oiii()
+    variants = ["Ha", "OIII"] # FIXME: solve capitalization issues and add Sii support
+    for sessionconfig in all_configs:
+        for i, variant in enumerate(variants):
+            # Create a temporary stacked file like results_00001.fits, results_00002.fits
+            make_stacked(sessionconfig, variant, f"results_{i+1:05d}")
+    # make_merged()
 
 
 if __name__ == "__main__":
