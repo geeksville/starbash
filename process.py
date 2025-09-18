@@ -35,7 +35,7 @@ def siril_run(cwd, commands):
     # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
     cmd = f"org.siril.Siril -d {cwd} -s -"
 
-    logger.info(f"Running Siril command in {cwd}")
+    logger.debug(f"Running Siril command in {cwd}: {commands}")
     result = subprocess.run(
         cmd, 
         input=script_content, 
@@ -45,18 +45,22 @@ def siril_run(cwd, commands):
         cwd=cwd
     )
 
+    if result.stdout:
+        logger.debug(f"Siril output:\n")
+        for line in result.stdout.splitlines():
+            logger.debug(line)
+
+    if result.stderr:
+        logger.warning(f"Siril error message:")
+        for line in result.stderr.splitlines():
+            logger.warning(line)
+
     if result.returncode != 0:
         logger.error(f"Siril command failed with exit code {result.returncode}!")
-        logger.error(f"STDOUT:\n{result.stdout}")
-        logger.error(f"STDERR:\n{result.stderr}")
         result.check_returncode()  # Child process returned an error code
     else:
         logger.info("Siril command successful.")
-        if result.stdout:
-            logger.info(f"STDOUT:\n{result.stdout}")
-        if result.stderr:
-            # Siril often prints info to stderr, so we log it as info on success
-            logger.info(f"STDERR:\n{result.stderr}")
+
 
 
 def siril_run_in_temp_dir(input_files, commands):
@@ -88,6 +92,8 @@ def get_master_bias_path():
         # Stack Bias Frames to bias_stacked.fit
         stack bias rej 3 3 -nonorm -out={output}
         """))
+    
+    return output
     
 
 """
