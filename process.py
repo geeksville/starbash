@@ -89,7 +89,7 @@ def get_master_bias_path() -> str:
         logger.info(f"Using existing master bias: {output}")
         return output
     else:
-        frames = glob(f"{masters_raw}/{date}/BIAS/{date}_*.fits")
+        frames = glob(f"{masters_raw}/{date}/BIAS/{date}_*.fit*")
 
         siril_run_in_temp_dir(frames, textwrap.dedent(f"""
             # Convert Bias Frames to .fit files
@@ -112,7 +112,7 @@ def find_frames(target: str, sessionid: str, sessionconfig: str, frametype: str)
     Finds all frames of a given type (e.g., 'FLAT', 'LIGHT') for a specific target,
     session, and filter configuration.
     """
-    frames_path = f"{repo}/{target}/{sessionid}/{frametype}/*_{sessionconfig}_*.fits"
+    frames_path = f"{repo}/{target}/{sessionid}/{frametype}/*_{sessionconfig}_*.fit*"
     frames = glob(frames_path)
     if not frames:
         logger.error(f"No {frametype} frames found for session {sessionid}, config {sessionconfig} at {frames_path}")
@@ -207,10 +207,16 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
         logger.info(f"Using existing stacked file: {stacked_output_path}")
         return
 
-    logger.info(f"Registering and stacking for {sessionconfig}/{variant} -> {stacked_output_path}")
+    # Merge all frames (from multiple sessions) for this variant and config, use those for stacking
+    frames = glob(f"{process_dir}/{variant}_bkg_pp_light_s*_c{sessionconfig}_*.fit*")
+
+    logger.info(f"Registering and stacking {len(frames)} frames for {sessionconfig}/{variant} -> {stacked_output_path}")
 
     # Siril commands for registration and stacking. We run this in process_dir.
     commands = textwrap.dedent(f"""
+        link {merged_seq_base} -out={process_dir}
+        cd {process_dir}
+
         register {merged_seq_base}
         stack r_{merged_seq_base} rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
         
@@ -218,7 +224,7 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
         mirrorx_single {output_file}
         """)
     
-    siril_run(process_dir, commands)
+    siril_run_in_temp_dir(frames, commands)
 
 def get_sessions(target: str) -> list[str]:
     """
@@ -257,7 +263,7 @@ def get_session_configs(sessionid: str) -> list[str]:
 
     # Regex to capture the filter name (3rd component) from filenames like:
     # 2025-09-17_00-00-13_HaOiii_-10.00_6.22s_0000.fits
-    filter_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_(?P<filter>[^_]+)_.+\.fits$")
+    filter_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_(?P<filter>[^_]+)_.+\.fits?$")
 
     # Use a set comprehension to efficiently find unique filter names from filenames.
     filters = {match.group('filter') for f in os.listdir(flat_dir) if (match := filter_pattern.match(f))}
@@ -290,10 +296,12 @@ process: (one big flat directory)
     Oiii_bkg_pp_light.seq (seq extract by color)    
 
   _c<sessionconfig>: (THIS IS A SUFFIX ADDED TO EACH BASENAME for the following files - accross all sessions, but per config)
+    Ha_bkg_pp_light.seq (merged from all sessions)
     r_Ha_bkg_pp_light.seq (registered)  
     stacked_r_Ha_bkg_pp_light.fit (stacked)
     flipped_00001.fit (flipped for Ha)
 
+    Oiii_bkg_pp_light.seq (merged from all sessions)
     r_Oiii_bkg_pp_light.seq (registered)
     stacked_r_Oiii_bkg_pp_light.fit (stacked)
     flipped_00002.fit (flipped for Oiii)
