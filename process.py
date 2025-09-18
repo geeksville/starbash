@@ -5,6 +5,7 @@ import shutil
 import textwrap
 from glob import glob
 import tempfile
+import subprocess
 
 import logging
 logger = logging.getLogger(__name__)
@@ -25,12 +26,37 @@ masters_raw="/images/from_astroboy/masters-raw"
 masters="/images/masters"
 
 def siril_run(cwd, commands):
-    shell(textwrap.dedent("""
-        org.siril.Siril -d {cwd} -s - << 'EOF'
-        requires 1.3.4
+    """Executes Siril with a script of commands in a given working directory."""
+    script_content = textwrap.dedent(f"""
+        requires 1.4.0-beta3
         {commands}
-        EOF
-        """))
+        """)
+    
+    # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
+    cmd = f"org.siril.Siril -d {cwd} -s -"
+
+    logger.info(f"Running Siril command in {cwd}")
+    result = subprocess.run(
+        cmd, 
+        input=script_content, 
+        shell=True, 
+        capture_output=True, 
+        text=True, 
+        cwd=cwd
+    )
+
+    if result.returncode != 0:
+        logger.error(f"Siril command failed with exit code {result.returncode}!")
+        logger.error(f"STDOUT:\n{result.stdout}")
+        logger.error(f"STDERR:\n{result.stderr}")
+        result.check_returncode()  # Child process returned an error code
+    else:
+        logger.info("Siril command successful.")
+        if result.stdout:
+            logger.info(f"STDOUT:\n{result.stdout}")
+        if result.stderr:
+            # Siril often prints info to stderr, so we log it as info on success
+            logger.info(f"STDERR:\n{result.stderr}")
 
 
 def siril_run_in_temp_dir(input_files, commands):
@@ -44,7 +70,7 @@ def siril_run_in_temp_dir(input_files, commands):
     # Run Siril commands in the temporary directory
     try:
         logger.info(f"Running Siril in temporary directory: {temp_dir}, cmds {commands}")
-        # siril_run(temp_dir, commands)
+        siril_run(temp_dir, commands)
     finally:
         shutil.rmtree(temp_dir)
 
@@ -119,6 +145,7 @@ FIXME:
 """
 
 def main():
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s - %(message)s')
     logger.info("Starting processing")
 
     # find/create master bias as needed
