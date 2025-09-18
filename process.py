@@ -160,7 +160,7 @@ def make_bkg_pp_light(sessionid: str, sessionconfig: str, bias: str, flat: str):
     This creates a pre-processed (pp_) sequence in the process directory.
     """
     light_base = f"light_s{sessionid}_c{sessionconfig}"
-    output_base = f"bkg_pp_{light_base}"
+    output_base = f"Ha_bkg_pp_{light_base}"
 
     # If the calibrated sequence already exists, skip creation
     if glob(f"{process_dir}/{output_base}_.seq"):
@@ -185,6 +185,9 @@ def make_bkg_pp_light(sessionid: str, sessionconfig: str, bias: str, flat: str):
 
         # Remove background gradient on a per-frame basis (generates bkg_pp_{light_base}.seq)
         seqsubsky pp_{light_base} 1
+
+        # FIXME only do this step for duo filters (refactor to share common light processing function)
+        seqextract_HaOIII bkg_pp_{light_base} -resample=ha
         """)
     siril_run_in_temp_dir(frames, commands)
 
@@ -296,21 +299,23 @@ def main() -> None:
     bias = get_master_bias_path()
 
     sessions = get_sessions(target)
+    all_configs = set()
     for sessionid in sessions:
         for sessionconfig in get_session_configs(sessionid):
+            all_configs.add(sessionconfig)
             # find/create flat.fits as needed
             flat = get_flat_path(sessionid, sessionconfig, bias)
             make_bkg_pp_light(sessionid, sessionconfig, bias, flat)
-            seqextract_HaOiii()
     
-    for sessionconfig in get_current_configs():
-        make_registered()
-        make_stacked()
-        make_flipped()
-        make_registered_flipped()
-        make_result_Ha()
-        make_result_Oiii()
-    pass
+    logger.info(f"All session configs: {all_configs}")
+    # for sessionconfig in all_configs:
+    make_registered()
+    make_stacked()
+    make_flipped()
+    make_registered_flipped()
+    make_result_Ha()
+    make_result_Oiii()
+
 
 if __name__ == "__main__":
     main()
