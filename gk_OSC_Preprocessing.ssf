@@ -23,7 +23,7 @@ requires 1.3.4
 
 # Convert Bias Frames to .fit files
 cd biases
-convert bias -out=../process
+link bias -out=../process
 cd ../process
 
 # Stack Bias Frames to bias_stacked.fit
@@ -32,7 +32,7 @@ cd ..
 
 # Convert Flat Frames to .fit files
 cd flats
-convert flat -out=../process
+link flat -out=../process
 cd ../process
 
 # Calibrate Flat Frames
