@@ -198,33 +198,32 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
     """
     # The sequence name for all frames of this variant and config, across all sessions
     # e.g. Ha_bkg_pp_light_cHaOiii
-    merged_seq_base = f"{variant}_bkg_pp_light_c{sessionconfig}"
+    merged_seq_base = f"{variant}_bkg_pp_light"
 
     # Absolute path for the output stacked file
-    stacked_output_path = f"{process_dir}/{output_file}.fits"
+    stacked_output_path = glob(f"{process_dir}/{output_file}.fit*")
 
-    if os.path.exists(stacked_output_path):
+    if stacked_output_path:
         logger.info(f"Using existing stacked file: {stacked_output_path}")
-        return
+    else:
+        # Merge all frames (from multiple sessions and configs) use those for stacking
+        frames = glob(f"{process_dir}/{variant}_bkg_pp_light_s*_c{sessionconfig}_*.fit*")
 
-    # Merge all frames (from multiple sessions) for this variant and config, use those for stacking
-    frames = glob(f"{process_dir}/{variant}_bkg_pp_light_s*_c{sessionconfig}_*.fit*")
+        logger.info(f"Registering and stacking {len(frames)} frames for {sessionconfig}/{variant} -> {stacked_output_path}")
 
-    logger.info(f"Registering and stacking {len(frames)} frames for {sessionconfig}/{variant} -> {stacked_output_path}")
+        # Siril commands for registration and stacking. We run this in process_dir.
+        commands = textwrap.dedent(f"""
+            link {merged_seq_base} -out={process_dir}
+            cd {process_dir}
 
-    # Siril commands for registration and stacking. We run this in process_dir.
-    commands = textwrap.dedent(f"""
-        link {merged_seq_base} -out={process_dir}
-        cd {process_dir}
-
-        register {merged_seq_base}
-        stack r_{merged_seq_base} rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
+            register {merged_seq_base}
+            stack r_{merged_seq_base} rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
+            
+            # and flip if required
+            mirrorx_single {output_file}
+            """)
         
-        # and flip if required
-        mirrorx_single {output_file}
-        """)
-    
-    siril_run_in_temp_dir(frames, commands)
+        siril_run_in_temp_dir(frames, commands)
 
 def get_sessions(target: str) -> list[str]:
     """
@@ -345,11 +344,19 @@ def main() -> None:
     
     logger.info(f"All session configs: {all_configs}")
     variants = ["Ha", "OIII"] # FIXME: solve capitalization issues and add Sii support
-    for sessionconfig in all_configs:
-        for i, variant in enumerate(variants):
-            # Create a temporary stacked file like results_00001.fits, results_00002.fits
-            make_stacked(sessionconfig, variant, f"results_{i+1:05d}")
-    # make_merged()
+    # for sessionconfig in all_configs:
+    #for i, variant in enumerate(variants):
+
+    # red output channel - from the SiiOiii filter Sii is on the 672nm red channel (mistakenly called Ha by siril)
+    make_stacked("SiiOiii", "Ha", f"results_00001") 
+
+    # green output channel - from the HaOiii filter Ha is on the 656nm red channel
+    make_stacked("HaOiii", "Ha", f"results_00002")
+
+    # blue output channel - both filters have Oiii on the 500nm blue channel.  Note the case here is uppercase to match siril output
+    make_stacked("*", "OIII", f"results_00003")
+
+    # make merged
 
 
 if __name__ == "__main__":
