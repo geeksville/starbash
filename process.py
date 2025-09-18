@@ -6,6 +6,7 @@ import textwrap
 from glob import glob
 import tempfile
 import subprocess
+import re
 
 import logging
 logger = logging.getLogger(__name__)
@@ -81,21 +82,71 @@ def siril_run_in_temp_dir(input_files, commands):
 
 def get_master_bias_path():
     date = "2025-09-09"  # FIXME - later find latest date with bias frames
-    frames = glob(f"{masters_raw}/{date}/BIAS/{date}_*.fits")        
     output = f"{masters}/biases/{date}_stacked.fits"
 
-    siril_run_in_temp_dir(frames, textwrap.dedent(f"""
-        # Convert Bias Frames to .fit files
-        link bias -out={process_dir}
-        cd {process_dir}
+    if os.path.exists(output):
+        logger.info(f"Using existing master bias: {output}")
+        return output
+    else:
+        frames = glob(f"{masters_raw}/{date}/BIAS/{date}_*.fits")
 
-        # Stack Bias Frames to bias_stacked.fit
-        stack bias rej 3 3 -nonorm -out={output}
-        """))
-    
-    return output
+        siril_run_in_temp_dir(frames, textwrap.dedent(f"""
+            # Convert Bias Frames to .fit files
+            link bias -out={process_dir}
+            cd {process_dir}
+
+            # Stack Bias Frames to bias_stacked.fit
+            stack bias rej 3 3 -nonorm -out={output}
+            """))
+        
+        return output
     
 
+def get_sessions(target):
+    """
+    Finds session directories for a given target.
+    A session directory is expected to be a direct subdirectory of the target's path,
+    with a name in the format YYYY-MM-DD.
+    Returns a list of directory names (e.g., ['2025-09-16']).
+    """
+    date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+    base_path = f"{repo}/{target}"
+    
+    if not os.path.isdir(base_path):
+        logger.warning(f"Target directory not found: {base_path}")
+        return []
+
+    return [entry.name for entry in os.scandir(base_path)
+            if entry.is_dir() and date_pattern.match(entry.name)]
+
+def get_session_configs(sessionid):
+    """
+    Finds filter configurations for a given session by inspecting FLAT filenames.
+
+    It looks for files in the session's FLAT directory and parses the filter name
+    from filenames like 'DATE_TIME_FILTER_...'.
+
+    Args:
+        sessionid (str): The ID of the session, typically a date like '2025-09-16'.
+
+    Returns:
+        list[str]: A list of unique filter names found (e.g., ['HaOiii', 'SiiOiii']).
+    """
+    flat_dir = f"{repo}/{target}/{sessionid}/FLAT"
+    if not os.path.isdir(flat_dir):
+        logger.warning(f"FLAT directory not found for session {sessionid} at {flat_dir}")
+        return []
+
+    # Regex to capture the filter name (3rd component) from filenames like:
+    # 2025-09-17_00-00-13_HaOiii_-10.00_6.22s_0000.fits
+    filter_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_(?P<filter>[^_]+)_.+\.fits$")
+
+    # Use a set comprehension to efficiently find unique filter names from filenames.
+    filters = {match.group('filter') for f in os.listdir(flat_dir) if (match := filter_pattern.match(f))}
+
+    found_filters = sorted(list(filters))
+    logger.info(f"Found filters for session {sessionid}: {found_filters}")
+    return found_filters
 """
 notes:
 
