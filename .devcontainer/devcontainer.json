@@ -21,7 +21,7 @@
 
 	"runArgs": [
 		"--privileged", // Allow full hw access from host, also allows writing core dump files
-		"--network=host", // Use host network rather than our bridged container network
+		// "--network=host", // Use host network rather than our bridged container network
 		"--ipc=host", // Needed to make python SharedMemory work
 
 		"--name=sirilscripts-devcontainer", // For easier management

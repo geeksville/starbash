@@ -23,10 +23,12 @@ RUN if ! id -u ${USERNAME} > /dev/null 2>&1; then \
 # Install Siril
 RUN apt-get update
 RUN apt-get -y --no-install-recommends install flatpak graphviz xdot python3-pip python3
-RUN flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-RUN flatpak install -y flathub org.siril.Siril
-
-# Let siril see /tmp
-RUN flatpak override --filesystem=/tmp org.siril.Siril
 
 USER ${USERNAME}
+
+RUN flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+RUN flatpak install --user -y flathub org.siril.Siril
+
+# Let siril see /tmp
+RUN flatpak --user override --filesystem=/tmp org.siril.Siril
+
