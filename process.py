@@ -77,7 +77,7 @@ def siril_run_in_temp_dir(input_files: list[str], commands: str) -> None:
         logger.info(f"Running Siril in temporary directory: {temp_dir}, cmds {commands}")
         siril_run(temp_dir, commands)
     finally:
-        # shutil.rmtree(temp_dir)
+        shutil.rmtree(temp_dir)
         pass  # Keep temp dir for debugging
 
 
@@ -154,16 +154,16 @@ def get_flat_path(sessionid: str, sessionconfig: str, bias: str) -> str:
         siril_run_in_temp_dir(frames, commands)
         return output
 
-def make_pp_light(sessionid: str, sessionconfig: str, bias: str, flat: str):
+def make_bkg_pp_light(sessionid: str, sessionconfig: str, bias: str, flat: str):
     """
     Calibrates light frames for a given session and filter configuration.
     This creates a pre-processed (pp_) sequence in the process directory.
     """
     light_base = f"light_s{sessionid}_c{sessionconfig}"
-    output_base = f"pp_{light_base}"
+    output_base = f"bkg_pp_{light_base}"
 
     # If the calibrated sequence already exists, skip creation
-    if glob(f"{process_dir}/{output_base}_*.fits"):
+    if glob(f"{process_dir}/{output_base}_.seq"):
         logger.info(f"Using existing calibrated light sequence: {output_base}")
         return output_base
 
@@ -179,9 +179,12 @@ def make_pp_light(sessionid: str, sessionconfig: str, bias: str, flat: str):
         # Create a sequence from the raw light frames, seq file goes to process_dir
         link {light_base} -out={process_dir}
         cd {process_dir}
+
         # Calibrate the light frames using master bias and flat
-        # Output sequence pp_{light_base} will be created in the current dir (process_dir)
         calibrate {light_base} -bias={strip_extension(bias)} -flat={strip_extension(flat)} -cfa -equalize_cfa
+
+        # Remove background gradient on a per-frame basis (generates bkg_pp_{light_base}.seq)
+        seqsubsky pp_{light_base} 1
         """)
     siril_run_in_temp_dir(frames, commands)
 
@@ -297,8 +300,7 @@ def main() -> None:
         for sessionconfig in get_session_configs(sessionid):
             # find/create flat.fits as needed
             flat = get_flat_path(sessionid, sessionconfig, bias)
-            make_pp_light(sessionid, sessionconfig, bias, flat)
-            make_bkg_pp_light()
+            make_bkg_pp_light(sessionid, sessionconfig, bias, flat)
             seqextract_HaOiii()
     
     for sessionconfig in get_current_configs():
