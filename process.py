@@ -26,7 +26,7 @@ masters_raw="/images/from_astroboy/masters-raw"
 # Generated from masters raw
 masters="/images/masters"
 
-def siril_run(cwd, commands):
+def siril_run(cwd: str, commands: str) -> None:
     """Executes Siril with a script of commands in a given working directory."""
     script_content = textwrap.dedent(f"""
         requires 1.4.0-beta3
@@ -64,7 +64,7 @@ def siril_run(cwd, commands):
 
 
 
-def siril_run_in_temp_dir(input_files, commands):
+def siril_run_in_temp_dir(input_files: list[str], commands: str) -> None:
     # Create a temporary directory for processing
     temp_dir = tempfile.mkdtemp(prefix="siril_")
 
@@ -77,10 +77,11 @@ def siril_run_in_temp_dir(input_files, commands):
         logger.info(f"Running Siril in temporary directory: {temp_dir}, cmds {commands}")
         siril_run(temp_dir, commands)
     finally:
-        shutil.rmtree(temp_dir)
+        # shutil.rmtree(temp_dir)
+        pass  # Keep temp dir for debugging
 
 
-def get_master_bias_path():
+def get_master_bias_path() -> str:
     date = "2025-09-09"  # FIXME - later find latest date with bias frames
     output = f"{masters}/biases/{date}_stacked.fits"
 
@@ -102,7 +103,48 @@ def get_master_bias_path():
         return output
     
 
-def get_sessions(target):
+def strip_extension(path: str) -> str:
+    """Removes the file extension from a given path."""
+    return os.path.splitext(path)[0]
+
+def get_flat_path(sessionid: str, sessionconfig: str, bias: str) -> str:
+    """
+    Finds or creates a master flat for a given session and filter configuration.
+    The master flat is calibrated with the provided master bias.
+    """
+    # Output path for the master flat, specific to the session and config
+    output_base = f"flat_s{sessionid}_c{sessionconfig}"
+    output = f"{process_dir}/{output_base}.fits"
+
+    # If the master flat already exists, skip creation and return its path
+    if os.path.exists(output):
+        logger.info(f"Using existing master flat: {output}")
+        return output
+    else:
+        logger.info(f"Creating master flat for session {sessionid}, config {sessionconfig} -> {output}")
+        os.makedirs(process_dir, exist_ok=True)
+
+        # Find all raw flat frames for the given session and filter (sessionconfig)
+        frames = glob(f"{repo}/{target}/{sessionid}/FLAT/*_{sessionconfig}_*.fits")
+        if not frames:
+            logger.error(f"No FLAT frames found for session {sessionid}, config {sessionconfig} at {flat_frames_path}")
+            raise FileNotFoundError(f"No FLAT frames found for {sessionid}/{sessionconfig}")
+
+        # Siril commands to create the master flat.
+        # Paths for bias and output must be absolute since Siril runs in a temp directory.
+        commands = textwrap.dedent(f"""
+            # Create a sequence from the raw flat frames
+            link {output_base} -out={process_dir}
+            cd {process_dir}
+            # Calibrate the flat frames using the master bias
+            calibrate {output_base} -bias="{strip_extension(bias)}"
+            # Stack the pre-processed (calibrated) flat frames
+            stack pp_{output_base} rej 3 3 -norm=mul -out="{output}"
+            """)
+        siril_run_in_temp_dir(frames, commands)
+        return output
+
+def get_sessions(target: str) -> list[str]:
     """
     Finds session directories for a given target.
     A session directory is expected to be a direct subdirectory of the target's path,
@@ -119,7 +161,7 @@ def get_sessions(target):
     return [entry.name for entry in os.scandir(base_path)
             if entry.is_dir() and date_pattern.match(entry.name)]
 
-def get_session_configs(sessionid):
+def get_session_configs(sessionid: str) -> list[str]:
     """
     Finds filter configurations for a given session by inspecting FLAT filenames.
 
@@ -163,15 +205,15 @@ outputs:
     bias
 
 process: (one big flat directory)
-  s<sessionid>_c<sessionconfig>_:
-    flat.fits
+  _s<sessionid>_c<sessionconfig>: (THIS IS A SUFFIX ADDED TO EACH BASENAME for the following 'session/config' specific files)
+    flat.fits (stacked calibrated flat for this session and config)
     pp_light.seq (= calibrated lights)
     bkg_pp_light.seq (= calibrated and linear background corrected lights)
 
     Ha_bkg_pp_light.seq (seq extract by color)
     Oiii_bkg_pp_light.seq (seq extract by color)    
 
-  c<sessionconfig>_: (accross all sessions, but per config)
+  _c<sessionconfig>: (THIS IS A SUFFIX ADDED TO EACH BASENAME for the following files - accross all sessions, but per config)
     r_Ha_bkg_pp_light.seq (registered)  
     stacked_r_Ha_bkg_pp_light.fit (stacked)
     flipped_00001.fit (flipped for Ha)
@@ -201,7 +243,7 @@ FIXME:
   add caching of masters and flats in TBD directories
 """
 
-def main():
+def main() -> None:
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s - %(message)s')
     logger.info("Starting processing")
 
