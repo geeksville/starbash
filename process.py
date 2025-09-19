@@ -307,14 +307,17 @@ def make_renormalize():
 
     # Siril commands to be executed in the 'process' directory
     commands = textwrap.dedent(f"""
-        # -transf=shift fails sometimes, which I guess is possible because the different channels were stacked independently
+        # -transf=shift fails sometimes, which I guess is possible because we have multiple sessions with possible different camera rotation
         # -interp=none also fails sometimes, so let default interp happen
         register results 
         pm {pm_oiii}
+        updatekey FILTER Oiii
         save "{oiii_final_path}"
         pm {pm_sii}
+        updatekey FILTER Sii
         save "{sii_final_path}"
         load {r_ha}
+        updatekey FILTER Ha
         save "{ha_final_path}"
         """)
 
