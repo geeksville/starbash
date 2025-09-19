@@ -5,6 +5,7 @@
 * FIX GRAXPERT RELEASE!
 * merge the tri colors into one file using pixel math
 * generalize processing to also work on single duo filter or broadband OSC
+* do star extraction
 * unify the various processing routines by using a templating system
 * print report on frame quality, registration etc...
 
