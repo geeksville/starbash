@@ -11,7 +11,10 @@ import re
 import logging
 logger = logging.getLogger(__name__)
 
-target="NGC 281"
+delete_temps = True
+
+# target="NGC 281"
+target="IC 1848"
 
 # paths of the form
 # /images/from_astroboy/NGC 281/2025-09-16/FLAT/2025-09-17_00-00-29_HaOiii_-9.90_6.22s_0002.fits
@@ -33,6 +36,13 @@ masters_raw="/images/from_astroboy/masters-raw"
 preprocessed="/images/preprocessed"
 masters=preprocessed+"/masters"
 targets=preprocessed+"/targets"
+
+def perhaps_delete_temps(temps: list[str]) -> None:
+    if delete_temps:
+        for t in temps:
+            for path in glob(f"{process_dir}/{t}_*"):
+                os.remove(path)
+
 
 def siril_run(cwd: str, commands: str) -> None:
     """Executes Siril with a script of commands in a given working directory."""
@@ -140,7 +150,6 @@ def get_flat_path(sessionid: str, sessionconfig: str, bias: str) -> str:
     # If the master flat already exists, skip creation and return its path
     if os.path.exists(output):
         logger.info(f"Using existing master flat: {output}")
-        return output
     else:
         logger.info(f"Creating master flat for session {sessionid}, config {sessionconfig} -> {output}")
         os.makedirs(process_dir, exist_ok=True)
@@ -160,7 +169,9 @@ def get_flat_path(sessionid: str, sessionconfig: str, bias: str) -> str:
             stack pp_{output_base} rej 3 3 -norm=mul -out={output}
             """)
         siril_run_in_temp_dir(frames, commands)
-        return output
+    
+    perhaps_delete_temps([output_base, f"pp_{output_base}"])
+    return output
 
 def make_bkg_pp_light(sessionid: str, sessionconfig: str, bias: str, flat: str):
     """
@@ -173,31 +184,33 @@ def make_bkg_pp_light(sessionid: str, sessionconfig: str, bias: str, flat: str):
     # If the calibrated sequence already exists, skip creation
     if glob(f"{process_dir}/{output_base}_.seq"):
         logger.info(f"Using existing calibrated light sequence: {output_base}")
-        return output_base
+    else:
+        logger.info(f"Creating calibrated light sequence for session {sessionid}, config {sessionconfig} -> {output_base}")
+        os.makedirs(process_dir, exist_ok=True)
 
-    logger.info(f"Creating calibrated light sequence for session {sessionid}, config {sessionconfig} -> {output_base}")
-    os.makedirs(process_dir, exist_ok=True)
+        # Find all raw light frames for the given session and filter
+        frames = find_frames(target, sessionid, sessionconfig, "LIGHT")
 
-    # Find all raw light frames for the given session and filter
-    frames = find_frames(target, sessionid, sessionconfig, "LIGHT")
+        # Siril commands to calibrate the light frames.
+        # This runs in a temp dir with symlinks to raw files, but cds into process_dir to work.
+        commands = textwrap.dedent(f"""
+            # Create a sequence from the raw light frames, seq file goes to process_dir
+            link {light_base} -out={process_dir}
+            cd {process_dir}
 
-    # Siril commands to calibrate the light frames.
-    # This runs in a temp dir with symlinks to raw files, but cds into process_dir to work.
-    commands = textwrap.dedent(f"""
-        # Create a sequence from the raw light frames, seq file goes to process_dir
-        link {light_base} -out={process_dir}
-        cd {process_dir}
+            # Calibrate the light frames using master bias and flat
+            calibrate {light_base} -bias={strip_extension(bias)} -flat={strip_extension(flat)} -cfa -equalize_cfa
 
-        # Calibrate the light frames using master bias and flat
-        calibrate {light_base} -bias={strip_extension(bias)} -flat={strip_extension(flat)} -cfa -equalize_cfa
+            # Remove background gradient on a per-frame basis (generates bkg_pp_{light_base}.seq)
+            seqsubsky pp_{light_base} 1
 
-        # Remove background gradient on a per-frame basis (generates bkg_pp_{light_base}.seq)
-        seqsubsky pp_{light_base} 1
+            # FIXME only do this step for duo filters (refactor to share common light processing function)
+            seqextract_HaOIII bkg_pp_{light_base} -resample=ha
+            """)
+        siril_run_in_temp_dir(frames, commands)
 
-        # FIXME only do this step for duo filters (refactor to share common light processing function)
-        seqextract_HaOIII bkg_pp_{light_base} -resample=ha
-        """)
-    siril_run_in_temp_dir(frames, commands)
+    perhaps_delete_temps([light_base, f"pp_{light_base}", f"bkg_pp_{light_base}"])
+
 
 def make_stacked(sessionconfig: str, variant: str, output_file: str):
     """
@@ -232,6 +245,9 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
             """)
         
         siril_run_in_temp_dir(frames, commands)
+
+    perhaps_delete_temps([merged_seq_base, f"r_{merged_seq_base}"])
+
 
 def make_renormalize():
     """
@@ -328,6 +344,7 @@ def get_session_configs(sessionid: str) -> list[str]:
     found_filters = sorted(list(filters))
     logger.info(f"Found filters for session {sessionid}: {found_filters}")
     return found_filters
+
 """
 notes:
 
