@@ -46,9 +46,11 @@ def perhaps_delete_temps(temps: list[str]) -> None:
 
 def siril_run(cwd: str, commands: str) -> None:
     """Executes Siril with a script of commands in a given working directory."""
+
+    # We dedent here because the commands are often indented multiline strings
     script_content = textwrap.dedent(f"""
         requires 1.4.0-beta3
-        {commands}
+        {textwrap.dedent(commands)}
         """)
     
     # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
@@ -109,14 +111,14 @@ def get_master_bias_path() -> str:
     else:
         frames = glob(f"{masters_raw}/{date}/BIAS/{date}_*.fit*")
 
-        siril_run_in_temp_dir(frames, textwrap.dedent(f"""
+        siril_run_in_temp_dir(frames, f"""
             # Convert Bias Frames to .fit files
             link bias -out={process_dir}
             cd {process_dir}
 
             # Stack Bias Frames to bias_stacked.fit
             stack bias rej 3 3 -nonorm -out={output}
-            """))
+            """)
         
         return output
     
@@ -179,7 +181,7 @@ def get_flat_path(sessionid: str, sessionconfig: str, bias: str) -> str:
 
         # Siril commands to create the master flat.
         # Paths for bias and output must be absolute since Siril runs in a temp directory.
-        commands = textwrap.dedent(f"""
+        commands = f"""
             # Create a sequence from the raw flat frames
             link {output_base} -out={process_dir}
             cd {process_dir}
@@ -187,7 +189,7 @@ def get_flat_path(sessionid: str, sessionconfig: str, bias: str) -> str:
             calibrate {output_base} -bias={strip_extension(bias)}
             # Stack the pre-processed (calibrated) flat frames
             stack pp_{output_base} rej 3 3 -norm=mul -out={output}
-            """)
+            """
         siril_run_in_temp_dir(frames, commands)
     
     perhaps_delete_temps([output_base, f"pp_{output_base}"])
@@ -213,7 +215,7 @@ def process_per_session_config(sessionid: str, sessionconfig: str, bias: str, fl
 
         # Siril commands to calibrate the light frames.
         # This runs in a temp dir with symlinks to raw files, but cds into process_dir to work.
-        commands = textwrap.dedent(f"""
+        commands = f"""
             # Create a sequence from the raw light frames, seq file goes to process_dir
             link {light_base} -out={process_dir}
             cd {process_dir}
@@ -226,7 +228,7 @@ def process_per_session_config(sessionid: str, sessionconfig: str, bias: str, fl
 
             # FIXME only do this step for duo filters (refactor to share common light processing function)
             seqextract_HaOIII bkg_pp_{light_base} -resample=ha
-            """)
+            """
         siril_run_in_temp_dir(frames, commands)
 
     perhaps_delete_temps([light_base, f"pp_{light_base}", f"bkg_pp_{light_base}"])
@@ -253,7 +255,7 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
         logger.info(f"Registering and stacking {len(frames)} frames for {sessionconfig}/{variant} -> {stacked_output_path}")
 
         # Siril commands for registration and stacking. We run this in process_dir.
-        commands = textwrap.dedent(f"""
+        commands = f"""
             link {merged_seq_base} -out={process_dir}
             cd {process_dir}
 
@@ -262,7 +264,7 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
             
             # and flip if required
             mirrorx_single {output_file}
-            """)
+            """
         
         siril_run_in_temp_dir(frames, commands)
 
@@ -306,7 +308,7 @@ def make_renormalize():
     pm_sii = f'"${r_sii}$*mad(${r_ha}$)/mad(${r_sii}$)-mad(${r_ha}$)/mad(${r_sii}$)*median(${r_sii}$)+median(${r_ha}$)"'
 
     # Siril commands to be executed in the 'process' directory
-    commands = textwrap.dedent(f"""
+    commands = f"""
         # -transf=shift fails sometimes, which I guess is possible because we have multiple sessions with possible different camera rotation
         # -interp=none also fails sometimes, so let default interp happen
         register results 
@@ -319,7 +321,7 @@ def make_renormalize():
         load {r_ha}
         update_key FILTER Ha "OSC dual Duo filter extracted"
         save "{ha_final_path}"
-        """)
+        """
 
     siril_run(process_dir, commands)
     logger.info(f"Saved final renormalized images to {results_dir}")
@@ -403,9 +405,7 @@ process: (one big flat directory)
     stacked_r_Oiii_bkg_pp_light.fit (stacked)
     flipped_00002.fit (flipped for Oiii)
 
-    FIXME - later add 03 for Sii, and stack the two Oiii variants together
-    r_Sii_bkg_pp_light.seq (registered)
-    stacked_r_Sii_bkg_pp_light.fit (stacked)
+    optionally add 03 for Sii, and stack the two Oiii variants together
     flipped_00003.fit (flipped for Sii)
 
     r_flipped.seq (flipped and registered)
