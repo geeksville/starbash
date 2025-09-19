@@ -96,7 +96,7 @@ def siril_run_in_temp_dir(input_files: list[str], commands: str) -> None:
         siril_run(temp_dir, commands)
     finally:
         shutil.rmtree(temp_dir)
-        pass  # Keep temp dir for debugging
+
 
 
 def get_master_bias_path() -> str:
@@ -287,7 +287,9 @@ def make_renormalize():
 
     # Siril commands to be executed in the 'process' directory
     commands = textwrap.dedent(f"""
-        register results -transf=shift -interp=none
+        # -transf=shift fails sometimes, which I guess is possible because the different channels were stacked independently
+        # -interp=none also fails sometimes, so let default interp happen
+        register results 
         pm {pm_oiii}
         save "{oiii_final_path}"
         pm {pm_sii}
