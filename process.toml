@@ -6,7 +6,13 @@ darks = "master_darks.fits" # FIXME, if not set assumed to be in masters - will 
 flats = "master_flats.fits" # FIXME, if not set assumed to be in the directory tree with the lights
 preproccessed = "." # assumes this project.toml is in the this output directory?
 
-[processing]
+[[processing.recipe-source]]
+
+# add a place to find FOO.ag.toml files
+url = "http:..."
+file = "/foo/blah"
+
+[processing.recipe]
 python-recipe = "osc-dual-duo" # 
 python-recpipe-url = "http:..."
 
