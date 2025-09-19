@@ -311,13 +311,13 @@ def make_renormalize():
         # -interp=none also fails sometimes, so let default interp happen
         register results 
         pm {pm_oiii}
-        update_key FILTER Oiii
+        update_key FILTER Oiii "OSC dual Duo filter extracted"
         save "{oiii_final_path}"
         pm {pm_sii}
-        update_key FILTER Sii
+        update_key FILTER Sii "OSC dual Duo filter extracted"
         save "{sii_final_path}"
         load {r_ha}
-        update_key FILTER Ha
+        update_key FILTER Ha "OSC dual Duo filter extracted"
         save "{ha_final_path}"
         """)
 
