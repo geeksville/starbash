@@ -1,7 +1,0 @@
-[data]
-
-masters = "/images/masters" # or use a file url?
-bias = "master_bias.fits" # FIXME, if not set assumed to be in masters - will be initially found based on date
-darks = "master_darks.fits" # FIXME, if not set assumed to be in masters - will be initially found based on date
-flats = "master_flats.fits" # FIXME, if not set assumed to be in the directory tree with the lights
-preproccessed = "." # assumes this project.toml is in the this output directory?

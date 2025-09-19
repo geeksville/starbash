@@ -2,6 +2,24 @@
 # it is initially auto populated based on the best guess of astroglue, but the user
 # can hand customize as needed
 
+[author]
+
+# (if not present this section will be auto generated at processing time)
+# this whole secion is auto copied from userprefs.ag.toml
+name = "Bob Dude"
+email = "foo@foo.com"
+website = "http://mydomain.com/astocruft"
+license = "Creative commons etc..."
+
+[about]
+
+# (if not present this section will be auto generated at processing time)
+# this section contains textual information the user might want to share on social media or whatever
+# some of it comes from FITS headers gleaned during processing or other statistics
+
+target.id = "NGC281"
+target.name = "Some Big Nebula"
+
 [processing.recipe]
 
 # Astroglue will search all recipe repos to find this by name
@@ -11,8 +29,39 @@ python-recipe = "osc-dual-duo"
 # osc-duo, osc-broadband
 # mono-sho (fixme find other names used in mono workflow land)
 
+# a default astroglue file for a particular processed target will typically contain only the preceeding
+
+
+
+# (if not present this section will be auto generated at processing time)
+[[ aquisition ]]
+
+# time of first frame in this session-config 
+date = 1979-05-27T07:32:00
+num-frames = 45
+exposure = 120
+filter = "HaOiii"
+temperature = 23.5
+wind = 4.5
+telescope = "Askar V"
+focal-length = 600
+apature = 80
+mount = "ZWO AM5"
+
+# storing these settings here ensure if we reprocess settings remain the same
+processing.settings.flat-file = "/blag/blah.fits"
+processing.settings.bias-file="/images/masters/biases/foo-2025-09-23-bias_stacked.fits"
+processing.settings.dark-file="/images/masters/darks/foo-2025-09-23-120s_dark_stacked.fits"
+
+[[ aquisition ]]
+date = "2025/09/25"
+num-frames = 30
+exposure = 30
+filter = "SiiOiii"
+
 [data]
 
+# optional?  FIXME, I'm not sure if this should be copied in by default?
 # this data is copied from the global settings at the time of the first processing run, to capture the directory/file locations at the time the file 
 # was processed
 

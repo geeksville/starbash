@@ -1,0 +1,50 @@
+
+
+# all ag.toml files can optionally contain a version section.  if version of the running astroglue app is out of bounds a warning message will be printed
+# to the user and the file will be ignored for future processing.
+
+[version]
+
+min="2.3.0"
+max="4.5.8"
+
+# List the initial search path to find other repos, when the app launches it always first loads this ag.toml file and this file should list all of the
+# standard default repo locations.  When searching repos, repos listed LAST have precidence, so target file can override the root processing defults, 
+# then the user prefs, then a live github URL or whatever
+
+[[repo.ref]]
+
+# Possibly provide default repos via http from github?
+url = "https://github.com/geeksville/astroglue-default-repo"
+
+[[repo.ref]]
+
+# User custom settings live here
+file = "~/.config/astroglue"
+
+[[repo.ref]]
+
+# recipe repos contain recpies (identified by name).  When any ag.toml file references
+# a recipe the current path of all sources is searched to find that named recipe.
+
+# the standard config includes a few key recipe repos, but interested users or tool
+# vendors can define/provide their own
+
+# add a place to find FOO.ag.toml files
+url = "http:..."
+file = "/foo/blah"
+
+
+
+# or inband?
+
+
+# allow including multiple recipies
+[[repo.ref]]
+
+# looks for a file with this name and .py for the code and .toml for the config
+# we'll expect that toml file to contain various [[processing.*]] sections which will be loaded at this
+# location in the sequence as if they were defined here
+by-file = "process-osc-dual-duo"
+by-url = "http:..."
+
