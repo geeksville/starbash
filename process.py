@@ -18,7 +18,13 @@ target="NGC 281"
 # /images/from_astroboy/NGC 281/2025-09-16/LIGHT/2025-09-17_00-43-32_SiiOiii_-9.90_120.00s_0006.fits
 repo="/images/from_astroboy"
 siril_work="/images/siril_new"
-process_dir=f"{siril_work}/process"
+
+def normalize_target_name(name: str) -> str:
+    """Converts a target name to an any filesystem-safe format by removing spaces"""
+    return name.replace(" ", "").upper()
+
+# The temporary processing directory for siril (we try to key it by target name but siril doesn't like spaces)
+process_dir=f"{siril_work}/{normalize_target_name(target)}"
 
 # directories of the form /images/from_astroboy/masters-raw/2025-09-09/BIAS/2025-09-09_20-33-19_Dark_-9.70_0.00s_0030.fits
 masters_raw="/images/from_astroboy/masters-raw"
@@ -240,7 +246,7 @@ def make_renormalize():
     oiii_base = "results_00003"
 
     # Define final output paths. The 'results' directory is a symlink in the work dir.
-    results_dir = f"{targets}/{target}"
+    results_dir = f"{targets}/{normalize_target_name(target)}"
     os.makedirs(results_dir, exist_ok=True)
     
     ha_final_path = f"{results_dir}/stacked_Ha.fits"
