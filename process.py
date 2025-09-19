@@ -23,8 +23,10 @@ process_dir=f"{siril_work}/process"
 # directories of the form /images/from_astroboy/masters-raw/2025-09-09/BIAS/2025-09-09_20-33-19_Dark_-9.70_0.00s_0030.fits
 masters_raw="/images/from_astroboy/masters-raw"
 
-# Generated from masters raw
-masters="/images/masters"
+# High value preprocecssed outputs
+preprocessed="/images/preprocessed"
+masters=preprocessed+"/masters"
+targets=preprocessed+"/targets"
 
 def siril_run(cwd: str, commands: str) -> None:
     """Executes Siril with a script of commands in a given working directory."""
@@ -238,12 +240,12 @@ def make_renormalize():
     oiii_base = "results_00003"
 
     # Define final output paths. The 'results' directory is a symlink in the work dir.
-    results_dir = os.path.abspath(os.path.join(process_dir, "..", "results"))
+    results_dir = f"{targets}/{target}"
     os.makedirs(results_dir, exist_ok=True)
     
-    ha_final_path = f"{results_dir}/result_Ha.fits"
-    sii_final_path = f"{results_dir}/result_Sii.fits"
-    oiii_final_path = f"{results_dir}/result_OIII.fits"
+    ha_final_path = f"{results_dir}/stacked_Ha.fits"
+    sii_final_path = f"{results_dir}/stacked_Sii.fits"
+    oiii_final_path = f"{results_dir}/stacked_OIII.fits"
 
     # Check if final files already exist to allow resuming
     if all(os.path.exists(f) for f in [ha_final_path, sii_final_path, oiii_final_path]):
@@ -265,11 +267,11 @@ def make_renormalize():
     commands = textwrap.dedent(f"""
         register results -transf=shift -interp=none
         pm {pm_oiii}
-        save {oiii_final_path}
+        save "{oiii_final_path}"
         pm {pm_sii}
-        save {sii_final_path}
+        save "{sii_final_path}"
         load {r_ha}
-        save {ha_final_path}
+        save "{ha_final_path}"
         """)
 
     siril_run(process_dir, commands)
