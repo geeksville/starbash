@@ -311,13 +311,13 @@ def make_renormalize():
         # -interp=none also fails sometimes, so let default interp happen
         register results 
         pm {pm_oiii}
-        updatekey FILTER Oiii
+        update_key FILTER Oiii
         save "{oiii_final_path}"
         pm {pm_sii}
-        updatekey FILTER Sii
+        update_key FILTER Sii
         save "{sii_final_path}"
         load {r_ha}
-        updatekey FILTER Ha
+        update_key FILTER Ha
         save "{ha_final_path}"
         """)
 
