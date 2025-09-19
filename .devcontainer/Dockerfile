@@ -11,7 +11,8 @@ USER root
 RUN apt update
 
 # Add core python packages
-RUN apt-get -y install --no-install-recommends python3 python3-pip python3-venv python-is-python3 python3-tk sudo git 
+RUN apt-get -y install --no-install-recommends python3 python3-pip python3-venv \
+        python-is-python3 python3-tk sudo git flatpak
 
 # Create a non-root user if one doesn't exist, and give it sudo rights
 RUN if ! id -u ${USERNAME} > /dev/null 2>&1; then \
@@ -20,15 +21,7 @@ RUN if ! id -u ${USERNAME} > /dev/null 2>&1; then \
         echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME}-nopasswd; \
     fi
 
-# Install Siril
-RUN apt-get update
-RUN apt-get -y --no-install-recommends install flatpak graphviz xdot python3-pip python3
-
 USER ${USERNAME}
 
-RUN flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-RUN flatpak install --user -y flathub org.siril.Siril
 
-# Let siril see /tmp
-RUN flatpak --user override --filesystem=/tmp org.siril.Siril
 

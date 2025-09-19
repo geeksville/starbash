@@ -45,6 +45,9 @@
     	"source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",
 		"source=/run/user/1000,target=/run/user/1000,type=bind",
 
+		// let container see host dbus, so that flatpak can work inside
+		"source=/run/dbus,target=/run/dbus,type=bind",
+
 		// It is handy to have some test images available in the container
 		"source=${localEnv:HOME}/Pictures/telescope,target=/images,type=bind,consistency=cached",
 		"source=/mnt/kshared,target=/mnt/kshared,type=bind,consistency=cached",
