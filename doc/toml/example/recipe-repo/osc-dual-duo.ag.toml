@@ -1,4 +1,10 @@
 
+# all ag.toml files can optionally contain a version section.  if version of the running astroglue app is out of bounds a warning message will be printed
+# to the user and the file will be ignored for future processing.
+[version]
+min="2.3.0"
+max="4.5.8"
+
 [processing.recipe.metadata]
 author = "..."
 description = "Process OSC dual duo filter data, extracting Ha and Sii from the red channel"

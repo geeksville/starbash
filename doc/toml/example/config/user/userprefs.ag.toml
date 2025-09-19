@@ -1,6 +1,8 @@
 
-[author]
+[repo]
+kind="preferences"
 
+[author]
 # default author info
 name = "Bob Dude"
 email = "foo@foo.com"
