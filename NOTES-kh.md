@@ -2,7 +2,6 @@
 
 * do background elim with graxpert before tri merge
 * merge the tri colors into one file using pixel math
-* fix bug where the Ha... temp files get deleted
 * generalize processing to also work on single duo filter or broadband OSC
 * unify the various processing routines by using a templating system
 * print report on frame quality, registration etc...

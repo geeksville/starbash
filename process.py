@@ -193,7 +193,7 @@ def get_flat_path(sessionid: str, sessionconfig: str, bias: str) -> str:
     perhaps_delete_temps([output_base, f"pp_{output_base}"])
     return output
 
-def make_bkg_pp_light(sessionid: str, sessionconfig: str, bias: str, flat: str):
+def process_per_session_config(sessionid: str, sessionconfig: str, bias: str, flat: str):
     """
     Calibrates light frames for a given session and filter configuration.
     This creates a pre-processed (pp_) sequence in the process directory.
@@ -435,7 +435,7 @@ def main() -> None:
             all_configs.add(sessionconfig)
             # find/create flat.fits as needed
             flat = get_flat_path(sessionid, sessionconfig, bias)
-            make_bkg_pp_light(sessionid, sessionconfig, bias, flat)
+            process_per_session_config(sessionid, sessionconfig, bias, flat)
     
     logger.info(f"All session configs: {all_configs}")
     variants = ["Ha", "OIII"] # FIXME: solve capitalization issues and work with single or dual Duo filter
