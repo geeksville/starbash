@@ -130,12 +130,12 @@ def find_target_dir(target_name: str) -> str:
     Finds a directory in base_path that matches target_name, ignoring case and spaces.
     Returns the full path to the matching directory, or None if not found.
     """
-    normalized_target = target_name.replace(" ", "").lower()
+    normalized_target = normalize_target_name(target_name)
 
     base_path = repo
     for entry in os.scandir(base_path):
         if entry.is_dir():
-            normalized_entry = entry.name.replace(" ", "").lower()
+            normalized_entry = normalize_target_name(entry.name)
             if normalized_entry == normalized_target:
                 return entry.path
 
@@ -237,9 +237,9 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
     Registers and stacks all pre-processed light frames for a given filter configuration
     across all sessions.
     """
-    # The sequence name for all frames of this variant and config, across all sessions
+    # The sequence name for all frames of this variant across all sessions
     # e.g. Ha_bkg_pp_light_cHaOiii
-    merged_seq_base = f"{variant}_bkg_pp_light"
+    merged_seq_base = f"all_{variant}_bkg_pp_light"
 
     # Absolute path for the output stacked file
     stacked_output_path = glob(f"{process_dir}/{output_file}.fit*")
