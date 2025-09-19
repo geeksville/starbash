@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 
 delete_temps = True
 
-# target="NGC 281"
-target="IC 1848"
+target="ngc281"
+# target="IC 1848"
 
 # paths of the form
 # /images/from_astroboy/NGC 281/2025-09-16/FLAT/2025-09-17_00-00-29_HaOiii_-9.90_6.22s_0002.fits
@@ -125,13 +125,33 @@ def strip_extension(path: str) -> str:
     """Removes the file extension from a given path."""
     return os.path.splitext(path)[0]
 
+def find_target_dir(target_name: str) -> str:
+    """
+    Finds a directory in base_path that matches target_name, ignoring case and spaces.
+    Returns the full path to the matching directory, or None if not found.
+    """
+    normalized_target = target_name.replace(" ", "").lower()
+
+    base_path = repo
+    for entry in os.scandir(base_path):
+        if entry.is_dir():
+            normalized_entry = entry.name.replace(" ", "").lower()
+            if normalized_entry == normalized_target:
+                return entry.path
+
+    raise FileNotFoundError(f"Target directory not found: {base_path}/{target_name}")
+
+
+
 def find_frames(target: str, sessionid: str, sessionconfig: str, frametype: str) -> list[str]:
     """
     Finds all frames of a given type (e.g., 'FLAT', 'LIGHT') for a specific target,
     session, and filter configuration.
     """
-    frames_path = f"{repo}/{target}/{sessionid}/{frametype}/*_{sessionconfig}_*.fit*"
-    frames = glob(frames_path)
+    target_dir = find_target_dir(target)
+
+    frames_path = f"{target_dir}/{sessionid}/{frametype}"
+    frames = glob(f"{frames_path}/*_{sessionconfig}_*.fit*")
     if not frames:
         logger.error(f"No {frametype} frames found for session {sessionid}, config {sessionconfig} at {frames_path}")
         raise FileNotFoundError(f"No {frametype} frames found for {sessionid}/{sessionconfig}")
@@ -309,13 +329,9 @@ def get_sessions(target: str) -> list[str]:
     Returns a list of directory names (e.g., ['2025-09-16']).
     """
     date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
-    base_path = f"{repo}/{target}"
-    
-    if not os.path.isdir(base_path):
-        logger.warning(f"Target directory not found: {base_path}")
-        return []
+    target_dir = find_target_dir(target)
 
-    return [entry.name for entry in os.scandir(base_path)
+    return [entry.name for entry in os.scandir(target_dir)
             if entry.is_dir() and date_pattern.match(entry.name)]
 
 def get_session_configs(sessionid: str) -> list[str]:
@@ -331,7 +347,9 @@ def get_session_configs(sessionid: str) -> list[str]:
     Returns:
         list[str]: A list of unique filter names found (e.g., ['HaOiii', 'SiiOiii']).
     """
-    flat_dir = f"{repo}/{target}/{sessionid}/FLAT"
+    target_dir = find_target_dir(target)
+
+    flat_dir = f"{target_dir}/{sessionid}/FLAT"
     if not os.path.isdir(flat_dir):
         logger.warning(f"FLAT directory not found for session {sessionid} at {flat_dir}")
         return []
