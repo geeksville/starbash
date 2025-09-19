@@ -1,5 +1,3 @@
-
-
 import os
 import shutil
 import textwrap
@@ -9,33 +7,40 @@ import subprocess
 import re
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 delete_temps = True
 
-target="ngc281"
+target = "ngc281"
 # target="IC 1848"
+
+# root = "/images"
+root = "/mnt/kshared"
 
 # paths of the form
 # /images/from_astroboy/NGC 281/2025-09-16/FLAT/2025-09-17_00-00-29_HaOiii_-9.90_6.22s_0002.fits
 # /images/from_astroboy/NGC 281/2025-09-16/LIGHT/2025-09-17_00-43-32_SiiOiii_-9.90_120.00s_0006.fits
-repo="/images/from_astroboy"
-siril_work="/images/siril_new"
+repo = f"{root}/from_astroboy"
+siril_work = f"/home/kevinh/Pictures/telescope/siril_new"
+
 
 def normalize_target_name(name: str) -> str:
     """Converts a target name to an any filesystem-safe format by removing spaces"""
     return name.replace(" ", "").upper()
 
+
 # The temporary processing directory for siril (we try to key it by target name but siril doesn't like spaces)
-process_dir=f"{siril_work}/{normalize_target_name(target)}"
+process_dir = f"{siril_work}/{normalize_target_name(target)}"
 
 # directories of the form /images/from_astroboy/masters-raw/2025-09-09/BIAS/2025-09-09_20-33-19_Dark_-9.70_0.00s_0030.fits
-masters_raw="/images/from_astroboy/masters-raw"
+masters_raw = f"{repo}/masters-raw"
 
 # High value preprocecssed outputs
-preprocessed="/images/preprocessed"
-masters=preprocessed+"/masters"
-targets=preprocessed+"/targets"
+preprocessed = f"{root}/preprocessed"
+masters = preprocessed + "/masters"
+targets = preprocessed + "/targets"
+
 
 def perhaps_delete_temps(temps: list[str]) -> None:
     if delete_temps:
@@ -44,44 +49,56 @@ def perhaps_delete_temps(temps: list[str]) -> None:
                 os.remove(path)
 
 
-def siril_run(cwd: str, commands: str) -> None:
-    """Executes Siril with a script of commands in a given working directory."""
+def tool_run(cmd: str, cwd: str, commands: str = None) -> None:
+    """Executes an external tool with an optional script of commands in a given working directory."""
 
-    # We dedent here because the commands are often indented multiline strings
-    script_content = textwrap.dedent(f"""
-        requires 1.4.0-beta3
-        {textwrap.dedent(commands)}
-        """)
-    
-    # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
-    cmd = f"org.siril.Siril -d {cwd} -s -"
-
-    logger.debug(f"Running Siril command in {cwd}: {commands}")
+    logger.debug(f"Running {cmd} in {cwd}: stdin={commands}")
     result = subprocess.run(
-        cmd, 
-        input=script_content, 
-        shell=True, 
-        capture_output=True, 
-        text=True, 
-        cwd=cwd
+        cmd, input=commands, shell=True, capture_output=True, text=True, cwd=cwd
     )
 
     if result.stdout:
-        logger.debug(f"Siril output:\n")
+        logger.debug(f"Tool output:\n")
         for line in result.stdout.splitlines():
             logger.debug(line)
 
     if result.stderr:
-        logger.warning(f"Siril error message:")
+        logger.warning(f"Tool error message:")
         for line in result.stderr.splitlines():
             logger.warning(line)
 
     if result.returncode != 0:
-        logger.error(f"Siril command failed with exit code {result.returncode}!")
+        logger.error(f"Tool failed with exit code {result.returncode}!")
         result.check_returncode()  # Child process returned an error code
     else:
-        logger.info("Siril command successful.")
+        logger.info("Tool command successful.")
 
+
+def siril_run(cwd: str, commands: str) -> None:
+    """Executes Siril with a script of commands in a given working directory."""
+
+    # We dedent here because the commands are often indented multiline strings
+    script_content = textwrap.dedent(
+        f"""
+        requires 1.4.0-beta3
+        {textwrap.dedent(commands)}
+        """
+    )
+
+    # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
+    # It seems like the -d command may also be required when siril is in a flatpak
+    cmd = f"org.siril.Siril -d {cwd} -s -"
+
+    tool_run(cmd, cwd, script_content)
+
+
+def graxpert_run(cwd: str, arguments: str) -> None:
+    """Executes Graxpert with the specified command line arguments"""
+
+    # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
+    cmd = f"graxpert {arguments}"
+
+    tool_run(cmd, cwd)
 
 
 def siril_run_in_temp_dir(input_files: list[str], commands: str) -> None:
@@ -90,15 +107,18 @@ def siril_run_in_temp_dir(input_files: list[str], commands: str) -> None:
 
     # Create symbolic links for all input files in the temp directory
     for f in input_files:
-        os.symlink(os.path.abspath(str(f)), os.path.join(temp_dir, os.path.basename(str(f))))
+        os.symlink(
+            os.path.abspath(str(f)), os.path.join(temp_dir, os.path.basename(str(f)))
+        )
 
     # Run Siril commands in the temporary directory
     try:
-        logger.info(f"Running Siril in temporary directory: {temp_dir}, cmds {commands}")
+        logger.info(
+            f"Running Siril in temporary directory: {temp_dir}, cmds {commands}"
+        )
         siril_run(temp_dir, commands)
     finally:
         shutil.rmtree(temp_dir)
-
 
 
 def get_master_bias_path() -> str:
@@ -111,21 +131,25 @@ def get_master_bias_path() -> str:
     else:
         frames = glob(f"{masters_raw}/{date}/BIAS/{date}_*.fit*")
 
-        siril_run_in_temp_dir(frames, f"""
+        siril_run_in_temp_dir(
+            frames,
+            f"""
             # Convert Bias Frames to .fit files
             link bias -out={process_dir}
             cd {process_dir}
 
             # Stack Bias Frames to bias_stacked.fit
             stack bias rej 3 3 -nonorm -out={output}
-            """)
-        
+            """,
+        )
+
         return output
-    
+
 
 def strip_extension(path: str) -> str:
     """Removes the file extension from a given path."""
     return os.path.splitext(path)[0]
+
 
 def find_target_dir(target_name: str) -> str:
     """
@@ -144,8 +168,9 @@ def find_target_dir(target_name: str) -> str:
     raise FileNotFoundError(f"Target directory not found: {base_path}/{target_name}")
 
 
-
-def find_frames(target: str, sessionid: str, sessionconfig: str, frametype: str) -> list[str]:
+def find_frames(
+    target: str, sessionid: str, sessionconfig: str, frametype: str
+) -> list[str]:
     """
     Finds all frames of a given type (e.g., 'FLAT', 'LIGHT') for a specific target,
     session, and filter configuration.
@@ -155,8 +180,12 @@ def find_frames(target: str, sessionid: str, sessionconfig: str, frametype: str)
     frames_path = f"{target_dir}/{sessionid}/{frametype}"
     frames = glob(f"{frames_path}/*_{sessionconfig}_*.fit*")
     if not frames:
-        logger.error(f"No {frametype} frames found for session {sessionid}, config {sessionconfig} at {frames_path}")
-        raise FileNotFoundError(f"No {frametype} frames found for {sessionid}/{sessionconfig}")
+        logger.error(
+            f"No {frametype} frames found for session {sessionid}, config {sessionconfig} at {frames_path}"
+        )
+        raise FileNotFoundError(
+            f"No {frametype} frames found for {sessionid}/{sessionconfig}"
+        )
     return frames
 
 
@@ -173,7 +202,9 @@ def get_flat_path(sessionid: str, sessionconfig: str, bias: str) -> str:
     if os.path.exists(output):
         logger.info(f"Using existing master flat: {output}")
     else:
-        logger.info(f"Creating master flat for session {sessionid}, config {sessionconfig} -> {output}")
+        logger.info(
+            f"Creating master flat for session {sessionid}, config {sessionconfig} -> {output}"
+        )
         os.makedirs(process_dir, exist_ok=True)
 
         # Find all raw flat frames for the given session and filter (sessionconfig)
@@ -191,11 +222,14 @@ def get_flat_path(sessionid: str, sessionconfig: str, bias: str) -> str:
             stack pp_{output_base} rej 3 3 -norm=mul -out={output}
             """
         siril_run_in_temp_dir(frames, commands)
-    
+
     perhaps_delete_temps([output_base, f"pp_{output_base}"])
     return output
 
-def process_per_session_config(sessionid: str, sessionconfig: str, bias: str, flat: str):
+
+def process_per_session_config(
+    sessionid: str, sessionconfig: str, bias: str, flat: str
+):
     """
     Calibrates light frames for a given session and filter configuration.
     This creates a pre-processed (pp_) sequence in the process directory.
@@ -207,7 +241,9 @@ def process_per_session_config(sessionid: str, sessionconfig: str, bias: str, fl
     if glob(f"{process_dir}/{output_base}_.seq"):
         logger.info(f"Using existing calibrated light sequence: {output_base}")
     else:
-        logger.info(f"Creating calibrated light sequence for session {sessionid}, config {sessionconfig} -> {output_base}")
+        logger.info(
+            f"Creating calibrated light sequence for session {sessionid}, config {sessionconfig} -> {output_base}"
+        )
         os.makedirs(process_dir, exist_ok=True)
 
         # Find all raw light frames for the given session and filter
@@ -250,9 +286,13 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
         logger.info(f"Using existing stacked file: {stacked_output_path}")
     else:
         # Merge all frames (from multiple sessions and configs) use those for stacking
-        frames = glob(f"{process_dir}/{variant}_bkg_pp_light_s*_c{sessionconfig}_*.fit*")
+        frames = glob(
+            f"{process_dir}/{variant}_bkg_pp_light_s*_c{sessionconfig}_*.fit*"
+        )
 
-        logger.info(f"Registering and stacking {len(frames)} frames for {sessionconfig}/{variant} -> {stacked_output_path}")
+        logger.info(
+            f"Registering and stacking {len(frames)} frames for {sessionconfig}/{variant} -> {stacked_output_path}"
+        )
 
         # Siril commands for registration and stacking. We run this in process_dir.
         commands = f"""
@@ -261,11 +301,11 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
 
             register {merged_seq_base}
             stack r_{merged_seq_base} rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
-            
+
             # and flip if required
             mirrorx_single {output_file}
             """
-        
+
         siril_run_in_temp_dir(frames, commands)
 
     perhaps_delete_temps([merged_seq_base, f"r_{merged_seq_base}"])
@@ -286,7 +326,7 @@ def make_renormalize():
     # Define final output paths. The 'results' directory is a symlink in the work dir.
     results_dir = f"{targets}/{normalize_target_name(target)}"
     os.makedirs(results_dir, exist_ok=True)
-    
+
     ha_final_path = f"{results_dir}/stacked_Ha.fits"
     sii_final_path = f"{results_dir}/stacked_Sii.fits"
     oiii_final_path = f"{results_dir}/stacked_OIII.fits"
@@ -311,7 +351,7 @@ def make_renormalize():
     commands = f"""
         # -transf=shift fails sometimes, which I guess is possible because we have multiple sessions with possible different camera rotation
         # -interp=none also fails sometimes, so let default interp happen
-        register results 
+        register results
         pm {pm_oiii}
         update_key FILTER Oiii "OSC dual Duo filter extracted"
         save "{oiii_final_path}"
@@ -326,6 +366,43 @@ def make_renormalize():
     siril_run(process_dir, commands)
     logger.info(f"Saved final renormalized images to {results_dir}")
 
+
+def background_removal():
+    """
+    Performs background extraction on stacked images using GraXpert.
+    """
+    logger.info("Performing background removal on stacked images.")
+    results_dir = f"{targets}/{normalize_target_name(target)}"
+
+    # Define input files
+    stacked_files = [
+        "stacked_Ha.fits",
+        "stacked_Sii.fits",
+        "stacked_OIII.fits",
+    ]
+
+    for in_name in stacked_files:
+        input_path = os.path.join(results_dir, in_name)
+        output_path = os.path.join(results_dir, f"bkg_{in_name}")
+
+        if not os.path.exists(input_path):
+            logger.warning(
+                f"Input file for background removal not found, skipping: {input_path}"
+            )
+            continue
+
+        if os.path.exists(output_path):
+            logger.info(f"Background corrected file exists, skipping: {output_path}")
+            continue
+
+        logger.info(f"Performing background removal on {input_path} -> {output_path}")
+
+        # GraXpert arguments: command, output file, input file
+        # Using absolute paths to avoid issues with cwd.
+        arguments = f"-cmd background-extraction -output {output_path} {input_path}"
+        graxpert_run(results_dir, arguments)
+
+
 def get_sessions(target: str) -> list[str]:
     """
     Finds session directories for a given target.
@@ -333,11 +410,15 @@ def get_sessions(target: str) -> list[str]:
     with a name in the format YYYY-MM-DD.
     Returns a list of directory names (e.g., ['2025-09-16']).
     """
-    date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+    date_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}$")
     target_dir = find_target_dir(target)
 
-    return [entry.name for entry in os.scandir(target_dir)
-            if entry.is_dir() and date_pattern.match(entry.name)]
+    return [
+        entry.name
+        for entry in os.scandir(target_dir)
+        if entry.is_dir() and date_pattern.match(entry.name)
+    ]
+
 
 def get_session_configs(sessionid: str) -> list[str]:
     """
@@ -356,19 +437,28 @@ def get_session_configs(sessionid: str) -> list[str]:
 
     flat_dir = f"{target_dir}/{sessionid}/FLAT"
     if not os.path.isdir(flat_dir):
-        logger.warning(f"FLAT directory not found for session {sessionid} at {flat_dir}")
+        logger.warning(
+            f"FLAT directory not found for session {sessionid} at {flat_dir}"
+        )
         return []
 
     # Regex to capture the filter name (3rd component) from filenames like:
     # 2025-09-17_00-00-13_HaOiii_-10.00_6.22s_0000.fits
-    filter_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_(?P<filter>[^_]+)_.+\.fits?$")
+    filter_pattern = re.compile(
+        r"^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}_(?P<filter>[^_]+)_.+\.fits?$"
+    )
 
     # Use a set comprehension to efficiently find unique filter names from filenames.
-    filters = {match.group('filter') for f in os.listdir(flat_dir) if (match := filter_pattern.match(f))}
+    filters = {
+        match.group("filter")
+        for f in os.listdir(flat_dir)
+        if (match := filter_pattern.match(f))
+    }
 
     found_filters = sorted(list(filters))
     logger.info(f"Found filters for session {sessionid}: {found_filters}")
     return found_filters
+
 
 """
 notes:
@@ -392,11 +482,11 @@ process: (one big flat directory)
     bkg_pp_light.seq (= calibrated and linear background corrected lights)
 
     Ha_bkg_pp_light.seq (seq extract by color)
-    Oiii_bkg_pp_light.seq (seq extract by color)    
+    Oiii_bkg_pp_light.seq (seq extract by color)
 
   _c<sessionconfig>: (THIS IS A SUFFIX ADDED TO EACH BASENAME for the following files - accross all sessions, but per config)
     Ha_bkg_pp_light.seq (merged from all sessions)
-    r_Ha_bkg_pp_light.seq (registered)  
+    r_Ha_bkg_pp_light.seq (registered)
     stacked_r_Ha_bkg_pp_light.fit (stacked)
     flipped_00001.fit (flipped for Ha)
 
@@ -424,8 +514,11 @@ FIXME:
   add caching of masters and flats in TBD directories
 """
 
+
 def main() -> None:
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s - %(message)s')
+    logging.basicConfig(
+        level=logging.DEBUG, format="%(asctime)s %(levelname)s - %(message)s"
+    )
     logger.info("Starting processing")
 
     # find/create master bias as needed
@@ -439,14 +532,17 @@ def main() -> None:
             # find/create flat.fits as needed
             flat = get_flat_path(sessionid, sessionconfig, bias)
             process_per_session_config(sessionid, sessionconfig, bias, flat)
-    
+
     logger.info(f"All session configs: {all_configs}")
-    variants = ["Ha", "OIII"] # FIXME: solve capitalization issues and work with single or dual Duo filter
+    variants = [
+        "Ha",
+        "OIII",
+    ]  # FIXME: solve capitalization issues and work with single or dual Duo filter
     # for sessionconfig in all_configs:
-    #for i, variant in enumerate(variants):
+    # for i, variant in enumerate(variants):
 
     # red output channel - from the SiiOiii filter Sii is on the 672nm red channel (mistakenly called Ha by siril)
-    make_stacked("SiiOiii", "Ha", f"results_00001") 
+    make_stacked("SiiOiii", "Ha", f"results_00001")
 
     # green output channel - from the HaOiii filter Ha is on the 656nm red channel
     make_stacked("HaOiii", "Ha", f"results_00002")
@@ -460,6 +556,7 @@ def main() -> None:
         os.remove(results_seq_path)
 
     make_renormalize()
+    background_removal()
     # make merged
 
 

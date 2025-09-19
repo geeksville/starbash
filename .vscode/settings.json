@@ -1,0 +1,16 @@
+{
+    // ---- General Editor Settings ----
+    // This tells VS Code to automatically remove any trailing whitespace
+    // from all files when you save them.
+    "files.trimTrailingWhitespace": true,
+    // This enables the "format on save" feature for all languages that
+    // have a configured formatter.
+    "editor.formatOnSave": true,
+    // ---- Python-Specific Settings ----
+    // This block specifies settings just for Python files.
+    "[python]": {
+        // Here, we set the Black Formatter extension as the default
+        // formatter to use for any .py files.
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    }
+}
