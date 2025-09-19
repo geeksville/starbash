@@ -56,14 +56,3 @@ num-frames = 30
 exposure = 30
 filter = "SiiOiii"
 
-[data]
-
-# optional?  FIXME, I'm not sure if this should be copied in by default?
-# this data is copied from the global settings at the time of the first processing run, to capture the directory/file locations at the time the file 
-# was processed
-
-masters = "/images/masters" # or use a file url?
-bias = "master_bias.fits" # FIXME, if not set assumed to be in masters - will be initially found based on date
-darks = "master_darks.fits" # FIXME, if not set assumed to be in masters - will be initially found based on date
-flats = "master_flats.fits" # FIXME, if not set assumed to be in the directory tree with the lights
-preproccessed = "." # assumes this project.toml is in the this output directory?

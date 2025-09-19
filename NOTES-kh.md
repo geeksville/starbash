@@ -7,12 +7,18 @@
 * generalize processing to also work on single duo filter or broadband OSC
 * do star extraction
 * unify the various processing routines by using a templating system
+* auto recognize my nina config, default nina config, asiair config, seestar config
+* list all found targets across all repos
+* allow restricting processing by date ranges, or equipment or whatever
 * print report on frame quality, registration etc...
 
 ## astrosnake ideas
 
 Use https://siril.org/tutorials/bash-scripts/ for scripting externally? and or testing
 
+## other apps
+
+Someone just announced a closed source gui app with some similar features: https://www.reddit.com/r/AskAstrophotography/comments/1nkxud3/new_allinone_astro_imaging_app_live_stacking/
 
 ### Snakemake
 
