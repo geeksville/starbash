@@ -1,6 +1,8 @@
 ## TODO
 
+* FIX GRAXPERT AMD!
 * do background elim with graxpert before tri merge
+* FIX GRAXPERT RELEASE!
 * merge the tri colors into one file using pixel math
 * generalize processing to also work on single duo filter or broadband OSC
 * unify the various processing routines by using a templating system
