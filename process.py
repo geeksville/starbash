@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 delete_temps = True
 
-target = "ngc281"
+target = "m27"
 # target="IC 1848"
 
 # root = "/images"
@@ -74,6 +74,10 @@ def tool_run(cmd: str, cwd: str, commands: str = None) -> None:
         logger.info("Tool command successful.")
 
 
+siril_path = "/home/kevinh/packages/Siril-1.4.0~beta3-x86_64.AppImage"
+# siril_path = "org.siril.Siril"  # flatpak
+
+
 def siril_run(cwd: str, commands: str) -> None:
     """Executes Siril with a script of commands in a given working directory."""
 
@@ -87,7 +91,7 @@ def siril_run(cwd: str, commands: str) -> None:
 
     # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
     # It seems like the -d command may also be required when siril is in a flatpak
-    cmd = f"org.siril.Siril -d {cwd} -s -"
+    cmd = f"{siril_path} -d {cwd} -s -"
 
     tool_run(cmd, cwd, script_content)
 
@@ -129,6 +133,9 @@ def get_master_bias_path() -> str:
         logger.info(f"Using existing master bias: {output}")
         return output
     else:
+        os.makedirs(os.path.dirname(output), exist_ok=True)
+        os.makedirs(os.path.dirname(process_dir), exist_ok=True)
+
         frames = glob(f"{masters_raw}/{date}/BIAS/{date}_*.fit*")
 
         siril_run_in_temp_dir(
@@ -376,14 +383,15 @@ def background_removal():
 
     # Define input files
     stacked_files = [
-        "stacked_Ha.fits",
-        "stacked_Sii.fits",
-        "stacked_OIII.fits",
+        "stacked_Ha",
+        "stacked_Sii",
+        "stacked_OIII",
     ]
 
     for in_name in stacked_files:
-        input_path = os.path.join(results_dir, in_name)
-        output_path = os.path.join(results_dir, f"bkg_{in_name}")
+        input_path = os.path.join(results_dir, in_name + ".fits")
+        output_base = os.path.join(results_dir, f"bkg_{in_name}")
+        output_path = output_base + ".fits"  # graxpert is dumb and adds a fits suffix
 
         if not os.path.exists(input_path):
             logger.warning(
@@ -399,7 +407,7 @@ def background_removal():
 
         # GraXpert arguments: command, output file, input file
         # Using absolute paths to avoid issues with cwd.
-        arguments = f"-cmd background-extraction -output {output_path} {input_path}"
+        arguments = f"-cmd background-extraction -output {output_base} {input_path}"
         graxpert_run(results_dir, arguments)
 
 

@@ -52,7 +52,7 @@ cd lights
 link light -out=../process
 cd ../process
 
-# FIXME read about DBExract script https://www.reddit.com/r/AskAstrophotography/comments/1napads/best_way_to_proces_osc_dual_narrowband_siril/ncw623n/
+# read about DBExract script https://www.reddit.com/r/AskAstrophotography/comments/1napads/best_way_to_proces_osc_dual_narrowband_siril/ncw623n/
 
 # Calibrate Light Frames
 # calibrate light -dark=../masters/dark_stacked -flat=../masters/pp_flat_stacked -cc=dark -cfa -equalize_cfa
@@ -64,9 +64,9 @@ calibrate light -bias=../masters/bias_stacked -flat=../masters/pp_flat_stacked -
 # FIXME, possibly do https://siril.org/tutorials/tuto-manual/#platesolving-reference-image at this step?
 
 # Extract Ha and OIII
-# You may wish to use drizzling to upscale the Ha data instead of upscaling. As drizzling 
-# is a stacking method, in this case you must use seqextract_HaOiii to extract the Ha and OIII 
-# from each frame of the sequence, and then stack the OIII images in the usual way and the Ha 
+# You may wish to use drizzling to upscale the Ha data instead of upscaling. As drizzling
+# is a stacking method, in this case you must use seqextract_HaOiii to extract the Ha and OIII
+# from each frame of the sequence, and then stack the OIII images in the usual way and the Ha
 # images with a 2x drizzle.
 # per https://siril.readthedocs.io/en/stable/processing/extraction.html
 # Note: tried "-resample=ha" because instead we would do a 2x drizzle on Ha stacking, but it failed later in the script
