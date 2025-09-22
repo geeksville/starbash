@@ -12,17 +12,22 @@ logger = logging.getLogger(__name__)
 
 delete_temps = True
 
-target = "m27"
+target = "ngc6888"
+# target = "m27"
+# target = "ngc7635"
 # target="IC 1848"
 
 # root = "/images"
 root = "/mnt/kshared"
 
+# scratch_dir = "/home/kevinh/Pictures/telescope"
+scratch_dir = "/images"
+
 # paths of the form
 # /images/from_astroboy/NGC 281/2025-09-16/FLAT/2025-09-17_00-00-29_HaOiii_-9.90_6.22s_0002.fits
 # /images/from_astroboy/NGC 281/2025-09-16/LIGHT/2025-09-17_00-43-32_SiiOiii_-9.90_120.00s_0006.fits
 repo = f"{root}/from_astroboy"
-siril_work = f"/home/kevinh/Pictures/telescope/siril_new"
+siril_work = f"{scratch_dir}/siril_new"
 
 
 def normalize_target_name(name: str) -> str:
@@ -74,8 +79,8 @@ def tool_run(cmd: str, cwd: str, commands: str = None) -> None:
         logger.info("Tool command successful.")
 
 
-siril_path = "/home/kevinh/packages/Siril-1.4.0~beta3-x86_64.AppImage"
-# siril_path = "org.siril.Siril"  # flatpak
+# siril_path = "/home/kevinh/packages/Siril-1.4.0~beta3-x86_64.AppImage"
+siril_path = "org.siril.Siril"  # flatpak
 
 
 def siril_run(cwd: str, commands: str) -> None:
@@ -326,25 +331,23 @@ def make_renormalize():
     logger.info("Aligning and renormalizing stacked images.")
 
     # Define file basenames for the stacked images created in the 'process' directory
-    sii_base = "results_00001"
-    ha_base = "results_00002"
-    oiii_base = "results_00003"
+    ha_base = "results_00001"
+    oiii_base = "results_00002"
+    sii_base = "results_00003"
 
     # Define final output paths. The 'results' directory is a symlink in the work dir.
     results_dir = f"{targets}/{normalize_target_name(target)}"
     os.makedirs(results_dir, exist_ok=True)
 
     ha_final_path = f"{results_dir}/stacked_Ha.fits"
-    sii_final_path = f"{results_dir}/stacked_Sii.fits"
     oiii_final_path = f"{results_dir}/stacked_OIII.fits"
 
     # Check if final files already exist to allow resuming
-    if all(os.path.exists(f) for f in [ha_final_path, sii_final_path, oiii_final_path]):
+    if all(os.path.exists(f) for f in [ha_final_path, oiii_final_path]):
         logger.info("Renormalized files already exist, skipping.")
         return
 
     # Basenames for registered files (output of 'register' command)
-    r_sii = f"r_{sii_base}"
     r_ha = f"r_{ha_base}"
     r_oiii = f"r_{oiii_base}"
 
@@ -352,7 +355,6 @@ def make_renormalize():
     # It matches the median and spread (MAD) of a channel to a reference channel (Ha).
     # Formula: new = old * (MAD(ref)/MAD(old)) - (MAD(ref)/MAD(old)) * MEDIAN(old) + MEDIAN(ref)
     pm_oiii = f'"${r_oiii}$*mad(${r_ha}$)/mad(${r_oiii}$)-mad(${r_ha}$)/mad(${r_oiii}$)*median(${r_oiii}$)+median(${r_ha}$)"'
-    pm_sii = f'"${r_sii}$*mad(${r_ha}$)/mad(${r_sii}$)-mad(${r_ha}$)/mad(${r_sii}$)*median(${r_sii}$)+median(${r_ha}$)"'
 
     # Siril commands to be executed in the 'process' directory
     commands = f"""
@@ -362,13 +364,22 @@ def make_renormalize():
         pm {pm_oiii}
         update_key FILTER Oiii "OSC dual Duo filter extracted"
         save "{oiii_final_path}"
-        pm {pm_sii}
-        update_key FILTER Sii "OSC dual Duo filter extracted"
-        save "{sii_final_path}"
         load {r_ha}
         update_key FILTER Ha "OSC dual Duo filter extracted"
         save "{ha_final_path}"
         """
+
+    if os.path.exists(f"{results_dir}/{sii_base}.fit"):
+        logger.info(f"Doing renormalisation of extra Sii channel")
+
+        sii_final_path = f"{results_dir}/stacked_Sii.fits"
+        r_sii = f"r_{sii_base}"
+        pm_sii = f'"${r_sii}$*mad(${r_ha}$)/mad(${r_sii}$)-mad(${r_ha}$)/mad(${r_sii}$)*median(${r_sii}$)+median(${r_ha}$)"'
+        commands += f"""
+            pm {pm_sii}
+            update_key FILTER Sii "OSC dual Duo filter extracted"
+            save "{sii_final_path}"
+            """
 
     siril_run(process_dir, commands)
     logger.info(f"Saved final renormalized images to {results_dir}")
@@ -381,23 +392,15 @@ def background_removal():
     logger.info("Performing background removal on stacked images.")
     results_dir = f"{targets}/{normalize_target_name(target)}"
 
-    # Define input files
-    stacked_files = [
-        "stacked_Ha",
-        "stacked_Sii",
-        "stacked_OIII",
-    ]
+    # Find all stacked files to process using a glob pattern
+    stacked_file_paths = glob(os.path.join(results_dir, "stacked_*.fit*"))
 
-    for in_name in stacked_files:
-        input_path = os.path.join(results_dir, in_name + ".fits")
+    for input_path in stacked_file_paths:
+        in_name_with_ext = os.path.basename(input_path)
+        in_name = strip_extension(in_name_with_ext)
+
         output_base = os.path.join(results_dir, f"bkg_{in_name}")
         output_path = output_base + ".fits"  # graxpert is dumb and adds a fits suffix
-
-        if not os.path.exists(input_path):
-            logger.warning(
-                f"Input file for background removal not found, skipping: {input_path}"
-            )
-            continue
 
         if os.path.exists(output_path):
             logger.info(f"Background corrected file exists, skipping: {output_path}")
@@ -549,14 +552,19 @@ def main() -> None:
     # for sessionconfig in all_configs:
     # for i, variant in enumerate(variants):
 
-    # red output channel - from the SiiOiii filter Sii is on the 672nm red channel (mistakenly called Ha by siril)
-    make_stacked("SiiOiii", "Ha", f"results_00001")
+    logging.info("Processing duo-band filter Ha and Oiii channels (for all filters)")
 
     # green output channel - from the HaOiii filter Ha is on the 656nm red channel
-    make_stacked("HaOiii", "Ha", f"results_00002")
+    make_stacked("HaOiii", "Ha", f"results_00001")
 
     # blue output channel - both filters have Oiii on the 500nm blue channel.  Note the case here is uppercase to match siril output
-    make_stacked("*", "OIII", f"results_00003")
+    make_stacked("*", "OIII", f"results_00002")
+
+    if "SiiOiii" in all_configs:
+        logging.info("Stacking extra SiiOiii duo-band filter config")
+
+        # red output channel - from the SiiOiii filter Sii is on the 672nm red channel (mistakenly called Ha by siril)
+        make_stacked("SiiOiii", "Ha", f"results_00003")
 
     # There might be an old/state autogenerated .seq file, delete it so it doesn't confuse renormalize
     results_seq_path = f"{process_dir}/results_.seq"
@@ -565,6 +573,7 @@ def main() -> None:
 
     make_renormalize()
     background_removal()
+
     # make merged
 
 
