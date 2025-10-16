@@ -1,12 +1,16 @@
 ## TODO
 
-* !FIX GRAXPERT AMD!
+* !FIX GRAXPERT AMD
+* unify the various processing routines by using a templating system
+* add a repo-add command that creates repo.ag.toml file in the rootdir and references it from users preferences.
+* have repo-add auto recognize common nina/asiair/seestar layouts
+* make generalized (not just file) URLs work for repos etc...
+* add something like repo-add for masters and processed
 * do background elim with graxpert before tri merge
-* !FIX GRAXPERT RELEASE!
+* !FIX GRAXPERT RELEASE
 * merge the tri colors into one file using pixel math
 * !generalize processing to also work on single duo filter or broadband OSC
 * do star extraction
-* unify the various processing routines by using a templating system
 * auto recognize my nina config, default nina config, asiair config, seestar config
 * list all found targets across all repos
 * allow restricting processing by date ranges, or equipment or whatever

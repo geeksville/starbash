@@ -9,6 +9,9 @@ from pathlib import Path
 import tomlkit
 
 
+repo_suffix = "astroglue.toml"
+
+
 class Repo:
     """
     Represents a single astroglue repository."""
@@ -49,13 +52,13 @@ class Repo:
             A dictionary containing the parsed configuration.
         """
         if self.path and self.path.is_dir():
-            config_path = self.path / "ag.toml"
+            config_path = self.path / repo_suffix
             if config_path.is_file():
                 logging.info(f"Loading repo config from {config_path}")
                 with open(config_path, "r") as f:
                     return tomlkit.load(f)
 
-        logging.warning(f"No ag.toml found in {self.path}")
+        logging.warning(f"No {repo_suffix} found in {self.path}")
         return {}
 
 

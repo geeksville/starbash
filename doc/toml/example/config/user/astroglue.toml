@@ -1,0 +1,20 @@
+
+[repo]
+kind = "preferences"
+
+[author]
+# default author info
+name = "Kevin Hester"
+email = "kevinh@geeksville.com"
+website = "https://telescopius.com/profile/geeksville"
+license = "FIXME Creative commons etc..."
+
+# define key repos, at first run user will be prompted to select
+[[repo.ref]]
+file = "/images/masters"
+
+[[repo.ref]]
+file = "/images/from_astroboy"
+
+[[repo.ref]]
+file = "/images/processed"

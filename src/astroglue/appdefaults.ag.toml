@@ -17,7 +17,9 @@ kind = "preferences"
 [[repo.ref]]
 
 # User custom settings live here
-file = "~/.config/astroglue"
+# file = "~/.config/astroglue"
+# But temporarily during early development I'm keeping them in the master github
+file = "/workspaces/astroglue/doc/toml/example/config/user/"
 
 # [[repo.ref]]
 
@@ -30,8 +32,9 @@ file = "~/.config/astroglue"
 # add a place to find FOO.ag.toml files
 # url = "http://fixme.com/foo-repo/somedir"
 
-[[repo.ref]]
-file = "~/Pictures/telescope/from_astroboy"
+# test data.  Moved to user preferences (where it should should have been all along)
+# [[repo.ref]]
+# file = "~/Pictures/telescope/from_astroboy"
 
 
 # or inband?
