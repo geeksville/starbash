@@ -21,8 +21,7 @@ class Repo:
         Initializes a Repo instance.
 
         Args:
-            url: The URL or path to the repository. Can be a local path
-                 (e.g., 'file:///path/to/repo') or a remote URL.
+            url: The URL to the repository (file or general http/https urls are acceptable).
         """
         self.manager = manager
         self.url = url
