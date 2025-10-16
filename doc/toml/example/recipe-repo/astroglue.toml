@@ -1,0 +1,5 @@
+[repo]
+kind = "recipes"
+
+[[repo.ref]]
+dir = "osc_dual_duo"

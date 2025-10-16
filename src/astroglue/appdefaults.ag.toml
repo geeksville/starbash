@@ -16,6 +16,12 @@ kind = "preferences"
 
 [[repo.ref]]
 
+# Add our built-in recipes (FIXME, add a "resource" repo type for directories we expect to find inside
+# our python blob)
+dir = "/workspaces/astroglue/doc/toml/example/recipe-repo"
+
+[[repo.ref]]
+
 # User custom settings live here
 # For "dir" or "url" repos we expect to find an astroglue.toml file in the root of the directory.
 # dir = "~/.config/astroglue"

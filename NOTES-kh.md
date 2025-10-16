@@ -4,6 +4,7 @@
 * unify the various processing routines by using a templating system
 * add a repo-add command that creates repo.ag.toml file in the rootdir and references it from users preferences.
 * have repo-add auto recognize common nina/asiair/seestar layouts
+* generate a report on the final output including attribution for data sources, recpies etc...
 * make generalized (not just file) URLs work for repos etc...
 * add something like repo-add for masters and processed
 * do background elim with graxpert before tri merge

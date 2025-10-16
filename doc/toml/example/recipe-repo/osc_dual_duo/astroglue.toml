@@ -2,7 +2,7 @@
 # all ag.toml files can optionally contain a version section.  if version of the running astroglue app is out of bounds a warning message will be printed
 # to the user and the file will be ignored for future processing.
 [version]
-min="2.3.0"
+min="0.1.0"
 max="4.5.8"
 
 [processing.recipe.metadata]
@@ -22,7 +22,7 @@ auto.for-filter = ["SiiOiii"]
 # for single duo look for this
 # auto.for-filter = ["HaOiii"]
 
-auto.for-camera = "OSC"
+auto.for-camera = ["OSC"]
 
 
 
@@ -77,7 +77,7 @@ temporaries = ["FIXME"]
 tool = "python"
 when = "post-session" # run once after all session/session-config processing was done
 
-script-file = "process-osc-dual-duo.py"
+script-file = "osc-dual-duo.py"
 
 # the function to run in that file, if not specified astro_fn() is used
 script-function = "osc_dual_duo_post_session"
