@@ -49,13 +49,13 @@ class Repo:
             A dictionary containing the parsed configuration.
         """
         if self.path and self.path.is_dir():
-            config_path = self.path / "repo.ag.toml"
+            config_path = self.path / "ag.toml"
             if config_path.is_file():
                 logging.info(f"Loading repo config from {config_path}")
                 with open(config_path, "r") as f:
                     return tomlkit.load(f)
-            else:
-                logging.warning(f"No repo.ag.toml found in {self.path}")
+
+        logging.warning(f"No ag.toml found in {self.path}")
         return {}
 
 
@@ -76,7 +76,7 @@ class RepoManager:
         self.repos = []
         self.add_all_repos(self.app_defaults)
 
-    def add_all_repos(self, toml: tomlkit.TOMLDocument) -> None:
+    def add_all_repos(self, toml: dict) -> None:
         # From appdefaults.ag.toml, repo.ref is a list of tables
         repo_refs = toml.get("repo", {}).get("ref", [])
 
