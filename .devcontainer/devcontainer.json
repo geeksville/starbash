@@ -10,11 +10,6 @@
 	"features": {
 		"ghcr.io/devcontainers/features/git:1": {}
 	},
-	"containerEnv": {
-		"DISPLAY": "${localEnv:DISPLAY}",
-		"XAUTHORITY": "${localEnv:XAUTHORITY}",
-		"PYTHONDEVMODE": "1"
-	},
 	// "forwardPorts": [5000]
 	"runArgs": [
 		"--privileged", // Allow full hw access from host, also allows writing core dump files
@@ -47,7 +42,8 @@
 		// Needed for X11 forwarding
 		"DISPLAY": "${localEnv:DISPLAY}",
 		"XAUTHORITY": "${localEnv:XAUTHORITY}",
-		"PYTHONDEVMODE": "1" // Enable Python dev mode for better debug output
+		"PYTHONDEVMODE": "1", // Enable Python dev mode for better debug output
+		"PYTHONPYCACHEPREFIX": "/workspaces/astroglue/.pycache"
 	},
 	"remoteUser": "vscode",
 	"postCreateCommand": "bash .devcontainer/post-create.sh",
