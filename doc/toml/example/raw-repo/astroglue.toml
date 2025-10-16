@@ -1,7 +1,7 @@
 
 
 [repo]
-kind = "raws"
+kind = "raw"
 
 [[pattern]]
 # raw repos can (or must?) specify a pattern to find per session light/flat/dark/bias
