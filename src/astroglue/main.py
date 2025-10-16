@@ -1,5 +1,8 @@
 import logging
 import sys
+from importlib import resources
+
+from astroglue.repo import RepoManager
 
 
 def setup_logging():
@@ -16,7 +19,14 @@ def setup_logging():
 def main():
     """Main entry point for the astroglue application."""
     setup_logging()
-    logging.info("hello world")
+    logging.info("astroglue starting up")
+
+    # Load app defaults and initialize the repository manager
+    app_defaults_text = resources.read_text("astroglue", "appdefaults.ag.toml")
+    repo_manager = RepoManager(app_defaults_text)
+    logging.info(
+        f"Repo manager initialized with {len(repo_manager.repos)} default repo references."
+    )
 
 
 if __name__ == "__main__":
