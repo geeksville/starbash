@@ -86,9 +86,9 @@ class RepoManager:
         for ref in repo_refs:
             if "url" in ref:
                 url = ref["url"]
-            elif "file" in ref:
+            elif "dir" in ref:
                 # Expand ~, resolve to an absolute path, and convert to a file URI
-                path = Path(ref["file"]).expanduser().resolve()
+                path = Path(ref["dir"]).expanduser().resolve()
                 url = f"file://{path}"
             else:
                 raise ValueError(f"Invalid repo reference: {ref}")

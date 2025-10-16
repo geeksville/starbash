@@ -17,9 +17,10 @@ kind = "preferences"
 [[repo.ref]]
 
 # User custom settings live here
-# file = "~/.config/astroglue"
+# For "dir" or "url" repos we expect to find an astroglue.toml file in the root of the directory.
+# dir = "~/.config/astroglue"
 # But temporarily during early development I'm keeping them in the master github
-file = "/workspaces/astroglue/doc/toml/example/config/user/"
+dir = "/workspaces/astroglue/doc/toml/example/config/user/"
 
 # [[repo.ref]]
 
@@ -34,7 +35,7 @@ file = "/workspaces/astroglue/doc/toml/example/config/user/"
 
 # test data.  Moved to user preferences (where it should should have been all along)
 # [[repo.ref]]
-# file = "~/Pictures/telescope/from_astroboy"
+# dir = "~/Pictures/telescope/from_astroboy"
 
 
 # or inband?
