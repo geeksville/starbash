@@ -22,14 +22,16 @@ file = "~/.config/astroglue"
 
 [[repo.ref]]
 
-# recipe repos contain recpies (identified by name).  When any ag.toml file references
+# recipe repos contain recipes (identified by name).  When any ag.toml file references
 # a recipe the current path of all sources is searched to find that named recipe.
 
 # the standard config includes a few key recipe repos, but interested users or tool
 # vendors can define/provide their own
 
 # add a place to find FOO.ag.toml files
-url = "http:..."
+url = "http://fixme.com/foo-repo/somedir"
+
+[[repo.ref]]
 file = "/foo/blah"
 
 

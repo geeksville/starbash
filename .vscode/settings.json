@@ -13,6 +13,7 @@
         // formatter to use for any .py files.
         "editor.defaultFormatter": "ms-python.black-formatter"
     },
+    "python.analysis.typeCheckingMode": "standard",
     "cSpell.words": [
         "apeture",
         "ASIAIR",
