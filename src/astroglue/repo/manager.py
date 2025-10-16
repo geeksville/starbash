@@ -28,7 +28,7 @@ class Repo:
         self.url = url
         self.path = self._resolve_path(url)
         self.config = self._load_config()
-        self.manager.add_all_repos(self.config)
+        self.manager.add_all_repos(self.config, base_path=self.path)
 
     def _resolve_path(self, url: str) -> Path | None:
         """
@@ -77,9 +77,9 @@ class RepoManager:
         """
         self.app_defaults = tomlkit.parse(app_defaults)
         self.repos = []
-        self.add_all_repos(self.app_defaults)
+        self.add_all_repos(self.app_defaults, base_path=None)
 
-    def add_all_repos(self, toml: dict) -> None:
+    def add_all_repos(self, toml: dict, base_path: Path | None) -> None:
         # From appdefaults.ag.toml, repo.ref is a list of tables
         repo_refs = toml.get("repo", {}).get("ref", [])
 
@@ -87,8 +87,13 @@ class RepoManager:
             if "url" in ref:
                 url = ref["url"]
             elif "dir" in ref:
-                # Expand ~, resolve to an absolute path, and convert to a file URI
-                path = Path(ref["dir"]).expanduser().resolve()
+                path = Path(ref["dir"])
+                if base_path and not path.is_absolute():
+                    # Resolve relative to the current TOML file's directory
+                    path = (base_path / path).resolve()
+                else:
+                    # Expand ~ and resolve from CWD
+                    path = path.expanduser().resolve()
                 url = f"file://{path}"
             else:
                 raise ValueError(f"Invalid repo reference: {ref}")
