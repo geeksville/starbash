@@ -2,6 +2,7 @@
 Manages the repository of processing recipes and configurations.
 """
 
+from __future__ import annotations
 import logging
 from pathlib import Path
 
@@ -12,7 +13,7 @@ class Repo:
     """
     Represents a single astroglue repository."""
 
-    def __init__(self, url: str):
+    def __init__(self, manager: RepoManager, url: str):
         """
         Initializes a Repo instance.
 
@@ -20,9 +21,11 @@ class Repo:
             url: The URL or path to the repository. Can be a local path
                  (e.g., 'file:///path/to/repo') or a remote URL.
         """
+        self.manager = manager
         self.url = url
         self.path = self._resolve_path(url)
         self.config = self._load_config()
+        self.manager.add_all_repos(self.config)
 
     def _resolve_path(self, url: str) -> Path | None:
         """
@@ -50,7 +53,7 @@ class Repo:
             if config_path.is_file():
                 logging.info(f"Loading repo config from {config_path}")
                 with open(config_path, "r") as f:
-                    return tomlkit.parse(f.read())
+                    return tomlkit.load(f)
             else:
                 logging.warning(f"No repo.ag.toml found in {self.path}")
         return {}
@@ -70,11 +73,13 @@ class RepoManager:
         Initializes the RepoManager by loading the application default repos.
         """
         self.app_defaults = tomlkit.parse(app_defaults)
-
-        # From appdefaults.ag.toml, repo.ref is a list of tables
-        repo_refs = self.app_defaults.get("repo", {}).get("ref", [])
-
         self.repos = []
+        self.add_all_repos(self.app_defaults)
+
+    def add_all_repos(self, toml: tomlkit.TOMLDocument) -> None:
+        # From appdefaults.ag.toml, repo.ref is a list of tables
+        repo_refs = toml.get("repo", {}).get("ref", [])
+
         for ref in repo_refs:
             if "url" in ref:
                 url = ref["url"]
@@ -86,11 +91,6 @@ class RepoManager:
                 raise ValueError(f"Invalid repo reference: {ref}")
             self.add_repo(url)
 
-    def add_repo(self, url: str):
+    def add_repo(self, url: str) -> None:
         logging.info(f"Adding repo: {url}")
-        self.repos.append(Repo(url))
-
-    def search(self):
-        """Provides an API for searching known repos."""
-        # Placeholder for future implementation
-        pass
+        self.repos.append(Repo(self, url))

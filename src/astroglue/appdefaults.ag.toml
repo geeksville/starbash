@@ -10,17 +10,16 @@ kind = "preferences"
 # standard default repo locations.  When searching repos, repos listed LAST have precedence, so target file can override the root processing defaults,
 # then the user prefs, then a live github URL or whatever
 
-[[repo.ref]]
-
+# [[repo.ref]]
 # Possibly provide default repos via http from github?
-url = "https://github.com/geeksville/astroglue-default-repo"
+# url = "https://github.com/geeksville/astroglue-default-repo"
 
 [[repo.ref]]
 
 # User custom settings live here
 file = "~/.config/astroglue"
 
-[[repo.ref]]
+# [[repo.ref]]
 
 # recipe repos contain recipes (identified by name).  When any ag.toml file references
 # a recipe the current path of all sources is searched to find that named recipe.
@@ -29,10 +28,10 @@ file = "~/.config/astroglue"
 # vendors can define/provide their own
 
 # add a place to find FOO.ag.toml files
-url = "http://fixme.com/foo-repo/somedir"
+# url = "http://fixme.com/foo-repo/somedir"
 
 [[repo.ref]]
-file = "/foo/blah"
+file = "~/Pictures/telescope/from_astroboy"
 
 
 # or inband?
