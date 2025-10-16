@@ -2,16 +2,19 @@
 
 * !FIX GRAXPERT AMD
 * unify the various processing routines by using a templating system
+* move the old processing stuff into the astroglue namespace (run siril, etc...)
+* use import importlib.util to load python code it is own namespace
 * add a repo-add command that creates repo.ag.toml file in the rootdir and references it from users preferences.
 * have repo-add auto recognize common nina/asiair/seestar layouts
 * generate a report on the final output including attribution for data sources, recpies etc...
+* do star extraction
 * make generalized (not just file) URLs work for repos etc...
+* change from eval() to something more secure (ast + eval? a restricted dict API?)
 * add something like repo-add for masters and processed
 * do background elim with graxpert before tri merge
 * !FIX GRAXPERT RELEASE
 * merge the tri colors into one file using pixel math
 * !generalize processing to also work on single duo filter or broadband OSC
-* do star extraction
 * auto recognize my nina config, default nina config, asiair config, seestar config
 * list all found targets across all repos
 * allow restricting processing by date ranges, or equipment or whatever

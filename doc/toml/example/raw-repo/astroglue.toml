@@ -4,17 +4,14 @@
 kind = "raw"
 
 [[pattern]]
+name = "FIXME change to default NINA layout"
 # raw repos can (or must?) specify a pattern to find per session light/flat/dark/bias
 # this path is relative to the base of the repo
 # the following is the correct pattern for my (customized) NINA based layout
 relative = "{target}/{sessionid}/{frametype}/*_{sessionconfig}_*.fit*"
 
 [[pattern]]
-# my NINA raw bias, darks live here
-# the following is the correct pattern for my (customized) NINA based layout
-relative = "masters_raw/{date}/{frametype}/{date}_*.fit*"
-
-[[pattern]]
 # this is the correct path to my customized masters-raw files
 type = "master-raw"
-relative = "masters-raw/{sessionid}/{frametype}/*_{sessionconfig}_*.fit*"
+name = "FIXME change to default NINA master-raws"
+relative = "masters-raw/{frametype}/*_{sessionconfig}_*.fit*"
