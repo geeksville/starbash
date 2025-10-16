@@ -19,9 +19,8 @@ RUN if ! id -u ${USERNAME} > /dev/null 2>&1; then \
         groupadd --gid 1000 ${USERNAME} && \
         useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash ${USERNAME} && \
         echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME}-nopasswd; \
-    fi
+        fi
 
 USER ${USERNAME}
-
 
 

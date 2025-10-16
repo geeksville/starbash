@@ -1,10 +1,10 @@
 ## TODO
 
-* FIX GRAXPERT AMD!
+* !FIX GRAXPERT AMD!
 * do background elim with graxpert before tri merge
-* FIX GRAXPERT RELEASE!
+* !FIX GRAXPERT RELEASE!
 * merge the tri colors into one file using pixel math
-* generalize processing to also work on single duo filter or broadband OSC
+* !generalize processing to also work on single duo filter or broadband OSC
 * do star extraction
 * unify the various processing routines by using a templating system
 * auto recognize my nina config, default nina config, asiair config, seestar config
@@ -53,4 +53,8 @@ Application Options:
   -c, --copyright            print the copyright
   --display=DISPLAY          X display to use
 
-  
+## interesting ai tools?
+
+* expose this new thing via MCP or gemini extension?
+* https://github.com/gemini-cli-extensions/nanobanana
+* https://github.com/figma/figma-gemini-cli-extension

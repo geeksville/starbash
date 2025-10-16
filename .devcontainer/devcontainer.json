@@ -2,12 +2,11 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/miniconda
 {
 	"name": "sirilscripts",
-	"build": { 
+	"build": {
 		"context": "..",
 		"dockerfile": "Dockerfile"
 	},
-
-	// Features to add to the dev container. More info: https://containers.dev/features.	
+	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
 		"ghcr.io/devcontainers/features/git:1": {}
 	},
@@ -16,42 +15,31 @@
 		"XAUTHORITY": "${localEnv:XAUTHORITY}",
 		"PYTHONDEVMODE": "1"
 	},
-
 	// "forwardPorts": [5000]
-
 	"runArgs": [
 		"--privileged", // Allow full hw access from host, also allows writing core dump files
 		// "--network=host", // Use host network rather than our bridged container network
 		"--ipc=host", // Needed to make python SharedMemory work
-
 		"--name=sirilscripts-devcontainer", // For easier management
-
 		"--user=1000:1000",
-
 		// Recommended https://rocm.docs.amd.com/projects/install-on-linux/en/docs-6.2.0/how-to/docker.html
 		"--security-opt=seccomp=unconfined",
-
 		// Not needed for now
 		// "--ulimit=core=-1:-1" // Allow core dumps
-
 		// NOTE: Not allowed in github CI devcontainers
-		"--userns=keep-id:uid=1000,gid=1000",		
+		"--userns=keep-id:uid=1000,gid=1000",
 	],
 	"mounts": [
 		// NOTE: None of the following are allowed in GitHub CI devcontainers
-
 		// Needed for x11 forwarding, but throws: invalid mount config for type "bind": bind source path does not exist: /run/user/1000
-		// on github CI. 
-    	"source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",
+		// on github CI.
+		"source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",
 		"source=/run/user/1000,target=/run/user/1000,type=bind",
-
 		// let container see host dbus, so that flatpak can work inside
 		"source=/run/dbus,target=/run/dbus,type=bind",
-
 		// It is handy to have some test images available in the container
 		"source=${localEnv:HOME}/Pictures/telescope,target=/images,type=bind,consistency=cached",
 		"source=/mnt/kshared,target=/mnt/kshared,type=bind,consistency=cached",
-
 		// This is necessary to prevent newer vscode created images from being able to write to /tmp
 		"type=tmpfs,destination=/tmp,tmpfs-mode=1777"
 	],
@@ -59,26 +47,23 @@
 		// Needed for X11 forwarding
 		"DISPLAY": "${localEnv:DISPLAY}",
 		"XAUTHORITY": "${localEnv:XAUTHORITY}",
-
 		"PYTHONDEVMODE": "1" // Enable Python dev mode for better debug output
 	},
 	"remoteUser": "vscode",
-
 	"postCreateCommand": "bash .devcontainer/post-create.sh",
-
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
-
 	// Configure tool-specific properties.
 	"customizations": {
 		"vscode": {
 			"extensions": [
 				"ms-python.python",
-    			"ms-python.vscode-pylance"
+				"ms-python.vscode-pylance",
+				"ms-python.black-formatter",
+				"google.geminicodeassist"
 			]
 		}
 	}
-
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"
 }

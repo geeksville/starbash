@@ -23,3 +23,7 @@ flatpak install --user -y flathub org.siril.Siril
 
 # Let siril see /tmp
 flatpak --user override --filesystem=/tmp org.siril.Siril
+
+# Install graxpert and pipx (must be done post Dockerfile)
+pip install --user --break-system-packages pipx
+pipx install graxpert[cpuonly]
