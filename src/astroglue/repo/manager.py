@@ -76,9 +76,9 @@ class RepoManager:
         """
         self.app_defaults = tomlkit.parse(app_defaults)
         self.repos = []
-        self.add_all_repos(self.app_defaults, base_path=None)
+        self.add_all_repos(self.app_defaults)
 
-    def add_all_repos(self, toml: dict, base_path: Path | None) -> None:
+    def add_all_repos(self, toml: dict, base_path: Path | None = None) -> None:
         # From appdefaults.ag.toml, repo.ref is a list of tables
         repo_refs = toml.get("repo", {}).get("ref", [])
 
