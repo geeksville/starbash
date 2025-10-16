@@ -20,7 +20,7 @@
 		"--privileged", // Allow full hw access from host, also allows writing core dump files
 		// "--network=host", // Use host network rather than our bridged container network
 		"--ipc=host", // Needed to make python SharedMemory work
-		"--name=sirilscripts-devcontainer", // For easier management
+		"--name=astroglue-devcontainer", // For easier management
 		"--user=1000:1000",
 		// Recommended https://rocm.docs.amd.com/projects/install-on-linux/en/docs-6.2.0/how-to/docker.html
 		"--security-opt=seccomp=unconfined",
@@ -39,7 +39,7 @@
 		"source=/run/dbus,target=/run/dbus,type=bind",
 		// It is handy to have some test images available in the container
 		"source=${localEnv:HOME}/Pictures/telescope,target=/images,type=bind,consistency=cached",
-		"source=/mnt/kshared,target=/mnt/kshared,type=bind,consistency=cached",
+		//"source=/mnt/kshared,target=/mnt/kshared,type=bind,consistency=cached",
 		// This is necessary to prevent newer vscode created images from being able to write to /tmp
 		"type=tmpfs,destination=/tmp,tmpfs-mode=1777"
 	],

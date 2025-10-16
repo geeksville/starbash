@@ -23,7 +23,6 @@ Someone just announced a closed source gui app with some similar features: https
 ### Snakemake
 
 snakemake vs doit.  Snakemake has wildcard support but is more complex.
-
 tried it but way too complex for what I need
 
 ## runing siril
