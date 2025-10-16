@@ -27,3 +27,7 @@ flatpak --user override --filesystem=/tmp org.siril.Siril
 # Install graxpert and pipx (must be done post Dockerfile)
 pip install --user --break-system-packages pipx
 pipx install graxpert[cpuonly]
+
+# Setup poetry build env
+pipx install poetry
+poetry completions bash >> ~/.bash_completion

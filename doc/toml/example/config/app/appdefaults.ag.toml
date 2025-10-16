@@ -1,13 +1,13 @@
 
 
 [repo]
-kind="preferences"
+kind = "preferences"
 
-# FIXME, somewhere here list default patterns which can be used to identiy NINA, ASIAIR, SEESTAR 
+# FIXME, somewhere here list default patterns which can be used to identify NINA, ASIAIR, SEESTAR
 # raw repo layouts
 
 # List the initial search path to find other repos, when the app launches it always first loads this ag.toml file and this file should list all of the
-# standard default repo locations.  When searching repos, repos listed LAST have precidence, so target file can override the root processing defults, 
+# standard default repo locations.  When searching repos, repos listed LAST have precedence, so target file can override the root processing defaults,
 # then the user prefs, then a live github URL or whatever
 
 [[repo.ref]]
@@ -33,7 +33,6 @@ url = "http:..."
 file = "/foo/blah"
 
 
-
 # or inband?
 
 
@@ -45,4 +44,3 @@ file = "/foo/blah"
 # location in the sequence as if they were defined here
 by-file = "process-osc-dual-duo"
 by-url = "http:..."
-

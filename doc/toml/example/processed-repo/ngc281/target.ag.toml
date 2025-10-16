@@ -30,10 +30,7 @@ license = "Creative commons etc..."
 target.id = "NGC281"
 target.name = "Some Big Nebula"
 
-# (if not present this section will be auto generated at processing time)
-[[ aquisition ]]
-
-# time of first frame in this session-config 
+[[acquisition]]
 date = 1979-05-27T07:32:00
 num-frames = 45
 exposure = 120
@@ -42,17 +39,18 @@ temperature = 23.5
 wind = 4.5
 telescope = "Askar V"
 focal-length = 600
-apature = 80
+apeture = 80
 mount = "ZWO AM5"
 
-# storing these settings here ensure if we reprocess settings remain the same
 processing.settings.flat-file = "/blag/blah.fits"
-processing.settings.bias-file="/images/masters/biases/foo-2025-09-23-bias_stacked.fits"
-processing.settings.dark-file="/images/masters/darks/foo-2025-09-23-120s_dark_stacked.fits"
+# (if not present this section will be auto generated at processing time)
+# time of first frame in this session-config
+# storing these settings here ensure if we reprocess settings remain the same
+processing.settings.bias-file = "/images/masters/biases/foo-2025-09-23-bias_stacked.fits"
+processing.settings.dark-file = "/images/masters/darks/foo-2025-09-23-120s_dark_stacked.fits"
 
-[[ aquisition ]]
+[[acquisition]]
 date = "2025/09/25"
 num-frames = 30
 exposure = 30
 filter = "SiiOiii"
-

@@ -12,5 +12,12 @@
         // Here, we set the Black Formatter extension as the default
         // formatter to use for any .py files.
         "editor.defaultFormatter": "ms-python.black-formatter"
-    }
+    },
+    "cSpell.words": [
+        "apeture",
+        "ASIAIR",
+        "astroglue",
+        "Oiii",
+        "SEESTAR"
+    ]
 }

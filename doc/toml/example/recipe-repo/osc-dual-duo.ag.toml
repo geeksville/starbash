@@ -20,7 +20,7 @@ description = "Process OSC dual duo filter data, extracting Ha and Sii from the 
 auto.for-filter = ["SiiOiii"]
 
 # for single duo look for this
-auto.for-filter = ["HaOiii"]
+# auto.for-filter = ["HaOiii"]
 
 auto.for-camera = "OSC"
 
@@ -78,12 +78,14 @@ tool = "python"
 when = "post-session" # run once after all session/session-config processing was done
 
 script-file = "process-osc-dual-duo.py"
-script-function = "osc_dual_duo_post_session" # the function to run in that file
+
+# the function to run in that file, if not specified astro_fn() is used
+script-function = "osc_dual_duo_post_session"
 
 # or inline python code instead of that function?
 script = '''
     # red output channel - from the SiiOiii filter Sii is on the 672nm red channel (mistakenly called Ha by siril)
-    make_stacked("SiiOiii", "Ha", f"results_00001") 
+    make_stacked("SiiOiii", "Ha", f"results_00001")
 
     # green output channel - from the HaOiii filter Ha is on the 656nm red channel
     make_stacked("HaOiii", "Ha", f"results_00002")

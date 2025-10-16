@@ -1,0 +1,18 @@
+[tool.poetry.scripts]
+astroglue = "astroglue.main:main"
+
+[project]
+name = "astroglue"
+version = "0.1.0"
+description = ""
+authors = [{ name = "Kevin Hester", email = "kevinh@geeksville.com" }]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["tomlkit (>=0.13.3,<0.14.0)"]
+
+[tool.poetry]
+packages = [{ include = "astroglue", from = "src" }]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
