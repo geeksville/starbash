@@ -1,6 +1,10 @@
 [repo]
 kind = "recipe"
 
+# recipes for generating master flats, bias, darks...
+[[repo.ref]]
+dir = "master_flat"
+
 # Note: For automated recipe finding, it is important to list more demanding recipies first.  For instance:
 # osc_dual_duo (which needs a HaOiii and a SiiOiii filter) should be listed first, so that if we see
 # dataset containing both HaOiii and SiiOiii filters we will assume that is the recipe to use.

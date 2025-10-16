@@ -1,0 +1,37 @@
+
+[repo]
+kind = "recipe"
+
+
+[processing.recipe.metadata]
+author.name = "FIXMESiril?"
+author.email = "FIXMESiril?"
+description = "Generate a master flat flat from raw flats"
+
+# For any camera
+auto.for-camera = []
+
+
+
+[[processing.stage]]
+
+tool = "siril"
+input.source = "session" # or auto? prefer ones in session otherwise find by in masters
+input.type = "flat"
+
+when = "session-config" # run once per session-config
+output = "{process_dir}/flat_s{sessionid}_c{sessionconfig}.fits"
+
+script = '''
+    # Create a sequence from the raw flat frames
+    link {output_base} -out={process_dir}
+    cd {process_dir}
+
+    # Calibrate the flat frames using master bias
+    calibrate {output_base} -bias={strip_extension(bias)}
+
+    # Stack the pre-processed (calibrated) flat frames
+    stack pp_{output_base} rej 3 3 -norm=mul -out={flat}
+    '''
+
+temporaries = ["{output_base}", "pp_{output_base}"]
