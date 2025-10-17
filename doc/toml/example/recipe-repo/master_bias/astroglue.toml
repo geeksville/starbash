@@ -1,0 +1,38 @@
+
+[repo]
+kind = "recipe"
+
+
+[processing.recipe.metadata]
+author.name = "FIXMESiril?"
+author.email = "FIXMESiril?"
+description = "Generate a master flat flat from raw flats"
+
+# For any camera
+auto.for-camera = []
+
+
+
+[[processing.stage]]
+
+tool = "siril"
+input.source = "global" # or auto?
+input.type = "bias"
+
+# make the following also work
+# date = "2025-09-09"  # FIXME - later find latest date with bias frames
+#os.makedirs(os.path.dirname(output), exist_ok=True)
+#os.makedirs(os.path.dirname(process_dir), exist_ok=True)
+#frames = glob(f"{masters_raw}/{date}/BIAS/{date}_*.fit*")
+#siril_run_in_temp_dir(frames, ...
+when = "global-preprocess" # run every time at start
+output = "{masters}/biases/{date}_stacked.fits" # if the output already exists processing will be skipped
+
+script = '''
+    # Convert Bias Frames to .fit files
+    link bias -out={process_dir}
+    cd {process_dir}
+
+    # Stack Bias Frames to bias_stacked.fit
+    stack bias rej 3 3 -nonorm -out={output}
+    '''

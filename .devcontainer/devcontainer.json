@@ -30,7 +30,7 @@
 		// on github CI.
 		"source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",
 		"source=/run/user/1000,target=/run/user/1000,type=bind",
-		// vscode auto export of git config into my container sometimes seems busted
+		// vscode auto export of git config into my container sometimes seems busted (actually this isn't needed - it only happens if precreate.sh bails)
 		// "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
 		// let container see host dbus, so that flatpak can work inside
 		"source=/run/dbus,target=/run/dbus,type=bind",

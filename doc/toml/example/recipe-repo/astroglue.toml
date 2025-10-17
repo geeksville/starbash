@@ -3,6 +3,8 @@ kind = "recipe"
 
 # recipes for generating master flats, bias, darks...
 [[repo.ref]]
+dir = "master_bias"
+[[repo.ref]]
 dir = "master_flat"
 
 # Note: For automated recipe finding, it is important to list more demanding recipies first.  For instance:

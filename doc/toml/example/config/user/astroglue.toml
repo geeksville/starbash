@@ -11,10 +11,10 @@ license = "FIXME Creative commons etc..."
 
 # define key repos, at first run user will be prompted to select
 [[repo.ref]]
-dir = "/images/masters"
+dir = "/workspaces/astroglue/images/masters"
 
 [[repo.ref]]
-dir = "/images/from_astroboy"
+dir = "/workspaces/astroglue/images/from_astroboy"
 
 [[repo.ref]]
-dir = "/images/processed"
+dir = "/workspaces/astroglue/images/processed"

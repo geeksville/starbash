@@ -530,7 +530,7 @@ def main() -> None:
     logging.basicConfig(
         level=logging.DEBUG, format="%(asctime)s %(levelname)s - %(message)s"
     )
-    logger.info("Starting processing")
+    logging.info("Starting processing")
 
     # find/create master bias as needed
     bias = get_master_bias_path()
@@ -544,7 +544,7 @@ def main() -> None:
             flat = get_flat_path(sessionid, sessionconfig, bias)
             process_per_session_config(sessionid, sessionconfig, bias, flat)
 
-    logger.info(f"All session configs: {all_configs}")
+    logging.info(f"All session configs: {all_configs}")
     variants = [
         "Ha",
         "OIII",
