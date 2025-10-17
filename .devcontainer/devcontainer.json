@@ -30,10 +30,12 @@
 		// on github CI.
 		"source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",
 		"source=/run/user/1000,target=/run/user/1000,type=bind",
+		// vscode auto export of git config into my container sometimes seems busted
+		// "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
 		// let container see host dbus, so that flatpak can work inside
 		"source=/run/dbus,target=/run/dbus,type=bind",
 		// It is handy to have some test images available in the container
-		"source=${localEnv:HOME}/Pictures/telescope,target=/images,type=bind,consistency=cached",
+		"source=${localEnv:HOME}/Pictures/telescope,target=/workspaces/astroglue/images,type=bind,consistency=cached",
 		//"source=/mnt/kshared,target=/mnt/kshared,type=bind,consistency=cached",
 		// This is necessary to prevent newer vscode created images from being able to write to /tmp
 		"type=tmpfs,destination=/tmp,tmpfs-mode=1777"

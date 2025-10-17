@@ -11,6 +11,8 @@ sudo chown -R $USER ~/.local
 
 echo "source .devcontainer/on-shell-start.sh" >> ~/.bashrc
 
+echo "installing siril flatpak..."
+
 # Install Siril (as non-root user)
 # Note: this must be done here, if done in Dockerfile it doesn't work - for unknown reasons ;-)
 
@@ -24,10 +26,14 @@ flatpak install --user -y flathub org.siril.Siril
 # Let siril see /tmp
 flatpak --user override --filesystem=/tmp org.siril.Siril
 
+echo "installing python dependencies..."
+
 # Install graxpert and pipx (must be done post Dockerfile)
 pip install --user --break-system-packages pipx
-pipx install graxpert[cpuonly]
+pipx install graxpert[cpuonly] poetry
 
 # Setup poetry build env
-pipx install poetry
 poetry completions bash >> ~/.bash_completion
+
+# Setup initial poetry venv
+poetry install
