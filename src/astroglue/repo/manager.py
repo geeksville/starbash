@@ -60,6 +60,25 @@ class Repo:
         logging.warning(f"No {repo_suffix} found in {self.path}")
         return {}
 
+    def get(self, key: str, default=None):
+        """
+        Gets a value from this repo's config for a given key.
+        The key can be a dot-separated string for nested values.
+
+        Args:
+            key: The dot-separated key to search for (e.g., "repo.kind").
+            default: The value to return if the key is not found.
+
+        Returns:
+            The found value or the default.
+        """
+        value = self.config
+        for k in key.split("."):
+            if not isinstance(value, dict):
+                return default
+            value = value.get(k)
+        return value if value is not None else default
+
 
 class RepoManager:
     """
@@ -101,3 +120,24 @@ class RepoManager:
     def add_repo(self, url: str) -> None:
         logging.info(f"Adding repo: {url}")
         self.repos.append(Repo(self, url))
+
+    def get(self, key: str, default=None):
+        """
+        Searches for a key across all repositories and returns the first value found.
+        The search is performed in reverse order of repository loading, so the
+        most recently added repositories have precedence.
+
+        Args:
+            key: The dot-separated key to search for (e.g., "repo.kind").
+            default: The value to return if the key is not found in any repo.
+
+        Returns:
+            The found value or the default.
+        """
+        # Iterate in reverse to give precedence to later-loaded repos
+        for repo in reversed(self.repos):
+            value = repo.get(key)
+            if value is not None:
+                return value
+
+        return default

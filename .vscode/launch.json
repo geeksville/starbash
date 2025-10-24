@@ -13,20 +13,12 @@
             "python": "${workspaceFolder}/.vscode/get_poetry_python.sh"
         },
         {
-            "name": "Python Debugger: PyTest",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "console": "integratedTerminal",
-            "python": "${workspaceFolder}/.vscode/get_poetry_python.sh"
-        },
-        {
             "name": "Python Debugger: processing script",
             "type": "debugpy",
             "request": "launch",
             "program": "poc/process.py",
             "console": "integratedTerminal",
             "python": "${workspaceFolder}/.vscode/get_poetry_python.sh"
-        }
+        },
     ]
 }
