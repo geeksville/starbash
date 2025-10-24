@@ -111,10 +111,17 @@ class AstroGlue:
 
         input_files = []
         input_config = stage.get("input")
-        if input_config and "path" in input_config:
-            # The path might contain context variables that need to be expanded.
-            # path_pattern = expand_context(input_config["path"], context)
-            path_pattern = input_config["path"]
-            input_files = glob.glob(path_pattern, recursive=True)
+        input_required = False
+        if input_config:
+            # if there is an "input" dict, we assume input.required is true if unset
+            input_required = input_config.get("required", True)
+            if "path" in input_config:
+                # The path might contain context variables that need to be expanded.
+                # path_pattern = expand_context(input_config["path"], context)
+                path_pattern = input_config["path"]
+                input_files = glob.glob(path_pattern, recursive=True)
 
-        tool_instance.run(script, context=context, input_files=input_files)
+        if input_required and not input_files:
+            logging.error("No input files found for stage (skipping)")
+        else:
+            tool_instance.run(script, context=context, input_files=input_files)
