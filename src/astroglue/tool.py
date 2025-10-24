@@ -10,6 +10,18 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def strip_comments(text: str) -> str:
+    """Removes comments from a string.
+
+    This function removes both full-line comments (lines starting with '#')
+    and inline comments (text after '#' on a line).
+    """
+    lines = []
+    for line in text.splitlines():
+        lines.append(line.split("#", 1)[0].rstrip())
+    return "\n".join(lines)
+
+
 def tool_run(cmd: str, cwd: str, commands: str | None = None) -> None:
     """Executes an external tool with an optional script of commands in a given working directory."""
 
@@ -19,9 +31,9 @@ def tool_run(cmd: str, cwd: str, commands: str | None = None) -> None:
     )
 
     if result.stdout:
-        logger.debug(f"Tool output:\n")
+        logger.info(f"Tool output:\n")
         for line in result.stdout.splitlines():
-            logger.debug(line)
+            logger.info(line)
 
     if result.stderr:
         logger.warning(f"Tool error message:")
@@ -55,7 +67,7 @@ def siril_run(temp_dir: str, commands: str, input_files: list[str] = []) -> None
     script_content = textwrap.dedent(
         f"""
         requires 1.4.0-beta3
-        {textwrap.dedent(commands)}
+        {textwrap.dedent(strip_comments(commands))}
         """
     )
 
@@ -64,7 +76,6 @@ def siril_run(temp_dir: str, commands: str, input_files: list[str] = []) -> None
     cmd = f"{siril_path} -d {temp_dir} -s -"
 
     tool_run(cmd, temp_dir, script_content)
-
 
 def graxpert_run(cwd: str, arguments: str) -> None:
     """Executes Graxpert with the specified command line arguments"""
