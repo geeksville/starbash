@@ -99,5 +99,7 @@ class AstroGlue:
         tool_instance: Tool = tool_class()
 
         # The context dictionary can be expanded later to include session variables, etc.
-        context = {}
+        context = {
+            "process_dir": "/workspaces/astroglue/images/process"  # FIXME - create/find this more correctly per session
+        }
         tool_instance.run(script, context=context)
