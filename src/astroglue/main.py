@@ -29,6 +29,7 @@ def main():
     logging.info(
         f"Repo manager initialized with {len(repo_manager.repos)} default repo references."
     )
+    repo_manager.dump()
 
 
 if __name__ == "__main__":

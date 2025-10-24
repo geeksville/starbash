@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 import tomlkit
+from multidict import MultiDict
 
 
 repo_suffix = "astroglue.toml"
@@ -141,3 +142,47 @@ class RepoManager:
                 return value
 
         return default
+
+    def dump(self):
+        """
+        Prints a detailed, multi-line description of the combined top-level keys
+        and values from all repositories, using a MultiDict for aggregation.
+        This is useful for debugging and inspecting the consolidated configuration.
+        """
+        logging.info("--- RepoManager Dump ---")
+        combined_config = self.union()
+        if not combined_config:
+            logging.info(
+                "No top-level configuration keys found across all repositories."
+            )
+            logging.info("--- End RepoManager Dump ---")
+            return
+
+        for key, value in combined_config.items():
+            # tomlkit.items() can return complex types (e.g., ArrayOfTables, Table)
+            # For a debug dump, a simple string representation is usually sufficient.
+            logging.info(f"  {key}: {value}")
+        logging.info("--- End RepoManager Dump ---")
+
+    def union(self) -> MultiDict:
+        """
+        Merges the top-level keys from all repository configurations into a MultiDict.
+
+        This method iterates through all loaded repositories in their original order
+        and combines their top-level configuration keys. If a key exists in multiple
+        repositories, all of its values will be present in the returned MultiDict.
+
+        Returns:
+            A MultiDict containing the union of all top-level keys.
+        """
+        merged_dict = MultiDict()
+        for repo in self.repos:
+            for key, value in repo.config.items():
+                merged_dict.add(key, value)
+        return merged_dict
+
+    def __str__(self):
+        lines = [f"RepoManager with {len(self.repos)} repositories:"]
+        for i, repo in enumerate(self.repos):
+            lines.append(f"  [{i}] {repo.url}")
+        return "\n".join(lines)
