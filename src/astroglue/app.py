@@ -1,6 +1,8 @@
 import logging
 from importlib import resources
 
+import itertools
+from astroglue.tool import Tool
 from astroglue.repo import RepoManager
 from astroglue.tool import tools
 
@@ -30,31 +32,72 @@ class AstroGlue:
         """On the currently active session, run all processing stages"""
         logging.info("--- Running all stages ---")
 
-        # 1. Get all stage definitions from all repos and flatten the list.
-        # The `union()` method returns a MultiDict, and `getall()` retrieves all
-        # values for the 'stages' key, which are arrays of tables from the TOML files.
-        all_stage_arrays = self.repo_manager.union().getall("stages")
-        all_stages = [
-            stage for stage_array in all_stage_arrays for stage in stage_array
-        ]
+        # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
+        pipeline_definitions = self.repo_manager.union().getall("stages")
+        flat_pipeline_steps = list(itertools.chain.from_iterable(pipeline_definitions))
 
-        # 2. Sort the collected stages by their 'priority' field.
+        # 2. Sort the pipeline steps by their 'priority' field.
         try:
-            sorted_stages = sorted(all_stages, key=lambda s: s["priority"])
+            sorted_pipeline = sorted(flat_pipeline_steps, key=lambda s: s["priority"])
         except KeyError as e:
             # Re-raise as a ValueError with a more descriptive message.
             raise ValueError(
-                f"invalid stage definition: a stage is missing the required 'priority' key"
+                f"invalid stage definition: a stage is missing the required '{e.key}' key"
             ) from e
 
-        logging.info(f"Found {len(sorted_stages)} stages to run, in order of priority.")
+        # 3. Get all available task definitions (the `[[stage]]` tables with tool, script, when).
+        task_definitions = self.repo_manager.union().getall("stage")
+        all_tasks = list(itertools.chain.from_iterable(task_definitions))
 
-        # 3. Iterate through the sorted stages and execute them.
-        for stage in sorted_stages:
-            stage_name = stage.get("name", "Unnamed Stage")
+        logging.info(
+            f"Found {len(sorted_pipeline)} pipeline steps to run in order of priority."
+        )
+
+        # 4. Iterate through the sorted pipeline and execute the associated tasks.
+        for step in sorted_pipeline:
+            step_name = step.get("name")
+            if not step_name:
+                raise ValueError("Invalid pipeline step found: missing 'name' key.")
+
             logging.info(
-                f"Executing stage: '{stage_name}' (Priority: {stage.get('priority', 'N/A')})"
+                f"--- Running pipeline step: '{step_name}' (Priority: {step['priority']}) ---"
             )
-            # Placeholder for actual stage execution logic
+            # Find all tasks that should run during this pipeline step.
+            tasks_to_run = [task for task in all_tasks if task.get("when") == step_name]
+            for task in tasks_to_run:
+                self.run_stage(task)
 
         logging.info("--- End of stages ---")
+
+    def run_stage(self, stage: dict) -> None:
+        """
+        Executes a single processing stage.
+
+        Args:
+            stage: A dictionary representing the stage configuration, containing
+                   at least 'tool' and 'script' keys.
+        """
+        tool_name = stage.get("tool")
+        if not tool_name:
+            raise ValueError(
+                f"Stage '{stage.get('name')}' is missing a 'tool' definition."
+            )
+
+        script = stage.get("script")
+        if script is None:  # Allow empty scripts
+            raise ValueError(
+                f"Stage '{stage.get('name')}' is missing a 'script' definition."
+            )
+
+        tool_class = tools.get(tool_name)
+        if not tool_class:
+            raise ValueError(
+                f"Tool '{tool_name}' for stage '{stage.get('name')}' not found."
+            )
+
+        logging.info(f"  Using tool: {tool_name}")
+        tool_instance: Tool = tool_class()
+
+        # The context dictionary can be expanded later to include session variables, etc.
+        context = {}
+        tool_instance.run(script, context=context)

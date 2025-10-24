@@ -89,9 +89,10 @@ class Tool:
             temp_dir  # pass our directory path in for the tool's usage
         )
 
-        expanded = format(commands, **context)
+        # This will throw a KeyError error if any remaining variables remain unexpanded (which is good)
+        expanded = commands.format(**context)
         logger.info(f"Expanding {commands} into {expanded}")
-        # FIXME throw an error if any remaining variables remain unexpanded
+
         try:
             self._run(temp_dir, expanded)
         finally:
