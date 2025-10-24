@@ -22,7 +22,7 @@ auto.for-camera = ["OSC"]
 [[processing.stage]]
 
 tool = "siril"
-when = "session-config" # run once per session-config
+when = "session-light" # run once per session-config
 output = "FIXME"
 
 script = '''
@@ -42,7 +42,7 @@ temporaries = ["FIXME"]
 [[processing.stage]]
 
 tool = "python"
-when = "post-session" # run once after all session/session-config processing was done
+when = "session-stack" # run once after all session/session-config processing was done
 
 script-file = "script.py"
 

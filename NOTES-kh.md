@@ -8,7 +8,6 @@
 * use https://tinydb.readthedocs.io as the DB?
 * render output (including tables) with https://github.com/Textualize/rich - use basic command lines at first
 * eventually do a simple gui using https://flet.dev/docs/
-* add the concept of processing stages, start with "session-config" for flat processing
 * use import importlib.util to load python code it is own namespace
 * add a repo-add command that creates repo.ag.toml file in the rootdir and references it from users preferences.
 * have repo-add auto recognize common nina/asiair/seestar layouts

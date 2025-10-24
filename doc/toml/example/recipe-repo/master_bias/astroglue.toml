@@ -16,7 +16,10 @@ auto.for-camera = []
 [[processing.stage]]
 
 tool = "siril"
-input.source = "global" # or auto?
+
+# or auto?
+# find the most recent raw fits for the current instrument (as of the time of session start)
+input.source = "most-recent"
 input.type = "bias"
 
 # make the following also work
@@ -25,7 +28,7 @@ input.type = "bias"
 #os.makedirs(os.path.dirname(process_dir), exist_ok=True)
 #frames = glob(f"{masters_raw}/{date}/BIAS/{date}_*.fit*")
 #siril_run_in_temp_dir(frames, ...
-when = "global-preprocess" # run every time at start
+when = "session-config" # run at the start of each session process
 output = "{masters}/biases/{date}_stacked.fits" # if the output already exists processing will be skipped
 
 script = '''

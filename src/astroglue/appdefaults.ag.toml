@@ -55,3 +55,18 @@ dir = "/workspaces/astroglue/doc/toml/example/config/user/"
 # location in the sequence as if they were defined here
 #by-file = "process-osc-dual-duo"
 #by-url = "http:..."
+
+
+# processing stages, currently all declared here, but possibly in the future they could be added by user/other toml files
+
+[[stages]]
+name = "session-config" # for flat processing, master generation etc
+priority = 10
+
+[[stages]]
+name = "session-light" # generate light frames from lights and with reference to flats/bias
+priority = 20
+
+[[stages]]
+name = "session-stack" # stack frames
+priority = 30

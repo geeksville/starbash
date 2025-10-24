@@ -1,7 +1,6 @@
 import os
 import shutil
 import textwrap
-from glob import glob
 import tempfile
 import subprocess
 
