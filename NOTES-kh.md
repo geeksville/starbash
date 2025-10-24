@@ -9,10 +9,16 @@
 * render output (including tables) with https://github.com/Textualize/rich - use basic command lines at first
 * eventually do a simple gui using https://flet.dev/docs/
 * use import importlib.util to load python code it is own namespace
+* make crude flat frame generation work
+* make crude light frame processing work
+* use repo globs to find master bias frames
+* use repo globs to find flat frames
+* use repo globs to find light frames
 * add a repo-add command that creates repo.ag.toml file in the rootdir and references it from users preferences.
 * have repo-add auto recognize common nina/asiair/seestar layouts
 * generate a report on the final output including attribution for data sources, recpies etc...
 * do star extraction
+* don't regen masters/stacks/etc... if we don't need to - precheck for existence of output file
 * add a backpointer in stages to the recipe they came from (for attribution, reporting etc...)
 * validate TOML files at load time to look for invalid keys (detect possible typos in recpie files etc...)
 * make generalized (not just file) URLs work for repos etc...

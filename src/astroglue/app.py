@@ -85,19 +85,18 @@ class AstroGlue:
             )
 
         script = stage.get("script")
-        if script is None:  # Allow empty scripts
+        if script is None:
             raise ValueError(
                 f"Stage '{stage.get('name')}' is missing a 'script' definition."
             )
 
-        tool = tools.get(tool_name)
+        tool: Tool | None = tools.get(tool_name)
         if not tool:
             raise ValueError(
                 f"Tool '{tool_name}' for stage '{stage.get('name')}' not found."
             )
 
         logging.info(f"  Using tool: {tool_name}")
-        tool_instance: Tool = tool
 
         # This allows recipe TOML to define their own default variables.
         context = stage.get("context", {})
@@ -124,4 +123,4 @@ class AstroGlue:
         if input_required and not input_files:
             logging.error("No input files found for stage (skipping)")
         else:
-            tool_instance.run(script, context=context, input_files=input_files)
+            tool.run(script, context=context, input_files=input_files)
