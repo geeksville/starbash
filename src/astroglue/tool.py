@@ -77,6 +77,7 @@ def siril_run(temp_dir: str, commands: str, input_files: list[str] = []) -> None
 
     tool_run(cmd, temp_dir, script_content)
 
+
 def graxpert_run(cwd: str, arguments: str) -> None:
     """Executes Graxpert with the specified command line arguments"""
 
@@ -93,13 +94,42 @@ class _SafeFormatter(dict):
         return "{" + key + "}"
 
 
+def expand_context(s: str, context: dict) -> str:
+    """Expand any named variables in the provided string"""
+    # Iteratively expand the command string to handle nested placeholders.
+    # The loop continues until the string no longer changes.
+    expanded = s
+    previous = None
+    max_iterations = 10  # Safety break for infinite recursion
+    for i in range(max_iterations):
+        if expanded == previous:
+            break  # Expansion is complete
+        previous = expanded
+        expanded = expanded.format_map(_SafeFormatter(context))
+    else:
+        logger.warning(
+            f"Template expansion reached max iterations ({max_iterations}). Possible recursive definition in '{commands}'."
+        )
+
+    logger.info(f"Expanded '{s}' into '{expanded}'")
+
+    # throw an error if any remaining unexpanded variables remain unexpanded
+    unexpanded_vars = re.findall(r"\{([^{}]+)\}", expanded)
+    if unexpanded_vars:
+        raise KeyError(f"Missing context variable(s): {', '.join(unexpanded_vars)}")
+
+    return expanded
+
+
 class Tool:
     """A tool for stage execution"""
 
     def __init__(self, name: str) -> None:
         self.name = name
 
-    def run(self, commands: str, context: dict = {},  input_files: list[str] = []) -> None:
+    def run(
+        self, commands: str, context: dict = {}, input_files: list[str] = []
+    ) -> None:
         """Run commands inside this tool (with cwd pointing to a temp directory)"""
         # Create a temporary directory for processing
         temp_dir = tempfile.mkdtemp(prefix=self.name)
@@ -110,32 +140,14 @@ class Tool:
 
         # Iteratively expand the command string to handle nested placeholders.
         # The loop continues until the string no longer changes.
-        expanded = commands
-        previous = None
-        max_iterations = 10  # Safety break for infinite recursion
-        for i in range(max_iterations):
-            if expanded == previous:
-                break  # Expansion is complete
-            previous = expanded
-            expanded = expanded.format_map(_SafeFormatter(context))
-        else:
-            logger.warning(
-                f"Template expansion reached max iterations ({max_iterations}). Possible recursive definition in '{commands}'."
-            )
-
-        logger.info(f"Expanded '{commands}' into '{expanded}'")
-
-        # throw an error if any remaining unexpanded variables remain unexpanded
-        unexpanded_vars = re.findall(r"\{([^{}]+)\}", expanded)
-        if unexpanded_vars:
-            raise KeyError(f"Missing context variable(s): {', '.join(unexpanded_vars)}")
+        expanded = expand_context(commands, context)
 
         try:
             self._run(temp_dir, expanded, input_files)
         finally:
             shutil.rmtree(temp_dir)
 
-    def _run(self, cwd: str, commands: str,  input_files: list[str] = []) -> None:
+    def _run(self, cwd: str, commands: str, input_files: list[str] = []) -> None:
         raise NotImplementedError()
 
 

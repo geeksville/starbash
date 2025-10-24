@@ -23,7 +23,7 @@ input.type = "bias" # look in all raw repos, but look only for bias files
 
 # for early development we have support for simple absolute file paths with globs
 input.source = "path"
-input.path = "/workspaces/astroglue/images/from_astroby/masters-raw/2025-09-09/BIAS/*.fit*"
+input.path = "/workspaces/astroglue/images/from_astroboy/masters-raw/2025-09-09/BIAS/*.fit*"
 
 # make the following also work
 #

@@ -1,6 +1,7 @@
 import logging
 from importlib import resources
 
+import glob
 import itertools
 from astroglue.tool import Tool
 from astroglue.repo import RepoManager
@@ -104,8 +105,16 @@ class AstroGlue:
         # Update the context with runtime values.
         runtime_context = {
             "process_dir": "/workspaces/astroglue/images/process",  # FIXME - create/find this more correctly per session
-            "masters": "/workspaces/astroglue/images/masters" # FIXME find this the correct way
+            "masters": "/workspaces/astroglue/images/masters",  # FIXME find this the correct way
         }
         context.update(runtime_context)
 
-        tool_instance.run(script, context=context)
+        input_files = []
+        input_config = stage.get("input")
+        if input_config and "path" in input_config:
+            # The path might contain context variables that need to be expanded.
+            # path_pattern = expand_context(input_config["path"], context)
+            path_pattern = input_config["path"]
+            input_files = glob.glob(path_pattern, recursive=True)
+
+        tool_instance.run(script, context=context, input_files=input_files)
