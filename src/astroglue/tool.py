@@ -99,7 +99,7 @@ class Tool:
     def __init__(self, name: str) -> None:
         self.name = name
 
-    def run(self, commands: str, context: dict = {}) -> None:
+    def run(self, commands: str, context: dict = {},  input_files: list[str] = []) -> None:
         """Run commands inside this tool (with cwd pointing to a temp directory)"""
         # Create a temporary directory for processing
         temp_dir = tempfile.mkdtemp(prefix=self.name)
@@ -131,11 +131,11 @@ class Tool:
             raise KeyError(f"Missing context variable(s): {', '.join(unexpanded_vars)}")
 
         try:
-            self._run(temp_dir, expanded)
+            self._run(temp_dir, expanded, input_files)
         finally:
             shutil.rmtree(temp_dir)
 
-    def _run(self, cwd: str, commands: str) -> None:
+    def _run(self, cwd: str, commands: str,  input_files: list[str] = []) -> None:
         raise NotImplementedError()
 
 
@@ -145,8 +145,8 @@ class SirilTool(Tool):
     def __init__(self) -> None:
         super().__init__("siril")
 
-    def _run(self, cwd: str, commands: str) -> None:
-        siril_run(cwd, commands)
+    def _run(self, cwd: str, commands: str, input_files: list[str] = []) -> None:
+        siril_run(cwd, commands, input_files)
 
 
 class GraxpertTool(Tool):
@@ -155,7 +155,7 @@ class GraxpertTool(Tool):
     def __init__(self) -> None:
         super().__init__("graxpert")
 
-    def _run(self, cwd: str, commands: str) -> None:
+    def _run(self, cwd: str, commands: str, input_files: list[str] = []) -> None:
         graxpert_run(cwd, commands)
 
 

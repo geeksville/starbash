@@ -18,10 +18,12 @@ tool = "siril"
 
 # or auto?
 # find the most recent raw fits for the current instrument (as of the time of session start)
-input.source = "most-recent" # only look for the most recent set of raws for this particular type
+# input.source = "most-recent" # only look for the most recent set of raws for this particular type
 input.type = "bias" # look in all raw repos, but look only for bias files
 
-FIXME add the concept of absolute file path inputs (for easy early testing)
+# for early development we have support for simple absolute file paths with globs
+input.source = "path"
+input.path = "/workspaces/astroglue/images/from_astroby/masters-raw/2025-09-09/BIAS/*.fit*"
 
 # make the following also work
 #
