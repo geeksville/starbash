@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def tool_run(cmd: str, cwd: str, commands: str = None) -> None:
+def tool_run(cmd: str, cwd: str, commands: str | None = None) -> None:
     """Executes an external tool with an optional script of commands in a given working directory."""
 
     logger.debug(f"Running {cmd} in {cwd}: stdin={commands}")
@@ -38,8 +38,17 @@ def tool_run(cmd: str, cwd: str, commands: str = None) -> None:
 siril_path = "org.siril.Siril"  # flatpak
 
 
-def siril_run(cwd: str, commands: str) -> None:
+def siril_run(temp_dir: str, commands: str, input_files: list[str] = []) -> None:
     """Executes Siril with a script of commands in a given working directory."""
+
+    # Create symbolic links for all input files in the temp directory
+    for f in input_files:
+        os.symlink(
+            os.path.abspath(str(f)), os.path.join(temp_dir, os.path.basename(str(f)))
+        )
+
+    # Run Siril commands in the temporary directory
+    logger.info(f"Running Siril in temporary directory: {temp_dir}, cmds {commands}")
 
     # We dedent here because the commands are often indented multiline strings
     script_content = textwrap.dedent(
@@ -53,7 +62,7 @@ def siril_run(cwd: str, commands: str) -> None:
     # It seems like the -d command may also be required when siril is in a flatpak
     cmd = f"{siril_path} -d {cwd} -s -"
 
-    tool_run(cmd, cwd, script_content)
+    tool_run(cmd, temp_dir, script_content)
 
 
 def graxpert_run(cwd: str, arguments: str) -> None:
@@ -65,21 +74,51 @@ def graxpert_run(cwd: str, arguments: str) -> None:
     tool_run(cmd, cwd)
 
 
-def siril_run_in_temp_dir(input_files: list[str], commands: str) -> None:
-    # Create a temporary directory for processing
-    temp_dir = tempfile.mkdtemp(prefix="siril_")
+class Tool:
+    """A tool for stage execution"""
 
-    # Create symbolic links for all input files in the temp directory
-    for f in input_files:
-        os.symlink(
-            os.path.abspath(str(f)), os.path.join(temp_dir, os.path.basename(str(f)))
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def run(self, commands: str, context: dict = {}) -> None:
+        """Run commands inside this tool (with cwd pointing to a temp directory)"""
+        # Create a temporary directory for processing
+        temp_dir = tempfile.mkdtemp(prefix=self.name)
+
+        context["temp_dir"] = (
+            temp_dir  # pass our directory path in for the tool's usage
         )
 
-    # Run Siril commands in the temporary directory
-    try:
-        logger.info(
-            f"Running Siril in temporary directory: {temp_dir}, cmds {commands}"
-        )
-        siril_run(temp_dir, commands)
-    finally:
-        shutil.rmtree(temp_dir)
+        expanded = format(commands, **context)
+        logger.info(f"Expanding {commands} into {expanded}")
+        # FIXME throw an error if any remaining variables remain unexpanded
+        try:
+            self._run(temp_dir, expanded)
+        finally:
+            shutil.rmtree(temp_dir)
+
+    def _run(self, cwd: str, commands: str) -> None:
+        raise NotImplementedError()
+
+
+class SirilTool(Tool):
+    """Expose Siril as a tool"""
+
+    def __init__(self) -> None:
+        super().__init__("siril")
+
+
+class GraxpertTool(Tool):
+    pass
+
+
+class PythonTool(Tool):
+    """Expose Python as a tool
+
+    FIXME Caution currently this runs unvalidated python code - the script can do anything
+    """
+
+    pass
+
+
+tools = {"siril": SirilTool, "graxpert": GraxpertTool, "python": PythonTool}

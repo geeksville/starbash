@@ -30,11 +30,13 @@ input.type = "bias"
 when = "session-config" # run at the start of each session process
 
 # The following constants are auto defined before running the tool
-# constants.process_dir (points to the session specific semi-persistent local tmp dir for that sessions data files)
+# context.process_dir (points to the session specific semi-persistent local dir for that sessions written/read data files)
+# context.masters (FIXME) - need to find this name dynamically by looking for a suitable writable repo
+# context.temp_dir (points to a temporary directory this tool can use for writing)
 
 # Everything in the constants dict will be predefined as named variables for use by the script
-constants.date = "2025-09-09"  # FIXME - later find auto latest date with bias frames
-constants.output = "{masters}/biases/{date}_stacked.fits" # if the output already exists processing will be skipped
+context.date = "2025-09-09"  # FIXME - later find auto latest date with bias frames
+context.output = "{masters}/biases/{date}_stacked.fits" # if the output already exists processing will be skipped
 
 script = '''
     # Convert Bias Frames to .fit files
