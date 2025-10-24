@@ -2,7 +2,7 @@
 [repo]
 kind = "preferences"
 
-[author]
+[preferences.author]
 # default author info
 name = "Kevin Hester"
 email = "kevinh@geeksville.com"

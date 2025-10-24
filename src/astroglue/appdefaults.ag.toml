@@ -51,7 +51,7 @@ dir = "/workspaces/astroglue/doc/toml/example/config/user/"
 # [[repo.ref]]
 
 # looks for a file with this name and .py for the code and .toml for the config
-# we'll expect that toml file to contain various [[processing.*]] sections which will be loaded at this
+# we'll expect that toml file to contain various [[recipe.*]] sections which will be loaded at this
 # location in the sequence as if they were defined here
 #by-file = "process-osc-dual-duo"
 #by-url = "http:..."

@@ -2,7 +2,7 @@
 # it is initially auto populated based on the best guess of astroglue, but the user
 # can hand customize as needed
 
-[processing.recipe]
+[recipe]
 
 # Astroglue will search all recipe repos to find this by name
 python-recipe = "osc-dual-duo"
@@ -13,7 +13,7 @@ python-recipe = "osc-dual-duo"
 
 # a default astroglue file for a particular processed target will typically contain only the preceeding
 
-[author]
+[recipe.author]
 
 # (if not present this section will be auto generated at processing time)
 # this whole secion is auto copied from userprefs.ag.toml

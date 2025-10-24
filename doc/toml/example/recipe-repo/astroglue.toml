@@ -1,5 +1,5 @@
 [repo]
-kind = "recipe"
+kind = "repo"
 
 # recipes for generating master flats, bias, darks...
 [[repo.ref]]

@@ -4,11 +4,11 @@ kind = "recipe"
 
 # all ag.toml files can optionally contain a version section.  if version of the running astroglue app is out of bounds a warning message will be printed
 # to the user and the file will be ignored for future processing.
-[version]
+[recipe.require.version]
 min="0.1.0"
 max="4.5.8"
 
-[processing.recipe.metadata]
+[recipe]
 author.name = "Kevin Hester"
 author.email = "kevinh@geeksville.com"
 description = "Process OSC single duo filter data, extracting Ha and Oiii"
@@ -19,7 +19,7 @@ auto.for-filter = ["HaOiii"]
 auto.for-camera = ["OSC"]
 
 
-[[processing.stage]]
+[[recipe.stage]]
 
 tool = "siril"
 when = "session-light" # run once per session-config
@@ -39,7 +39,7 @@ script = '''
 
 temporaries = ["FIXME"]
 
-[[processing.stage]]
+[[recipe.stage]]
 
 tool = "python"
 when = "session-stack" # run once after all session/session-config processing was done

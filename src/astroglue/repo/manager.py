@@ -54,7 +54,7 @@ class Repo:
         if self.path and self.path.is_dir():
             config_path = self.path / repo_suffix
             if config_path.is_file():
-                logging.info(f"Loading repo config from {config_path}")
+                logging.debug(f"Loading repo config from {config_path}")
                 with open(config_path, "r") as f:
                     return tomlkit.load(f)
 
