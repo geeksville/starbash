@@ -13,6 +13,8 @@ author.name = "Kevin Hester"
 author.email = "kevinh@geeksville.com"
 description = "Process OSC dual duo filter data, extracting Ha and Sii from the red channel"
 
+[[stage]]
+
 # FIXME-somehow-specify-what-filternames are used to auto detect this recipe can be used?
 # figure out how to support dual duo vs single duo.  Perhaps: the FIRST recipie that matches an auto rule
 # is used for any auto-defected defaults.  If an auto match is found it will be saved in the generated starter
@@ -22,14 +24,9 @@ description = "Process OSC dual duo filter data, extracting Ha and Sii from the 
 
 # for dual duo if we see Sii assume they also have HaOiii
 auto.for-filter = ["SiiOiii"]
-
 # for single duo look for this
 # auto.for-filter = ["HaOiii"]
-
 auto.for-camera = ["OSC"]
-
-
-[[recipe.stage]]
 
 tool = "siril"
 when = "session-light" # run once per session-config
@@ -52,7 +49,7 @@ script = '''
 
 temporaries = ["FIXME"]
 
-[[recipe.stage]]
+[[stage]]
 
 tool = "python"
 when = "session-stack" # run once after all session/session-config processing was done

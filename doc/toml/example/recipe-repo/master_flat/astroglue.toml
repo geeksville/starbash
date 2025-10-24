@@ -8,12 +8,11 @@ author.name = "FIXMESiril?"
 author.email = "FIXMESiril?"
 description = "Generate a master flat flat from raw flats"
 
+
+[[stage]]
+
 # For any camera
 auto.for-camera = []
-
-
-
-[[recipe.stage]]
 
 tool = "siril"
 input.source = "session" # or auto? prefer ones in session otherwise find by in masters

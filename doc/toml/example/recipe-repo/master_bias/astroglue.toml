@@ -8,12 +8,11 @@ author.name = "FIXMESiril?"
 author.email = "FIXMESiril?"
 description = "Generate a master flat flat from raw flats"
 
+[[stage]]
+
+# Restrict processing of this stage to only if detected hardware was found for this session
 # For any camera
 auto.for-camera = []
-
-
-
-[[recipe.stage]]
 
 tool = "siril"
 

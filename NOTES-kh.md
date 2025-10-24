@@ -13,6 +13,8 @@
 * have repo-add auto recognize common nina/asiair/seestar layouts
 * generate a report on the final output including attribution for data sources, recpies etc...
 * do star extraction
+* add a backpointer in stages to the recipe they came from (for attribution, reporting etc...)
+* validate TOML files at load time to look for invalid keys (detect possible typos in recpie files etc...)
 * make generalized (not just file) URLs work for repos etc...
 * change from eval() to something more secure (ast + eval? a restricted dict API?)
 * add something like repo-add for masters and processed

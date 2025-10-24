@@ -13,13 +13,12 @@ author.name = "Kevin Hester"
 author.email = "kevinh@geeksville.com"
 description = "Process OSC single duo filter data, extracting Ha and Oiii"
 
+[[stage]]
+
+# Restrict processing of this stage to only if detected hardware was found for this session
 # for single duo look for this
 auto.for-filter = ["HaOiii"]
-
 auto.for-camera = ["OSC"]
-
-
-[[recipe.stage]]
 
 tool = "siril"
 when = "session-light" # run once per session-config
@@ -39,7 +38,7 @@ script = '''
 
 temporaries = ["FIXME"]
 
-[[recipe.stage]]
+[[stage]]
 
 tool = "python"
 when = "session-stack" # run once after all session/session-config processing was done
