@@ -22,13 +22,19 @@ input.source = "most-recent"
 input.type = "bias"
 
 # make the following also work
-# date = "2025-09-09"  # FIXME - later find latest date with bias frames
+#
 #os.makedirs(os.path.dirname(output), exist_ok=True)
 #os.makedirs(os.path.dirname(process_dir), exist_ok=True)
 #frames = glob(f"{masters_raw}/{date}/BIAS/{date}_*.fit*")
 #siril_run_in_temp_dir(frames, ...
 when = "session-config" # run at the start of each session process
-output = "{masters}/biases/{date}_stacked.fits" # if the output already exists processing will be skipped
+
+# The following constants are auto defined before running the tool
+# constants.process_dir (points to the session specific semi-persistent local tmp dir for that sessions data files)
+
+# Everything in the constants dict will be predefined as named variables for use by the script
+constants.date = "2025-09-09"  # FIXME - later find auto latest date with bias frames
+constants.output = "{masters}/biases/{date}_stacked.fits" # if the output already exists processing will be skipped
 
 script = '''
     # Convert Bias Frames to .fit files
