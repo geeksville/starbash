@@ -103,7 +103,8 @@ class AstroGlue:
 
         # Update the context with runtime values.
         runtime_context = {
-            "process_dir": "/workspaces/astroglue/images/process"  # FIXME - create/find this more correctly per session
+            "process_dir": "/workspaces/astroglue/images/process",  # FIXME - create/find this more correctly per session
+            "masters": "/workspaces/astroglue/images/masters" # FIXME find this the correct way
         }
         context.update(runtime_context)
 
