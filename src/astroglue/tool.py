@@ -74,6 +74,13 @@ def graxpert_run(cwd: str, arguments: str) -> None:
     tool_run(cmd, cwd)
 
 
+class _SafeFormatter(dict):
+    """A dictionary for safe string formatting that ignores missing keys."""
+
+    def __missing__(self, key):
+        return "{" + key + "}"
+
+
 class Tool:
     """A tool for stage execution"""
 
@@ -89,9 +96,22 @@ class Tool:
             temp_dir  # pass our directory path in for the tool's usage
         )
 
-        # This will throw a KeyError error if any remaining variables remain unexpanded (which is good)
-        expanded = commands.format(**context)
-        logger.info(f"Expanding {commands} into {expanded}")
+        # Iteratively expand the command string to handle nested placeholders.
+        # The loop continues until the string no longer changes.
+        expanded = commands
+        previous = None
+        max_iterations = 10  # Safety break for infinite recursion
+        for i in range(max_iterations):
+            if expanded == previous:
+                break  # Expansion is complete
+            previous = expanded
+            expanded = expanded.format_map(_SafeFormatter(context))
+        else:
+            logger.warning(
+                f"Template expansion reached max iterations ({max_iterations}). Possible recursive definition in '{commands}'."
+            )
+
+        logger.info(f"Expanded '{commands}' into '{expanded}'")
 
         try:
             self._run(temp_dir, expanded)
@@ -128,7 +148,9 @@ class PythonTool(Tool):
     FIXME Caution currently this runs unvalidated python code - the script can do anything
     """
 
-    pass
+    def __init__(self) -> None:
+        super().__init__("python")
 
 
-tools = {"siril": SirilTool, "graxpert": GraxpertTool, "python": PythonTool}
+# A dictionary mapping tool names to their respective tool instances.
+tools = {tool.name: tool for tool in [SirilTool(), GraxpertTool(), PythonTool()]}
