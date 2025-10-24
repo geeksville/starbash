@@ -1,25 +1,23 @@
 import pytest
 from pathlib import Path
 from astroglue.repo.manager import RepoManager
-import tomlkit
 
 
-def test_repo_manager_initialization():
+def test_repo_manager_initialization(monkeypatch):
     """
     Tests that the RepoManager correctly initializes and processes repo references.
     """
 
     # We use a mock Repo class to prevent file system access during this unit test.
     class MockRepo:
-        def __init__(self, manager, url):
-            self.manager = manager
+        def __init__(self, _manager, url):
             self.url = url
-            self.config = {}  # Mock config
-            # In the real Repo class, this is where it would load the repo's config.
-            # We are keeping it simple here to just test the manager's parsing.
+            # The real Repo.__init__ calls manager.add_all_repos, which can lead to
+            # recursion. We don't need to test that behavior here, so we do nothing.
 
-    # Temporarily replace the real Repo class with our mock during the test
-    pytest.MonkeyPatch().setattr("astroglue.repo.manager.Repo", MockRepo)
+    # Use the monkeypatch fixture to replace the real Repo class with our mock.
+    # The fixture ensures this change is reverted after the test function finishes.
+    monkeypatch.setattr("astroglue.repo.manager.Repo", MockRepo)
 
     app_defaults_text = """
     [[repo.ref]]
@@ -37,65 +35,48 @@ def test_repo_manager_initialization():
     assert repo_manager.repos[1].url.endswith("/astroglue/test_data/my_raws")
 
 
-def test_repo_manager_get():
+def test_repo_manager_get_with_real_repos(tmp_path: Path):
     """
     Tests that RepoManager.get() correctly retrieves values from the hierarchy
-    of repository configurations, respecting precedence.
+    of repository configurations using the real Repo class, respecting precedence.
+    """
+    # 1. Create temporary directories and config files for our test repos
+    recipe_repo_path = tmp_path / "recipe-repo"
+    recipe_repo_path.mkdir()
+    (recipe_repo_path / "astroglue.toml").write_text(
+        """
+        [repo]
+        kind = "recipe-repo"
+        [user]
+        name = "default-user"
+        """
+    )
+
+    user_prefs_path = tmp_path / "user-prefs"
+    user_prefs_path.mkdir()
+    (user_prefs_path / "astroglue.toml").write_text(
+        """
+        [repo]
+        kind = "user-prefs" # This should override the value from the recipe-repo
+        [user]
+        email = "user@example.com"
+        """
+    )
+
+    # 2. Create a dynamic appdefaults content pointing to our temporary repos
+    app_defaults_text = f"""
+    [[repo.ref]]
+    dir = "{recipe_repo_path}"
+
+    [[repo.ref]]
+    dir = "{user_prefs_path}"
     """
 
-    # A dictionary to hold mock file contents for our repos
-    mock_files = {
-        "/workspaces/astroglue/doc/toml/example/recipe-repo/astroglue.toml": """
-            [repo]
-            kind = "recipe-repo"
-            [user]
-            name = "default-user"
-            """,
-        "/workspaces/astroglue/doc/toml/example/config/user/astroglue.toml": """
-            [repo]
-            kind = "user-prefs" # This should override the value from the recipe-repo
-            [user]
-            email = "user@example.com"
-            """,
-    }
-
-    # We use a more advanced mock Repo that simulates loading config from our mock_files
-    class MockRepoWithGet:
-        def __init__(self, manager, url):
-            self.manager = manager
-            self.url = url
-            self.path = Path(url[len("file://") :])
-            self.config = self._load_config()
-            # The real Repo calls this to handle nested repos, but we don't need it for this test.
-            # self.manager.add_all_repos(self.config, base_path=self.path)
-
-        def _load_config(self) -> dict:
-            config_path = self.path / "astroglue.toml"
-            content = mock_files.get(str(config_path.resolve()))
-            return tomlkit.parse(content) if content else {}
-
-        def get(self, key: str, default=None):
-            # A simple re-implementation of the real Repo.get() for our mock
-            value = self.config
-            for k in key.split("."):
-                if not isinstance(value, dict):
-                    return default
-                value = value.get(k)
-            return value if value is not None else default
-
-    pytest.MonkeyPatch().setattr("astroglue.repo.manager.Repo", MockRepoWithGet)
-
-    # Use the real appdefaults.ag.toml content
-    app_defaults_text = Path(
-        "/workspaces/astroglue/src/astroglue/appdefaults.ag.toml"
-    ).read_text()
+    # 3. Initialize the RepoManager, which will now use the real Repo class
     repo_manager = RepoManager(app_defaults_text)
 
-    # Test that the value from the *last* loaded repo (user prefs) is returned
+    # 4. Assert that the values are retrieved correctly, respecting precedence
     assert repo_manager.get("repo.kind") == "user-prefs"
-    # Test retrieving a value that only exists in the first repo
     assert repo_manager.get("user.name") == "default-user"
-    # Test retrieving a value that only exists in the second repo
     assert repo_manager.get("user.email") == "user@example.com"
-    # Test a non-existent key with a default value
     assert repo_manager.get("non.existent.key", "default") == "default"
