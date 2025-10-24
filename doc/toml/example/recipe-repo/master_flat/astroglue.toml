@@ -16,7 +16,7 @@ auto.for-camera = []
 
 tool = "siril"
 input.source = "session" # or auto? prefer ones in session otherwise find by in masters
-input.type = "flat"
+input.type = "flat" # look in _session_ directories, but look only for flat files
 
 when = "session-config" # run once per session-config
 output = "{process_dir}/flat_s{sessionid}_c{sessionconfig}.fits"
