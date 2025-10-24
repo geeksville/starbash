@@ -98,8 +98,13 @@ class AstroGlue:
         logging.info(f"  Using tool: {tool_name}")
         tool_instance: Tool = tool_class()
 
-        # The context dictionary can be expanded later to include session variables, etc.
-        context = {
+        # This allows recipe TOML to define their own default variables.
+        context = stage.get("context", {})
+
+        # Update the context with runtime values.
+        runtime_context = {
             "process_dir": "/workspaces/astroglue/images/process"  # FIXME - create/find this more correctly per session
         }
+        context.update(runtime_context)
+
         tool_instance.run(script, context=context)

@@ -60,7 +60,7 @@ def siril_run(temp_dir: str, commands: str, input_files: list[str] = []) -> None
 
     # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
     # It seems like the -d command may also be required when siril is in a flatpak
-    cmd = f"{siril_path} -d {cwd} -s -"
+    cmd = f"{siril_path} -d {temp_dir} -s -"
 
     tool_run(cmd, temp_dir, script_content)
 
@@ -108,9 +108,18 @@ class SirilTool(Tool):
     def __init__(self) -> None:
         super().__init__("siril")
 
+    def _run(self, cwd: str, commands: str) -> None:
+        siril_run(cwd, commands)
+
 
 class GraxpertTool(Tool):
-    pass
+    """Expose Graxpert as a tool"""
+
+    def __init__(self) -> None:
+        super().__init__("graxpert")
+
+    def _run(self, cwd: str, commands: str) -> None:
+        graxpert_run(cwd, commands)
 
 
 class PythonTool(Tool):
