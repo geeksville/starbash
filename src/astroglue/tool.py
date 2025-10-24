@@ -3,6 +3,7 @@ import shutil
 import textwrap
 import tempfile
 import subprocess
+import re
 
 import logging
 
@@ -75,7 +76,7 @@ def graxpert_run(cwd: str, arguments: str) -> None:
 
 
 class _SafeFormatter(dict):
-    """A dictionary for safe string formatting that ignores missing keys."""
+    """A dictionary for safe string formatting that ignores missing keys during expansion."""
 
     def __missing__(self, key):
         return "{" + key + "}"
@@ -112,6 +113,11 @@ class Tool:
             )
 
         logger.info(f"Expanded '{commands}' into '{expanded}'")
+
+        # throw an error if any remaining unexpanded variables remain unexpanded
+        unexpanded_vars = re.findall(r"\{([^{}]+)\}", expanded)
+        if unexpanded_vars:
+            raise KeyError(f"Missing context variable(s): {', '.join(unexpanded_vars)}")
 
         try:
             self._run(temp_dir, expanded)
