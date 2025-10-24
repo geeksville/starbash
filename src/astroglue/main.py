@@ -1,6 +1,7 @@
 import logging
 import sys
 from importlib import resources
+from rich.logging import RichHandler
 
 from astroglue.repo import RepoManager
 
@@ -10,9 +11,10 @@ def setup_logging():
     Configures basic logging.
     """
     logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[logging.StreamHandler(sys.stdout)],
+        level="NOTSET",
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(rich_tracebacks=True)],
     )
 
 
