@@ -79,6 +79,11 @@ class AstroGlue:
                    at least 'tool' and 'script' keys.
         """
         stage_desc = stage.get("description", "(missing description)")
+        stage_disabled = stage.get("disabled", False)
+        if stage_disabled:
+            logging.info(f"Skipping disabled stage: {stage_desc}")
+            return
+
         logging.info(f"Running stage: {stage_desc}")
 
         tool_name = stage.get("tool")

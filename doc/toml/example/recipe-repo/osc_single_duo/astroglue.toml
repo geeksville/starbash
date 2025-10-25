@@ -16,6 +16,8 @@ author.email = "kevinh@geeksville.com"
 
 description = "Process OSC single duo filter data, extracting Ha and Oiii"
 
+disabled = true # FIXME, we don't yet have auto selection based on filter types
+
 # Restrict processing of this stage to only if detected hardware was found for this session
 # for single duo look for this
 auto.for-filter = ["HaOiii"]
@@ -40,6 +42,8 @@ script = '''
 temporaries = ["FIXME"]
 
 [[stage]]
+
+disabled = true # FIXME, we don't yet have auto selection based on filter types
 
 tool = "python"
 when = "session-stack" # run once after all session/session-config processing was done
