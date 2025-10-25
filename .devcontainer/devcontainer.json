@@ -30,8 +30,16 @@
 		// on github CI.
 		"source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",
 		"source=/run/user/1000,target=/run/user/1000,type=bind",
+		// This isn't needed - much better to just pass in the XAUTHORITY env var (because this filename keeps changing)
 		// Mount the X11 authority file to allow GUI apps in the container to connect to the host's display
-		"source=${localEnv:XAUTHORITY},target=${localEnv:XAUTHORITY},type=bind",
+		//"source=${localEnv:XAUTHORITY},target=${localEnv:XAUTHORITY},type=bind",
+		{
+			"source": "${env:XAUTHORITY}",
+			"target": "/tmp/.docker.xauth",
+			"type": "bind",
+			"readOnly": true,
+			"consistency": "cached"
+		},
 		// vscode auto export of git config into my container sometimes seems busted (actually this isn't needed - it only happens if precreate.sh bails)
 		// "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
 		// let container see host dbus, so that flatpak can work inside
@@ -45,7 +53,7 @@
 	"containerEnv": {
 		// Needed for X11 forwarding
 		"DISPLAY": "${localEnv:DISPLAY}",
-		"XAUTHORITY": "${localEnv:XAUTHORITY}",
+		"XAUTHORITY": "/tmp/.docker.xauth",
 		"PYTHONDEVMODE": "1", // Enable Python dev mode for better debug output
 		"PYTHONPYCACHEPREFIX": "/workspaces/astroglue/.pycache"
 	},
