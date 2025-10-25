@@ -23,4 +23,11 @@ RUN if ! id -u ${USERNAME} > /dev/null 2>&1; then \
 
 USER ${USERNAME}
 
+# Some containers might not have a .local directory at all, don't fail in that case
+RUN mkdir -p /home/${USERNAME}/.local/bin
 
+# Add the local bin directory to the PATH. For pipx and flatpacks
+ENV PATH="/home/${USERNAME}/.local/bin:$HOME/.local/share/flatpak/exports/bin/:${PATH}"
+
+RUN pip install --user --break-system-packages pipx
+RUN pipx install graxpert[cpuonly] poetry
