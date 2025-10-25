@@ -85,9 +85,9 @@ def tool_run(cmd: str, cwd: str, commands: str | None = None) -> None:
     )
 
     if result.stdout:
-        logger.info(f"Tool output:\n")
+        logger.debug(f"Tool output:\n")
         for line in result.stdout.splitlines():
-            logger.info(line)
+            logger.debug(line)
 
     if result.stderr:
         logger.warning(f"Tool error message:")

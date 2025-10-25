@@ -6,10 +6,11 @@ kind = "recipe"
 [recipe]
 author.name = "FIXMESiril?"
 author.email = "FIXMESiril?"
-description = "Generate a master flat flat from raw flats"
 
 
 [[stage]]
+
+description = "Generate master flat"
 
 # For any camera
 auto.for-camera = []

@@ -78,6 +78,9 @@ class AstroGlue:
             stage: A dictionary representing the stage configuration, containing
                    at least 'tool' and 'script' keys.
         """
+        stage_desc = stage.get("description", "(missing description)")
+        logging.info(f"Running stage: {stage_desc}")
+
         tool_name = stage.get("tool")
         if not tool_name:
             raise ValueError(
@@ -96,7 +99,7 @@ class AstroGlue:
                 f"Tool '{tool_name}' for stage '{stage.get('name')}' not found."
             )
 
-        logging.info(f"  Using tool: {tool_name}")
+        logging.debug(f"  Using tool: {tool_name}")
 
         # This allows recipe TOML to define their own default variables.
         context = stage.get("context", {})
@@ -125,6 +128,6 @@ class AstroGlue:
             )
 
         if input_required and not input_files:
-            logging.error("No input files found for stage (skipping)")
+            raise RuntimeError("No input files found for stage")
         else:
             tool.run(script, context=context)

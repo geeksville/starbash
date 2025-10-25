@@ -11,9 +11,10 @@ max="4.5.8"
 [recipe]
 author.name = "Kevin Hester"
 author.email = "kevinh@geeksville.com"
-description = "Process OSC single duo filter data, extracting Ha and Oiii"
 
 [[stage]]
+
+description = "Process OSC single duo filter data, extracting Ha and Oiii"
 
 # Restrict processing of this stage to only if detected hardware was found for this session
 # for single duo look for this

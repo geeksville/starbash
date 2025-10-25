@@ -6,9 +6,10 @@ kind = "recipe"
 [recipe]
 author.name = "FIXMESiril?"
 author.email = "FIXMESiril?"
-description = "Generate a master flat flat from raw flats"
 
 [[stage]]
+
+description = "Generate master bias"
 
 # Restrict processing of this stage to only if detected hardware was found for this session
 # For any camera
