@@ -84,21 +84,18 @@ def tool_run(cmd: str, cwd: str, commands: str | None = None) -> None:
         cmd, input=commands, shell=True, capture_output=True, text=True, cwd=cwd
     )
 
-    if result.stdout:
-        logger.debug(f"Tool output:\n")
-        for line in result.stdout.splitlines():
-            logger.debug(line)
-
     if result.stderr:
-        logger.warning(f"Tool error message:")
-        for line in result.stderr.splitlines():
-            logger.warning(line)
+        logger.warning(f"Tool error message:\n{result.stderr.strip()}")
 
     if result.returncode != 0:
-        logger.error(f"Tool failed with exit code {result.returncode}!")
-        result.check_returncode()  # Child process returned an error code
+        # If we got an error, print the entire tool stdout as a warning
+        logger.warning(f"Tool output:\n{result.stdout.strip()}")
+        raise RuntimeError(f"Tool failed with exit code {result.returncode}")
     else:
-        logger.info("Tool command successful.")
+        logger.debug("Tool command successful.")
+
+    if result.stdout:
+        logger.debug(f"Tool output:\n{result.stdout.strip()}")
 
 
 # siril_path = "/home/kevinh/packages/Siril-1.4.0~beta3-x86_64.AppImage"

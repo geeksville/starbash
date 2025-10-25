@@ -16,24 +16,30 @@ description = "Generate master flat"
 auto.for-camera = []
 
 tool = "siril"
-input.source = "session" # or auto? prefer ones in session otherwise find by in masters
+# input.source = "session" # or auto? prefer ones in session otherwise find by in masters
 input.type = "flat" # look in _session_ directories, but look only for flat files
 
-when = "session-config" # run once per session-config
-output = "{process_dir}/flat_s{sessionid}_c{sessionconfig}.fits"
+# FIXME for early development we have support for simple absolute file paths with globs
+input.source = "path"
+input.path = "/workspaces/astroglue/images/from_astroboy/M 27/2025-09-16/FLAT/*.fit*"
+input.required = true # Is at least one input file required?  If true, we will skip running this stage entirely (with a warning)
 
-context.output_base = "flat"
+when = "session-config" # run once per session-config
+context.output = "{process_dir}/flat_s{sessionid}_c{sessionconfig}.fits"
+
+# FIXME, bias should have been added to context by two previous stages.  But for now hardwire
+context.bias = '/workspaces/astroglue/images/masters/biases/2025-09-09_stacked.fits'
 
 script = '''
     # Create a sequence from the raw flat frames
-    link {output_base} -out={process_dir}
+    link flat -out={process_dir}
     cd {process_dir}
 
     # Calibrate the flat frames using master bias
-    calibrate {output_base} -bias={strip_extension(bias)}
+    calibrate flat -bias={bias}
 
-    # Stack the pre-processed (calibrated) flat frames
-    stack pp_{output_base} rej 3 3 -norm=mul -out={flat}
+    # Stack the pre-processed (calibrated) flat frames (writes to flat_stacked.fit)
+    stack pp_flat rej 3 3 -norm=mul -out=flat_stacked
     '''
 
-temporaries = ["{output_base}", "pp_{output_base}"]
+temporaries = ["flat", "pp_flat"]
