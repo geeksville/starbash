@@ -7,8 +7,7 @@ import re
 
 import logging
 
-from RestrictedPython import compile_restricted
-from RestrictedPython.Guards import safe_builtins
+import RestrictedPython
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +55,23 @@ def make_safe_globals(context: dict = {}) -> dict:
     # Define the global and local namespaces for the restricted execution.
     # FIXME - this is still unsafe, policies need to be added to limit import/getattr etc...
     # see https://restrictedpython.readthedocs.io/en/latest/usage/policy.html#implementing-a-policy
+
+    import glob
+
+    builtins = RestrictedPython.safe_builtins.copy()
+    builtins["__import__"] = __import__  # FIXME very unsafe
+
     execution_globals = {
-        "__builtins__": safe_builtins,
+        # Required for RestrictedPython
+        "__builtins__": builtins,
+        "__name__": "__script__",
+        "__metaclass__": type,
+        # Extra globals auto imported into the scripts context
         "context": context,
         "logger": logging.getLogger("script"),  # Allow logging within the script
+        # list of modules allowed to import
+        # "os": os,
+        # "glob": glob,
     }
     return execution_globals
 
@@ -156,12 +168,8 @@ class Tool:
             temp_dir  # pass our directory path in for the tool's usage
         )
 
-        # Iteratively expand the command string to handle nested placeholders.
-        # The loop continues until the string no longer changes.
-        expanded = expand_context(commands, context)
-
         try:
-            self._run(temp_dir, expanded, context=context)
+            self._run(temp_dir, commands, context=context)
         finally:
             shutil.rmtree(temp_dir)
 
@@ -176,8 +184,14 @@ class SirilTool(Tool):
         super().__init__("siril")
 
     def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
+
+        # Iteratively expand the command string to handle nested placeholders.
+        # The loop continues until the string no longer changes.
+        expanded = expand_context(commands, context)
+
         input_files = context.get("input_files", [])
-        siril_run(cwd, commands, input_files)
+
+        siril_run(cwd, expanded, input_files)
 
 
 class GraxpertTool(Tool):
@@ -206,7 +220,7 @@ class PythonTool(Tool):
 
             logger.info(f"Executing python script in {cwd} using RestrictedPython")
             try:
-                byte_code = compile_restricted(
+                byte_code = RestrictedPython.compile_restricted(
                     commands, filename="<inline code>", mode="exec"
                 )
                 # No locals yet

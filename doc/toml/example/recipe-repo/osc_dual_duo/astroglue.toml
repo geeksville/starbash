@@ -67,7 +67,7 @@ tool = "python"
 when = "session-stack" # run once after all session/session-config processing was done
 
 # if not specified astroglue.py used
-script-file = "script.py"
+# script-file = "script.py"
 
 # or inline python code instead of that function?
 #script = '''
