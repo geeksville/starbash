@@ -1,5 +1,8 @@
 import os
 from glob import glob
+from astroglue.tool import tools
+
+siril = tools["siril"]
 
 
 def make_stacked(sessionconfig: str, variant: str, output_file: str):
@@ -38,7 +41,8 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
             mirrorx_single {output_file}
             """
 
-        siril_run_in_temp_dir(frames, commands)
+        context["input_files"] = frames
+        siril.run_in_temp_dir(commands, context=context)
 
     perhaps_delete_temps([merged_seq_base, f"r_{merged_seq_base}"])
 
@@ -101,7 +105,7 @@ def make_renormalize():
             save "{sii_final_path}"
             """
 
-    siril_run(process_dir, commands)
+    siril.run(process_dir, commands, context=context)
     logger.info(f"Saved final renormalized images to {results_dir}")
 
 

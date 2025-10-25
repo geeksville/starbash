@@ -57,7 +57,23 @@ def make_safe_globals(context: dict = {}) -> dict:
     # see https://restrictedpython.readthedocs.io/en/latest/usage/policy.html#implementing-a-policy
 
     builtins = RestrictedPython.safe_builtins.copy()
-    builtins["__import__"] = __import__  # FIXME very unsafe
+
+    def write_test(obj):
+        """``_write_`` is a guard function taking a single argument.  If the
+        object passed to it may be written to, it should be returned,
+        otherwise the guard function should raise an exception.  ``_write_``
+        is typically called on an object before a ``setattr`` operation."""
+        return obj
+
+    def getitem_glue(baseobj, index):
+        return baseobj[index]
+
+    extras = {
+        "__import__": __import__,  # FIXME very unsafe
+        "_getitem_": getitem_glue,  # why isn't the default guarded getitem found?
+        "_write_": write_test,
+    }
+    builtins.update(extras)
 
     execution_globals = {
         # Required for RestrictedPython
@@ -154,7 +170,7 @@ class Tool:
         # default script file name
         self.default_script_file = None
 
-    def run(self, commands: str, context: dict = {}) -> None:
+    def run_in_temp_dir(self, commands: str, context: dict = {}) -> None:
         """Run commands inside this tool (with cwd pointing to a temp directory)"""
         # Create a temporary directory for processing
         temp_dir = tempfile.mkdtemp(prefix=self.name)
@@ -164,11 +180,12 @@ class Tool:
         )
 
         try:
-            self._run(temp_dir, commands, context=context)
+            self.run(temp_dir, commands, context=context)
         finally:
             shutil.rmtree(temp_dir)
 
-    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
+    def run(self, cwd: str, commands: str, context: dict = {}) -> None:
+        """Run commands inside this tool (with cwd pointing to the specified directory)"""
         raise NotImplementedError()
 
 
@@ -178,7 +195,7 @@ class SirilTool(Tool):
     def __init__(self) -> None:
         super().__init__("siril")
 
-    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
+    def run(self, cwd: str, commands: str, context: dict = {}) -> None:
 
         # Iteratively expand the command string to handle nested placeholders.
         # The loop continues until the string no longer changes.
@@ -195,7 +212,7 @@ class GraxpertTool(Tool):
     def __init__(self) -> None:
         super().__init__("graxpert")
 
-    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
+    def run(self, cwd: str, commands: str, context: dict = {}) -> None:
         graxpert_run(cwd, commands)
 
 
@@ -208,7 +225,7 @@ class PythonTool(Tool):
         # default script file override
         self.default_script_file = "astroglue.py"
 
-    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
+    def run(self, cwd: str, commands: str, context: dict = {}) -> None:
         original_cwd = os.getcwd()
         try:
             os.chdir(cwd)  # cd to where this script expects to run
@@ -216,7 +233,7 @@ class PythonTool(Tool):
             logger.info(f"Executing python script in {cwd} using RestrictedPython")
             try:
                 byte_code = RestrictedPython.compile_restricted(
-                    commands, filename="<inline code>", mode="exec"
+                    commands, filename="<python script>", mode="exec"
                 )
                 # No locals yet
                 execution_locals = None
