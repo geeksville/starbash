@@ -32,6 +32,10 @@ tool = "siril"
 when = "session-light" # run once per session-config
 output = "FIXME"
 
+# FIXME, bias and flat should have been added to context by two previous stages.  But for now hardwire
+# Note: they should not have filename extensions (see strip_extension in the old process.py)
+context.bias = '/workspaces/astroglue/images/masters/biases/2025-09-09_stacked.fits'
+
 # FIXME until auto light finding is in
 context.light_base = "/workspaces/astroglue/images/from_astroboy/M 27/2025-09-16/LIGHT"
 
@@ -41,7 +45,7 @@ script = '''
     cd {process_dir}
 
     # Calibrate the light frames using master bias and flat
-    calibrate {light_base} -bias={strip_extension(bias)} -flat={strip_extension(flat)} -cfa -equalize_cfa
+    calibrate {light_base} -bias={bias} -flat={flat} -cfa -equalize_cfa
 
     # Remove background gradient on a per-frame basis (generates bkg_pp_{light_base}.seq)
     seqsubsky pp_{light_base} 1

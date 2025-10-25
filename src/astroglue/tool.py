@@ -21,7 +21,11 @@ class _SafeFormatter(dict):
 
 
 def expand_context(s: str, context: dict) -> str:
-    """Expand any named variables in the provided string"""
+    """Expand any named variables in the provided string
+
+    Will expand strings of the form MyStr{somevar}a{someothervar} using vars listed in context.
+    Guaranteed safe, doesn't run any python scripts.
+    """
     # Iteratively expand the command string to handle nested placeholders.
     # The loop continues until the string no longer changes.
     expanded = s
@@ -45,6 +49,19 @@ def expand_context(s: str, context: dict) -> str:
         raise KeyError("Missing context variable(s): " + ", ".join(unexpanded_vars))
 
     return expanded
+
+
+def make_safe_globals(context: dict = {}) -> dict:
+    """Generate a set of RestrictedPython globals for AstoGlue exec/eval usage"""
+    # Define the global and local namespaces for the restricted execution.
+    # FIXME - this is still unsafe, policies need to be added to limit import/getattr etc...
+    # see https://restrictedpython.readthedocs.io/en/latest/usage/policy.html#implementing-a-policy
+    execution_globals = {
+        "__builtins__": safe_builtins,
+        "context": context,
+        "logger": logging.getLogger("script"),  # Allow logging within the script
+    }
+    return execution_globals
 
 
 def strip_comments(text: str) -> str:
@@ -174,10 +191,7 @@ class GraxpertTool(Tool):
 
 
 class PythonTool(Tool):
-    """Expose Python as a tool
-
-    FIXME Caution currently this runs unvalidated python code - the script can do anything
-    """
+    """Expose Python as a tool"""
 
     def __init__(self) -> None:
         super().__init__("python")
@@ -187,23 +201,14 @@ class PythonTool(Tool):
         try:
             os.chdir(cwd)  # cd to where this script expects to run
 
-            # Define the global and local namespaces for the restricted execution.
-            # FIXME - this is still unsafe, policies need to be added to limit import/getattr etc...
-            # see https://restrictedpython.readthedocs.io/en/latest/usage/policy.html#implementing-a-policy
-            execution_globals = {
-                "__builtins__": safe_builtins,
-                "context": context,
-                "logger": logging.getLogger(
-                    "script"
-                ),  # Allow logging within the script
-            }
-            # No locals yet
-            execution_locals = None
-
             logger.info(f"Executing python script in {cwd} using RestrictedPython")
             try:
-                byte_code = compile_restricted(commands, "<string>", "exec")
-                exec(byte_code, execution_globals, execution_locals)
+                byte_code = compile_restricted(
+                    commands, filename="<inline code>", mode="exec"
+                )
+                # No locals yet
+                execution_locals = None
+                exec(byte_code, make_safe_globals(context), execution_locals)
             except SyntaxError as e:
                 logger.error(f"Syntax error in python script: {e}")
                 raise

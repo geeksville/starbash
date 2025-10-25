@@ -127,4 +127,4 @@ class AstroGlue:
         if input_required and not input_files:
             logging.error("No input files found for stage (skipping)")
         else:
-            tool.run(script, context=context, input_files=input_files)
+            tool.run(script, context=context)
