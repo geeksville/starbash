@@ -56,22 +56,17 @@ def make_safe_globals(context: dict = {}) -> dict:
     # FIXME - this is still unsafe, policies need to be added to limit import/getattr etc...
     # see https://restrictedpython.readthedocs.io/en/latest/usage/policy.html#implementing-a-policy
 
-    import glob
-
     builtins = RestrictedPython.safe_builtins.copy()
     builtins["__import__"] = __import__  # FIXME very unsafe
 
     execution_globals = {
         # Required for RestrictedPython
         "__builtins__": builtins,
-        "__name__": "__script__",
+        "__name__": "__astroglue_script__",
         "__metaclass__": type,
         # Extra globals auto imported into the scripts context
         "context": context,
         "logger": logging.getLogger("script"),  # Allow logging within the script
-        # list of modules allowed to import
-        # "os": os,
-        # "glob": glob,
     }
     return execution_globals
 
