@@ -108,7 +108,7 @@ def expand_context(s: str, context: dict) -> str:
         expanded = expanded.format_map(_SafeFormatter(context))
     else:
         logger.warning(
-            f"Template expansion reached max iterations ({max_iterations}). Possible recursive definition in '{commands}'."
+            f"Template expansion reached max iterations ({max_iterations}). Possible recursive definition in '{s}'."
         )
 
     logger.info(f"Expanded '{s}' into '{expanded}'")

@@ -43,7 +43,7 @@ class AstroGlue:
         except KeyError as e:
             # Re-raise as a ValueError with a more descriptive message.
             raise ValueError(
-                f"invalid stage definition: a stage is missing the required '{e.key}' key"
+                f"invalid stage definition: a stage is missing the required 'priority' key"
             ) from e
 
         # 3. Get all available task definitions (the `[[stage]]` tables with tool, script, when).
