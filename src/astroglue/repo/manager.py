@@ -7,6 +7,7 @@ import logging
 from pathlib import Path
 
 import tomlkit
+from tomlkit.items import AoT
 from multidict import MultiDict
 
 
@@ -44,7 +45,6 @@ class Repo:
             return Path(url[len("file://") :])
 
         raise RuntimeError("FIXME currently only file URLs are supported")
-
 
     def read(self, filepath: str) -> str:
         """
@@ -199,10 +199,20 @@ class RepoManager:
         merged_dict = MultiDict()
         for repo in self.repos:
             for key, value in repo.config.items():
-                # We monkey patch source into any object that came from a repo, so that users can
-                # find the source repo (for attribution, URL relative resolution, whatever...)
-                setattr(value, 'source', repo)
-                merged_dict.add(key, value)
+
+                def add_value(v):
+                    # We monkey patch source into any object that came from a repo, so that users can
+                    # find the source repo (for attribution, URL relative resolution, whatever...)
+                    setattr(v, "source", repo)
+                    merged_dict.add(key, v)
+
+                # if the toml object is an AoT type, we add each _element_ of that array independently
+                if isinstance(value, AoT):
+                    for item in value:
+                        add_value(item)
+                else:
+                    add_value(value)
+
         return merged_dict
 
     def __str__(self):
