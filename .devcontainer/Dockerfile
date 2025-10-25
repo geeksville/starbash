@@ -31,3 +31,13 @@ ENV PATH="/home/${USERNAME}/.local/bin:$HOME/.local/share/flatpak/exports/bin/:$
 
 RUN pip install --user --break-system-packages pipx
 RUN pipx install graxpert[cpuonly] poetry
+
+# Install Siril (as non-root user)
+# Note: this must be done here, if done in Dockerfile it doesn't work - this env var is a nasty hack to allow
+# flatpak inside of Dockerfile.
+# https://github.com/flatpak/flatpak/issues/5076
+ENV FLATPAK_SYSTEM_HELPER_ON_SESSION=foo
+RUN flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+RUN flatpak install --user -y flathub org.siril.Siril
+# Let siril see /tmp
+RUN flatpak --user override --filesystem=/tmp org.siril.Siril
