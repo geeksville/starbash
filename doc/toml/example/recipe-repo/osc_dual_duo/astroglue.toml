@@ -32,6 +32,9 @@ tool = "siril"
 when = "session-light" # run once per session-config
 output = "FIXME"
 
+# FIXME until auto light finding is in
+context.light_base = "/workspaces/astroglue/images/from_astroboy/M 27/2025-09-16/LIGHT"
+
 script = '''
     # Create a sequence from the raw light frames, seq file goes to process_dir
     link {light_base} -out={process_dir}

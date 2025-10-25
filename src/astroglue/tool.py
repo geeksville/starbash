@@ -116,7 +116,7 @@ def expand_context(s: str, context: dict) -> str:
     # throw an error if any remaining unexpanded variables remain unexpanded
     unexpanded_vars = re.findall(r"\{([^{}]+)\}", expanded)
     if unexpanded_vars:
-        raise KeyError(f"Missing context variable(s): {', '.join(unexpanded_vars)}")
+        raise KeyError("Missing context variable(s): " + ", ".join(unexpanded_vars))
 
     return expanded
 
