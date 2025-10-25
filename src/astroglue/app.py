@@ -91,20 +91,24 @@ class AstroGlue:
             raise ValueError(
                 f"Stage '{stage.get('name')}' is missing a 'tool' definition."
             )
-
-        script = stage.get("script")
-        if script is None:
-            raise ValueError(
-                f"Stage '{stage.get('name')}' is missing a 'script' definition."
-            )
-
         tool: Tool | None = tools.get(tool_name)
         if not tool:
             raise ValueError(
                 f"Tool '{tool_name}' for stage '{stage.get('name')}' not found."
             )
-
         logging.debug(f"  Using tool: {tool_name}")
+
+        script_filename = stage.get("script-file", tool.default_script_file)
+        if script_filename:
+            source = stage.source
+            script = source.read(script_filename)
+        else:
+            script = stage.get("script")
+
+        if script is None:
+            raise ValueError(
+                f"Stage '{stage.get('name')}' is missing a 'script' definition."
+            )
 
         # This allows recipe TOML to define their own default variables.
         context = stage.get("context", {})

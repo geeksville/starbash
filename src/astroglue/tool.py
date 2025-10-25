@@ -144,6 +144,9 @@ class Tool:
     def __init__(self, name: str) -> None:
         self.name = name
 
+        # default script file name
+        self.default_script_file = None
+
     def run(self, commands: str, context: dict = {}) -> None:
         """Run commands inside this tool (with cwd pointing to a temp directory)"""
         # Create a temporary directory for processing
@@ -192,6 +195,9 @@ class PythonTool(Tool):
 
     def __init__(self) -> None:
         super().__init__("python")
+
+        # default script file override
+        self.default_script_file = "astroglue.py"
 
     def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         original_cwd = os.getcwd()

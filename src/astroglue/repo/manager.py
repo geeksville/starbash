@@ -26,11 +26,10 @@ class Repo:
         """
         self.manager = manager
         self.url = url
-        self.path = self._resolve_path(url)
         self.config = self._load_config()
-        self.manager.add_all_repos(self.config, base_path=self.path)
+        self.manager.add_all_repos(self.config, self._resolve_path())
 
-    def _resolve_path(self, url: str) -> Path | None:
+    def _resolve_path(self) -> Path:
         """
         Resolves the URL to a local file system path if it's a file URI.
 
@@ -38,28 +37,50 @@ class Repo:
             url: The repository URL.
 
         Returns:
-            A Path object if the URL is a local file, otherwise None.
+            A Path object if the URL is a local file, otherwise fail.
         """
+        url = self.url
         if url.startswith("file://"):
             return Path(url[len("file://") :])
-        return None
+
+        raise RuntimeError("FIXME currently only file URLs are supported")
+
+
+    def read(self, filepath: str) -> str:
+        """
+        Read a filepath relative to the base of this repo. Return the contents in a string.
+
+        Args:
+            filepath: The path to the file, relative to the repository root.
+
+        Returns:
+            The content of the file as a string.
+        """
+        base_path = self._resolve_path()
+        target_path = (base_path / filepath).resolve()
+
+        # Security check to prevent reading files outside the repo directory
+        if base_path not in target_path.parents and target_path != base_path:
+            raise PermissionError("Attempted to read file outside of repository")
+
+        return target_path.read_text()
 
     def _load_config(self) -> dict:
         """
         Loads the repository's configuration file (e.g., repo.ag.toml).
 
+        If the config file does not exist, it logs a warning and returns an empty dict.
+
         Returns:
             A dictionary containing the parsed configuration.
         """
-        if self.path and self.path.is_dir():
-            config_path = self.path / repo_suffix
-            if config_path.is_file():
-                logging.debug(f"Loading repo config from {config_path}")
-                with open(config_path, "r") as f:
-                    return tomlkit.load(f)
-
-        logging.warning(f"No {repo_suffix} found in {self.path}")
-        return {}
+        try:
+            config_content = self.read(repo_suffix)
+            logging.debug(f"Loading repo config from {repo_suffix}")
+            return tomlkit.parse(config_content)
+        except FileNotFoundError:
+            logging.warning(f"No {repo_suffix} found")
+            return {}
 
     def get(self, key: str, default=None):
         """
@@ -178,6 +199,9 @@ class RepoManager:
         merged_dict = MultiDict()
         for repo in self.repos:
             for key, value in repo.config.items():
+                # We monkey patch source into any object that came from a repo, so that users can
+                # find the source repo (for attribution, URL relative resolution, whatever...)
+                setattr(value, 'source', repo)
                 merged_dict.add(key, value)
         return merged_dict
 

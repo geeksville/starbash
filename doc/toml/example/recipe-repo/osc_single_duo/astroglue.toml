@@ -50,9 +50,6 @@ when = "session-stack" # run once after all session/session-config processing wa
 
 script-file = "script.py"
 
-# the function to run in that file, if not specified astro_fn() is used
-script-function = "osc_dual_duo_post_session"
-
 # or inline python code instead of that function?
 script = '''
     # green output channel - from the HaOiii filter Ha is on the 656nm red channel
