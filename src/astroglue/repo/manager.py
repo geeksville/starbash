@@ -199,19 +199,16 @@ class RepoManager:
         merged_dict = MultiDict()
         for repo in self.repos:
             for key, value in repo.config.items():
-
-                def add_value(v):
+                # if the toml object is an AoT type, monkey patch each element in the array instead
+                if isinstance(value, AoT):
+                    for v in value:
+                        setattr(v, "source", repo)
+                else:
                     # We monkey patch source into any object that came from a repo, so that users can
                     # find the source repo (for attribution, URL relative resolution, whatever...)
-                    setattr(v, "source", repo)
-                    merged_dict.add(key, v)
+                    setattr(value, "source", repo)
 
-                # if the toml object is an AoT type, we add each _element_ of that array independently
-                if isinstance(value, AoT):
-                    for item in value:
-                        add_value(item)
-                else:
-                    add_value(value)
+                merged_dict.add(key, value)
 
         return merged_dict
 

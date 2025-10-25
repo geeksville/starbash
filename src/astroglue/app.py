@@ -107,7 +107,7 @@ class AstroGlue:
 
         if script is None:
             raise ValueError(
-                f"Stage '{stage.get('name')}' is missing a 'script' definition."
+                f"Stage '{stage.get('name')}' is missing a 'script' or 'script-file' definition."
             )
 
         # This allows recipe TOML to define their own default variables.
