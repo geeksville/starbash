@@ -7,7 +7,44 @@ import re
 
 import logging
 
+from RestrictedPython import compile_restricted
+from RestrictedPython.Guards import safe_builtins
+
 logger = logging.getLogger(__name__)
+
+
+class _SafeFormatter(dict):
+    """A dictionary for safe string formatting that ignores missing keys during expansion."""
+
+    def __missing__(self, key):
+        return "{" + key + "}"
+
+
+def expand_context(s: str, context: dict) -> str:
+    """Expand any named variables in the provided string"""
+    # Iteratively expand the command string to handle nested placeholders.
+    # The loop continues until the string no longer changes.
+    expanded = s
+    previous = None
+    max_iterations = 10  # Safety break for infinite recursion
+    for i in range(max_iterations):
+        if expanded == previous:
+            break  # Expansion is complete
+        previous = expanded
+        expanded = expanded.format_map(_SafeFormatter(context))
+    else:
+        logger.warning(
+            f"Template expansion reached max iterations ({max_iterations}). Possible recursive definition in '{s}'."
+        )
+
+    logger.info(f"Expanded '{s}' into '{expanded}'")
+
+    # throw an error if any remaining unexpanded variables remain unexpanded
+    unexpanded_vars = re.findall(r"\{([^{}]+)\}", expanded)
+    if unexpanded_vars:
+        raise KeyError("Missing context variable(s): " + ", ".join(unexpanded_vars))
+
+    return expanded
 
 
 def strip_comments(text: str) -> str:
@@ -87,49 +124,13 @@ def graxpert_run(cwd: str, arguments: str) -> None:
     tool_run(cmd, cwd)
 
 
-class _SafeFormatter(dict):
-    """A dictionary for safe string formatting that ignores missing keys during expansion."""
-
-    def __missing__(self, key):
-        return "{" + key + "}"
-
-
-def expand_context(s: str, context: dict) -> str:
-    """Expand any named variables in the provided string"""
-    # Iteratively expand the command string to handle nested placeholders.
-    # The loop continues until the string no longer changes.
-    expanded = s
-    previous = None
-    max_iterations = 10  # Safety break for infinite recursion
-    for i in range(max_iterations):
-        if expanded == previous:
-            break  # Expansion is complete
-        previous = expanded
-        expanded = expanded.format_map(_SafeFormatter(context))
-    else:
-        logger.warning(
-            f"Template expansion reached max iterations ({max_iterations}). Possible recursive definition in '{s}'."
-        )
-
-    logger.info(f"Expanded '{s}' into '{expanded}'")
-
-    # throw an error if any remaining unexpanded variables remain unexpanded
-    unexpanded_vars = re.findall(r"\{([^{}]+)\}", expanded)
-    if unexpanded_vars:
-        raise KeyError("Missing context variable(s): " + ", ".join(unexpanded_vars))
-
-    return expanded
-
-
 class Tool:
     """A tool for stage execution"""
 
     def __init__(self, name: str) -> None:
         self.name = name
 
-    def run(
-        self, commands: str, context: dict = {}, input_files: list[str] = []
-    ) -> None:
+    def run(self, commands: str, context: dict = {}) -> None:
         """Run commands inside this tool (with cwd pointing to a temp directory)"""
         # Create a temporary directory for processing
         temp_dir = tempfile.mkdtemp(prefix=self.name)
@@ -143,11 +144,11 @@ class Tool:
         expanded = expand_context(commands, context)
 
         try:
-            self._run(temp_dir, expanded, input_files)
+            self._run(temp_dir, expanded, context=context)
         finally:
             shutil.rmtree(temp_dir)
 
-    def _run(self, cwd: str, commands: str, input_files: list[str] = []) -> None:
+    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         raise NotImplementedError()
 
 
@@ -157,7 +158,8 @@ class SirilTool(Tool):
     def __init__(self) -> None:
         super().__init__("siril")
 
-    def _run(self, cwd: str, commands: str, input_files: list[str] = []) -> None:
+    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
+        input_files = context.get("input_files", [])
         siril_run(cwd, commands, input_files)
 
 
@@ -167,7 +169,7 @@ class GraxpertTool(Tool):
     def __init__(self) -> None:
         super().__init__("graxpert")
 
-    def _run(self, cwd: str, commands: str, input_files: list[str] = []) -> None:
+    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         graxpert_run(cwd, commands)
 
 
@@ -179,6 +181,37 @@ class PythonTool(Tool):
 
     def __init__(self) -> None:
         super().__init__("python")
+
+    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
+        original_cwd = os.getcwd()
+        try:
+            os.chdir(cwd)  # cd to where this script expects to run
+
+            # Define the global and local namespaces for the restricted execution.
+            # FIXME - this is still unsafe, policies need to be added to limit import/getattr etc...
+            # see https://restrictedpython.readthedocs.io/en/latest/usage/policy.html#implementing-a-policy
+            execution_globals = {
+                "__builtins__": safe_builtins,
+                "context": context,
+                "logger": logging.getLogger(
+                    "script"
+                ),  # Allow logging within the script
+            }
+            # No locals yet
+            execution_locals = None
+
+            logger.info(f"Executing python script in {cwd} using RestrictedPython")
+            try:
+                byte_code = compile_restricted(commands, "<string>", "exec")
+                exec(byte_code, execution_globals, execution_locals)
+            except SyntaxError as e:
+                logger.error(f"Syntax error in python script: {e}")
+                raise
+            except Exception as e:
+                logger.error(f"Error during python script execution: {e}")
+                raise
+        finally:
+            os.chdir(original_cwd)
 
 
 # A dictionary mapping tool names to their respective tool instances.

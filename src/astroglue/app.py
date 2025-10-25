@@ -120,6 +120,10 @@ class AstroGlue:
                 path_pattern = input_config["path"]
                 input_files = glob.glob(path_pattern, recursive=True)
 
+            context["input_files"] = (
+                input_files  # Pass in the file list via the context dict
+            )
+
         if input_required and not input_files:
             logging.error("No input files found for stage (skipping)")
         else:
