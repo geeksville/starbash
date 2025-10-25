@@ -10,6 +10,7 @@ author.email = "FIXMESiril?"
 [[stage]]
 
 description = "Generate master bias"
+disabled = true # FIXME, debugging later stuff
 
 # Restrict processing of this stage to only if detected hardware was found for this session
 # For any camera
