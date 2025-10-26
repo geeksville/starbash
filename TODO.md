@@ -6,9 +6,12 @@
 * add automated session config looping (Sii, Oiii etc...)
 * add automated session looping (multiday)
 * pass stage outputs via the context?
-* use repo globs to find master bias frames
-* use repo globs to find flat frames
-* use repo globs to find light frames
+* !does repo glob even matter if we just throw everything in the db based on fits metadata?  do an experiment.  YES it does, use DB based on FITS for all operations (instead of globs)
+* Add a db astroglue.Database class, populated from repos.  Regen as needed.
+* use db/globs to find master bias frames
+* use db/globs globs to find flat frames
+* use db/globs globs to find light frames
+* add frames to db, query db from tools to fetch files.  Possibly pass the queries as the description for the sesssion?
 * add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
 * add makefile style dependencies
 * add FITS based filter detection (use astropy.io https://docs.astropy.org/en/stable/install.html)
@@ -24,11 +27,12 @@
 * add a repo-add command that creates repo.ag.toml file in the rootdir and references it from users preferences.
 * have repo-add auto recognize common nina/asiair/seestar layouts
 * generate a report on the final output including attribution for data sources, recpies etc...
+* when processing a target, generate a toml file with the options used to for that generation (so it can be regenerated or customized).  Include doc comments in that file for new users.
+* make default invocation walk the user through creation of input and output repos.
 * do star extraction
 * don't regen masters/stacks/etc... if we don't need to - precheck for existence of output file
 * !add a backpointer in stages to the recipe they came from (for attribution, reporting etc...)
 * validate TOML files at load time to look for invalid keys (detect possible typos in recpie files etc...)
-* make generalized (not just file) URLs work for repos etc...
 * change from eval() to something more secure (ast + eval? a restricted dict API?)
 * add something like repo-add for masters and processed
 * do background elim with graxpert before tri merge
