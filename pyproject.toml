@@ -21,7 +21,7 @@ typer = "^0.20.0"
 pytest = ">=8.4.2,<9.0.0"
 
 [tool.poetry.scripts]
-astroglue = "astroglue.main:main"
+astroglue = "astroglue.main:app"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
