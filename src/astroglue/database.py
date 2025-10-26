@@ -16,18 +16,18 @@ class Database:
 
     def __init__(
         self,
-        app_name: str = "astroglue",
-        app_author: str | None = "geeksville",
-        db_filename: str = "db.json",
         base_dir: Optional[Path] = None,
     ) -> None:
         # Resolve base data directory (allow override for tests)
         if base_dir is None:
+            app_name = "astroglue"
+            app_author = "geeksville"
             dirs = PlatformDirs(app_name, app_author)
             data_dir = Path(dirs.user_data_dir)
         else:
             data_dir = base_dir
 
+        db_filename = "db.json"
         data_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = data_dir / db_filename
 
@@ -36,6 +36,31 @@ class Database:
 
         # Public handle to the images table
         self.images = self._db.table("images")
+
+    def add_from_fits(self, file_path: Path, headers: dict[str, Any]) -> None:
+        # FIXME, currently we don't use this whitelist - we are just dumping everything
+        whitelist = set(
+            [
+                "INSTRUME",
+                "FILTER",
+                "TELESCOP",
+                "IMAGETYP",
+                "DATE-OBS",
+                "DATE",
+                "EXPTIME",
+                "FWHEEL",
+                "OBJECT",
+                "OBJCTRA",
+                "OBJCTDEC",
+                "OBJCTROT",
+                "FOCPOS",
+            ]
+        )
+
+        data = {}
+        data.update(headers)
+        data["path"] = str(file_path)
+        self.upsert_image(data)
 
     # --- Convenience helpers for common image operations ---
     def upsert_image(self, record: dict[str, Any]) -> None:

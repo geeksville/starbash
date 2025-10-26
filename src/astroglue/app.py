@@ -5,6 +5,7 @@ import glob
 from typing import Any
 from astropy.io import fits
 import itertools
+from astroglue.database import Database
 from astroglue.tool import Tool
 from astroglue.repo import RepoManager
 from astroglue.tool import tools
@@ -29,6 +30,8 @@ class AstroGlue:
             f"Repo manager initialized with {len(self.repo_manager.repos)} default repo references."
         )
         self.repo_manager.dump()
+
+        self.db = Database()
         self.reindex_repos()
 
     def reindex_repos(self):
@@ -50,7 +53,8 @@ class AstroGlue:
                             headers = {}
                             for key, value in items:
                                 headers[key] = value
-                            logging.info("Headers for %s: %s", f, headers)
+                            logging.debug("Headers for %s: %s", f, headers)
+                            self.db.add_from_fits(f, headers)
                     except Exception as e:
                         logging.warning("Failed to read FITS header for %s: %s", f, e)
 

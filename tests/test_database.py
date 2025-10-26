@@ -12,7 +12,7 @@ def test_database_images_table(tmp_path: Path):
 
         got = db.get_image("/tmp/foo.fit")
         assert got is not None
-        assert got["FILTER"] == "Ha"
+        assert got["FILTER"] == "Ha"  # type: ignore
 
         all_rows = db.all_images()
         assert len(all_rows) == 1
