@@ -12,6 +12,7 @@
 * use db/globs globs to find flat frames
 * use db/globs globs to find light frames
 * add frames to db, query db from tools to fetch files.  Possibly pass the queries as the description for the sesssion?
+* consider two different 'users' one who just wants to use the DB/repo stuff (doesn't need the auto processing) - for that user just let them do queries and build a 'process' directory for siril.  And the other user who wants our slick smart scripts to also do at least pre-processing.  In initial release just support the the query opts
 * add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
 * add makefile style dependencies
 * add FITS based filter detection (use astropy.io https://docs.astropy.org/en/stable/install.html)
