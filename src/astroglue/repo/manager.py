@@ -28,9 +28,30 @@ class Repo:
         self.manager = manager
         self.url = url
         self.config = self._load_config()
-        self.manager.add_all_repos(self.config, self._resolve_path())
+        self.manager.add_all_repos(self.config, self.get_path())
 
-    def _resolve_path(self) -> Path:
+    def __str__(self) -> str:
+        """Return a concise one-line description of this repo.
+
+        Example: "Repo(kind=recipe, local=True, url=file:///path/to/repo)"
+        """
+        kind = self.get("repo.kind") or "unknown"
+        return f"Repo(kind={kind}, local={self.is_local}, url={self.url})"
+
+    __repr__ = __str__
+
+    @property
+    def is_local(self) -> bool:
+        """
+        Read-only attribute indicating whether the repository URL points to a
+        local file system path (file:// scheme).
+
+        Returns:
+            bool: True if the URL is a local file path, False otherwise.
+        """
+        return self.url.startswith("file://")
+
+    def get_path(self) -> Path:
         """
         Resolves the URL to a local file system path if it's a file URI.
 
@@ -40,9 +61,8 @@ class Repo:
         Returns:
             A Path object if the URL is a local file, otherwise fail.
         """
-        url = self.url
-        if url.startswith("file://"):
-            return Path(url[len("file://") :])
+        if self.is_local:
+            return Path(self.url[len("file://") :])
 
         raise RuntimeError("FIXME currently only file URLs are supported")
 
@@ -56,7 +76,7 @@ class Repo:
         Returns:
             The content of the file as a string.
         """
-        base_path = self._resolve_path()
+        base_path = self.get_path()
         target_path = (base_path / filepath).resolve()
 
         # Security check to prevent reading files outside the repo directory
