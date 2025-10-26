@@ -8,11 +8,10 @@ ARG USERNAME=vscode
 ## Setup a user with sudo support
 USER root
 
-RUN apt update
-
 # Add core python packages
-RUN apt-get -y install --no-install-recommends python3 python3-pip python3-venv \
-        python-is-python3 python3-tk sudo git flatpak
+RUN apt-get update && apt-get -y install --no-install-recommends \
+        python3 python3-pip python3-venv python-is-python3 python3-tk sudo git flatpak \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user if one doesn't exist, and give it sudo rights
 RUN if ! id -u ${USERNAME} > /dev/null 2>&1; then \
@@ -29,8 +28,9 @@ RUN mkdir -p /home/${USERNAME}/.local/bin
 # Add the local bin directory to the PATH. For pipx and flatpacks
 ENV PATH="/home/${USERNAME}/.local/bin:$HOME/.local/share/flatpak/exports/bin/:${PATH}"
 
-RUN pip install --user --break-system-packages pipx
-RUN pipx install graxpert[cpuonly] poetry
+RUN pip install --user --no-cache-dir --break-system-packages pipx \
+    && pipx install --pip-args=--no-cache-dir graxpert[cpuonly] \
+    && pipx install --pip-args=--no-cache-dir poetry
 
 # Install Siril (as non-root user)
 # Note: this must be done here, if done in Dockerfile it doesn't work - this env var is a nasty hack to allow
