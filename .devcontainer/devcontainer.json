@@ -69,6 +69,7 @@
 				"ms-python.vscode-pylance",
 				"ms-python.black-formatter",
 				"tamasfe.even-better-toml",
+				"github.copilot"
 				// "google.geminicodeassist"
 			]
 		}
