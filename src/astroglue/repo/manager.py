@@ -47,7 +47,7 @@ class Repo:
         Returns:
             The kind of the repository as a string.
         """
-        return self.get("repo.kind", "unknown")
+        return str(self.get("repo.kind", "unknown"))
 
     @property
     def is_local(self) -> bool:
