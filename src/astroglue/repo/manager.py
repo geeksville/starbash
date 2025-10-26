@@ -86,6 +86,8 @@ class Repo:
             The content of the file as a string.
         """
         base_path = self.get_path()
+        if base_path is None:
+            raise ValueError("Cannot read files from non-local repositories")
         target_path = (base_path / filepath).resolve()
 
         # Security check to prevent reading files outside the repo directory
@@ -174,7 +176,7 @@ class RepoManager:
             self.add_repo(url)
 
     def add_repo(self, url: str) -> None:
-        logging.info(f"Adding repo: {url}")
+        logging.debug(f"Adding repo: {url}")
         self.repos.append(Repo(self, url))
 
     def get(self, key: str, default=None):

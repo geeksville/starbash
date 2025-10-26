@@ -30,6 +30,7 @@
 * use import importlib.util to load python code it is own namespace
 * make crude flat frame generation work
 * make crude light frame processing work
+* don't include recipies in the list of repos on the CLI.
 * add a repo-add command that creates repo.ag.toml file in the rootdir and references it from users preferences.
 * have repo-add auto recognize common nina/asiair/seestar layouts
 * generate a report on the final output including attribution for data sources, recpies etc...

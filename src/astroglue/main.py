@@ -1,34 +1,26 @@
 import logging
 import typer
-from rich.logging import RichHandler
 
-from astroglue.app import AstroGlue
+from .app import AstroGlue
+from .commands import repo
 
-
-def setup_logging():
-    """
-    Configures basic logging.
-    """
-    logging.basicConfig(
-        level="INFO",  # don't print messages of lower priority than this
-        format="%(message)s",
-        datefmt="[%X]",
-        handlers=[RichHandler(rich_tracebacks=True)],
-    )
-
-
-# Set up logging immediately when the module is imported (before Typer runs)
-setup_logging()
 app = typer.Typer()
+app.add_typer(repo.app, name="repo", help="Manage Astroglue repositories.")
 
 
-@app.command()
-def main():
-    """Main entry point for the astroglue application."""
-    logging.info("astroglue starting up")
+@app.command(hidden=True)
+def default_cmd():
+    """Default entry point for the astroglue application."""
 
     with AstroGlue() as ag:
         pass
+
+
+@app.callback(invoke_without_command=True)
+def _default(ctx: typer.Context):
+    # If the user didn’t specify a subcommand, run the default
+    if ctx.invoked_subcommand is None:
+        return default_cmd()
 
 
 if __name__ == "__main__":

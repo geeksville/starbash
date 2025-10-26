@@ -6,10 +6,26 @@ from typing import Any
 from astropy.io import fits
 import itertools
 from rich.progress import track
+from rich.logging import RichHandler
 from astroglue.database import Database
 from astroglue.tool import Tool
 from astroglue.repo import RepoManager
 from astroglue.tool import tools
+
+
+def setup_logging():
+    """
+    Configures basic logging.
+    """
+    logging.basicConfig(
+        level="INFO",  # don't print messages of lower priority than this
+        format="%(message)s",
+        datefmt="[%X]",
+        handlers=[RichHandler(rich_tracebacks=True)],
+    )
+
+
+setup_logging()
 
 
 class AstroGlue:
@@ -20,6 +36,7 @@ class AstroGlue:
         Initializes the AstroGlue application by loading configurations
         and setting up the repository manager.
         """
+        setup_logging()
         logging.info("AstroGlue application initializing...")
 
         # Load app defaults and initialize the repository manager
@@ -30,7 +47,7 @@ class AstroGlue:
         logging.info(
             f"Repo manager initialized with {len(self.repo_manager.repos)} default repo references."
         )
-        self.repo_manager.dump()
+        # self.repo_manager.dump()
 
         self.db = Database()
         # FIXME, call reindex somewhere and also index whenever new repos are added
