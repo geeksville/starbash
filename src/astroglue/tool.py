@@ -72,6 +72,11 @@ def make_safe_globals(context: dict = {}) -> dict:
         "__import__": __import__,  # FIXME very unsafe
         "_getitem_": getitem_glue,  # why isn't the default guarded getitem found?
         "_write_": write_test,
+        # Add common built-in types
+        "list": list,
+        "dict": dict,
+        "str": str,
+        "int": int,
     }
     builtins.update(extras)
 

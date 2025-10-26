@@ -15,7 +15,7 @@ author.email = "kevinh@geeksville.com"
 [[stage]]
 
 description = "Extract OSC dual duo filter Ha, Oiii and Sii channels"
-disabled = false # FIXME, debugging later stuff
+disabled = true # FIXME, debugging later stuff
 
 # FIXME-somehow-specify-what-filternames are used to auto detect this recipe can be used?
 # figure out how to support dual duo vs single duo.  Perhaps: the FIRST recipie that matches an auto rule
