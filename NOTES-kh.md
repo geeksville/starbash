@@ -1,8 +1,13 @@
 ## TODO
 
 * !FIX GRAXPERT AMD
-* unify the various processing routines by using a templating system
-* move the old processing stuff into the astroglue namespace (run siril, etc...)
+* !unify the various processing routines by using a templating system
+* !move the old processing stuff into the astroglue namespace (run siril, etc...)
+* add automated session config looping (Sii, Oiii etc...)
+* add automated session looping (multiday)
+* add makefile style dependencies
+* add FITS based filter detection
+* make single DUO processing work
 * add a command to select the current set of sessions to process (allow filtering by target name, date, instrument, etc...)
 * add a command to list all known sessions in all repos (eventually use a DB to cache this info)
 * use https://tinydb.readthedocs.io as the DB?
