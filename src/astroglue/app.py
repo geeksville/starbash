@@ -100,7 +100,7 @@ class AstroGlue:
 
         script_filename = stage.get("script-file", tool.default_script_file)
         if script_filename:
-            source = stage.source
+            source = stage.source  # type: ignore (was monkeypatched by repo)
             script = source.read(script_filename)
         else:
             script = stage.get("script")
