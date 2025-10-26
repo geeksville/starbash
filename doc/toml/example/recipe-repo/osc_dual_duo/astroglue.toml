@@ -15,7 +15,7 @@ author.email = "kevinh@geeksville.com"
 [[stage]]
 
 description = "Extract OSC dual duo filter Ha, Oiii and Sii channels"
-disabled = true # FIXME, debugging later stuff
+disabled = false # FIXME, debugging later stuff
 
 # FIXME-somehow-specify-what-filternames are used to auto detect this recipe can be used?
 # figure out how to support dual duo vs single duo.  Perhaps: the FIRST recipie that matches an auto rule
@@ -38,23 +38,27 @@ output = "FIXME"
 # Note: they should not have filename extensions (see strip_extension in the old process.py)
 context.bias = '/workspaces/astroglue/images/masters/biases/2025-09-09_stacked.fits'
 
+context.sessionid = "2025-09-16" # FIXME, generate this by looping over all sessions (from outside this file)
+context.sessionconfig = "SiiOiii" # FIXME generate this by looping over all session configs
+context.light_base = "light_s{sessionid}_c{sessionconfig}"
+
 # FIXME until auto light finding is in
 input.source = "path"
 input.path = "/workspaces/astroglue/images/from_astroboy/M 27/2025-09-16/LIGHT/*.fit*"
 
 script = '''
     # Create a sequence from the raw light frames, seq file goes to process_dir
-    link light -out={process_dir}
+    link {light_base} -out={process_dir}
     cd {process_dir}
 
     # Calibrate the light frames using master bias and flat
-    calibrate light -bias={bias} -flat=flat -cfa -equalize_cfa
+    calibrate {light_base} -bias={bias} -flat=flat -cfa -equalize_cfa
 
     # Remove background gradient on a per-frame basis (generates bkg_pp_light.seq)
-    seqsubsky pp_light 1
+    seqsubsky pp_{light_base} 1
 
     # FIXME only do this step for duo filters (refactor to share common light processing function)
-    seqextract_HaOIII bkg_pp_light -resample=ha
+    seqextract_HaOIII bkg_pp_{light_base} -resample=ha
     '''
 
 temporaries = ["FIXME"]

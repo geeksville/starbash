@@ -5,6 +5,10 @@ from astroglue.tool import tools
 siril = tools["siril"]
 
 
+def perhaps_delete_temps(temps: list[str]) -> None:
+    logger.warning("perhaps_delete_temps is not yet implemented FIXME")
+
+
 def make_stacked(sessionconfig: str, variant: str, output_file: str):
     """
     Registers and stacks all pre-processed light frames for a given filter configuration
