@@ -3,6 +3,6 @@
         "ms-python.python",
         "ms-python.black-formatter",
         "tamasfe.even-better-toml",
-        "google.geminicodeassist"
+        // "google.geminicodeassist"
     ]
 }

@@ -69,7 +69,7 @@
 				"ms-python.vscode-pylance",
 				"ms-python.black-formatter",
 				"tamasfe.even-better-toml",
-				"google.geminicodeassist"
+				// "google.geminicodeassist"
 			]
 		}
 	}
