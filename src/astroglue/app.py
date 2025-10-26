@@ -69,8 +69,6 @@ class AstroGlue:
             for task in tasks_to_run:
                 self.run_stage(task)
 
-        logging.info("--- End of stages ---")
-
     def start_session(self) -> None:
         """Do common session init"""
 

@@ -170,20 +170,13 @@ class RepoManager:
         and values from all repositories, using a MultiDict for aggregation.
         This is useful for debugging and inspecting the consolidated configuration.
         """
-        logging.info("--- RepoManager Dump ---")
-        combined_config = self.union()
-        if not combined_config:
-            logging.info(
-                "No top-level configuration keys found across all repositories."
-            )
-            logging.info("--- End RepoManager Dump ---")
-            return
 
+        combined_config = self.union()
+        logging.info("RepoManager Dump")
         for key, value in combined_config.items():
             # tomlkit.items() can return complex types (e.g., ArrayOfTables, Table)
             # For a debug dump, a simple string representation is usually sufficient.
-            logging.info(f"  {key}: {value}")
-        logging.info("--- End RepoManager Dump ---")
+            logging.info(f"  %s: %s", key, value)
 
     def union(self) -> MultiDict:
         """
