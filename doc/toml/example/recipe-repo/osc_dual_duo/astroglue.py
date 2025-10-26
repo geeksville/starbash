@@ -1,3 +1,6 @@
+# pyright: reportUndefinedVariable=false
+# ('context' and 'logger' are injected by the astroglue runtime)
+
 import os
 from glob import glob
 from astroglue.tool import tools
@@ -11,7 +14,7 @@ delete_temps = False
 def perhaps_delete_temps(temps: list[str]) -> None:
     if delete_temps:
         for t in temps:
-            for path in glob(f"{context["process_dir"]}/{t}_*"):
+            for path in glob(f"{context['process_dir']}/{t}_*"):
                 os.remove(path)
 
 
