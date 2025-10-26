@@ -9,8 +9,9 @@
 * use repo globs to find master bias frames
 * use repo globs to find flat frames
 * use repo globs to find light frames
+* add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
 * add makefile style dependencies
-* add FITS based filter detection
+* add FITS based filter detection (use astropy.io https://docs.astropy.org/en/stable/install.html)
 * make single DUO processing work
 * add a command to select the current set of sessions to process (allow filtering by target name, date, instrument, etc...)
 * add a command to list all known sessions in all repos (eventually use a DB to cache this info)
