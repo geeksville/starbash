@@ -65,6 +65,10 @@ temporaries = ["FIXME"]
 
 [[stage]]
 
+# FIXME, eventually we could make it optional to even have a astroglue.toml.  If we find an
+# astroglue.py we could introspect it for a astroglue_config dict.  And look inside that for description
+# "stage", "when" or whatever?
+
 description = "Stack OSC dual duo filter data, with separate Ha, Oiii and Sii channels"
 
 context.target = "M 27" # FIXME

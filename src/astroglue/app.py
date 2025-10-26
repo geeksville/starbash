@@ -150,5 +150,5 @@ class AstroGlue:
 
         if input_required and not input_files:
             raise RuntimeError("No input files found for stage")
-        else:
-            tool.run_in_temp_dir(script, context=self.context)
+
+        tool.run_in_temp_dir(script, context=self.context)
