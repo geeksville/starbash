@@ -54,6 +54,7 @@ class AstroGlue:
             f"Found {len(sorted_pipeline)} pipeline steps to run in order of priority."
         )
 
+        self.start_session()
         # 4. Iterate through the sorted pipeline and execute the associated tasks.
         for step in sorted_pipeline:
             step_name = step.get("name")
@@ -69,6 +70,19 @@ class AstroGlue:
                 self.run_stage(task)
 
         logging.info("--- End of stages ---")
+
+    def start_session(self) -> None:
+        """Do common session init"""
+
+        # Context is preserved through all stages, so each stage can add new symbols to it for use by later stages
+        self.context = {}
+
+        # Update the context with runtime values.
+        runtime_context = {
+            "process_dir": "/workspaces/astroglue/images/process",  # FIXME - create/find this more correctly per session
+            "masters": "/workspaces/astroglue/images/masters",  # FIXME find this the correct way
+        }
+        self.context.update(runtime_context)
 
     def run_stage(self, stage: dict) -> None:
         """
@@ -111,14 +125,12 @@ class AstroGlue:
             )
 
         # This allows recipe TOML to define their own default variables.
-        context = stage.get("context", {})
+        stage_context = stage.get("context", {})
+        self.context.update(stage_context)
 
-        # Update the context with runtime values.
-        runtime_context = {
-            "process_dir": "/workspaces/astroglue/images/process",  # FIXME - create/find this more correctly per session
-            "masters": "/workspaces/astroglue/images/masters",  # FIXME find this the correct way
-        }
-        context.update(runtime_context)
+        # Assume no files for this stage
+        if "input_files" in self.context:
+            del self.context["input_files"]
 
         input_files = []
         input_config = stage.get("input")
@@ -132,11 +144,11 @@ class AstroGlue:
                 path_pattern = input_config["path"]
                 input_files = glob.glob(path_pattern, recursive=True)
 
-            context["input_files"] = (
+            self.context["input_files"] = (
                 input_files  # Pass in the file list via the context dict
             )
 
         if input_required and not input_files:
             raise RuntimeError("No input files found for stage")
         else:
-            tool.run_in_temp_dir(script, context=context)
+            tool.run_in_temp_dir(script, context=self.context)

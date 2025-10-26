@@ -15,14 +15,14 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
     merged_seq_base = f"all_{variant}_bkg_pp_light"
 
     # Absolute path for the output stacked file
-    stacked_output_path = glob(f"{context.process_dir}/{output_file}.fit*")
+    stacked_output_path = glob(f"{context["process_dir"]}/{output_file}.fit*")
 
     if stacked_output_path:
         logger.info(f"Using existing stacked file: {stacked_output_path}")
     else:
         # Merge all frames (from multiple sessions and configs) use those for stacking
         frames = glob(
-            f"{context.process_dir}/{variant}_bkg_pp_light_s*_c{sessionconfig}_*.fit*"
+            f"{context["process_dir"]}/{variant}_bkg_pp_light_s*_c{sessionconfig}_*.fit*"
         )
 
         logger.info(
@@ -31,8 +31,8 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
 
         # Siril commands for registration and stacking. We run this in process_dir.
         commands = f"""
-            link {merged_seq_base} -out={context.process_dir}
-            cd {context.process_dir}
+            link {merged_seq_base} -out={context["process_dir"]}
+            cd {context["process_dir"]}
 
             register {merged_seq_base}
             stack r_{merged_seq_base} rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
@@ -111,6 +111,7 @@ def make_renormalize():
 
 def osc_dual_duo_post_session():
     logger.info("Running osc_dual_duo_post_session python script")
+    logger.info("Using context: %s", context)
 
     # red output channel - from the SiiOiii filter Sii is on the 672nm red channel (mistakenly called Ha by siril)
     make_stacked("SiiOiii", "Ha", f"results_00001")

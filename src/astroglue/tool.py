@@ -40,7 +40,7 @@ def expand_context(s: str, context: dict) -> str:
             f"Template expansion reached max iterations ({max_iterations}). Possible recursive definition in '{s}'."
         )
 
-    logger.info(f"Expanded '{s}' into '{expanded}'")
+    logger.debug(f"Expanded '{s}' into '{expanded}'")
 
     # throw an error if any remaining unexpanded variables remain unexpanded
     unexpanded_vars = re.findall(r"\{([^{}]+)\}", expanded)
@@ -134,15 +134,17 @@ def siril_run(temp_dir: str, commands: str, input_files: list[str] = []) -> None
             os.path.abspath(str(f)), os.path.join(temp_dir, os.path.basename(str(f)))
         )
 
-    # Run Siril commands in the temporary directory
-    logger.info(f"Running Siril in temporary directory: {temp_dir}, cmds {commands}")
-
     # We dedent here because the commands are often indented multiline strings
     script_content = textwrap.dedent(
         f"""
         requires 1.4.0-beta3
         {textwrap.dedent(strip_comments(commands))}
         """
+    )
+
+    # Run Siril commands in the temporary directory
+    logger.info(
+        f"Running Siril in temporary directory: {temp_dir}, ({len(input_files)} input files) cmds:\n{script_content}"
     )
 
     # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
