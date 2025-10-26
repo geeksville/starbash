@@ -67,6 +67,9 @@ temporaries = ["FIXME"]
 
 description = "Stack OSC dual duo filter data, with separate Ha, Oiii and Sii channels"
 
+context.target = "M 27" # FIXME
+context.targets = "/workspaces/astroglue/images/processed" # FIXME, do something smarter
+
 tool = "python"
 when = "session-stack" # run once after all session/session-config processing was done
 

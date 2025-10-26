@@ -71,12 +71,14 @@ def make_safe_globals(context: dict = {}) -> dict:
     extras = {
         "__import__": __import__,  # FIXME very unsafe
         "_getitem_": getitem_glue,  # why isn't the default guarded getitem found?
+        "_getiter_": iter,  # Allows for loops and other iterations.
         "_write_": write_test,
         # Add common built-in types
         "list": list,
         "dict": dict,
         "str": str,
         "int": int,
+        "all": all,
     }
     builtins.update(extras)
 
@@ -147,9 +149,8 @@ def siril_run(temp_dir: str, commands: str, input_files: list[str] = []) -> None
         """
     )
 
-    # Run Siril commands in the temporary directory
     logger.info(
-        f"Running Siril in temporary directory: {temp_dir}, ({len(input_files)} input files) cmds:\n{script_content}"
+        f"Running Siril in {temp_dir}, ({len(input_files)} input files) cmds:\n{script_content}"
     )
 
     # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
