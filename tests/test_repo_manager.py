@@ -1,5 +1,6 @@
-import pytest
 from pathlib import Path
+import pytest
+import tomlkit
 from astroglue.repo.manager import RepoManager
 
 
@@ -10,10 +11,13 @@ def test_repo_manager_initialization(monkeypatch):
 
     # We use a mock Repo class to prevent file system access during this unit test.
     class MockRepo:
-        def __init__(self, _manager, url):
+        def __init__(self, manager, url, config: str | None = None):
             self.url = url
-            # The real Repo.__init__ calls manager.add_all_repos, which can lead to
-            # recursion. We don't need to test that behavior here, so we do nothing.
+            self.config = tomlkit.parse(config) if config else {}
+            # Simulate the real Repo behavior minimally: if a config string is provided,
+            # parse it and ask the manager to add referenced repos.
+            if config:
+                manager.add_all_repos(tomlkit.parse(config))
 
     # Use the monkeypatch fixture to replace the real Repo class with our mock.
     # The fixture ensures this change is reverted after the test function finishes.
@@ -29,10 +33,16 @@ def test_repo_manager_initialization(monkeypatch):
 
     repo_manager = RepoManager(app_defaults_text)
 
-    assert len(repo_manager.repos) == 2
-    assert repo_manager.repos[0].url == "https://github.com/user/recipes"
-    assert repo_manager.repos[1].url.startswith("file://")
-    assert repo_manager.repos[1].url.endswith("/astroglue/test_data/my_raws")
+    # With the root repo plus two referenced repos, we expect three entries.
+    assert len(repo_manager.repos) == 3
+    # Order-insensitive presence checks across all repos
+    urls = [r.url for r in repo_manager.repos]
+    assert "pkg://astroglue-defaults" in urls
+    assert "https://github.com/user/recipes" in urls
+    assert any(
+        u.startswith("file://") and u.endswith("/astroglue/test_data/my_raws")
+        for u in urls
+    )
 
 
 def test_repo_manager_get_with_real_repos(tmp_path: Path):

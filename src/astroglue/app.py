@@ -64,7 +64,7 @@ class AstroGlue:
                 # Find all FITS files under this repo path
                 for f in track(
                     list(path.rglob("*.fit*")),
-                    description=f"Indexing in {repo.url}...",
+                    description=f"Indexing {repo.url}...",
                 ):
                     # progress.console.print(f"Indexing {f}...")
                     try:
