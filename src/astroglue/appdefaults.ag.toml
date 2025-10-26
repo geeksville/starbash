@@ -56,4 +56,34 @@ dir = "/workspaces/astroglue/doc/toml/example/config/user/"
 #by-file = "process-osc-dual-duo"
 #by-url = "http:..."
 
+[config]
 
+# What fits fields should we store in our DB cache
+fits-whitelist = [
+    "INSTRUME",
+    "FILTER",
+    "TELESCOP",
+    "IMAGETYP",
+    "DATE-OBS",
+    "DATE-LOC",
+    "DATE",
+    "EXPTIME",
+    "FWHEEL",
+    "OBJECT",
+    "RA",       # we ignore the text version OBJCTRA / OBJCTDEC
+    "DEC",
+    "OBJCTROT",
+    "FOCPOS",
+    "SITELAT",
+    "SITELON",
+    "SITEELEV",
+    "NAXIS1",
+    "NAXIS2",
+    "SWCREATE",
+    "XBINNING",
+    "YBINNING",
+    "GAIN",
+    "CCD-TEMP",
+    "SET-TEMP",
+    "AMBTEMP",
+]

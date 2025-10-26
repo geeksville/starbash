@@ -18,7 +18,7 @@ class Repo:
     """
     Represents a single astroglue repository."""
 
-    def __init__(self, manager: RepoManager, url: str):
+    def __init__(self, manager: RepoManager, url: str, config: str | None = None):
         """
         Initializes a Repo instance.
 
@@ -27,7 +27,7 @@ class Repo:
         """
         self.manager = manager
         self.url = url
-        self.config = self._load_config()
+        self.config = tomlkit.parse(config) if config else self._load_config()
         self.manager.add_all_repos(self.config, self.get_path())
 
     def __str__(self) -> str:
@@ -60,7 +60,7 @@ class Repo:
         """
         return self.url.startswith("file://")
 
-    def get_path(self) -> Path:
+    def get_path(self) -> Path | None:
         """
         Resolves the URL to a local file system path if it's a file URI.
 
@@ -68,12 +68,12 @@ class Repo:
             url: The repository URL.
 
         Returns:
-            A Path object if the URL is a local file, otherwise fail.
+            A Path object if the URL is a local file, otherwise None.
         """
         if self.is_local:
             return Path(self.url[len("file://") :])
 
-        raise RuntimeError("FIXME currently only file URLs are supported")
+        return None
 
     def read(self, filepath: str) -> str:
         """
@@ -144,9 +144,14 @@ class RepoManager:
         """
         Initializes the RepoManager by loading the application default repos.
         """
-        self.app_defaults = tomlkit.parse(app_defaults)
         self.repos = []
-        self.add_all_repos(self.app_defaults)
+
+        # We expose the app default preferences as a special root repo with a private URL
+        root_repo = Repo(self, "pkg://astroglue-defaults", config=app_defaults)
+        self.repos.append(root_repo)
+
+        # Most users will just want to read from merged
+        self.merged = self._union()
 
     def add_all_repos(self, toml: dict, base_path: Path | None = None) -> None:
         # From appdefaults.ag.toml, repo.ref is a list of tables
@@ -200,14 +205,14 @@ class RepoManager:
         This is useful for debugging and inspecting the consolidated configuration.
         """
 
-        combined_config = self.union()
+        combined_config = self.merged
         logging.info("RepoManager Dump")
         for key, value in combined_config.items():
             # tomlkit.items() can return complex types (e.g., ArrayOfTables, Table)
             # For a debug dump, a simple string representation is usually sufficient.
             logging.info(f"  %s: %s", key, value)
 
-    def union(self) -> MultiDict:
+    def _union(self) -> MultiDict:
         """
         Merges the top-level keys from all repository configurations into a MultiDict.
 

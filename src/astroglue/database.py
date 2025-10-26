@@ -38,25 +38,6 @@ class Database:
         self.images = self._db.table("images")
 
     def add_from_fits(self, file_path: Path, headers: dict[str, Any]) -> None:
-        # FIXME, currently we don't use this whitelist - we are just dumping everything
-        whitelist = set(
-            [
-                "INSTRUME",
-                "FILTER",
-                "TELESCOP",
-                "IMAGETYP",
-                "DATE-OBS",
-                "DATE",
-                "EXPTIME",
-                "FWHEEL",
-                "OBJECT",
-                "OBJCTRA",
-                "OBJCTDEC",
-                "OBJCTROT",
-                "FOCPOS",
-            ]
-        )
-
         data = {}
         data.update(headers)
         data["path"] = str(file_path)

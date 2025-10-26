@@ -21,7 +21,8 @@ def main():
     setup_logging()
     logging.info("astroglue starting up")
 
-    AstroGlue()
+    with AstroGlue() as ag:
+        pass
 
 
 if __name__ == "__main__":

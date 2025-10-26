@@ -33,11 +33,28 @@ class AstroGlue:
         self.repo_manager.dump()
 
         self.db = Database()
-        self.reindex_repos()
+        # FIXME, call reindex somewhere and also index whenever new repos are added
+        # self.reindex_repos()
+
+    # --- Lifecycle ---
+    def close(self) -> None:
+        self.db.close()
+
+    # Context manager support
+    def __enter__(self) -> "AstroGlue":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.close()
 
     def reindex_repos(self):
         """Reindex all repositories managed by the RepoManager."""
         logging.info("Reindexing all repositories...")
+        config = self.repo_manager.merged.get("config")
+        if not config:
+            raise ValueError(f"App config not found.")
+        whitelist = config["fits-whitelist"]
+
         for repo in track(self.repo_manager.repos, description="Reindexing repos..."):
             # FIXME, add a method to get just the repos that contain images
             if repo.is_local and repo.kind != "recipe":
@@ -58,7 +75,8 @@ class AstroGlue:
                             items = hdu0.header.items()
                             headers = {}
                             for key, value in items:
-                                headers[key] = value
+                                if key in whitelist:
+                                    headers[key] = value
                             logging.debug("Headers for %s: %s", f, headers)
                             self.db.add_from_fits(f, headers)
                     except Exception as e:
@@ -75,7 +93,7 @@ class AstroGlue:
         logging.info("--- Running all stages ---")
 
         # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
-        pipeline_definitions = self.repo_manager.union().getall("stages")
+        pipeline_definitions = self.repo_manager.merged.getall("stages")
         flat_pipeline_steps = list(itertools.chain.from_iterable(pipeline_definitions))
 
         # 2. Sort the pipeline steps by their 'priority' field.
