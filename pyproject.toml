@@ -22,6 +22,7 @@ pytest = ">=8.4.2,<9.0.0"
 
 [tool.poetry.scripts]
 astroglue = "astroglue.main:app"
+ag = "astroglue.main:app"        # alias 'ag' for convenience
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

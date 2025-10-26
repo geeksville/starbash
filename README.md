@@ -19,9 +19,11 @@ See my personal [TODO](TODO.md) file.  I'll be looking for pre-alpha testers/fee
 
 ## Supported commands
 
-* setup - configure for your needed through a brief guided process
+* setup - configure for you via a brief guided process
+* info - show user preferences location and other app info
 
-* repo add
+* repo add file/path|URL
+* repo remove REPONAME|REPONUM
 * repo list
 * repo reindex REPONAME|REPONUM|all
 
@@ -31,9 +33,12 @@ See my personal [TODO](TODO.md) file.  I'll be looking for pre-alpha testers/fee
 * reset - remove any filters on targets, sessions, etc...
 
 * session list
-* session select DATERANGE
+* session date after DATE
+* session date before DATE
 
-* process siril
+* instrument list
+
+* export dirs|BIAS|LIGHT|DARK|FLAT [DIRLOC]
 
 * process auto
 
