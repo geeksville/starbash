@@ -5,6 +5,7 @@ import glob
 from typing import Any
 from astropy.io import fits
 import itertools
+from rich.progress import track, Progress
 from astroglue.database import Database
 from astroglue.tool import Tool
 from astroglue.repo import RepoManager
@@ -36,29 +37,39 @@ class AstroGlue:
 
     def reindex_repos(self):
         """Reindex all repositories managed by the RepoManager."""
-        logging.info("Reindexing all repositories...")
-        for repo in self.repo_manager.repos:
-            if repo.is_local:
-                logging.info("Reindexing %s...", repo)
-                path = repo.get_path()
+        with Progress() as progress:
+            logging.info("Reindexing all repositories...")
+            for repo in track(
+                self.repo_manager.repos, description="Reindexing repos..."
+            ):
+                # FIXME, add a method to get just the repos that contain images
+                if repo.is_local and repo.kind != "recipe":
+                    logging.debug("Reindexing %s...", repo.url)
+                    path = repo.get_path()
 
-                # Find all FITS files under this repo path
-                for f in path.rglob("*.fit*"):
-                    try:
-                        # Read and log the primary header (HDU 0)
-                        with fits.open(str(f), memmap=False) as hdul:
-                            # convert headers to dict
-                            hdu0: Any = hdul[0]
-                            items = hdu0.header.items()
-                            headers = {}
-                            for key, value in items:
-                                headers[key] = value
-                            logging.debug("Headers for %s: %s", f, headers)
-                            self.db.add_from_fits(f, headers)
-                    except Exception as e:
-                        logging.warning("Failed to read FITS header for %s: %s", f, e)
+                    # Find all FITS files under this repo path
+                    for f in track(
+                        list(path.rglob("*.fit*")),
+                        description=f"Indexing in {repo.url}...",
+                    ):
+                        # progress.console.print(f"Indexing {f}...")
+                        try:
+                            # Read and log the primary header (HDU 0)
+                            with fits.open(str(f), memmap=False) as hdul:
+                                # convert headers to dict
+                                hdu0: Any = hdul[0]
+                                items = hdu0.header.items()
+                                headers = {}
+                                for key, value in items:
+                                    headers[key] = value
+                                logging.debug("Headers for %s: %s", f, headers)
+                                self.db.add_from_fits(f, headers)
+                        except Exception as e:
+                            logging.warning(
+                                "Failed to read FITS header for %s: %s", f, e
+                            )
 
-        logging.info("Reindexing complete.")
+            progress.console.print("Reindexing complete.")
 
     def test_processing(self):
         """A crude test of image processing pipeline - FIXME move into testing"""

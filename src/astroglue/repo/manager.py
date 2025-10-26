@@ -35,10 +35,19 @@ class Repo:
 
         Example: "Repo(kind=recipe, local=True, url=file:///path/to/repo)"
         """
-        kind = self.get("repo.kind") or "unknown"
-        return f"Repo(kind={kind}, local={self.is_local}, url={self.url})"
+        return f"Repo(kind={self.kind}, local={self.is_local}, url={self.url})"
 
     __repr__ = __str__
+
+    @property
+    def kind(self) -> str:
+        """
+        Read-only attribute for the repository kind (e.g., "recipe", "data", etc.).
+
+        Returns:
+            The kind of the repository as a string.
+        """
+        return self.get("repo.kind", "unknown")
 
     @property
     def is_local(self) -> bool:
