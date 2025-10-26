@@ -17,6 +17,24 @@ See my personal [TODO](TODO.md) file.  I'll be looking for pre-alpha testers/fee
 * 'Repos' can contain raw files, generated masters, preprocessed files, or recipes.
 * Repos can be on the local disk or shared via HTTPS/github/etc.  This is particularly useful for recipe repos
 
+## Supported commands
+
+* repo-add
+* repo-list
+* repo-reindex REPONAME|REPONUM|all
+
+* target-list
+* target-select TARGETNAME
+
+* job-clear
+
+* session-list
+* session-select DATERANGE
+
+* process-siril
+
+* process-auto
+
 ## Supported tools
 
 * Siril

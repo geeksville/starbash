@@ -106,7 +106,7 @@ class AstroGlue:
             ) from e
 
         # 3. Get all available task definitions (the `[[stage]]` tables with tool, script, when).
-        task_definitions = self.repo_manager.union().getall("stage")
+        task_definitions = self.repo_manager.merged.getall("stage")
         all_tasks = list(itertools.chain.from_iterable(task_definitions))
 
         logging.info(

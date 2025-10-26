@@ -1,3 +1,6 @@
+#Normally this file is generated at ~/.config/astroglue/astroglue.toml
+# (or wherever is appropriate for the user's platform).  For things like repo.ref below
+# they are added programmatically as the user adds them via the CLI or GUI.
 
 [repo]
 kind = "preferences"

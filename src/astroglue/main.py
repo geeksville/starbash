@@ -1,7 +1,10 @@
 import logging
+import typer
 from rich.logging import RichHandler
 
 from astroglue.app import AstroGlue
+
+app = typer.Typer()
 
 
 def setup_logging():
@@ -16,9 +19,9 @@ def setup_logging():
     )
 
 
+@app.command()
 def main():
     """Main entry point for the astroglue application."""
-    setup_logging()
     logging.info("astroglue starting up")
 
     with AstroGlue() as ag:
@@ -26,4 +29,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    setup_logging()
+    app()

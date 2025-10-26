@@ -18,6 +18,7 @@
 * add FITS based filter detection (use astropy.io https://docs.astropy.org/en/stable/install.html)
 * make single DUO processing work
 * add a command to select the current set of sessions to process (allow filtering by target name, date, instrument, etc...)
+* user https://typer.tiangolo.com/ for CLI support and rich-click
 * add a command to list all known sessions in all repos (eventually use a DB to cache this info)
 * use https://tinydb.readthedocs.io as the DB?
 * render output (including tables) with https://github.com/Textualize/rich - use basic command lines at first
