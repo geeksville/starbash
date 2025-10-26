@@ -19,21 +19,23 @@ See my personal [TODO](TODO.md) file.  I'll be looking for pre-alpha testers/fee
 
 ## Supported commands
 
-* repo-add
-* repo-list
-* repo-reindex REPONAME|REPONUM|all
+* setup - configure for your needed through a brief guided process
 
-* target-list
-* target-select TARGETNAME
+* repo add
+* repo list
+* repo reindex REPONAME|REPONUM|all
 
-* job-clear
+* target list
+* target select TARGETNAME
 
-* session-list
-* session-select DATERANGE
+* reset - remove any filters on targets, sessions, etc...
 
-* process-siril
+* session list
+* session select DATERANGE
 
-* process-auto
+* process siril
+
+* process auto
 
 ## Supported tools
 
