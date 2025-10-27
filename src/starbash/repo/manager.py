@@ -15,6 +15,8 @@ from multidict import MultiDict
 
 repo_suffix = "starbash.toml"
 
+REPO_REF = "repo-ref"
+
 
 class Repo:
     """
@@ -51,7 +53,18 @@ class Repo:
         return str(self.get("repo.kind", "unknown"))
 
     def add_repo_ref(self, dir: str) -> None:
-        pass
+        aot = self.config.get(REPO_REF, None)
+        if aot is None:
+            aot = tomlkit.aot()
+        else:
+            self.config.remove(
+                REPO_REF
+            )  # We want to completely replace it at the end of the file
+
+        ref = {"dir": dir}
+        aot.append(ref)
+        self.config[REPO_REF] = aot
+        self.add_from_ref(ref)
 
     def write_config(self) -> None:
         """
@@ -67,7 +80,7 @@ class Repo:
         config_path = base_path / repo_suffix
         # FIXME, be more careful to write the file atomically (by writing to a temp file and renaming)
         TOMLFile(config_path).write(self.config)
-        logging.info(f"Wrote config to {config_path}")
+        logging.debug(f"Wrote config to {config_path}")
 
     def is_scheme(self, scheme: str = "file") -> bool:
         """
@@ -93,6 +106,33 @@ class Repo:
             return Path(self.url[len("file://") :])
 
         return None
+
+    def add_from_ref(self, ref: dict) -> None:
+        """
+        Adds a repository based on a repo-ref dictionary.
+        """
+        if "url" in ref:
+            url = ref["url"]
+        elif "dir" in ref:
+            path = Path(ref["dir"])
+            base_path = self.get_path()
+            if base_path and not path.is_absolute():
+                # Resolve relative to the current TOML file's directory
+                path = (base_path / path).resolve()
+            else:
+                # Expand ~ and resolve from CWD
+                path = path.expanduser().resolve()
+            url = f"file://{path}"
+        else:
+            raise ValueError(f"Invalid repo reference: {ref}")
+        self.manager.add_repo(url)
+
+    def add_by_repo_refs(self) -> None:
+        """Add all repos mentioned by repo-refs in this repo's config."""
+        repo_refs = self.config.get(REPO_REF, [])
+
+        for ref in repo_refs:
+            self.add_from_ref(ref)
 
     def _read_file(self, filepath: str) -> str:
         """
@@ -203,27 +243,7 @@ class RepoManager:
         # Most users will just want to read from merged
         self.merged = MultiDict()
 
-    def add_all_repos(self, toml: dict, base_path: Path | None = None) -> None:
-        # From appdefaults.sb.toml, repo-ref is a list of tables
-        repo_refs = toml.get("repo-ref", [])
-
-        for ref in repo_refs:
-            if "url" in ref:
-                url = ref["url"]
-            elif "dir" in ref:
-                path = Path(ref["dir"])
-                if base_path and not path.is_absolute():
-                    # Resolve relative to the current TOML file's directory
-                    path = (base_path / path).resolve()
-                else:
-                    # Expand ~ and resolve from CWD
-                    path = path.expanduser().resolve()
-                url = f"file://{path}"
-            else:
-                raise ValueError(f"Invalid repo reference: {ref}")
-            self.add_repo(url)
-
-    def add_repo(self, url: str) -> None:
+    def add_repo(self, url: str) -> Repo:
         logging.debug(f"Adding repo: {url}")
         r = Repo(self, url)
         self.repos.append(r)
@@ -232,7 +252,9 @@ class RepoManager:
         self._add_merged(r)
 
         # if this new repo has sub-repos, add them too
-        self.add_all_repos(r.config, r.get_path())
+        r.add_by_repo_refs()
+
+        return r
 
     def get(self, key: str, default=None):
         """

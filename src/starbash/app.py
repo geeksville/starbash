@@ -65,7 +65,7 @@ class Starbash:
         self.repo_manager.add_repo("pkg://defaults")
 
         # Add user prefs as a repo
-        self.repo_manager.add_repo("file://" + str(create_user()))
+        self.user_repo = self.repo_manager.add_repo("file://" + str(create_user()))
 
         logging.info(
             f"Repo manager initialized with {len(self.repo_manager.repos)} default repo references."
