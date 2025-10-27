@@ -5,6 +5,7 @@ Manages the repository of processing recipes and configurations.
 from __future__ import annotations
 import logging
 from pathlib import Path
+from importlib import resources
 
 import tomlkit
 from tomlkit.items import AoT
@@ -18,7 +19,7 @@ class Repo:
     """
     Represents a single starbash repository."""
 
-    def __init__(self, manager: RepoManager, url: str, config: str | None = None):
+    def __init__(self, manager: RepoManager, url: str):
         """
         Initializes a Repo instance.
 
@@ -27,15 +28,14 @@ class Repo:
         """
         self.manager = manager
         self.url = url
-        self.config = tomlkit.parse(config) if config else self._load_config()
-        self.manager.add_all_repos(self.config, self.get_path())
+        self.config = self._load_config()
 
     def __str__(self) -> str:
         """Return a concise one-line description of this repo.
 
         Example: "Repo(kind=recipe, local=True, url=file:///path/to/repo)"
         """
-        return f"Repo(kind={self.kind}, local={self.is_local}, url={self.url})"
+        return f"Repo(kind={self.kind}, url={self.url})"
 
     __repr__ = __str__
 
@@ -49,8 +49,7 @@ class Repo:
         """
         return str(self.get("repo.kind", "unknown"))
 
-    @property
-    def is_local(self) -> bool:
+    def is_scheme(self, scheme: str = "file") -> bool:
         """
         Read-only attribute indicating whether the repository URL points to a
         local file system path (file:// scheme).
@@ -58,7 +57,7 @@ class Repo:
         Returns:
             bool: True if the URL is a local file path, False otherwise.
         """
-        return self.url.startswith("file://")
+        return self.url.startswith(f"{scheme}://")
 
     def get_path(self) -> Path | None:
         """
@@ -70,12 +69,12 @@ class Repo:
         Returns:
             A Path object if the URL is a local file, otherwise None.
         """
-        if self.is_local:
+        if self.is_scheme("file"):
             return Path(self.url[len("file://") :])
 
         return None
 
-    def read(self, filepath: str) -> str:
+    def _read_file(self, filepath: str) -> str:
         """
         Read a filepath relative to the base of this repo. Return the contents in a string.
 
@@ -96,6 +95,30 @@ class Repo:
 
         return target_path.read_text()
 
+    def _read_resource(self, filepath: str) -> str:
+        """
+        Read a resource from the installed starbash package using a pkg:// URL.
+
+        Assumptions (simplified per project constraints):
+        - All pkg URLs point somewhere inside the already-imported 'starbash' package.
+        - The URL is treated as a path relative to the starbash package root.
+
+        Examples:
+            url: pkg://defaults   + filepath: "starbash.toml"
+              -> reads starbash/defaults/starbash.toml
+
+        Args:
+            filepath: Path within the base resource directory for this repo.
+
+        Returns:
+            The content of the resource as a string (UTF-8).
+        """
+        # Path portion after pkg://, interpreted relative to the 'starbash' package
+        subpath = self.url[len("pkg://") :].strip("/")
+
+        res = resources.files("starbash").joinpath(subpath).joinpath(filepath)
+        return res.read_text(encoding="utf-8")
+
     def _load_config(self) -> dict:
         """
         Loads the repository's configuration file (e.g., repo.sb.toml).
@@ -106,7 +129,12 @@ class Repo:
             A dictionary containing the parsed configuration.
         """
         try:
-            config_content = self.read(repo_suffix)
+            if self.is_scheme("file"):
+                config_content = self._read_file(repo_suffix)
+            elif self.url.startswith("pkg://"):
+                config_content = self._read_resource(repo_suffix)
+            else:
+                raise ValueError(f"Unsupported URL scheme for repo: {self.url}")
             logging.debug(f"Loading repo config from {repo_suffix}")
             return tomlkit.parse(config_content)
         except FileNotFoundError:
@@ -142,18 +170,18 @@ class RepoManager:
     files (like appdefaults.sb.toml).
     """
 
-    def __init__(self, app_defaults: str):
+    def __init__(self):
         """
         Initializes the RepoManager by loading the application default repos.
         """
         self.repos = []
 
         # We expose the app default preferences as a special root repo with a private URL
-        root_repo = Repo(self, "pkg://starbash-defaults", config=app_defaults)
-        self.repos.append(root_repo)
+        # root_repo = Repo(self, "pkg://starbash-defaults", config=app_defaults)
+        # self.repos.append(root_repo)
 
         # Most users will just want to read from merged
-        self.merged = self._union()
+        self.merged = MultiDict()
 
     def add_all_repos(self, toml: dict, base_path: Path | None = None) -> None:
         # From appdefaults.sb.toml, repo.ref is a list of tables
@@ -177,7 +205,14 @@ class RepoManager:
 
     def add_repo(self, url: str) -> None:
         logging.debug(f"Adding repo: {url}")
-        self.repos.append(Repo(self, url))
+        r = Repo(self, url)
+        self.repos.append(r)
+
+        # FIXME, generate the merged dict lazily
+        self._add_merged(r)
+
+        # if this new repo has sub-repos, add them too
+        self.add_all_repos(r.config, r.get_path())
 
     def get(self, key: str, default=None):
         """
@@ -214,32 +249,18 @@ class RepoManager:
             # For a debug dump, a simple string representation is usually sufficient.
             logging.info(f"  %s: %s", key, value)
 
-    def _union(self) -> MultiDict:
-        """
-        Merges the top-level keys from all repository configurations into a MultiDict.
-
-        This method iterates through all loaded repositories in their original order
-        and combines their top-level configuration keys. If a key exists in multiple
-        repositories, all of its values will be present in the returned MultiDict.
-
-        Returns:
-            A MultiDict containing the union of all top-level keys.
-        """
-        merged_dict = MultiDict()
-        for repo in self.repos:
-            for key, value in repo.config.items():
-                # if the toml object is an AoT type, monkey patch each element in the array instead
-                if isinstance(value, AoT):
-                    for v in value:
-                        setattr(v, "source", repo)
+    def _add_merged(self, repo: Repo) -> None:
+        for key, value in repo.config.items():
+            # if the toml object is an AoT type, monkey patch each element in the array instead
+            if isinstance(value, AoT):
+                for v in value:
+                    setattr(v, "source", repo)
                 else:
                     # We monkey patch source into any object that came from a repo, so that users can
                     # find the source repo (for attribution, URL relative resolution, whatever...)
                     setattr(value, "source", repo)
 
-                merged_dict.add(key, value)
-
-        return merged_dict
+                self.merged.add(key, value)
 
     def __str__(self):
         lines = [f"RepoManager with {len(self.repos)} repositories:"]

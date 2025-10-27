@@ -4,6 +4,7 @@
 * !unify the various processing routines by using a templating system
 * !move the old processing stuff into the starbash namespace (run siril, etc...)
 * start writing user prefs in user prefs dir
+* make reindex smarter
 * add automated session config looping (Sii, Oiii etc...)
 * add automated session looping (multiday)
 * pass stage outputs via the context?

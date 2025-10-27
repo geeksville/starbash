@@ -8,6 +8,7 @@ import itertools
 from rich.progress import track
 from rich.logging import RichHandler
 from starbash.database import Database
+from starbash.repo.manager import Repo
 from starbash.tool import Tool
 from starbash.repo import RepoManager
 from starbash.tool import tools
@@ -40,10 +41,9 @@ class AstroGlue:
         logging.info("AstroGlue application initializing...")
 
         # Load app defaults and initialize the repository manager
-        app_defaults_text = (
-            resources.files("starbash").joinpath("appdefaults.sb.toml").read_text()
-        )
-        self.repo_manager = RepoManager(app_defaults_text)
+        self.repo_manager = RepoManager()
+        self.repo_manager.add_repo("pkg://defaults")
+
         logging.info(
             f"Repo manager initialized with {len(self.repo_manager.repos)} default repo references."
         )
@@ -74,7 +74,7 @@ class AstroGlue:
 
         for repo in track(self.repo_manager.repos, description="Reindexing repos..."):
             # FIXME, add a method to get just the repos that contain images
-            if repo.is_local and repo.kind != "recipe":
+            if repo.is_scheme("file") and repo.kind != "recipe":
                 logging.debug("Reindexing %s...", repo.url)
                 path = repo.get_path()
 
