@@ -77,7 +77,7 @@ def session():
                     image_type,
                     object,
                 )
-        console.print(table)
+            console.print(table)
 
 
 # @app.command(hidden=True)
