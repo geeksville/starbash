@@ -87,6 +87,29 @@ class Starbash:
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
 
+    def _add_session(self, f: str, image_doc_id: int, header: dict) -> None:
+        filter = header.get(Database.FILTER_KEY, "unspecified")
+        image_type = header.get(Database.IMAGETYP_KEY)
+        date = header.get(Database.DATE_OBS_KEY)
+        if not date or not image_type:
+            logging.warning(
+                "Image %s missing critical FITS header, please submit image at https://github.com/geeksville/starbash/issues/new",
+                f,
+            )
+        else:
+            session = self.db.get_session(date, image_type, filter)
+            exptime = header.get(Database.EXPTIME_KEY, 0)
+            new = {
+                Database.FILTER_KEY: filter,
+                Database.START_KEY: date,
+                Database.END_KEY: date,  # FIXME not quite correct, should be longer by exptime
+                Database.IMAGE_DOC_KEY: image_doc_id,
+                Database.IMAGETYP_KEY: image_type,
+                Database.NUM_IMAGES_KEY: 1,
+                Database.EXPTIME_TOTAL_KEY: exptime,
+            }
+            self.db.upsert_session(new, existing=session)
+
     def reindex_repo(self, repo: Repo, force: bool = False):
         """Reindex all repositories managed by the RepoManager."""
         # FIXME, add a method to get just the repos that contain images
@@ -109,19 +132,32 @@ class Starbash:
             ):
                 # progress.console.print(f"Indexing {f}...")
                 try:
-                    if not self.db.get_image(str(f)) or force:
+                    found = self.db.get_image(str(f))
+                    if not found or force:
                         # Read and log the primary header (HDU 0)
                         with fits.open(str(f), memmap=False) as hdul:
                             # convert headers to dict
                             hdu0: Any = hdul[0]
-                            items = hdu0.header.items()
+                            header = hdu0.header
+                            if type(header) != dict:
+                                raise ValueError(
+                                    "FITS header is not a dict-like object: %s", f
+                                )
+
+                            items = header.items()
                             headers = {}
                             for key, value in items:
                                 if key in whitelist:
                                     headers[key] = value
                             logging.debug("Headers for %s: %s", f, headers)
                             headers["path"] = str(f)
-                            self.db.upsert_image(headers)
+                            image_doc_id = self.db.upsert_image(headers)
+
+                            if not found:
+                                # Update the session infos, but ONLY on first file scan
+                                # (otherwise invariants will get messed up)
+                                self._add_session(str(f), image_doc_id, header)
+
                 except Exception as e:
                     logging.warning("Failed to read FITS header for %s: %s", f, e)
 

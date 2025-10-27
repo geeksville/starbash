@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any, Optional
 from datetime import datetime, timedelta
@@ -14,6 +15,16 @@ class Database:
     Stores data under the OS-specific user data directory using platformdirs.
     Provides an `images` table for FITS metadata and basic helpers.
     """
+
+    EXPTIME_KEY = "EXPTIME"
+    FILTER_KEY = "FILTER"
+    START_KEY = "start"
+    END_KEY = "end"
+    NUM_IMAGES_KEY = "num-images"
+    EXPTIME_TOTAL_KEY = "exptime-total"
+    DATE_OBS_KEY = "DATE-OBS"
+    IMAGE_DOC_KEY = "image-doc"
+    IMAGETYP_KEY = "IMAGETYP"
 
     def __init__(
         self,
@@ -44,7 +55,7 @@ class Database:
         self.sessions = self._db.table("sessions")
 
     # --- Convenience helpers for common image operations ---
-    def upsert_image(self, record: dict[str, Any]) -> None:
+    def upsert_image(self, record: dict[str, Any]) -> int:
         """Insert or update an image record by unique path.
 
         The record must include a 'path' key; other keys are arbitrary FITS metadata.
@@ -54,7 +65,9 @@ class Database:
             raise ValueError("record must include 'path'")
 
         Image = Query()
-        self.images.upsert(record, Image.path == path)
+        r = self.images.upsert(record, Image.path == path)
+        assert len(r) == 1
+        return r[0]
 
     def search_image(self, q: Query) -> table.Document | list[table.Document] | None:
         return self.images.search(q)
@@ -67,8 +80,8 @@ class Database:
         return list(self.images.all())
 
     def get_session(
-        self, date: str, filter: str
-    ) -> table.Document | list[table.Document] | None:
+        self, date: str, image_type: str, filter: str
+    ) -> table.Document | None:
 
         # Convert the provided ISO8601 date string to a datetime, then
         # search for sessions with the same filter whose start time is
@@ -78,15 +91,26 @@ class Database:
         start_min = (target_dt - window).isoformat()
         start_max = (target_dt + window).isoformat()
 
+        # FOR DEBUGGING, FIXME REMOVE
+        debugging = False
+        if debugging:
+            Session = Query()
+            q = ~(Session.filter == filter)
+            pr = self.sessions.get(q)
+            logging.debug(f"Matches {len(pr)}")
+
         # Since session 'start' is stored as ISO8601 strings, lexicographic
         # comparison aligns with chronological ordering for a uniform format.
         Session = Query()
         q = (
-            (Session.filter == filter)
+            (Session[Database.FILTER_KEY] == filter)
+            & (Session[Database.IMAGETYP_KEY] == image_type)
             & (Session.start >= start_min)
             & (Session.start <= start_max)
         )
-        return self.sessions.get(q)
+        result = self.sessions.get(q)
+        assert result is None or isinstance(result, table.Document)
+        return result
 
     def upsert_session(
         self, new: dict[str, Any], existing: table.Document | None = None
@@ -95,16 +119,20 @@ class Database:
         if existing:
             # Update existing session with new data
             updated = existing.copy()
-            if new["start"] < existing["start"]:
-                updated["start"] = new["start"]
-            if new["end"] > existing["end"]:
-                updated["end"] = new["end"]
-            updated["num-images"] = existing.get("num-images", 0) + new.get(
-                "num-images", 0
-            )
-            updated["exptime-total"] = existing.get("exptime-total", 0) + new.get(
-                "exptime-total", 0
-            )
+            if new[Database.START_KEY] < existing[Database.START_KEY]:
+                updated[Database.START_KEY] = new[Database.START_KEY]
+
+            if new[Database.END_KEY] > existing[Database.END_KEY]:
+                updated[Database.END_KEY] = new[Database.END_KEY]
+
+            updated[Database.NUM_IMAGES_KEY] = existing.get(
+                Database.NUM_IMAGES_KEY, 0
+            ) + new.get(Database.NUM_IMAGES_KEY, 0)
+
+            updated[Database.EXPTIME_TOTAL_KEY] = existing.get(
+                Database.EXPTIME_TOTAL_KEY, 0
+            ) + new.get(Database.EXPTIME_TOTAL_KEY, 0)
+
             self.sessions.update(updated, doc_ids=[existing.doc_id])
         else:
             self.sessions.insert(new)

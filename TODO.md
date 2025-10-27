@@ -5,6 +5,7 @@
 * !move the old processing stuff into the starbash namespace (run siril, etc...)
 * !start writing user prefs in user prefs dir
 * make reindex smarter
+* add top level catch asking users to report bugs
 * add crash and usage analytics
 * add automated session config looping (Sii, Oiii etc...)
 * add automated session looping (multiday)
