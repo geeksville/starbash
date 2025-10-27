@@ -11,7 +11,7 @@ def test_repo_manager_initialization(monkeypatch, tmp_path: Path):
     # Create a test repo with multiple repo-ref entries
     test_repo_path = tmp_path / "test-repo"
     test_repo_path.mkdir()
-    
+
     # Create referenced repo directories
     ref_repo1_path = tmp_path / "recipes"
     ref_repo1_path.mkdir()
@@ -21,7 +21,7 @@ def test_repo_manager_initialization(monkeypatch, tmp_path: Path):
         kind = "recipes"
         """
     )
-    
+
     ref_repo2_path = tmp_path / "my_raws"
     ref_repo2_path.mkdir()
     (ref_repo2_path / "starbash.toml").write_text(
@@ -36,10 +36,10 @@ def test_repo_manager_initialization(monkeypatch, tmp_path: Path):
         f"""
         [repo]
         kind = "test"
-        
+
         [[repo-ref]]
         dir = "{ref_repo1_path}"
-        
+
         [[repo-ref]]
         dir = "{ref_repo2_path}"
         """
@@ -55,7 +55,7 @@ def test_repo_manager_initialization(monkeypatch, tmp_path: Path):
     assert f"file://{test_repo_path}" in urls
     assert f"file://{ref_repo1_path}" in urls
     assert f"file://{ref_repo2_path}" in urls
-    
+
     # Verify we can get values from all repos
     kinds = [r.kind for r in repo_manager.repos]
     assert "test" in kinds
