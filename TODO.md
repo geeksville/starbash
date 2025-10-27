@@ -51,6 +51,7 @@
 * list all found targets across all repos
 * allow restricting processing by date ranges, or equipment or whatever
 * print report on frame quality, registration etc...
+* get a real app icon (instead of current placeholder)
 
 ## astrosnake ideas
 

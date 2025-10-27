@@ -1,5 +1,5 @@
 # Starbash
-![app icon](img/icon.png "Starbash: Astrophotography workflows simplified")
+![app icon](https://github.com/geeksville/starbash/blob/main/img/icon.png "Starbash: Astrophotography workflows simplified")
 
 A tool for automating/standardizing/sharing astrophotography workflows.
 
