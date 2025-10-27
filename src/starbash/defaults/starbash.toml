@@ -20,14 +20,6 @@ kind = "preferences"
 # our python blob)
 dir = "/workspaces/starbash/doc/toml/example/recipe-repo"
 
-[[repo.ref]]
-
-# User custom settings live here
-# For "dir" or "url" repos we expect to find an starbash.toml file in the root of the directory.
-dir = "~/.config/starbash"
-# But temporarily during early development I'm keeping them in the master github
-# dir = "/workspaces/starbash/doc/toml/example/config/user/"
-
 # [[repo.ref]]
 
 # recipe repos contain recipes (identified by name).  When any sb.toml file references

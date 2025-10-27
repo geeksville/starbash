@@ -1,5 +1,6 @@
 import logging
 from importlib import resources
+from pathlib import Path
 
 import tomlkit
 from tomlkit.toml_file import TOMLFile
@@ -32,7 +33,7 @@ def setup_logging():
 setup_logging()
 
 
-def create_user():
+def create_user() -> Path:
     """Create user directories if they don't exist yet."""
     config_dir = get_user_config_dir()
     userconfig_path = config_dir / "starbash.toml"
@@ -45,6 +46,7 @@ def create_user():
         toml = tomlkit.parse(tomlstr)
         TOMLFile(userconfig_path).write(toml)
         logging.info(f"Created user config file: {userconfig_path}")
+    return config_dir
 
 
 class Starbash:
@@ -58,11 +60,12 @@ class Starbash:
         setup_logging()
         logging.info("Starbash application initializing...")
 
-        create_user()
-
         # Load app defaults and initialize the repository manager
         self.repo_manager = RepoManager()
         self.repo_manager.add_repo("pkg://defaults")
+
+        # Add user prefs as a repo
+        self.repo_manager.add_repo("file://" + str(create_user()))
 
         logging.info(
             f"Repo manager initialized with {len(self.repo_manager.repos)} default repo references."

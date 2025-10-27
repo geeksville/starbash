@@ -8,6 +8,7 @@ from pathlib import Path
 from importlib import resources
 
 import tomlkit
+from tomlkit.toml_file import TOMLFile
 from tomlkit.items import AoT
 from multidict import MultiDict
 
@@ -48,6 +49,22 @@ class Repo:
             The kind of the repository as a string.
         """
         return str(self.get("repo.kind", "unknown"))
+
+    def write_config(self) -> None:
+        """
+        Writes the current (possibly modified) configuration back to the repository's config file.
+
+        Raises:
+            ValueError: If the repository is not a local file repository.
+        """
+        base_path = self.get_path()
+        if base_path is None:
+            raise ValueError("Cannot resolve path for non-local repository")
+
+        config_path = base_path / repo_suffix
+        # FIXME, be more careful to write the file atomically (by writing to a temp file and renaming)
+        TOMLFile(config_path).write(self.config)
+        logging.info(f"Wrote config to {config_path}")
 
     def is_scheme(self, scheme: str = "file") -> bool:
         """
@@ -119,7 +136,7 @@ class Repo:
         res = resources.files("starbash").joinpath(subpath).joinpath(filepath)
         return res.read_text()
 
-    def _load_config(self) -> dict:
+    def _load_config(self) -> tomlkit.TOMLDocument:
         """
         Loads the repository's configuration file (e.g., repo.sb.toml).
 
@@ -139,7 +156,7 @@ class Repo:
             return tomlkit.parse(config_content)
         except FileNotFoundError:
             logging.warning(f"No {repo_suffix} found")
-            return {}
+            return tomlkit.TOMLDocument()  # empty placeholder
 
     def get(self, key: str, default=None):
         """
