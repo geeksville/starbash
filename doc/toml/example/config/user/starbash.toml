@@ -1,5 +1,5 @@
 #Normally this file is generated at ~/.config/starbash/starbash.toml
-# (or wherever is appropriate for the user's platform).  For things like repo.ref below
+# (or wherever is appropriate for the user's platform).  For things like repo-ref below
 # they are added programmatically as the user adds them via the CLI or GUI.
 
 [repo]
@@ -13,11 +13,11 @@ website = "https://telescopius.com/profile/geeksville"
 license = "FIXME Creative commons etc..."
 
 # define key repos, at first run user will be prompted to select
-[[repo.ref]]
+[[repo-ref]]
 dir = "/workspaces/starbash/images/masters"
 
-[[repo.ref]]
+[[repo-ref]]
 dir = "/workspaces/starbash/images/from_astroboy"
 
-[[repo.ref]]
+[[repo-ref]]
 dir = "/workspaces/starbash/images/processed"

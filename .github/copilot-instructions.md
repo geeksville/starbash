@@ -13,7 +13,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 
 ## Repos and precedence
 - A “repo” is a directory rooted by `starbash.toml` (see `doc/toml/example/recipe-repo`).
-- Default repos are listed in `src/starbash/appdefaults.sb.toml` under `[[repo.ref]]`.
+- Default repos are listed in `src/starbash/appdefaults.sb.toml` under `[[repo-ref]]`.
 - Only `file://` repos are supported currently. Repos listed later have higher precedence (last wins for `get()`).
 - `RepoManager.union()` returns a MultiDict of all top-level keys; TOML items are monkey-patched with `source` (the repo) so stages can read relative files (e.g., `stage.source.read(script-file)`).
 

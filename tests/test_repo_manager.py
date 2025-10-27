@@ -24,10 +24,10 @@ def test_repo_manager_initialization(monkeypatch):
     monkeypatch.setattr("starbash.repo.manager.Repo", MockRepo)
 
     app_defaults_text = """
-    [[repo.ref]]
+    [[repo-ref]]
     url = "https://github.com/user/recipes"
 
-    [[repo.ref]]
+    [[repo-ref]]
     dir = "test_data/my_raws"
     """
 
@@ -75,10 +75,10 @@ def test_repo_manager_get_with_real_repos(tmp_path: Path):
 
     # 2. Create a dynamic appdefaults content pointing to our temporary repos
     app_defaults_text = f"""
-    [[repo.ref]]
+    [[repo-ref]]
     dir = "{recipe_repo_path}"
 
-    [[repo.ref]]
+    [[repo-ref]]
     dir = "{user_prefs_path}"
     """
 

@@ -50,6 +50,9 @@ class Repo:
         """
         return str(self.get("repo.kind", "unknown"))
 
+    def add_repo_ref(self, dir: str) -> None:
+        pass
+
     def write_config(self) -> None:
         """
         Writes the current (possibly modified) configuration back to the repository's config file.
@@ -201,8 +204,8 @@ class RepoManager:
         self.merged = MultiDict()
 
     def add_all_repos(self, toml: dict, base_path: Path | None = None) -> None:
-        # From appdefaults.sb.toml, repo.ref is a list of tables
-        repo_refs = toml.get("repo", {}).get("ref", [])
+        # From appdefaults.sb.toml, repo-ref is a list of tables
+        repo_refs = toml.get("repo-ref", [])
 
         for ref in repo_refs:
             if "url" in ref:

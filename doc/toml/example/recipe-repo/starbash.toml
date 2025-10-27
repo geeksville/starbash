@@ -2,9 +2,9 @@
 kind = "repo"
 
 # recipes for generating master flats, bias, darks...
-[[repo.ref]]
+[[repo-ref]]
 dir = "master_bias"
-[[repo.ref]]
+[[repo-ref]]
 dir = "master_flat"
 
 # Note: For automated recipe finding, it is important to list more demanding recipies first.  For instance:
@@ -13,10 +13,10 @@ dir = "master_flat"
 #
 # But later if we see a dataset containing only HaOiii data, assume osc_single_duo should be used.
 
-[[repo.ref]]
+[[repo-ref]]
 dir = "osc_dual_duo"
 
-[[repo.ref]]
+[[repo-ref]]
 dir = "osc_single_duo"
 
 # processing stages, currently all declared here, but possibly in the future they could be added by user/other toml files
