@@ -81,6 +81,9 @@ class Database:
         else:
             return self.sessions.search(q)
 
+    def len_session(self) -> int:
+        return len(self.sessions)
+
     def get_image(self, path: str) -> table.Document | list[table.Document] | None:
         Image = Query()
         return self.images.get(Image.path == path)

@@ -33,17 +33,18 @@ def session():
     """List sessions (filtered based on the current selection)"""
 
     with Starbash() as sb:
-        table = Table(title="Sessions (x selected out of y)")
-
-        table.add_column("Date")
-        table.add_column("# images")
-        table.add_column("Time")
-        table.add_column("Type")
-        table.add_column("About")  # type of frames, filter, target
-        # table.add_column("Released", justify="right", style="cyan", no_wrap=True)
-
         sessions = sb.search_session()
         if sessions and isinstance(sessions, list):
+            len_all = sb.db.len_session()
+            table = Table(title=f"Sessions ({len(sessions)} selected out of {len_all})")
+
+            table.add_column("Date")
+            table.add_column("# images")
+            table.add_column("Time")
+            table.add_column("Type/Filter")
+            table.add_column("About")  # type of frames, filter, target
+            # table.add_column("Released", justify="right", style="cyan", no_wrap=True)
+
             for sess in sessions:
                 date_iso = sess.get(Database.START_KEY, "N/A")
                 # Try to cnvert ISO UTC datetime to local short date string

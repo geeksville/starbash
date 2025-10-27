@@ -45,6 +45,7 @@ See my personal [TODO](TODO.md) file.  I'll be looking for pre-alpha testers/fee
 * export dirs|BIAS|LIGHT|DARK|FLAT [DIRLOC]
 
 * process auto
+* process masters - generate master flats, darks, biases from any raws that are available
 
 ## Supported tools
 
