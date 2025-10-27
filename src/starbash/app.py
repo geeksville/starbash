@@ -97,7 +97,6 @@ class Starbash:
                 f,
             )
         else:
-            session = self.db.get_session(date, image_type, filter)
             exptime = header.get(Database.EXPTIME_KEY, 0)
             new = {
                 Database.FILTER_KEY: filter,
@@ -107,7 +106,9 @@ class Starbash:
                 Database.IMAGETYP_KEY: image_type,
                 Database.NUM_IMAGES_KEY: 1,
                 Database.EXPTIME_TOTAL_KEY: exptime,
+                Database.OBJECT_KEY: header.get(Database.OBJECT_KEY, "unspecified"),
             }
+            session = self.db.get_session(new)
             self.db.upsert_session(new, existing=session)
 
     def reindex_repo(self, repo: Repo, force: bool = False):
@@ -139,10 +140,8 @@ class Starbash:
                             # convert headers to dict
                             hdu0: Any = hdul[0]
                             header = hdu0.header
-                            if type(header) != dict:
-                                raise ValueError(
-                                    "FITS header is not a dict-like object: %s", f
-                                )
+                            if type(header).__name__ == "Unknown":
+                                raise ValueError("FITS header has Unknown type: %s", f)
 
                             items = header.items()
                             headers = {}

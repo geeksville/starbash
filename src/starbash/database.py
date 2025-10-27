@@ -25,6 +25,7 @@ class Database:
     DATE_OBS_KEY = "DATE-OBS"
     IMAGE_DOC_KEY = "image-doc"
     IMAGETYP_KEY = "IMAGETYP"
+    OBJECT_KEY = "OBJECT"
 
     def __init__(
         self,
@@ -46,7 +47,7 @@ class Database:
         # Public handle to the images table
         self.images = self._db.table("images")
 
-        # Sessions are day and filter specific. They contain:
+        # Sessions are day+filter+target+imagetyp specific. They contain:
         #  * start & end - which are ISO8601 date strings.
         #  * image-doc - which is a document-id for some image within that session
         #  * num-images - which is the total # of images in that session
@@ -79,9 +80,16 @@ class Database:
     def all_images(self) -> list[dict[str, Any]]:
         return list(self.images.all())
 
-    def get_session(
-        self, date: str, image_type: str, filter: str
-    ) -> table.Document | None:
+    def get_session(self, to_find: dict[str, str]) -> table.Document | None:
+
+        date = to_find.get(Database.START_KEY)
+        assert date
+        image_type = to_find.get(Database.IMAGETYP_KEY)
+        assert image_type
+        filter = to_find.get(Database.FILTER_KEY)
+        assert filter
+        target = to_find.get(Database.OBJECT_KEY)
+        assert target
 
         # Convert the provided ISO8601 date string to a datetime, then
         # search for sessions with the same filter whose start time is
@@ -97,7 +105,7 @@ class Database:
             Session = Query()
             q = ~(Session.filter == filter)
             pr = self.sessions.get(q)
-            logging.debug(f"Matches {len(pr)}")
+            logging.debug(f"Matches {pr}")
 
         # Since session 'start' is stored as ISO8601 strings, lexicographic
         # comparison aligns with chronological ordering for a uniform format.
@@ -105,6 +113,7 @@ class Database:
         q = (
             (Session[Database.FILTER_KEY] == filter)
             & (Session[Database.IMAGETYP_KEY] == image_type)
+            & (Session[Database.OBJECT_KEY] == target)
             & (Session.start >= start_min)
             & (Session.start <= start_max)
         )
