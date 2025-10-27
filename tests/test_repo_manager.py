@@ -4,45 +4,63 @@ import tomlkit
 from starbash.repo.manager import RepoManager
 
 
-def test_repo_manager_initialization(monkeypatch):
+def test_repo_manager_initialization(monkeypatch, tmp_path: Path):
     """
     Tests that the RepoManager correctly initializes and processes repo references.
     """
-
-    # We use a mock Repo class to prevent file system access during this unit test.
-    class MockRepo:
-        def __init__(self, manager, url, config: str | None = None):
-            self.url = url
-            self.config = tomlkit.parse(config) if config else {}
-            # Simulate the real Repo behavior minimally: if a config string is provided,
-            # parse it and ask the manager to add referenced repos.
-            if config:
-                manager.add_all_repos(tomlkit.parse(config))
-
-    # Use the monkeypatch fixture to replace the real Repo class with our mock.
-    # The fixture ensures this change is reverted after the test function finishes.
-    monkeypatch.setattr("starbash.repo.manager.Repo", MockRepo)
-
-    app_defaults_text = """
-    [[repo-ref]]
-    url = "https://github.com/user/recipes"
-
-    [[repo-ref]]
-    dir = "test_data/my_raws"
-    """
-
-    repo_manager = RepoManager(app_defaults_text)
-
-    # With the root repo plus two referenced repos, we expect three entries.
-    assert len(repo_manager.repos) == 3
-    # Order-insensitive presence checks across all repos
-    urls = [r.url for r in repo_manager.repos]
-    assert "pkg://starbash-defaults" in urls
-    assert "https://github.com/user/recipes" in urls
-    assert any(
-        u.startswith("file://") and u.endswith("/starbash/test_data/my_raws")
-        for u in urls
+    # Create a test repo with multiple repo-ref entries
+    test_repo_path = tmp_path / "test-repo"
+    test_repo_path.mkdir()
+    
+    # Create referenced repo directories
+    ref_repo1_path = tmp_path / "recipes"
+    ref_repo1_path.mkdir()
+    (ref_repo1_path / "starbash.toml").write_text(
+        """
+        [repo]
+        kind = "recipes"
+        """
     )
+    
+    ref_repo2_path = tmp_path / "my_raws"
+    ref_repo2_path.mkdir()
+    (ref_repo2_path / "starbash.toml").write_text(
+        """
+        [repo]
+        kind = "raws"
+        """
+    )
+
+    # Write test repo config with repo-refs
+    (test_repo_path / "starbash.toml").write_text(
+        f"""
+        [repo]
+        kind = "test"
+        
+        [[repo-ref]]
+        dir = "{ref_repo1_path}"
+        
+        [[repo-ref]]
+        dir = "{ref_repo2_path}"
+        """
+    )
+
+    # Initialize RepoManager and add the test repo
+    repo_manager = RepoManager()
+    repo_manager.add_repo(f"file://{test_repo_path}")
+
+    # We expect the test repo plus the two referenced repos
+    assert len(repo_manager.repos) >= 3
+    urls = [r.url for r in repo_manager.repos]
+    assert f"file://{test_repo_path}" in urls
+    assert f"file://{ref_repo1_path}" in urls
+    assert f"file://{ref_repo2_path}" in urls
+    
+    # Verify we can get values from all repos
+    kinds = [r.kind for r in repo_manager.repos]
+    assert "test" in kinds
+    assert "recipes" in kinds
+    assert "raws" in kinds
 
 
 def test_repo_manager_get_with_real_repos(tmp_path: Path):
@@ -67,25 +85,19 @@ def test_repo_manager_get_with_real_repos(tmp_path: Path):
     (user_prefs_path / "starbash.toml").write_text(
         """
         [repo]
-        kind = "user-prefs" # This should override the value from the recipe-repo
+        kind = "user-prefs"
         [user]
         email = "user@example.com"
         """
     )
 
-    # 2. Create a dynamic appdefaults content pointing to our temporary repos
-    app_defaults_text = f"""
-    [[repo-ref]]
-    dir = "{recipe_repo_path}"
+    # 2. Initialize the RepoManager and add repos in order
+    repo_manager = RepoManager()
+    repo_manager.add_repo(f"file://{recipe_repo_path}")
+    repo_manager.add_repo(f"file://{user_prefs_path}")
 
-    [[repo-ref]]
-    dir = "{user_prefs_path}"
-    """
-
-    # 3. Initialize the RepoManager, which will now use the real Repo class
-    repo_manager = RepoManager(app_defaults_text)
-
-    # 4. Assert that the values are retrieved correctly, respecting precedence
+    # 3. Assert that the values are retrieved correctly, respecting precedence
+    # Last repo added wins for .get()
     assert repo_manager.get("repo.kind") == "user-prefs"
     assert repo_manager.get("user.name") == "default-user"
     assert repo_manager.get("user.email") == "user@example.com"
