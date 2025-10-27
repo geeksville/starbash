@@ -2,6 +2,7 @@ import logging
 from importlib import resources
 from pathlib import Path
 
+from tinydb import TinyDB, Query, table
 import tomlkit
 from tomlkit.toml_file import TOMLFile
 import glob
@@ -73,6 +74,7 @@ class Starbash:
         # self.repo_manager.dump()
 
         self.db = Database()
+        self.session_query = None  # Query()
         # FIXME, call reindex somewhere and also index whenever new repos are added
         # self.reindex_repos()
 
@@ -110,6 +112,9 @@ class Starbash:
             }
             session = self.db.get_session(new)
             self.db.upsert_session(new, existing=session)
+
+    def search_session(self) -> table.Document | list[table.Document] | None:
+        return self.db.search_session(self.session_query)
 
     def reindex_repo(self, repo: Repo, force: bool = False):
         """Reindex all repositories managed by the RepoManager."""

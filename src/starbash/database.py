@@ -73,6 +73,14 @@ class Database:
     def search_image(self, q: Query) -> table.Document | list[table.Document] | None:
         return self.images.search(q)
 
+    def search_session(
+        self, q: Query | None
+    ) -> table.Document | list[table.Document] | None:
+        if q is None:
+            return self.sessions.all()
+        else:
+            return self.sessions.search(q)
+
     def get_image(self, path: str) -> table.Document | list[table.Document] | None:
         Image = Query()
         return self.images.get(Image.path == path)
