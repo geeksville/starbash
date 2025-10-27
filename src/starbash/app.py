@@ -1,6 +1,8 @@
 import logging
 from importlib import resources
 
+import tomlkit
+from tomlkit.toml_file import TOMLFile
 import glob
 from typing import Any
 from astropy.io import fits
@@ -12,6 +14,7 @@ from starbash.repo.manager import Repo
 from starbash.tool import Tool
 from starbash.repo import RepoManager
 from starbash.tool import tools
+from starbash.paths import get_user_config_dir
 
 
 def setup_logging():
@@ -29,16 +32,33 @@ def setup_logging():
 setup_logging()
 
 
-class AstroGlue:
-    """The main AstroGlue application class."""
+def create_user():
+    """Create user directories if they don't exist yet."""
+    config_dir = get_user_config_dir()
+    userconfig_path = config_dir / "starbash.toml"
+    if not (userconfig_path).exists():
+        tomlstr = (
+            resources.files("starbash")
+            .joinpath("templates/userconfig.toml")
+            .read_text()
+        )
+        toml = tomlkit.parse(tomlstr)
+        TOMLFile(userconfig_path).write(toml)
+        logging.info(f"Created user config file: {userconfig_path}")
+
+
+class Starbash:
+    """The main Starbash application class."""
 
     def __init__(self):
         """
-        Initializes the AstroGlue application by loading configurations
+        Initializes the Starbash application by loading configurations
         and setting up the repository manager.
         """
         setup_logging()
-        logging.info("AstroGlue application initializing...")
+        logging.info("Starbash application initializing...")
+
+        create_user()
 
         # Load app defaults and initialize the repository manager
         self.repo_manager = RepoManager()
@@ -58,7 +78,7 @@ class AstroGlue:
         self.db.close()
 
     # Context manager support
-    def __enter__(self) -> "AstroGlue":
+    def __enter__(self) -> "Starbash":
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

@@ -3,8 +3,8 @@
 These rules help AI coding agents work effectively in this repo. Keep answers concrete and project-specific.
 
 ## Big picture
-- AstroGlue orchestrates astrophotography processing via TOML “repos” that define stages and recipes. Runtime merges multiple repos and runs tasks with external tools.
-- Entry: `starbash.main:main` initializes `AstroGlue`, loads `appdefaults.sb.toml`, builds a `RepoManager`, and executes stages in priority order.
+- Starbash orchestrates astrophotography processing via TOML “repos” that define stages and recipes. Runtime merges multiple repos and runs tasks with external tools.
+- Entry: `starbash.main:main` initializes `Starbash`, loads `appdefaults.sb.toml`, builds a `RepoManager`, and executes stages in priority order.
 - Core modules:
   - `starbash.repo.manager` — loads/merges repos, resolves precedence, exposes `union()` (MultiDict) and `get()`.
   - `starbash.tool` — tool runners: Siril, GraXpert, Python (RestrictedPython). Handles safe template expansion and temp dirs.
@@ -35,7 +35,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 - Both tools run in temp dirs; input files are symlinked. Failures raise `RuntimeError`; stderr is logged.
 
 ## Runtime paths and data
-- Runtime context is initialized in `AstroGlue.start_session()`:
+- Runtime context is initialized in `Starbash.start_session()`:
   - `process_dir`: defaults to `/workspaces/starbash/images/process` (WIP).
   - `masters`: defaults to `/workspaces/starbash/images/masters` (WIP).
 - Examples under `images/` and `poc/process.py` show expected folder layouts (e.g., raw frames under `images/from_astroboy/...`).

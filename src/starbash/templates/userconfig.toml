@@ -1,0 +1,17 @@
+# This is your Starbash user configuration file.  It can be used to provide default settings
+# to workflows.
+
+# (or wherever is appropriate for the user's platform).
+
+[repo]
+kind = "preferences"
+
+# [preferences.author]
+# default author info
+# name = "Your Name"
+# email = "youremail@somedomain.com"
+# website = "https://yourwebsite"
+# license = "FIXME eventually applied as the default license for generated images Creative commons etc..."
+
+# DO NOT edit below this line, they are managed automatically via
+# the "sb repo add" etc... commands.

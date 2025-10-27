@@ -24,9 +24,9 @@ dir = "/workspaces/starbash/doc/toml/example/recipe-repo"
 
 # User custom settings live here
 # For "dir" or "url" repos we expect to find an starbash.toml file in the root of the directory.
-# dir = "~/.config/starbash"
+dir = "~/.config/starbash"
 # But temporarily during early development I'm keeping them in the master github
-dir = "/workspaces/starbash/doc/toml/example/config/user/"
+# dir = "/workspaces/starbash/doc/toml/example/config/user/"
 
 # [[repo.ref]]
 

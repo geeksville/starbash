@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from tinydb import TinyDB, Query, table
-from platformdirs import PlatformDirs
+
+from .paths import get_user_data_dir
 
 
 class Database:
@@ -20,15 +21,12 @@ class Database:
     ) -> None:
         # Resolve base data directory (allow override for tests)
         if base_dir is None:
-            app_name = "starbash"
-            app_author = "geeksville"
-            dirs = PlatformDirs(app_name, app_author)
-            data_dir = Path(dirs.user_data_dir)
+
+            data_dir = get_user_data_dir()
         else:
             data_dir = base_dir
 
         db_filename = "db.json"
-        data_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = data_dir / db_filename
 
         # Open TinyDB JSON store

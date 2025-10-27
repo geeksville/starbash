@@ -1,7 +1,7 @@
 import logging
 import typer
 
-from .app import AstroGlue
+from .app import Starbash
 from .commands import repo
 
 app = typer.Typer()
@@ -12,7 +12,7 @@ app.add_typer(repo.app, name="repo", help="Manage Starbash repositories.")
 def default_cmd():
     """Default entry point for the starbash application."""
 
-    with AstroGlue() as ag:
+    with Starbash() as sb:
         pass
 
 

@@ -117,7 +117,7 @@ class Repo:
         subpath = self.url[len("pkg://") :].strip("/")
 
         res = resources.files("starbash").joinpath(subpath).joinpath(filepath)
-        return res.read_text(encoding="utf-8")
+        return res.read_text()
 
     def _load_config(self) -> dict:
         """
@@ -131,7 +131,7 @@ class Repo:
         try:
             if self.is_scheme("file"):
                 config_content = self._read_file(repo_suffix)
-            elif self.url.startswith("pkg://"):
+            elif self.is_scheme("pkg"):
                 config_content = self._read_resource(repo_suffix)
             else:
                 raise ValueError(f"Unsupported URL scheme for repo: {self.url}")
