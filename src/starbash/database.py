@@ -35,12 +35,6 @@ class Database:
         # Public handle to the images table
         self.images = self._db.table("images")
 
-    def add_from_fits(self, file_path: Path, headers: dict[str, Any]) -> None:
-        data = {}
-        data.update(headers)
-        data["path"] = str(file_path)
-        self.upsert_image(data)
-
     # --- Convenience helpers for common image operations ---
     def upsert_image(self, record: dict[str, Any]) -> None:
         """Insert or update an image record by unique path.

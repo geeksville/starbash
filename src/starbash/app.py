@@ -87,17 +87,17 @@ class Starbash:
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
 
-    def reindex_repo(self, repo: Repo):
+    def reindex_repo(self, repo: Repo, force: bool = False):
         """Reindex all repositories managed by the RepoManager."""
-        logging.info("Reindexing all repositories...")
-        config = self.repo_manager.merged.get("config")
-        if not config:
-            raise ValueError(f"App config not found.")
-        whitelist = config["fits-whitelist"]
-
         # FIXME, add a method to get just the repos that contain images
         if repo.is_scheme("file") and repo.kind != "recipe":
             logging.debug("Reindexing %s...", repo.url)
+
+            config = self.repo_manager.merged.get("config")
+            if not config:
+                raise ValueError(f"App config not found.")
+            whitelist = config["fits-whitelist"]
+
             path = repo.get_path()
             if not path:
                 raise ValueError(f"Repo path not found for {repo}")
@@ -109,26 +109,28 @@ class Starbash:
             ):
                 # progress.console.print(f"Indexing {f}...")
                 try:
-                    # Read and log the primary header (HDU 0)
-                    with fits.open(str(f), memmap=False) as hdul:
-                        # convert headers to dict
-                        hdu0: Any = hdul[0]
-                        items = hdu0.header.items()
-                        headers = {}
-                        for key, value in items:
-                            if key in whitelist:
-                                headers[key] = value
-                        logging.debug("Headers for %s: %s", f, headers)
-                        self.db.add_from_fits(f, headers)
+                    if not self.db.get_image(str(f)) or force:
+                        # Read and log the primary header (HDU 0)
+                        with fits.open(str(f), memmap=False) as hdul:
+                            # convert headers to dict
+                            hdu0: Any = hdul[0]
+                            items = hdu0.header.items()
+                            headers = {}
+                            for key, value in items:
+                                if key in whitelist:
+                                    headers[key] = value
+                            logging.debug("Headers for %s: %s", f, headers)
+                            headers["path"] = str(f)
+                            self.db.upsert_image(headers)
                 except Exception as e:
                     logging.warning("Failed to read FITS header for %s: %s", f, e)
 
-    def reindex_repos(self):
+    def reindex_repos(self, force: bool = False):
         """Reindex all repositories managed by the RepoManager."""
         logging.info("Reindexing all repositories...")
 
         for repo in track(self.repo_manager.repos, description="Reindexing repos..."):
-            self.reindex_repo(repo)
+            self.reindex_repo(repo, force=force)
 
     def test_processing(self):
         """A crude test of image processing pipeline - FIXME move into testing"""

@@ -29,16 +29,18 @@ See my personal [TODO](TODO.md) file.  I'll be looking for pre-alpha testers/fee
 * repo list
 * repo reindex REPONAME|REPONUM|all
 
-* target list
-* target select TARGETNAME
+* target list - list targets (filtered based on the current selection)
 
-* reset - remove any filters on targets, sessions, etc...
+* selection any - remove any filters on targets, sessions, etc...
+* selection target TARGETNAME
+* selection date after DATE - limit to sessions in the specified date range
+* selection date before DATE - limit to sessions in the specified date range
 
-* session list
-* session date after DATE
-* session date before DATE
+* session list - list sessions (filtered based on the current selection)
 
-* instrument list
+* instrument list - list instruments (filtered based on the current selection)
+
+* filter list - list all filters found in current selection
 
 * export dirs|BIAS|LIGHT|DARK|FLAT [DIRLOC]
 

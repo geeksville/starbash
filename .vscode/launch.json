@@ -10,7 +10,11 @@
             "request": "launch",
             "module": "starbash.main",
             "console": "integratedTerminal",
-            "python": "${workspaceFolder}/.vscode/get_poetry_python.sh"
+            "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
+            "args": [
+                "repo",
+                "reindex"
+            ]
         },
         {
             "name": "Python Debugger: processing script",

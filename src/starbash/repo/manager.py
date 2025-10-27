@@ -302,7 +302,7 @@ class RepoManager:
                     # find the source repo (for attribution, URL relative resolution, whatever...)
                     setattr(value, "source", repo)
 
-                self.merged.add(key, value)
+            self.merged.add(key, value)
 
     def __str__(self):
         lines = [f"RepoManager with {len(self.repos)} repositories:"]

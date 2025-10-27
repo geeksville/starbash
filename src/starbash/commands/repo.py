@@ -47,12 +47,20 @@ def reindex(
             help="The repository name or number, if not specified reindex all."
         ),
     ] = None,
+    force: bool = typer.Option(
+        default=False, help="Reread FITS headers, even if they are already indexed."
+    ),
 ):
     """
     Reindex the named repository.
     If no name is given, reindex all repositories.
     """
-    pass
+    with Starbash() as sb:
+        if repo is None:
+            console.print("Reindexing all repositories...")
+            sb.reindex_repos(force=force)
+        else:
+            raise NotImplementedError("Reindexing a single repo not yet implemented.")
 
 
 if __name__ == "__main__":
