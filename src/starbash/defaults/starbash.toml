@@ -59,7 +59,7 @@ fits-whitelist = [
     "DATE-OBS",
     "DATE-LOC",
     "DATE",
-    "EXPTIME",
+    "EXPTIME",  # Use use this instead of EXPOSURE because it seems like not all apps use EXPOSURE (Siril)
     "FWHEEL",
     "OBJECT",
     "RA",       # we ignore the text version OBJCTRA / OBJCTDEC
