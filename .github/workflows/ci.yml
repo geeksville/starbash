@@ -35,18 +35,14 @@ jobs:
           restore-keys: |
             poetry-${{ runner.os }}-
 
-      - name: Cache virtualenv
-        uses: actions/cache@v4
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-py312-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            venv-${{ runner.os }}-py312-
-
       - name: Install dependencies
         run: |
           poetry --version
-          poetry install --with dev
+          poetry install --with dev --no-interaction
+
+      - name: Verify pytest is available
+        run: |
+          poetry run python -c "import pytest, sys; print('pytest', pytest.__version__)"
 
       - name: Run tests
         run: |
