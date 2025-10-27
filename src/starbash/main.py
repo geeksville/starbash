@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from tomlkit import table
 import typer
 from rich.table import Table
@@ -23,21 +24,43 @@ def session():
         table.add_column("Date")
         table.add_column("# images")
         table.add_column("Time")
+        table.add_column("Type")
         table.add_column("About")  # type of frames, filter, target
         # table.add_column("Released", justify="right", style="cyan", no_wrap=True)
 
         sessions = sb.search_session()
         if sessions and isinstance(sessions, list):
             for sess in sessions:
-                date = sess.get(Database.START_KEY, "N/A")
-                object = sess.get(Database.OBJECT_KEY, "N/A")
+                date_iso = sess.get(Database.START_KEY, "N/A")
+                # Try to cnvert ISO UTC datetime to local short date string
+                try:
+                    dt_utc = datetime.fromisoformat(date_iso)
+                    dt_local = dt_utc.astimezone()
+                    date = dt_local.strftime("%Y-%m-%d")
+                except (ValueError, TypeError):
+                    date = date_iso
+
+                object = str(sess.get(Database.OBJECT_KEY, "N/A"))
                 filter = sess.get(Database.FILTER_KEY, "N/A")
-                image_type = sess.get(Database.IMAGETYP_KEY, "N/A")
+                image_type = str(sess.get(Database.IMAGETYP_KEY, "N/A"))
+
+                # Format total exposure time as integer seconds
+                exptime_raw = str(sess.get(Database.EXPTIME_TOTAL_KEY, "N/A"))
+                try:
+                    total_secs = str(int(float(exptime_raw))) + "s"
+                except (ValueError, TypeError):
+                    total_secs = exptime_raw
+
+                type_str = image_type
+                if image_type.upper() == "LIGHT":
+                    image_type = filter
+
                 table.add_row(
                     date,
                     str(sess.get(Database.NUM_IMAGES_KEY, "N/A")),
-                    str(sess.get(Database.EXPTIME_TOTAL_KEY, "N/A")),
-                    f"{image_type} {filter} {object}",
+                    total_secs,
+                    image_type,
+                    object,
                 )
         console.print(table)
 
