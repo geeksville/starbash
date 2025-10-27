@@ -1,5 +1,9 @@
 # Starbash
-![app icon](https://github.com/geeksville/starbash/blob/main/img/icon.png "Starbash: Astrophotography workflows simplified")
+
+![PyPI - Version](https://img.shields.io/pypi/v/starbash)
+![GitHub branch check runs](https://img.shields.io/github/check-runs/geeksville/starbash/main)
+
+ ![app icon](https://github.com/geeksville/starbash/blob/main/img/icon.png "Starbash: Astrophotography workflows simplified")
 
 A tool for automating/standardizing/sharing astrophotography workflows.
 
