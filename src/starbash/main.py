@@ -14,6 +14,20 @@ app = typer.Typer()
 app.add_typer(repo.app, name="repo", help="Manage Starbash repositories.")
 
 
+def format_duration(seconds: int):
+    """Format seconds as a human-readable duration string."""
+    if seconds < 60:
+        return f"{int(seconds)}s"
+    elif seconds < 120:
+        minutes = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f"{minutes}m {secs}s" if secs else f"{minutes}m"
+    else:
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        return f"{hours}h {minutes}m" if minutes else f"{hours}h"
+
+
 @app.command()
 def session():
     """List sessions (filtered based on the current selection)"""
@@ -47,7 +61,7 @@ def session():
                 # Format total exposure time as integer seconds
                 exptime_raw = str(sess.get(Database.EXPTIME_TOTAL_KEY, "N/A"))
                 try:
-                    total_secs = str(int(float(exptime_raw))) + "s"
+                    total_secs = format_duration(int(float(exptime_raw)))
                 except (ValueError, TypeError):
                     total_secs = exptime_raw
 
