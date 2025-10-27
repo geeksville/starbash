@@ -38,11 +38,13 @@ def session():
             len_all = sb.db.len_session()
             table = Table(title=f"Sessions ({len(sessions)} selected out of {len_all})")
 
-            table.add_column("Date")
-            table.add_column("# images")
-            table.add_column("Time")
-            table.add_column("Type/Filter")
-            table.add_column("About")  # type of frames, filter, target
+            table.add_column("Date", style="cyan", no_wrap=True)
+            table.add_column("# images", style="cyan", no_wrap=True)
+            table.add_column("Time", style="cyan", no_wrap=True)
+            table.add_column("Type/Filter", style="cyan", no_wrap=True)
+            table.add_column(
+                "About", style="cyan", no_wrap=True
+            )  # type of frames, filter, target
             # table.add_column("Released", justify="right", style="cyan", no_wrap=True)
 
             for sess in sessions:
