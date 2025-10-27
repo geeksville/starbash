@@ -19,4 +19,4 @@ def test_database_images_table(tmp_path: Path):
         assert all_rows[0]["path"] == "/tmp/foo.fit"
 
         # Ensure the file was written to disk under the provided base dir
-        assert (tmp_path / "db.json").exists()
+        assert (tmp_path / "db.sqlite3").exists()
