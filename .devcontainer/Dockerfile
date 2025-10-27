@@ -10,7 +10,7 @@ USER root
 
 # Add core python packages
 RUN apt-get update && apt-get -y install --no-install-recommends \
-        python3 python3-pip python3-venv python-is-python3 python3-tk sudo git flatpak \
+        python3 python3-pip python3-venv python-is-python3 python3-tk sudo git flatpak sqlitebrowser \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user if one doesn't exist, and give it sudo rights
