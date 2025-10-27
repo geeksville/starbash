@@ -17,6 +17,7 @@ def add(path: str):
         # we don't yet write default config files at roots of repos, but it would be easy to add here
         # r.write_config()
         sb.user_repo.write_config()
+        # FIXME, we also need to index the newly added repo!!!
         console.print(f"Added repository: {path}")
 
 
@@ -25,7 +26,7 @@ def remove(reponame: str):
     """
     Remove a repository by name or number.
     """
-    pass
+    raise
 
 
 @app.command()
@@ -40,10 +41,12 @@ def list():
 
 @app.command()
 def reindex(
-    reponame: Annotated[
-        str,
-        typer.Argument(help="The repository name or number, or none to reindex all."),
-    ],
+    repo: Annotated[
+        str | None,
+        typer.Argument(
+            help="The repository name or number, if not specified reindex all."
+        ),
+    ] = None,
 ):
     """
     Reindex the named repository.
