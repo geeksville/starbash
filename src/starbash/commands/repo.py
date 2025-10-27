@@ -1,8 +1,8 @@
 import typer
 from typing_extensions import Annotated
 
-from astroglue.app import AstroGlue
-from astroglue import console
+from starbash.app import AstroGlue
+from starbash import console
 
 app = typer.Typer()
 
@@ -29,7 +29,7 @@ def list():
     List all repositories.  The listed names/numbers can be used with other commands.
     """
     with AstroGlue() as ag:
-        for i, repo in enumerate(ag.repo_manager.repos):
+        for i, repo in enumerate(sb.repo_manager.repos):
             console.print(f"{ i + 1:2}: { repo.url } (kind={ repo.kind})")
 
 

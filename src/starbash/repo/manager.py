@@ -11,12 +11,12 @@ from tomlkit.items import AoT
 from multidict import MultiDict
 
 
-repo_suffix = "astroglue.toml"
+repo_suffix = "starbash.toml"
 
 
 class Repo:
     """
-    Represents a single astroglue repository."""
+    Represents a single starbash repository."""
 
     def __init__(self, manager: RepoManager, url: str, config: str | None = None):
         """
@@ -98,7 +98,7 @@ class Repo:
 
     def _load_config(self) -> dict:
         """
-        Loads the repository's configuration file (e.g., repo.ag.toml).
+        Loads the repository's configuration file (e.g., repo.sb.toml).
 
         If the config file does not exist, it logs a warning and returns an empty dict.
 
@@ -135,11 +135,11 @@ class Repo:
 
 class RepoManager:
     """
-    Manages the collection of astroglue repositories.
+    Manages the collection of starbash repositories.
 
     This class is responsible for finding, loading, and providing an API
     for searching through known repositories defined in TOML configuration
-    files (like appdefaults.ag.toml).
+    files (like appdefaults.sb.toml).
     """
 
     def __init__(self, app_defaults: str):
@@ -149,14 +149,14 @@ class RepoManager:
         self.repos = []
 
         # We expose the app default preferences as a special root repo with a private URL
-        root_repo = Repo(self, "pkg://astroglue-defaults", config=app_defaults)
+        root_repo = Repo(self, "pkg://starbash-defaults", config=app_defaults)
         self.repos.append(root_repo)
 
         # Most users will just want to read from merged
         self.merged = self._union()
 
     def add_all_repos(self, toml: dict, base_path: Path | None = None) -> None:
-        # From appdefaults.ag.toml, repo.ref is a list of tables
+        # From appdefaults.sb.toml, repo.ref is a list of tables
         repo_refs = toml.get("repo", {}).get("ref", [])
 
         for ref in repo_refs:

@@ -1,7 +1,6 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/miniconda
 {
-	"name": "sirilscripts",
 	"build": {
 		"context": "..",
 		"dockerfile": "Dockerfile"
@@ -15,7 +14,7 @@
 		"--privileged", // Allow full hw access from host, also allows writing core dump files
 		// "--network=host", // Use host network rather than our bridged container network
 		"--ipc=host", // Needed to make python SharedMemory work
-		"--name=astroglue-devcontainer", // For easier management
+		"--name=starbash-devcontainer", // For easier management
 		"--user=1000:1000",
 		// Recommended https://rocm.docs.amd.com/projects/install-on-linux/en/docs-6.2.0/how-to/docker.html
 		"--security-opt=seccomp=unconfined",
@@ -45,7 +44,7 @@
 		// let container see host dbus, so that flatpak can work inside
 		"source=/run/dbus,target=/run/dbus,type=bind",
 		// It is handy to have some test images available in the container
-		"source=${localEnv:HOME}/Pictures/telescope,target=/workspaces/astroglue/images,type=bind,consistency=cached",
+		"source=${localEnv:HOME}/Pictures/telescope,target=/workspaces/starbash/images,type=bind,consistency=cached",
 		//"source=/mnt/kshared,target=/mnt/kshared,type=bind,consistency=cached",
 		// This is necessary to prevent newer vscode created images from being able to write to /tmp
 		"type=tmpfs,destination=/tmp,tmpfs-mode=1777"
@@ -55,7 +54,7 @@
 		"DISPLAY": "${localEnv:DISPLAY}",
 		"XAUTHORITY": "/tmp/.docker.xauth",
 		"PYTHONDEVMODE": "1", // Enable Python dev mode for better debug output
-		"PYTHONPYCACHEPREFIX": "/workspaces/astroglue/.pycache"
+		"PYTHONPYCACHEPREFIX": "/workspaces/starbash/.pycache"
 	},
 	"remoteUser": "vscode",
 	"postCreateCommand": "bash .devcontainer/post-create.sh",

@@ -1,16 +1,16 @@
 # pyright: reportUndefinedVariable=false
-# ('context' and 'logger' are injected by the astroglue runtime)
+# ('context' and 'logger' are injected by the starbash runtime)
 
 import os
 from glob import glob
-from astroglue.tool import tools
+from starbash.tool import tools
 
 siril = tools["siril"]
 
 delete_temps = False
 
 
-# FIXME move this into main astroglue
+# FIXME move this into main starbash
 def perhaps_delete_temps(temps: list[str]) -> None:
     if delete_temps:
         for t in temps:

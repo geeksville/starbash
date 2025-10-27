@@ -85,7 +85,7 @@ def make_safe_globals(context: dict = {}) -> dict:
     execution_globals = {
         # Required for RestrictedPython
         "__builtins__": builtins,
-        "__name__": "__astroglue_script__",
+        "__name__": "__starbash_script__",
         "__metaclass__": type,
         # Extra globals auto imported into the scripts context
         "context": context,
@@ -231,7 +231,7 @@ class PythonTool(Tool):
         super().__init__("python")
 
         # default script file override
-        self.default_script_file = "astroglue.py"
+        self.default_script_file = "starbash.py"
 
     def run(self, cwd: str, commands: str, context: dict = {}) -> None:
         original_cwd = os.getcwd()

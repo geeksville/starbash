@@ -1,10 +1,10 @@
 [tool.poetry]
-name = "astroglue"
+name = "starbash"
 version = "0.1.0"
 description = ""
 authors = ["Kevin Hester <kevinh@geeksville.com>"]
 readme = "README.md"
-packages = [{ include = "astroglue", from = "src" }]
+packages = [{ include = "starbash", from = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.15"         # RestrictedPython doesn't yet work on 3.15
@@ -21,8 +21,8 @@ typer = "^0.20.0"
 pytest = ">=8.4.2,<9.0.0"
 
 [tool.poetry.scripts]
-astroglue = "astroglue.main:app"
-ag = "astroglue.main:app"        # alias 'ag' for convenience
+starbash = "starbash.main:app"
+sb = "starbash.main:app"       # std alias for convenience
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -7,10 +7,10 @@ from astropy.io import fits
 import itertools
 from rich.progress import track
 from rich.logging import RichHandler
-from astroglue.database import Database
-from astroglue.tool import Tool
-from astroglue.repo import RepoManager
-from astroglue.tool import tools
+from starbash.database import Database
+from starbash.tool import Tool
+from starbash.repo import RepoManager
+from starbash.tool import tools
 
 
 def setup_logging():
@@ -41,7 +41,7 @@ class AstroGlue:
 
         # Load app defaults and initialize the repository manager
         app_defaults_text = (
-            resources.files("astroglue").joinpath("appdefaults.ag.toml").read_text()
+            resources.files("starbash").joinpath("appdefaults.sb.toml").read_text()
         )
         self.repo_manager = RepoManager(app_defaults_text)
         logging.info(
@@ -153,8 +153,8 @@ class AstroGlue:
 
         # Update the context with runtime values.
         runtime_context = {
-            "process_dir": "/workspaces/astroglue/images/process",  # FIXME - create/find this more correctly per session
-            "masters": "/workspaces/astroglue/images/masters",  # FIXME find this the correct way
+            "process_dir": "/workspaces/starbash/images/process",  # FIXME - create/find this more correctly per session
+            "masters": "/workspaces/starbash/images/masters",  # FIXME find this the correct way
         }
         self.context.update(runtime_context)
 

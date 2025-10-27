@@ -2,13 +2,13 @@
 
 * !FIX GRAXPERT AMD
 * !unify the various processing routines by using a templating system
-* !move the old processing stuff into the astroglue namespace (run siril, etc...)
+* !move the old processing stuff into the starbash namespace (run siril, etc...)
 * start writing user prefs in user prefs dir
 * add automated session config looping (Sii, Oiii etc...)
 * add automated session looping (multiday)
 * pass stage outputs via the context?
 * !does repo glob even matter if we just throw everything in the db based on fits metadata?  do an experiment.  YES it does, use DB based on FITS for all operations (instead of globs)
-* Add a db astroglue.Database class, populated from repos.  Regen as needed.
+* Add a db starbash.Database class, populated from repos.  Regen as needed.
 * use db/globs to find master bias frames
 * use db/globs globs to find flat frames
 * use db/globs globs to find light frames
@@ -32,7 +32,7 @@
 * make crude flat frame generation work
 * make crude light frame processing work
 * don't include recipies in the list of repos on the CLI.
-* add a repo-add command that creates repo.ag.toml file in the rootdir and references it from users preferences.
+* add a repo-add command that creates repo.sb.toml file in the rootdir and references it from users preferences.
 * have repo-add auto recognize common nina/asiair/seestar layouts
 * generate a report on the final output including attribution for data sources, recpies etc...
 * when processing a target, generate a toml file with the options used to for that generation (so it can be regenerated or customized).  Include doc comments in that file for new users.

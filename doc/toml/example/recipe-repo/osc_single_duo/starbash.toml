@@ -2,7 +2,7 @@
 [repo]
 kind = "recipe"
 
-# all ag.toml files can optionally contain a version section.  if version of the running astroglue app is out of bounds a warning message will be printed
+# all sb.toml files can optionally contain a version section.  if version of the running starbash app is out of bounds a warning message will be printed
 # to the user and the file will be ignored for future processing.
 [recipe.require.version]
 min="0.1.0"

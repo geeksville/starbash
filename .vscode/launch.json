@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: astroglue app",
+            "name": "Python Debugger: starbash app",
             "type": "debugpy",
             "request": "launch",
-            "module": "astroglue.main",
+            "module": "starbash.main",
             "console": "integratedTerminal",
             "python": "${workspaceFolder}/.vscode/get_poetry_python.sh"
         },

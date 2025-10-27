@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from astroglue.database import Database
+from starbash.database import Database
 
 
 def test_database_images_table(tmp_path: Path):

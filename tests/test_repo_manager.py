@@ -1,7 +1,7 @@
 from pathlib import Path
 import pytest
 import tomlkit
-from astroglue.repo.manager import RepoManager
+from starbash.repo.manager import RepoManager
 
 
 def test_repo_manager_initialization(monkeypatch):
@@ -21,7 +21,7 @@ def test_repo_manager_initialization(monkeypatch):
 
     # Use the monkeypatch fixture to replace the real Repo class with our mock.
     # The fixture ensures this change is reverted after the test function finishes.
-    monkeypatch.setattr("astroglue.repo.manager.Repo", MockRepo)
+    monkeypatch.setattr("starbash.repo.manager.Repo", MockRepo)
 
     app_defaults_text = """
     [[repo.ref]]
@@ -37,10 +37,10 @@ def test_repo_manager_initialization(monkeypatch):
     assert len(repo_manager.repos) == 3
     # Order-insensitive presence checks across all repos
     urls = [r.url for r in repo_manager.repos]
-    assert "pkg://astroglue-defaults" in urls
+    assert "pkg://starbash-defaults" in urls
     assert "https://github.com/user/recipes" in urls
     assert any(
-        u.startswith("file://") and u.endswith("/astroglue/test_data/my_raws")
+        u.startswith("file://") and u.endswith("/starbash/test_data/my_raws")
         for u in urls
     )
 
@@ -53,7 +53,7 @@ def test_repo_manager_get_with_real_repos(tmp_path: Path):
     # 1. Create temporary directories and config files for our test repos
     recipe_repo_path = tmp_path / "recipe-repo"
     recipe_repo_path.mkdir()
-    (recipe_repo_path / "astroglue.toml").write_text(
+    (recipe_repo_path / "starbash.toml").write_text(
         """
         [repo]
         kind = "recipe-repo"
@@ -64,7 +64,7 @@ def test_repo_manager_get_with_real_repos(tmp_path: Path):
 
     user_prefs_path = tmp_path / "user-prefs"
     user_prefs_path.mkdir()
-    (user_prefs_path / "astroglue.toml").write_text(
+    (user_prefs_path / "starbash.toml").write_text(
         """
         [repo]
         kind = "user-prefs" # This should override the value from the recipe-repo

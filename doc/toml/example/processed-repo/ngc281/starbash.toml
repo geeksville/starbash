@@ -1,22 +1,22 @@
 # a file like this is auto generated at the root of the output processing tree
-# it is initially auto populated based on the best guess of astroglue, but the user
+# it is initially auto populated based on the best guess of starbash, but the user
 # can hand customize as needed
 
 [recipe]
 
-# Astroglue will search all recipe repos to find this by name
+# Starbash will search all recipe repos to find this by name
 python-recipe = "osc-dual-duo"
 
 # other standard recipies...
 # osc-duo, osc-broadband
 # mono-sho (fixme find other names used in mono workflow land)
 
-# a default astroglue file for a particular processed target will typically contain only the preceeding
+# a default starbash file for a particular processed target will typically contain only the preceeding
 
 [recipe.author]
 
 # (if not present this section will be auto generated at processing time)
-# this whole secion is auto copied from userprefs.ag.toml
+# this whole secion is auto copied from userprefs.sb.toml
 name = "Bob Dude"
 email = "foo@foo.com"
 website = "http://mydomain.com/astocruft"

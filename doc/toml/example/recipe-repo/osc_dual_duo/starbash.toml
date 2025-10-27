@@ -2,7 +2,7 @@
 [repo]
 kind = "recipe"
 
-# all ag.toml files can optionally contain a version section.  if version of the running astroglue app is out of bounds a warning message will be printed
+# all sb.toml files can optionally contain a version section.  if version of the running starbash app is out of bounds a warning message will be printed
 # to the user and the file will be ignored for future processing.
 [recipe.require.version]
 min="0.1.0"
@@ -36,7 +36,7 @@ output = "FIXME"
 
 # FIXME, bias and flat should have been added to context by two previous stages.  But for now hardwire
 # Note: they should not have filename extensions (see strip_extension in the old process.py)
-context.bias = '/workspaces/astroglue/images/masters/biases/2025-09-09_stacked.fits'
+context.bias = '/workspaces/starbash/images/masters/biases/2025-09-09_stacked.fits'
 
 context.sessionid = "2025-09-16" # FIXME, generate this by looping over all sessions (from outside this file)
 context.sessionconfig = "SiiOiii" # FIXME generate this by looping over all session configs
@@ -44,7 +44,7 @@ context.light_base = "light_s{sessionid}_c{sessionconfig}"
 
 # FIXME until auto light finding is in
 input.source = "path"
-input.path = "/workspaces/astroglue/images/from_astroboy/M 27/2025-09-16/LIGHT/*.fit*"
+input.path = "/workspaces/starbash/images/from_astroboy/M 27/2025-09-16/LIGHT/*.fit*"
 
 script = '''
     # Create a sequence from the raw light frames, seq file goes to process_dir
@@ -65,19 +65,19 @@ temporaries = ["FIXME"]
 
 [[stage]]
 
-# FIXME, eventually we could make it optional to even have a astroglue.toml.  If we find an
-# astroglue.py we could introspect it for a astroglue_config dict.  And look inside that for description
+# FIXME, eventually we could make it optional to even have a starbash.toml.  If we find an
+# starbash.py we could introspect it for a starbash_config dict.  And look inside that for description
 # "stage", "when" or whatever?
 
 description = "Stack OSC dual duo filter data, with separate Ha, Oiii and Sii channels"
 
 context.target = "M 27" # FIXME
-context.targets = "/workspaces/astroglue/images/processed" # FIXME, do something smarter
+context.targets = "/workspaces/starbash/images/processed" # FIXME, do something smarter
 
 tool = "python"
 when = "session-stack" # run once after all session/session-config processing was done
 
-# if not specified astroglue.py used
+# if not specified starbash.py used
 # script-file = "script.py"
 
 # or inline python code instead of that function?

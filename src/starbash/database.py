@@ -20,7 +20,7 @@ class Database:
     ) -> None:
         # Resolve base data directory (allow override for tests)
         if base_dir is None:
-            app_name = "astroglue"
+            app_name = "starbash"
             app_author = "geeksville"
             dirs = PlatformDirs(app_name, app_author)
             data_dir = Path(dirs.user_data_dir)

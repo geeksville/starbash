@@ -1,1 +1,1 @@
-an example user config dir, typically in ~/.config/astroglue
+an example user config dir, typically in ~/.config/starbash

@@ -5,12 +5,12 @@ from .app import AstroGlue
 from .commands import repo
 
 app = typer.Typer()
-app.add_typer(repo.app, name="repo", help="Manage Astroglue repositories.")
+app.add_typer(repo.app, name="repo", help="Manage Starbash repositories.")
 
 
 @app.command(hidden=True)
 def default_cmd():
-    """Default entry point for the astroglue application."""
+    """Default entry point for the starbash application."""
 
     with AstroGlue() as ag:
         pass
