@@ -6,12 +6,13 @@ import pytest
 
 from starbash.main import app
 from starbash.database import Database
+from starbash import paths
 
 runner = CliRunner()
 
 
 @pytest.fixture
-def setup_test_environment(tmp_path, monkeypatch):
+def setup_test_environment(tmp_path):
     """Setup a test environment with isolated config and data directories."""
     # Create isolated directories for testing
     config_dir = tmp_path / "config"
@@ -19,11 +20,13 @@ def setup_test_environment(tmp_path, monkeypatch):
     config_dir.mkdir(parents=True, exist_ok=True)
     data_dir.mkdir(parents=True, exist_ok=True)
 
-    # Mock the user directories to use our tmp paths
-    monkeypatch.setattr("starbash.paths.get_user_config_dir", lambda: config_dir)
-    monkeypatch.setattr("starbash.paths.get_user_data_dir", lambda: data_dir)
+    # Set the override directories for this test
+    paths.set_test_directories(config_dir, data_dir)
 
-    return {"config_dir": config_dir, "data_dir": data_dir}
+    yield {"config_dir": config_dir, "data_dir": data_dir}
+
+    # Clean up: reset to None after test
+    paths.set_test_directories(None, None)
 
 
 def test_session_command_no_data(setup_test_environment):
