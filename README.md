@@ -29,6 +29,16 @@ See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-al
 * The target report can be used to auto generate a human friendly 'postable/sharable' report about that image
 * Target reports are sharable so that you can request comments by others and others can rerender with different settings
 
+## Installing
+
+Currently the easiest way to install this command-line based tool is to install is via [pipx](https://pipx.pypa.io/stable/).  If you don't already have pipx and you have python installed, you can auto install it by running "pip install --user pipx."  If you don't have python installed see the pipx link for pipx installers for any OS.
+
+Once pipx is installed just run:
+
+```
+pipx install starbash
+```
+
 ## Supported commands
 
 ### Setup & Configuration
@@ -75,3 +85,8 @@ See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-al
 
 * Pixinsight?
 * Autostakkert?
+
+## Developing
+
+We try to make this project useful and friendly.  If you find problems please file a github issue.
+We accept pull-requests and enjoy discussing possible new development directions via github issues.  If you might want to work on this, just describe what your interests are and we can talk about how to get it merged.
