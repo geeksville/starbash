@@ -130,7 +130,7 @@ class Starbash:
         date = header.get(Database.DATE_OBS_KEY)
         if not date or not image_type:
             logging.warning(
-                "Image %s missing critical FITS header, please submit image at https://github.com/geeksville/starbash/issues/new",
+                "Image %s missing either DATE-OBS or IMAGETYP FITS header, skipping...",
                 f,
             )
         else:

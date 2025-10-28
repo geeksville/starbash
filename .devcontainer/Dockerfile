@@ -28,9 +28,10 @@ RUN mkdir -p /home/${USERNAME}/.local/bin
 # Add the local bin directory to the PATH. For pipx and flatpacks
 ENV PATH="/home/${USERNAME}/.local/bin:$HOME/.local/share/flatpak/exports/bin/:${PATH}"
 
+# astropy provides the fitsheader command line tool
 RUN pip install --user --no-cache-dir --break-system-packages pipx \
     && pipx install --pip-args=--no-cache-dir graxpert[cpuonly] \
-    && pipx install --pip-args=--no-cache-dir poetry
+    && pipx install --pip-args=--no-cache-dir poetry astropy
 
 # Install Siril (as non-root user)
 # Note: this must be done here, if done in Dockerfile it doesn't work - this env var is a nasty hack to allow
