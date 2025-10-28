@@ -152,7 +152,10 @@ class Selection:
         """Build query conditions based on the current selection.
 
         Returns:
-            Dictionary of query conditions that can be used with Database methods
+            Dictionary of query conditions that can be used with Database methods.
+            Special keys:
+            - 'date_start': ISO date string for start of range
+            - 'date_end': ISO date string for end of range
         """
         conditions = {}
 
@@ -169,6 +172,12 @@ class Selection:
             # For now, just use the first filter
             # TODO: Support multiple filters in queries
             conditions["FILTER"] = self.filters[0] if len(self.filters) == 1 else None
+
+        # Add date range conditions
+        if self.date_start:
+            conditions["date_start"] = self.date_start
+        if self.date_end:
+            conditions["date_end"] = self.date_end
 
         return conditions
 

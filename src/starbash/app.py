@@ -147,7 +147,14 @@ class Starbash:
             self.db.upsert_session(new, existing=session)
 
     def search_session(self) -> list[dict[str, Any]] | None:
-        return self.db.search_session(self.session_query)
+        """Search for sessions, optionally filtered by the current selection."""
+        # If selection has filters, use them; otherwise return all sessions
+        if self.selection.is_empty():
+            return self.db.search_session(None)
+        else:
+            # Get query conditions from selection
+            conditions = self.selection.get_query_conditions()
+            return self.db.search_session(conditions)
 
     def reindex_repo(self, repo: Repo, force: bool = False):
         """Reindex all repositories managed by the RepoManager."""

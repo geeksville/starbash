@@ -161,7 +161,10 @@ class Database:
         """Search for sessions matching the given conditions.
 
         Args:
-            conditions: Dictionary of session key-value pairs to match, or None for all
+            conditions: Dictionary of session key-value pairs to match, or None for all.
+                       Special keys:
+                       - 'date_start': Filter sessions starting on or after this date
+                       - 'date_end': Filter sessions starting on or before this date
 
         Returns:
             List of matching session records or None
@@ -178,6 +181,17 @@ class Database:
         """
         )
 
+        # Extract date range conditions if present
+        date_start = conditions.get("date_start")
+        date_end = conditions.get("date_end")
+
+        # Create a copy without date range keys for standard matching
+        standard_conditions = {
+            k: v
+            for k, v in conditions.items()
+            if k not in ("date_start", "date_end") and v is not None
+        }
+
         results = []
         for row in cursor.fetchall():
             session = {
@@ -192,8 +206,18 @@ class Database:
                 self.IMAGE_DOC_KEY: row["image_doc_id"],
             }
 
-            # Check if all conditions match
-            match = all(session.get(k) == v for k, v in conditions.items())
+            # Check if all standard conditions match
+            match = all(session.get(k) == v for k, v in standard_conditions.items())
+
+            # Apply date range filtering
+            if match and date_start:
+                session_start = session.get(self.START_KEY, "")
+                match = match and session_start >= date_start
+
+            if match and date_end:
+                session_start = session.get(self.START_KEY, "")
+                match = match and session_start <= date_end
+
             if match:
                 results.append(session)
 
