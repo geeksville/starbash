@@ -1,7 +1,7 @@
 import logging
 from importlib import resources
 from pathlib import Path
-
+import typer
 import tomlkit
 from tomlkit.toml_file import TOMLFile
 import glob
@@ -10,6 +10,7 @@ from astropy.io import fits
 import itertools
 from rich.progress import track
 from rich.logging import RichHandler
+
 from starbash.database import Database
 from starbash.repo.manager import Repo
 from starbash.tool import Tool
@@ -117,7 +118,8 @@ class Starbash:
 
     def __exit__(self, exc_type, exc, tb) -> bool:
         handled = False
-        if exc:
+        # Don't suppress typer.Exit - it's used for controlled exit codes
+        if exc and not isinstance(exc, typer.Exit):
             handled = analytics_exception(exc)
         self.close()
         return handled

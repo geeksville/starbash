@@ -224,7 +224,8 @@ def test_repo_reindex_command(setup_test_environment):
     assert "Reindexing" in result.stdout or result.exit_code == 0
 
 
-@pytest.mark.slow
+# No longer slow - now that we run in a test env
+# @pytest.mark.slow
 def test_repo_reindex_with_force(setup_test_environment):
     """Test 'starbash repo reindex --force' command - should not crash."""
     result = runner.invoke(app, ["repo", "reindex", "--force"])
