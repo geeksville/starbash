@@ -16,7 +16,12 @@ from starbash.tool import Tool
 from starbash.repo import RepoManager
 from starbash.tool import tools
 from starbash.paths import get_user_config_dir
-from starbash.analytics import analytics_exception, analytics_setup
+from starbash.analytics import (
+    analytics_exception,
+    analytics_setup,
+    analytics_shutdown,
+    analytics_start_span,
+)
 
 
 def setup_logging():
@@ -53,7 +58,7 @@ def create_user() -> Path:
 class Starbash:
     """The main Starbash application class."""
 
-    def __init__(self):
+    def __init__(self, cmd: str = "unspecified"):
         """
         Initializes the Starbash application by loading configurations
         and setting up the repository manager.
@@ -68,8 +73,12 @@ class Starbash:
         # Add user prefs as a repo
         self.user_repo = self.repo_manager.add_repo("file://" + str(create_user()))
 
+        self.analytics_top_span = None
         if self.user_repo.get("analytics.enabled", False):
             analytics_setup(True)
+            # this is intended for use with "with" so we manually do enter/exit
+            self.analytics_top_span = analytics_start_span(name="App session", op=cmd)
+            self.analytics_top_span.__enter__()
 
         logging.info(
             f"Repo manager initialized with {len(self.repo_manager.repos)} default repo references."
@@ -83,6 +92,10 @@ class Starbash:
 
     # --- Lifecycle ---
     def close(self) -> None:
+        if self.analytics_top_span:
+            self.analytics_top_span.__exit__(None, None, None)
+
+        analytics_shutdown()
         self.db.close()
 
     # Context manager support

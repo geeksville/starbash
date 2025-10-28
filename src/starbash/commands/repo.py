@@ -26,7 +26,8 @@ def remove(reponame: str):
     """
     Remove a repository by name or number.
     """
-    raise
+    with Starbash() as sb:
+        raise NotImplementedError("Removing repositories not yet implemented.")
 
 
 @app.command()
