@@ -1,19 +1,10 @@
 import logging
 
 from starbash import console
+import starbash.url as url
 
 # Default to no analytics/auto crash reports
 analytics_allowed = False
-
-project_url = "https://github.com/geeksville/starbash"
-analytics_docs_url = f"{project_url}/blob/main/doc/analytics.md"
-
-
-def new_issue_url(report_id: str | None = None) -> str:
-    if report_id:
-        return f"{project_url}/issues/new?body=Please%20describe%20the%20problem%2C%20but%20include%20this%3A%0ACrash%20ID%20{report_id}"
-    else:
-        return f"{project_url}/issues/new?body=Please%20describe%20the%20problem"
 
 
 def analytics_setup(allowed: bool = False, user_email: str | None = None) -> None:
@@ -23,7 +14,7 @@ def analytics_setup(allowed: bool = False, user_email: str | None = None) -> Non
     analytics_allowed = allowed
     if analytics_allowed:
         logging.info(
-            f"Analytics/crash-reports enabled.  To change [link={analytics_docs_url}]click here[/link]",
+            f"Analytics/crash-reports enabled.  To change [link={url.analytics_docs}]click here[/link]",
             extra={"markup": True},
         )
         sentry_sdk.init(
@@ -37,7 +28,7 @@ def analytics_setup(allowed: bool = False, user_email: str | None = None) -> Non
             sentry_sdk.set_user({"email": user_email})
     else:
         logging.info(
-            f"Analytics/crash-reports disabled.  To learn more [link={analytics_docs_url}]click here[/link]",
+            f"Analytics/crash-reports disabled.  To learn more [link={url.analytics_docs}]click here[/link]",
             extra={"markup": True},
         )
 
@@ -82,14 +73,14 @@ def analytics_exception(exc: Exception) -> bool:
         logging.info(
             f"""An unexpected error has occurred and been reported.  Thank you for your help.
                 If you'd like to chat with the devs about it, please click
-                [link={new_issue_url(str(report_id))}]here[/link] to open an issue.""",
+                [link={url.new_issue(str(report_id))}]here[/link] to open an issue.""",
             extra={"markup": True},
         )
     else:
         logging.error(
             f"""An unexpected error has occurred. Automated crash reporting is disabled,
                       but we encourage you to contact the developers
-                      at [link={new_issue_url()}]here[/link] and we will try to help.
+                      at [link={url.new_issue()}]here[/link] and we will try to help.
 
                       The full exception is: {exc}""",
             extra={"markup": True},

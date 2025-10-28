@@ -81,6 +81,8 @@ class Starbash:
             user_email = (
                 self.user_repo.get("user.email", None) if include_user else None
             )
+            if user_email is not None:
+                user_email = str(user_email)
             analytics_setup(allowed=True, user_email=user_email)
             # this is intended for use with "with" so we manually do enter/exit
             self.analytics = analytics_start_transaction(name="App session", op=cmd)

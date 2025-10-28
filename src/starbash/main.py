@@ -5,12 +5,16 @@ import typer
 from rich.table import Table
 
 from starbash.database import Database
+import starbash.url as url
 
 from .app import Starbash
 from .commands import repo, user, selection
 from . import console
 
-app = typer.Typer()
+app = typer.Typer(
+    rich_markup_mode="rich",
+    help=f"Starbash - Astrophotography workflows simplified.\n\nFor full instructions and support [link={url.project}]click here[/link].",
+)
 app.add_typer(user.app, name="user", help="Manage user settings.")
 app.add_typer(repo.app, name="repo", help="Manage Starbash repositories.")
 app.add_typer(
@@ -20,11 +24,7 @@ app.add_typer(
 
 @app.callback(invoke_without_command=True)
 def main_callback(ctx: typer.Context):
-    """
-    Starbash - Astrophotography workflows simplified.
-
-    Run 'starbash --help' to see available commands.
-    """
+    """Main callback for the Starbash application."""
     if ctx.invoked_subcommand is None:
         # No command provided, show help
         console.print(ctx.get_help())
