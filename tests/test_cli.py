@@ -232,6 +232,56 @@ def test_repo_reindex_with_force(setup_test_environment):
     assert result.exit_code == 0
 
 
+def test_repo_reindex_by_number(setup_test_environment, tmp_path):
+    """Test 'starbash repo reindex NUM' command - reindex a specific repo."""
+    # First add a test repo
+    test_repo = tmp_path / "testrepo"
+    test_repo.mkdir()
+    add_result = runner.invoke(app, ["repo", "add", str(test_repo)])
+    assert add_result.exit_code == 0
+
+    # Find the repo number
+    list_result = runner.invoke(app, ["repo"])
+    assert list_result.exit_code == 0
+
+    # The test repo should be in the list
+    assert "testrepo" in list_result.stdout
+
+    # Find the repo number (it should be the last numbered line)
+    lines = [
+        line
+        for line in list_result.stdout.split("\n")
+        if line.strip() and ":" in line and "file://" in line
+    ]
+    # Get the last numbered line
+    last_line = None
+    for line in lines:
+        if line.strip() and line.strip()[0].isdigit():
+            last_line = line
+
+    assert last_line is not None, "Could not find numbered repo in list"
+    repo_num = last_line.strip().split(":")[0].strip()
+
+    # Reindex the specific repo
+    result = runner.invoke(app, ["repo", "reindex", repo_num])
+    assert result.exit_code == 0
+    assert "Successfully reindexed" in result.stdout
+
+
+def test_repo_reindex_invalid_number(setup_test_environment):
+    """Test 'starbash repo reindex' with invalid input."""
+    result = runner.invoke(app, ["repo", "reindex", "abc"])
+    assert result.exit_code == 1
+    assert "not a valid repository number" in result.stdout.lower()
+
+
+def test_repo_reindex_out_of_range(setup_test_environment):
+    """Test 'starbash repo reindex' with out of range number."""
+    result = runner.invoke(app, ["repo", "reindex", "999"])
+    assert result.exit_code == 1
+    assert "out of range" in result.stdout.lower()
+
+
 def test_help_commands():
     """Test that help commands work without requiring setup."""
     # Main help
