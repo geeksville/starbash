@@ -22,22 +22,59 @@ def add(path: str):
 
 
 @app.command()
-def remove(reponame: str):
+def remove(reponum: str):
     """
-    Remove a repository by name or number.
+    Remove a repository by number (from non-verbose list).
+    Use 'repo list' to see the repository numbers.
     """
     with Starbash("repo-remove") as sb:
-        raise NotImplementedError("Removing repositories not yet implemented.")
+        try:
+            # Parse the repo number (1-indexed)
+            repo_index = int(reponum) - 1
+
+            # Get only the regular (user-visible) repos
+            regular_repos = sb.repo_manager.regular_repos
+
+            if repo_index < 0 or repo_index >= len(regular_repos):
+                console.print(
+                    f"[red]Error: Repository number {reponum} is out of range. Valid range: 1-{len(regular_repos)}[/red]"
+                )
+                raise typer.Exit(code=1)
+
+            # Get the repo to remove
+            repo_to_remove = regular_repos[repo_index]
+            repo_url = repo_to_remove.url
+
+            # Remove the repo reference from user config
+            sb.remove_repo_ref(repo_url)
+            console.print(f"[green]Removed repository: {repo_url}[/green]")
+
+        except ValueError:
+            console.print(
+                f"[red]Error: '{reponum}' is not a valid repository number. Please use a number from 'repo list'.[/red]"
+            )
+            raise typer.Exit(code=1)
 
 
 @app.command()
-def list():
+def list(
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Show all repos including system repos"
+    )
+):
     """
-    List all repositories.  The listed names/numbers can be used with other commands.
+    List repositories. By default only shows user-visible repos.
+    Use --verbose to show all repos including system/recipe repos.
     """
     with Starbash("repo-list") as sb:
-        for i, repo in enumerate(sb.repo_manager.repos):
-            console.print(f"{ i + 1:2}: { repo.url } (kind={ repo.kind})")
+        repos = sb.repo_manager.repos if verbose else sb.repo_manager.regular_repos
+        for i, repo in enumerate(repos):
+            if verbose:
+                # No numbers for verbose mode (system repos can't be removed)
+                console.print(f"{ repo.url } (kind={ repo.kind})")
+            else:
+                # Show numbers for user repos (can be removed later)
+                console.print(f"{ i + 1:2}: { repo.url } (kind={ repo.kind})")
 
 
 @app.command()

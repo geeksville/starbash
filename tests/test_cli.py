@@ -65,6 +65,88 @@ def test_repo_list_command(setup_test_environment):
     # Should list at least the default repos
 
 
+def test_repo_list_non_verbose(setup_test_environment):
+    """Test 'starbash repo list' without verbose shows only user-visible repos with numbers."""
+    result = runner.invoke(app, ["repo", "list"])
+    assert result.exit_code == 0
+
+    # Should show numbered repos (user-visible only)
+    output = result.stdout
+
+    # Should have at least one numbered line (format: " 1: file://...")
+    assert any(
+        line.strip().startswith(f"{i}:")
+        for i in range(1, 20)
+        for line in output.split("\n")
+    )
+
+    # Should NOT show preferences or recipe repos in non-verbose mode
+    # (these are filtered out by regular_repos property)
+    assert "(kind=preferences)" not in output or output.count("(kind=preferences)") == 0
+    # Some repos might be shown, but recipe repos should be filtered
+    lines_with_repos = [
+        line for line in output.split("\n") if "file://" in line or "pkg://" in line
+    ]
+
+    # Verify numbered format exists
+    has_numbers = any(
+        ":" in line and line.split(":")[0].strip().isdigit()
+        for line in lines_with_repos
+    )
+    assert has_numbers, "Non-verbose mode should show numbered repos"
+
+
+def test_repo_list_verbose(setup_test_environment):
+    """Test 'starbash repo list --verbose' shows all repos without numbers."""
+    result = runner.invoke(app, ["repo", "list", "--verbose"])
+    assert result.exit_code == 0
+
+    output = result.stdout
+
+    # Should show preferences and recipe repos
+    assert "pkg://defaults" in output or "(kind=preferences)" in output
+
+    # Should NOT have numbered format in verbose mode
+    lines_with_repos = [
+        line for line in output.split("\n") if "file://" in line or "pkg://" in line
+    ]
+
+    # Check that lines don't start with numbers (format should be "file://..." not " 1: file://...")
+    for line in lines_with_repos:
+        stripped = line.strip()
+        if stripped:
+            # Should start with pkg:// or file://, not a number
+            assert stripped.startswith("pkg://") or stripped.startswith(
+                "file://"
+            ), f"Verbose mode should not show numbers, but got: {stripped}"
+
+
+def test_repo_list_verbose_short_flag(setup_test_environment):
+    """Test 'starbash repo list -v' (short flag) shows all repos without numbers."""
+    result = runner.invoke(app, ["repo", "list", "-v"])
+    assert result.exit_code == 0
+
+    output = result.stdout
+
+    # Should show system repos (preferences or recipes)
+    assert (
+        "pkg://defaults" in output
+        or "(kind=preferences)" in output
+        or "(kind=recipe)" in output
+    )
+
+    # Should NOT have numbered format
+    lines_with_repos = [
+        line for line in output.split("\n") if "file://" in line or "pkg://" in line
+    ]
+    for line in lines_with_repos:
+        stripped = line.strip()
+        if stripped:
+            assert stripped.startswith("pkg://") or stripped.startswith(
+                "file://"
+            ), f"Verbose mode with -v should not show numbers, but got: {stripped}"
+
+
 def test_repo_add_command(setup_test_environment, tmp_path):
     """Test 'starbash repo add' command - should not crash."""
     # Create a dummy repo directory
@@ -74,6 +156,64 @@ def test_repo_add_command(setup_test_environment, tmp_path):
     result = runner.invoke(app, ["repo", "add", str(test_repo)])
     assert result.exit_code == 0
     assert "Added repository" in result.stdout or result.exit_code == 0
+
+
+def test_repo_remove_command(setup_test_environment, tmp_path):
+    """Test 'starbash repo remove' command - can remove a user-added repo."""
+    # Add a test repo first
+    test_repo = tmp_path / "testrepo"  # Short name to avoid wrapping issues
+    test_repo.mkdir()
+
+    add_result = runner.invoke(app, ["repo", "add", str(test_repo)])
+    assert add_result.exit_code == 0
+
+    # List to find the repo number
+    list_result = runner.invoke(app, ["repo", "list"])
+    assert list_result.exit_code == 0
+
+    # The test repo should be in the list
+    assert "testrepo" in list_result.stdout
+
+    # Find the repo number (it should be the last numbered line)
+    lines = [
+        line
+        for line in list_result.stdout.split("\n")
+        if line.strip() and ":" in line and "file://" in line
+    ]
+    # Get the last numbered line
+    last_line = None
+    for line in lines:
+        if line.strip() and line.strip()[0].isdigit():
+            last_line = line
+
+    assert last_line is not None, "Could not find numbered repo in list"
+    repo_num = last_line.strip().split(":")[0].strip()
+
+    # Remove the repo
+    remove_result = runner.invoke(app, ["repo", "remove", repo_num])
+    assert remove_result.exit_code == 0
+    assert "Removed repository" in remove_result.stdout
+
+    # Verify it's gone
+    list_after = runner.invoke(app, ["repo", "list"])
+    assert list_after.exit_code == 0
+    assert "testrepo" not in list_after.stdout
+
+
+def test_repo_remove_invalid_number(setup_test_environment):
+    """Test 'starbash repo remove' with invalid input."""
+    # Try to remove with invalid number
+    result = runner.invoke(app, ["repo", "remove", "abc"])
+    assert result.exit_code == 1
+    assert "not a valid repository number" in result.stdout.lower()
+
+
+def test_repo_remove_out_of_range(setup_test_environment):
+    """Test 'starbash repo remove' with out of range number."""
+    # Try to remove with out of range number
+    result = runner.invoke(app, ["repo", "remove", "999"])
+    assert result.exit_code == 1
+    assert "out of range" in result.stdout.lower()
 
 
 def test_repo_reindex_command(setup_test_environment):

@@ -5,7 +5,7 @@
 * [x] move the old processing stuff into the starbash namespace (run siril, etc...)
 * [x] start writing user prefs in user prefs dir
 * [x] make reindex smarter
-* [ ] make the various filter options work
+* [x] make the various filter options work
 * [ ] add targets list
 * [ ] include instrument name in session list (for seestar,asiair,etc)
 * [ ] track image quality on a per frame basis
@@ -13,7 +13,7 @@
 * [ ] use db to find flat frames
 * [ ] use db to find light frames
 * [ ] make the siril prep rule work
-* [ ] add top level catch asking users to report bugs
+* [x] add top level catch asking users to report bugs
 * [x] add crash and usage analytics - sentry.io?
 * [ ] add automated session config looping (Sii, Oiii etc...)
 * [ ] add automated session looping (multiday)

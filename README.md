@@ -11,7 +11,7 @@ A tool for automating/standardizing/sharing astrophotography workflows.
 
 Not quite ready 😊.  But making good progress.
 
-See my personal [TODO](TODO.md) file.  I'll be looking for pre-alpha testers/feedback soon.
+See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-alpha testers/feedback soon.
 
 ## features
 
@@ -28,10 +28,10 @@ See my personal [TODO](TODO.md) file.  I'll be looking for pre-alpha testers/fee
 * setup - configure for you via a brief guided process
 * info - show user preferences location and other app info
 
-* repo add file/path|URL
-* repo remove REPONAME|REPONUM
-* repo list
-* repo reindex REPONAME|REPONUM|all
+* repo add filepath|URL - add a repo
+* repo remove REPONUM - remove the indicated repo from the repo list
+* repo [--verbose] - list installed repos
+* repo reindex [REPONUM] - reindex the specified repo, if no repo specified, reindex all
 
 * user analytics on|off - turn analytics collection on/off
 * user name "Your Name" - used for attribution in generated images
@@ -52,6 +52,7 @@ See my personal [TODO](TODO.md) file.  I'll be looking for pre-alpha testers/fee
 
 * export dirs|BIAS|LIGHT|DARK|FLAT [DIRLOC]
 
+* process siril - Generates a directory tree in the format siril expects, then run siril GUI
 * process auto
 * process masters - generate master flats, darks, biases from any raws that are available
 
