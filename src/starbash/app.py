@@ -16,7 +16,7 @@ from starbash.tool import Tool
 from starbash.repo import RepoManager
 from starbash.tool import tools
 from starbash.paths import get_user_config_dir
-from starbash.analytics import analytics_setup
+from starbash.analytics import analytics_exception, analytics_setup
 
 
 def setup_logging():
@@ -89,8 +89,12 @@ class Starbash:
     def __enter__(self) -> "Starbash":
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        if exc:
+            analytics_exception(exc)
+            # optionally return True to suppress exception propagation/log messages
         self.close()
+        return False
 
     def _add_session(self, f: str, image_doc_id: int, header: dict) -> None:
         filter = header.get(Database.FILTER_KEY, "unspecified")
