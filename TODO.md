@@ -60,6 +60,8 @@
 * allow restricting processing by date ranges, or equipment or whatever
 * print report on frame quality, registration etc...
 * get a real app icon (instead of current placeholder)
+* experiment with auto generation of report text
+* experiment with telescopus upload (filling in fields of image info with backpointers requesting feedback)
 
 ## astrosnake ideas
 

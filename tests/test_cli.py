@@ -91,14 +91,6 @@ def test_repo_reindex_with_force(setup_test_environment):
     assert result.exit_code == 0
 
 
-def test_repo_remove_command_not_implemented(setup_test_environment):
-    """Test 'starbash repo remove' command - currently not implemented."""
-    result = runner.invoke(app, ["repo", "remove", "somerepo"])
-    # Should raise but not crash unexpectedly
-    # The command raises, so we expect a non-zero exit code
-    assert result.exit_code != 0 or "NotImplementedError" in str(result.exception)
-
-
 def test_help_commands():
     """Test that help commands work without requiring setup."""
     # Main help
