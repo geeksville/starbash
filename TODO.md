@@ -7,6 +7,8 @@
 * !make reindex smarter
 * make the various filter options work
 * add targets list
+* include instrument name in session list (for seestar,asiair,etc)
+* track image quality on a per frame basis
 * use db find master bias frames
 * use db to find flat frames
 * use db to find light frames

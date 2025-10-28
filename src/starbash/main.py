@@ -100,6 +100,8 @@ def session():
                 type_str = image_type
                 if image_type.upper() == "LIGHT":
                     image_type = filter
+                if image_type.upper() == "FLAT":
+                    image_type = f"{image_type}/{filter}"
 
                 table.add_row(
                     date,
