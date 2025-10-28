@@ -17,5 +17,37 @@ kind = "preferences"
 # website = "https://yourwebsite"
 # license = "FIXME eventually applied as the default license for generated images Creative commons etc..."
 
+
+# [config]
+# Filters fits fields should we store in our DB cache.  By default we store all fits headers.
+#fits-whitelist = [
+#    "INSTRUME",
+#    "FILTER",
+#    "TELESCOP",
+#    "IMAGETYP",
+#    "DATE-OBS",
+#    "DATE-LOC",
+#    "DATE",
+#    "EXPTIME",  # Use use this instead of EXPOSURE because it seems like not all apps use EXPOSURE (Siril)
+#    "FWHEEL",
+#    "OBJECT",
+#    "RA",       # we ignore the text version OBJCTRA / OBJCTDEC
+#    "DEC",
+#    "OBJCTROT",
+#    "FOCPOS",
+#    "SITELAT",
+#    "SITELON",
+#    "SITEELEV",
+#    "NAXIS1",
+#    "NAXIS2",
+#    "SWCREATE",
+#    "XBINNING",
+#    "YBINNING",
+#    "GAIN",
+#    "CCD-TEMP",
+#    "SET-TEMP",
+#    "AMBTEMP",
+#]
+
 # DO NOT edit below this line, they are managed automatically via
 # the "sb repo add" etc... commands.

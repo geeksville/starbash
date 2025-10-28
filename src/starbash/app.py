@@ -233,10 +233,10 @@ class Starbash:
         if repo.is_scheme("file") and repo.kind != "recipe":
             logging.debug("Reindexing %s...", repo.url)
 
+            whitelist = None
             config = self.repo_manager.merged.get("config")
-            if not config:
-                raise ValueError(f"App config not found.")
-            whitelist = config["fits-whitelist"]
+            if config:
+                whitelist = config.get("fits-whitelist", None)
 
             path = repo.get_path()
             if not path:
@@ -262,7 +262,7 @@ class Starbash:
                             items = header.items()
                             headers = {}
                             for key, value in items:
-                                if key in whitelist:
+                                if (not whitelist) or (key in whitelist):
                                     headers[key] = value
                             logging.debug("Headers for %s: %s", f, headers)
                             headers["path"] = str(f)
