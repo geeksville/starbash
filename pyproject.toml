@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "starbash"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = ["Kevin Hester <kevinh@geeksville.com>"]
 readme = "README.md"
