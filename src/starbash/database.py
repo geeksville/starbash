@@ -15,6 +15,9 @@ class Database:
 
     Stores data under the OS-specific user data directory using platformdirs.
     Provides an `images` table for FITS metadata and basic helpers.
+
+    The images table stores DATE-OBS and DATE as indexed SQL columns for
+    efficient date-based queries, while other FITS metadata is stored in JSON.
     """
 
     EXPTIME_KEY = "EXPTIME"
@@ -24,6 +27,7 @@ class Database:
     NUM_IMAGES_KEY = "num-images"
     EXPTIME_TOTAL_KEY = "exptime-total"
     DATE_OBS_KEY = "DATE-OBS"
+    DATE_KEY = "DATE"
     IMAGE_DOC_KEY = "image-doc"
     IMAGETYP_KEY = "IMAGETYP"
     OBJECT_KEY = "OBJECT"
@@ -52,12 +56,14 @@ class Database:
         """Create the images and sessions tables if they don't exist."""
         cursor = self._db.cursor()
 
-        # Create images table
+        # Create images table with DATE-OBS and DATE as indexed columns
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS images (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 path TEXT UNIQUE NOT NULL,
+                date_obs TEXT,
+                date TEXT,
                 metadata TEXT NOT NULL
             )
         """
@@ -67,6 +73,20 @@ class Database:
         cursor.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_images_path ON images(path)
+        """
+        )
+
+        # Create index on date_obs for efficient date range queries
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_images_date_obs ON images(date_obs)
+        """
+        )
+
+        # Create index on date for queries using DATE field
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_images_date ON images(date)
         """
         )
 
@@ -102,23 +122,31 @@ class Database:
         """Insert or update an image record by unique path.
 
         The record must include a 'path' key; other keys are arbitrary FITS metadata.
+        DATE-OBS and DATE are extracted and stored as indexed columns for efficient queries.
         Returns the rowid of the inserted/updated record.
         """
         path = record.get("path")
         if not path:
             raise ValueError("record must include 'path'")
 
-        # Separate path from metadata
+        # Extract date fields for column storage
+        date_obs = record.get(self.DATE_OBS_KEY)
+        date = record.get(self.DATE_KEY)
+
+        # Separate path and date fields from metadata
         metadata = {k: v for k, v in record.items() if k != "path"}
         metadata_json = json.dumps(metadata)
 
         cursor = self._db.cursor()
         cursor.execute(
             """
-            INSERT INTO images (path, metadata) VALUES (?, ?)
-            ON CONFLICT(path) DO UPDATE SET metadata = excluded.metadata
+            INSERT INTO images (path, date_obs, date, metadata) VALUES (?, ?, ?, ?)
+            ON CONFLICT(path) DO UPDATE SET
+                date_obs = excluded.date_obs,
+                date = excluded.date,
+                metadata = excluded.metadata
         """,
-            (path, metadata_json),
+            (path, date_obs, date, metadata_json),
         )
 
         self._db.commit()
@@ -134,13 +162,38 @@ class Database:
         """Search for images matching the given conditions.
 
         Args:
-            conditions: Dictionary of metadata key-value pairs to match
+            conditions: Dictionary of metadata key-value pairs to match.
+                       Special keys:
+                       - 'date_start': Filter images with DATE-OBS >= this date
+                       - 'date_end': Filter images with DATE-OBS <= this date
 
         Returns:
             List of matching image records or None if no matches
         """
+        # Extract special date filter keys (make a copy to avoid modifying caller's dict)
+        conditions_copy = dict(conditions)
+        date_start = conditions_copy.pop("date_start", None)
+        date_end = conditions_copy.pop("date_end", None)
+
+        # Build SQL query with WHERE clauses for date filtering
+        where_clauses = []
+        params = []
+
+        if date_start:
+            where_clauses.append("date_obs >= ?")
+            params.append(date_start)
+
+        if date_end:
+            where_clauses.append("date_obs <= ?")
+            params.append(date_end)
+
+        # Build the query
+        query = "SELECT id, path, date_obs, date, metadata FROM images"
+        if where_clauses:
+            query += " WHERE " + " AND ".join(where_clauses)
+
         cursor = self._db.cursor()
-        cursor.execute("SELECT id, path, metadata FROM images")
+        cursor.execute(query, params)
 
         results = []
         for row in cursor.fetchall():
@@ -148,8 +201,15 @@ class Database:
             metadata["path"] = row["path"]
             metadata["id"] = row["id"]
 
-            # Check if all conditions match
-            match = all(metadata.get(k) == v for k, v in conditions.items())
+            # Add date fields back to metadata for compatibility
+            if row["date_obs"]:
+                metadata[self.DATE_OBS_KEY] = row["date_obs"]
+            if row["date"]:
+                metadata[self.DATE_KEY] = row["date"]
+
+            # Check if remaining conditions match (those stored in JSON metadata)
+            match = all(metadata.get(k) == v for k, v in conditions_copy.items())
+
             if match:
                 results.append(metadata)
 
@@ -233,7 +293,10 @@ class Database:
     def get_image(self, path: str) -> dict[str, Any] | None:
         """Get an image record by path."""
         cursor = self._db.cursor()
-        cursor.execute("SELECT id, path, metadata FROM images WHERE path = ?", (path,))
+        cursor.execute(
+            "SELECT id, path, date_obs, date, metadata FROM images WHERE path = ?",
+            (path,),
+        )
         row = cursor.fetchone()
 
         if row is None:
@@ -242,18 +305,32 @@ class Database:
         metadata = json.loads(row["metadata"])
         metadata["path"] = row["path"]
         metadata["id"] = row["id"]
+
+        # Add date fields back to metadata for compatibility
+        if row["date_obs"]:
+            metadata[self.DATE_OBS_KEY] = row["date_obs"]
+        if row["date"]:
+            metadata[self.DATE_KEY] = row["date"]
+
         return metadata
 
     def all_images(self) -> list[dict[str, Any]]:
         """Return all image records."""
         cursor = self._db.cursor()
-        cursor.execute("SELECT id, path, metadata FROM images")
+        cursor.execute("SELECT id, path, date_obs, date, metadata FROM images")
 
         results = []
         for row in cursor.fetchall():
             metadata = json.loads(row["metadata"])
             metadata["path"] = row["path"]
             metadata["id"] = row["id"]
+
+            # Add date fields back to metadata for compatibility
+            if row["date_obs"]:
+                metadata[self.DATE_OBS_KEY] = row["date_obs"]
+            if row["date"]:
+                metadata[self.DATE_KEY] = row["date"]
+
             results.append(metadata)
 
         return results
@@ -285,6 +362,42 @@ class Database:
             results.append(session)
 
         return results
+
+    def get_session_by_id(self, session_id: int) -> dict[str, Any] | None:
+        """Get a session record by its ID.
+
+        Args:
+            session_id: The database ID of the session
+
+        Returns:
+            Session record dictionary or None if not found
+        """
+        cursor = self._db.cursor()
+        cursor.execute(
+            """
+            SELECT id, start, end, filter, imagetyp, object,
+                   num_images, exptime_total, image_doc_id
+            FROM sessions
+            WHERE id = ?
+        """,
+            (session_id,),
+        )
+
+        row = cursor.fetchone()
+        if row is None:
+            return None
+
+        return {
+            "id": row["id"],
+            self.START_KEY: row["start"],
+            self.END_KEY: row["end"],
+            self.FILTER_KEY: row["filter"],
+            self.IMAGETYP_KEY: row["imagetyp"],
+            self.OBJECT_KEY: row["object"],
+            self.NUM_IMAGES_KEY: row["num_images"],
+            self.EXPTIME_TOTAL_KEY: row["exptime_total"],
+            self.IMAGE_DOC_KEY: row["image_doc_id"],
+        }
 
     def get_session(self, to_find: dict[str, str]) -> dict[str, Any] | None:
         """Find a session matching the given criteria.

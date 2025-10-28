@@ -158,6 +158,42 @@ class Starbash:
             conditions = self.selection.get_query_conditions()
             return self.db.search_session(conditions)
 
+    def get_session_images(self, session_id: int) -> list[dict[str, Any]]:
+        """
+        Get all images belonging to a specific session.
+
+        Sessions are defined by a unique combination of filter, imagetyp (image type),
+        object (target name), and date range. This method queries the images table
+        for all images matching the session's criteria in a single database query.
+
+        Args:
+            session_id: The database ID of the session
+
+        Returns:
+            List of image records (dictionaries with path, metadata, etc.)
+            Returns empty list if session not found or has no images.
+
+        Raises:
+            ValueError: If session_id is not found in the database
+        """
+        # First get the session details
+        session = self.db.get_session_by_id(session_id)
+        if session is None:
+            raise ValueError(f"Session with id {session_id} not found")
+
+        # Query images that match ALL session criteria including date range
+        conditions = {
+            Database.FILTER_KEY: session[Database.FILTER_KEY],
+            Database.IMAGETYP_KEY: session[Database.IMAGETYP_KEY],
+            Database.OBJECT_KEY: session[Database.OBJECT_KEY],
+            "date_start": session[Database.START_KEY],
+            "date_end": session[Database.END_KEY],
+        }
+
+        # Single query with all conditions
+        images = self.db.search_image(conditions)
+        return images if images else []
+
     def remove_repo_ref(self, url: str) -> None:
         """
         Remove a repository reference from the user configuration.
