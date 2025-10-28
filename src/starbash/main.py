@@ -102,8 +102,10 @@ def session():
                 type_str = image_type
                 if image_type.upper() == "LIGHT":
                     image_type = filter
-                if image_type.upper() == "FLAT":
+                elif image_type.upper() == "FLAT":
                     image_type = f"{image_type}/{filter}"
+                else:  # either bias or dark
+                    object = ""  # Don't show meaningless target
 
                 table.add_row(
                     date,
