@@ -59,15 +59,15 @@ def test_session_command_with_data(setup_test_environment, tmp_path):
 
 
 def test_repo_list_command(setup_test_environment):
-    """Test 'starbash repo list' command - should not crash."""
-    result = runner.invoke(app, ["repo", "list"])
+    """Test 'starbash repo' command (default list behavior) - should not crash."""
+    result = runner.invoke(app, ["repo"])
     assert result.exit_code == 0
     # Should list at least the default repos
 
 
 def test_repo_list_non_verbose(setup_test_environment):
-    """Test 'starbash repo list' without verbose shows only user-visible repos with numbers."""
-    result = runner.invoke(app, ["repo", "list"])
+    """Test 'starbash repo' without verbose shows only user-visible repos with numbers."""
+    result = runner.invoke(app, ["repo"])
     assert result.exit_code == 0
 
     # Should show numbered repos (user-visible only)
@@ -97,8 +97,8 @@ def test_repo_list_non_verbose(setup_test_environment):
 
 
 def test_repo_list_verbose(setup_test_environment):
-    """Test 'starbash repo list --verbose' shows all repos without numbers."""
-    result = runner.invoke(app, ["repo", "list", "--verbose"])
+    """Test 'starbash repo --verbose' shows all repos without numbers."""
+    result = runner.invoke(app, ["repo", "--verbose"])
     assert result.exit_code == 0
 
     output = result.stdout
@@ -122,8 +122,8 @@ def test_repo_list_verbose(setup_test_environment):
 
 
 def test_repo_list_verbose_short_flag(setup_test_environment):
-    """Test 'starbash repo list -v' (short flag) shows all repos without numbers."""
-    result = runner.invoke(app, ["repo", "list", "-v"])
+    """Test 'starbash repo -v' (short flag) shows all repos without numbers."""
+    result = runner.invoke(app, ["repo", "-v"])
     assert result.exit_code == 0
 
     output = result.stdout
@@ -168,7 +168,7 @@ def test_repo_remove_command(setup_test_environment, tmp_path):
     assert add_result.exit_code == 0
 
     # List to find the repo number
-    list_result = runner.invoke(app, ["repo", "list"])
+    list_result = runner.invoke(app, ["repo"])
     assert list_result.exit_code == 0
 
     # The test repo should be in the list
@@ -195,7 +195,7 @@ def test_repo_remove_command(setup_test_environment, tmp_path):
     assert "Removed repository" in remove_result.stdout
 
     # Verify it's gone
-    list_after = runner.invoke(app, ["repo", "list"])
+    list_after = runner.invoke(app, ["repo"])
     assert list_after.exit_code == 0
     assert "testrepo" not in list_after.stdout
 
@@ -252,11 +252,7 @@ def test_help_commands():
     # Repo help
     result = runner.invoke(app, ["repo", "--help"])
     assert result.exit_code == 0
-    assert "list" in result.stdout.lower()
-
-    # Repo list help
-    result = runner.invoke(app, ["repo", "list", "--help"])
-    assert result.exit_code == 0
+    assert "manage" in result.stdout.lower()
 
     # Repo add help
     result = runner.invoke(app, ["repo", "add", "--help"])

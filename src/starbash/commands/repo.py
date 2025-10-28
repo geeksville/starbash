@@ -4,7 +4,33 @@ from typing_extensions import Annotated
 from starbash.app import Starbash
 from starbash import console
 
-app = typer.Typer()
+app = typer.Typer(invoke_without_command=True)
+
+
+@app.callback()
+def main(
+    ctx: typer.Context,
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Show all repos including system repos"
+    ),
+):
+    """
+    Manage repositories.
+
+    When called without a subcommand, lists all repositories.
+    Use --verbose to show all repos including system/recipe repos.
+    """
+    # If no subcommand is invoked, run the list behavior
+    if ctx.invoked_subcommand is None:
+        with Starbash("repo-list") as sb:
+            repos = sb.repo_manager.repos if verbose else sb.repo_manager.regular_repos
+            for i, repo in enumerate(repos):
+                if verbose:
+                    # No numbers for verbose mode (system repos can't be removed)
+                    console.print(f"{ repo.url } (kind={ repo.kind})")
+                else:
+                    # Show numbers for user repos (can be removed later)
+                    console.print(f"{ i + 1:2}: { repo.url } (kind={ repo.kind})")
 
 
 @app.command()
@@ -25,7 +51,7 @@ def add(path: str):
 def remove(reponum: str):
     """
     Remove a repository by number (from non-verbose list).
-    Use 'repo list' to see the repository numbers.
+    Use 'starbash repo' to see the repository numbers.
     """
     with Starbash("repo-remove") as sb:
         try:
@@ -54,27 +80,6 @@ def remove(reponum: str):
                 f"[red]Error: '{reponum}' is not a valid repository number. Please use a number from 'repo list'.[/red]"
             )
             raise typer.Exit(code=1)
-
-
-@app.command()
-def list(
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Show all repos including system repos"
-    )
-):
-    """
-    List repositories. By default only shows user-visible repos.
-    Use --verbose to show all repos including system/recipe repos.
-    """
-    with Starbash("repo-list") as sb:
-        repos = sb.repo_manager.repos if verbose else sb.repo_manager.regular_repos
-        for i, repo in enumerate(repos):
-            if verbose:
-                # No numbers for verbose mode (system repos can't be removed)
-                console.print(f"{ repo.url } (kind={ repo.kind})")
-            else:
-                # Show numbers for user repos (can be removed later)
-                console.print(f"{ i + 1:2}: { repo.url } (kind={ repo.kind})")
 
 
 @app.command()
