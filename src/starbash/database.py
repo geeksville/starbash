@@ -31,6 +31,7 @@ class Database:
     IMAGE_DOC_KEY = "image-doc"
     IMAGETYP_KEY = "IMAGETYP"
     OBJECT_KEY = "OBJECT"
+    TELESCOP_KEY = "TELESCOP"
 
     def __init__(
         self,
@@ -100,6 +101,7 @@ class Database:
                 filter TEXT NOT NULL,
                 imagetyp TEXT NOT NULL,
                 object TEXT NOT NULL,
+                telescop TEXT NOT NULL,
                 num_images INTEGER NOT NULL,
                 exptime_total REAL NOT NULL,
                 image_doc_id INTEGER
@@ -111,7 +113,7 @@ class Database:
         cursor.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_sessions_lookup
-            ON sessions(filter, imagetyp, object, start, end)
+            ON sessions(filter, imagetyp, object, telescop, start, end)
         """
         )
 
@@ -235,7 +237,7 @@ class Database:
         cursor = self._db.cursor()
         cursor.execute(
             """
-            SELECT id, start, end, filter, imagetyp, object,
+            SELECT id, start, end, filter, imagetyp, object, telescop,
                    num_images, exptime_total, image_doc_id
             FROM sessions
         """
@@ -261,6 +263,7 @@ class Database:
                 self.FILTER_KEY: row["filter"],
                 self.IMAGETYP_KEY: row["imagetyp"],
                 self.OBJECT_KEY: row["object"],
+                self.TELESCOP_KEY: row["telescop"],
                 self.NUM_IMAGES_KEY: row["num_images"],
                 self.EXPTIME_TOTAL_KEY: row["exptime_total"],
                 self.IMAGE_DOC_KEY: row["image_doc_id"],
@@ -340,7 +343,7 @@ class Database:
         cursor = self._db.cursor()
         cursor.execute(
             """
-            SELECT id, start, end, filter, imagetyp, object,
+            SELECT id, start, end, filter, imagetyp, object, telescop,
                    num_images, exptime_total, image_doc_id
             FROM sessions
         """
@@ -355,6 +358,7 @@ class Database:
                 self.FILTER_KEY: row["filter"],
                 self.IMAGETYP_KEY: row["imagetyp"],
                 self.OBJECT_KEY: row["object"],
+                self.TELESCOP_KEY: row["telescop"],
                 self.NUM_IMAGES_KEY: row["num_images"],
                 self.EXPTIME_TOTAL_KEY: row["exptime_total"],
                 self.IMAGE_DOC_KEY: row["image_doc_id"],
@@ -375,7 +379,7 @@ class Database:
         cursor = self._db.cursor()
         cursor.execute(
             """
-            SELECT id, start, end, filter, imagetyp, object,
+            SELECT id, start, end, filter, imagetyp, object, telescop,
                    num_images, exptime_total, image_doc_id
             FROM sessions
             WHERE id = ?
@@ -394,6 +398,7 @@ class Database:
             self.FILTER_KEY: row["filter"],
             self.IMAGETYP_KEY: row["imagetyp"],
             self.OBJECT_KEY: row["object"],
+            self.TELESCOP_KEY: row["telescop"],
             self.NUM_IMAGES_KEY: row["num_images"],
             self.EXPTIME_TOTAL_KEY: row["exptime_total"],
             self.IMAGE_DOC_KEY: row["image_doc_id"],
@@ -402,7 +407,7 @@ class Database:
     def get_session(self, to_find: dict[str, str]) -> dict[str, Any] | None:
         """Find a session matching the given criteria.
 
-        Searches for sessions with the same filter, image type, and target
+        Searches for sessions with the same filter, image type, target, and telescope
         whose start time is within +/- 8 hours of the provided date.
         """
         date = to_find.get(Database.START_KEY)
@@ -413,6 +418,7 @@ class Database:
         assert filter
         target = to_find.get(Database.OBJECT_KEY)
         assert target
+        telescop = to_find.get(Database.TELESCOP_KEY, "unspecified")
 
         # Convert the provided ISO8601 date string to a datetime, then
         # search for sessions with the same filter whose start time is
@@ -427,14 +433,14 @@ class Database:
         cursor = self._db.cursor()
         cursor.execute(
             """
-            SELECT id, start, end, filter, imagetyp, object,
+            SELECT id, start, end, filter, imagetyp, object, telescop,
                    num_images, exptime_total, image_doc_id
             FROM sessions
-            WHERE filter = ? AND imagetyp = ? AND object = ?
+            WHERE filter = ? AND imagetyp = ? AND object = ? AND telescop = ?
               AND start >= ? AND start <= ?
             LIMIT 1
         """,
-            (filter, image_type, target, start_min, start_max),
+            (filter, image_type, target, telescop, start_min, start_max),
         )
 
         row = cursor.fetchone()
@@ -448,6 +454,7 @@ class Database:
             self.FILTER_KEY: row["filter"],
             self.IMAGETYP_KEY: row["imagetyp"],
             self.OBJECT_KEY: row["object"],
+            self.TELESCOP_KEY: row["telescop"],
             self.NUM_IMAGES_KEY: row["num_images"],
             self.EXPTIME_TOTAL_KEY: row["exptime_total"],
             self.IMAGE_DOC_KEY: row["image_doc_id"],
@@ -489,8 +496,8 @@ class Database:
             cursor.execute(
                 """
                 INSERT INTO sessions
-                (start, end, filter, imagetyp, object, num_images, exptime_total, image_doc_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                (start, end, filter, imagetyp, object, telescop, num_images, exptime_total, image_doc_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     new[Database.START_KEY],
@@ -498,6 +505,7 @@ class Database:
                     new[Database.FILTER_KEY],
                     new[Database.IMAGETYP_KEY],
                     new[Database.OBJECT_KEY],
+                    new.get(Database.TELESCOP_KEY, "unspecified"),
                     new[Database.NUM_IMAGES_KEY],
                     new[Database.EXPTIME_TOTAL_KEY],
                     new.get(Database.IMAGE_DOC_KEY),

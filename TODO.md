@@ -18,6 +18,7 @@
 * [ ] add automated session config looping (Sii, Oiii etc...)
 * [ ] add automated session looping (multiday)
 * [ ] pass stage outputs via the context?
+* [ ] record # of repos, # of images, # of sessions, in analytics - to measure db sufficiency
 * [x] does repo glob even matter if we just throw everything in the db based on fits metadata?  do an experiment.  YES it does, use DB based on FITS for all operations (instead of globs)
 * [x] Add a db starbash.Database class, populated from repos.  Regen as needed.
 * [ ] Possibly store the DB queries as the description for the sesssion inputs?

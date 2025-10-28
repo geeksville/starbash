@@ -135,6 +135,7 @@ class Starbash:
             )
         else:
             exptime = header.get(Database.EXPTIME_KEY, 0)
+            telescop = header.get(Database.TELESCOP_KEY, "unspecified")
             new = {
                 Database.FILTER_KEY: filter,
                 Database.START_KEY: date,
@@ -144,6 +145,7 @@ class Starbash:
                 Database.NUM_IMAGES_KEY: 1,
                 Database.EXPTIME_TOTAL_KEY: exptime,
                 Database.OBJECT_KEY: header.get(Database.OBJECT_KEY, "unspecified"),
+                Database.TELESCOP_KEY: telescop,
             }
             session = self.db.get_session(new)
             self.db.upsert_session(new, existing=session)
@@ -163,8 +165,8 @@ class Starbash:
         Get all images belonging to a specific session.
 
         Sessions are defined by a unique combination of filter, imagetyp (image type),
-        object (target name), and date range. This method queries the images table
-        for all images matching the session's criteria in a single database query.
+        object (target name), telescope, and date range. This method queries the images
+        table for all images matching the session's criteria in a single database query.
 
         Args:
             session_id: The database ID of the session
@@ -186,6 +188,7 @@ class Starbash:
             Database.FILTER_KEY: session[Database.FILTER_KEY],
             Database.IMAGETYP_KEY: session[Database.IMAGETYP_KEY],
             Database.OBJECT_KEY: session[Database.OBJECT_KEY],
+            Database.TELESCOP_KEY: session[Database.TELESCOP_KEY],
             "date_start": session[Database.START_KEY],
             "date_end": session[Database.END_KEY],
         }
@@ -278,7 +281,7 @@ class Starbash:
 
     def reindex_repos(self, force: bool = False):
         """Reindex all repositories managed by the RepoManager."""
-        logging.info("Reindexing all repositories...")
+        logging.debug("Reindexing all repositories...")
 
         for repo in track(self.repo_manager.repos, description="Reindexing repos..."):
             self.reindex_repo(repo, force=force)

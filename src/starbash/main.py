@@ -59,6 +59,7 @@ def session():
             table.add_column("# images", style="cyan", no_wrap=True)
             table.add_column("Time", style="cyan", no_wrap=True)
             table.add_column("Type/Filter", style="cyan", no_wrap=True)
+            table.add_column("Telescope", style="cyan", no_wrap=True)
             table.add_column(
                 "About", style="cyan", no_wrap=True
             )  # type of frames, filter, target
@@ -80,6 +81,7 @@ def session():
                 object = str(sess.get(Database.OBJECT_KEY, "N/A"))
                 filter = sess.get(Database.FILTER_KEY, "N/A")
                 image_type = str(sess.get(Database.IMAGETYP_KEY, "N/A"))
+                telescop = str(sess.get(Database.TELESCOP_KEY, "N/A"))
 
                 # Format total exposure time as integer seconds
                 exptime_raw = str(sess.get(Database.EXPTIME_TOTAL_KEY, "N/A"))
@@ -108,6 +110,7 @@ def session():
                     str(num_images),
                     total_secs,
                     image_type,
+                    telescop,
                     object,
                 )
 
@@ -117,6 +120,7 @@ def session():
                     "",
                     f"[bold]{total_images}[/bold]",
                     f"[bold]{format_duration(int(total_seconds))}[/bold]",
+                    "",
                     "",
                     "",
                 )

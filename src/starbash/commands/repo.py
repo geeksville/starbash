@@ -99,7 +99,6 @@ def reindex(
     """
     with Starbash("repo-reindex") as sb:
         if reponum is None:
-            console.print("Reindexing all repositories...")
             sb.reindex_repos(force=force)
         else:
             try:
