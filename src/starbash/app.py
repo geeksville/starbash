@@ -17,10 +17,11 @@ from starbash.repo import RepoManager
 from starbash.tool import tools
 from starbash.paths import get_user_config_dir
 from starbash.analytics import (
+    NopAnalytics,
     analytics_exception,
     analytics_setup,
     analytics_shutdown,
-    analytics_start_span,
+    analytics_start_transaction,
 )
 
 
@@ -73,12 +74,12 @@ class Starbash:
         # Add user prefs as a repo
         self.user_repo = self.repo_manager.add_repo("file://" + str(create_user()))
 
-        self.analytics_top_span = None
+        self.analytics = NopAnalytics()
         if self.user_repo.get("analytics.enabled", False):
             analytics_setup(True)
             # this is intended for use with "with" so we manually do enter/exit
-            self.analytics_top_span = analytics_start_span(name="App session", op=cmd)
-            self.analytics_top_span.__enter__()
+            self.analytics = analytics_start_transaction(name="App session", op=cmd)
+            self.analytics.__enter__()
 
         logging.info(
             f"Repo manager initialized with {len(self.repo_manager.repos)} default repo references."
@@ -92,8 +93,7 @@ class Starbash:
 
     # --- Lifecycle ---
     def close(self) -> None:
-        if self.analytics_top_span:
-            self.analytics_top_span.__exit__(None, None, None)
+        self.analytics.__exit__(None, None, None)
 
         analytics_shutdown()
         self.db.close()

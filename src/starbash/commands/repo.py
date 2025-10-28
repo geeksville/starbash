@@ -12,7 +12,7 @@ def add(path: str):
     """
     Add a repository. path is either a local path or a remote URL.
     """
-    with Starbash() as sb:
+    with Starbash("repo-add") as sb:
         sb.user_repo.add_repo_ref(path)
         # we don't yet write default config files at roots of repos, but it would be easy to add here
         # r.write_config()
@@ -26,7 +26,7 @@ def remove(reponame: str):
     """
     Remove a repository by name or number.
     """
-    with Starbash() as sb:
+    with Starbash("repo-remove") as sb:
         raise NotImplementedError("Removing repositories not yet implemented.")
 
 
@@ -35,7 +35,7 @@ def list():
     """
     List all repositories.  The listed names/numbers can be used with other commands.
     """
-    with Starbash() as sb:
+    with Starbash("repo-list") as sb:
         for i, repo in enumerate(sb.repo_manager.repos):
             console.print(f"{ i + 1:2}: { repo.url } (kind={ repo.kind})")
 
@@ -56,7 +56,7 @@ def reindex(
     Reindex the named repository.
     If no name is given, reindex all repositories.
     """
-    with Starbash() as sb:
+    with Starbash("repo-reindex") as sb:
         if repo is None:
             console.print("Reindexing all repositories...")
             sb.reindex_repos(force=force)

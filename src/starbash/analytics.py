@@ -62,7 +62,7 @@ def analytics_exception(exc: Exception) -> None:
         )
 
 
-class NopContextManager:
+class NopAnalytics:
     """Used when users have disabled analytics/crash reporting."""
 
     def __enter__(self):
@@ -81,5 +81,15 @@ def analytics_start_span(**kwargs):
         import sentry_sdk
 
         return sentry_sdk.start_span(**kwargs)
+    else:
+        return NopAnalytics()
+
+
+def analytics_start_transaction(**kwargs):
+    """Start an analytics/tracing transaction if analytics is enabled, otherwise return a no-op context manager."""
+    if analytics_allowed:
+        import sentry_sdk
+
+        return sentry_sdk.start_transaction(**kwargs)
     else:
         return NopContextManager()

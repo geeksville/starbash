@@ -11,9 +11,11 @@
             "module": "starbash.main",
             "console": "integratedTerminal",
             "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
+            "justMyCode": false,
             "args": [
-                "repo",
-                "reindex"
+                "user",
+                "analytics",
+                "on"
             ]
         },
         {

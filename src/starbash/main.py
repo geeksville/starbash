@@ -33,7 +33,7 @@ def format_duration(seconds: int):
 def session():
     """List sessions (filtered based on the current selection)"""
 
-    with Starbash() as sb:
+    with Starbash("session") as sb:
         sessions = sb.search_session()
         if sessions and isinstance(sessions, list):
             len_all = sb.db.len_session()

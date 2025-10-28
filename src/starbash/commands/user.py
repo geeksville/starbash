@@ -19,7 +19,8 @@ def analytics(
     """
     Enable or disable analytics (crash reports and usage data).
     """
-    with Starbash() as sb:
+    with Starbash("analytics-enable") as sb:
+        sb.analytics.set_data("analytics.enabled", enable)
         sb.user_repo.config["analytics.enabled"] = enable
         sb.user_repo.write_config()
         status = "enabled" if enable else "disabled"

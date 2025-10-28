@@ -12,7 +12,7 @@
 * use db to find light frames
 * make the siril prep rule work
 * add top level catch asking users to report bugs
-* add crash and usage analytics - sentry.io?
+* !add crash and usage analytics - sentry.io?
 * add automated session config looping (Sii, Oiii etc...)
 * add automated session looping (multiday)
 * pass stage outputs via the context?
