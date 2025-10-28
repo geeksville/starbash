@@ -7,10 +7,11 @@ from rich.table import Table
 from starbash.database import Database
 
 from .app import Starbash
-from .commands import repo
+from .commands import repo, user
 from . import console
 
 app = typer.Typer()
+app.add_typer(user.app, name="user", help="Manage user settings.")
 app.add_typer(repo.app, name="repo", help="Manage Starbash repositories.")
 
 
