@@ -15,6 +15,19 @@ app.add_typer(user.app, name="user", help="Manage user settings.")
 app.add_typer(repo.app, name="repo", help="Manage Starbash repositories.")
 
 
+@app.callback(invoke_without_command=True)
+def main_callback(ctx: typer.Context):
+    """
+    Starbash - Astrophotography workflows simplified.
+
+    Run 'starbash --help' to see available commands.
+    """
+    if ctx.invoked_subcommand is None:
+        # No command provided, show help
+        console.print(ctx.get_help())
+        raise typer.Exit()
+
+
 def format_duration(seconds: int):
     """Format seconds as a human-readable duration string."""
     if seconds < 60:

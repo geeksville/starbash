@@ -102,6 +102,12 @@ def test_help_commands():
     assert result.exit_code == 0
     assert "session" in result.stdout.lower()
 
+    # Test running without arguments shows help
+    result = runner.invoke(app, [])
+    assert result.exit_code == 0
+    assert "session" in result.stdout.lower()
+    assert "Commands" in result.stdout or "commands" in result.stdout.lower()
+
     # Session help
     result = runner.invoke(app, ["session", "--help"])
     assert result.exit_code == 0

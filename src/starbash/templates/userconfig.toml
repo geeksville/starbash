@@ -10,7 +10,7 @@ kind = "preferences"
 # enabled = true # default is true - change to false if you don't want any analytics/crash-reports
 # include_user = false # default is false - change to true if you'd like your email added to crash reports/analytics
 
-# [user]
+[user]
 # default author info
 # name = "Your Name"
 # email = "youremail@somedomain.com"
