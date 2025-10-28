@@ -25,36 +25,39 @@ See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-al
 
 ## Supported commands
 
-* setup - configure for you via a brief guided process
-* info - show user preferences location and other app info
+### Setup & Configuration
+- `sb setup` - Configure starbash via a brief guided process
+- `sb info` - Show user preferences location and other app info
 
-* repo add filepath|URL - add a repo
-* repo remove REPONUM - remove the indicated repo from the repo list
-* repo [--verbose] - list installed repos
-* repo reindex [REPONUM] - reindex the specified repo, if no repo specified, reindex all
+### Repository Management
+- `sb repo [--verbose]` - List installed repos (use `-v` for details)
+- `sb repo add <filepath|URL>` - Add a repository
+- `sb repo remove <REPONUM>` - Remove the indicated repo from the repo list
+- `sb repo reindex [--force] [REPONUM]` - Reindex the specified repo (or all repos if none specified)
 
-* user analytics on|off - turn analytics collection on/off
-* user name "Your Name" - used for attribution in generated images
-* user email "foo@blah.com" - used for attribution in generated images
+### User Preferences
+- `sb user name "Your Name"` - Set name for attribution in generated images
+- `sb user email "foo@example.com"` - Set email for attribution in generated images
+- `sb user analytics <on|off>` - Turn analytics collection on/off
 
-* selection any - remove any filters on sessions, etc...
-* selection target TARGETNAME - limit the current selection to only the named targets
-* selection date op DATE - limit to sessions in the specified date range
-* selection - list information about the current selection
+### Selection & Filtering
+- `sb selection` - Show information about the current selection
+- `sb selection any` - Remove all filters (select everything)
+- `sb selection target <TARGETNAME>` - Limit selection to the named target
+- `sb selection telescope <TELESCOPENAME>` - Limit selection to the named telescope
+- `sb selection date <after|before|between> <DATE> [DATE]` - Limit to sessions in the specified date range
 
-* target - list targets (filtered based on the current selection)
+### Viewing Data
+- `sb session` - List sessions (filtered based on the current selection)
+- `sb target` - List targets (filtered based on the current selection)
+- `sb instrument` - List instruments (filtered based on the current selection)
+- `sb filter` - List all filters found in current selection
 
-* session- list sessions (filtered based on the current selection)
-
-* instrument - list instruments (filtered based on the current selection)
-
-* filter - list all filters found in current selection
-
-* export dirs|BIAS|LIGHT|DARK|FLAT [DIRLOC]
-
-* process siril - Generates a directory tree in the format siril expects, then run siril GUI
-* process auto
-* process masters - generate master flats, darks, biases from any raws that are available
+### Export & Processing
+- `sb export <dirs|BIAS|LIGHT|DARK|FLAT> [DIRLOC]` - Export data
+- `sb process siril` - Generate Siril directory tree and run Siril GUI
+- `sb process auto` - Automatic processing
+- `sb process masters` - Generate master flats, darks, and biases from available raw frames
 
 ## Supported tools
 
