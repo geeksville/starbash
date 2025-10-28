@@ -13,15 +13,21 @@ Not quite ready 😊.  But making good progress.
 
 See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-alpha testers/feedback soon.
 
-## features
+## Current features
 
-* Automatically recognizes and auto-parses the default NINA, Asiair and Seestar raw file repo layouts (adding support for other layouts is easy)
-* Automatically performs preprocessing on OSC (broadband, narrowband or dual Duo filter), Mono (LRGB, SHO) data
-* Multisession support by default (including auto selection of correct flats, biases and dark frames)
-* Generates a per target report/config file which can be customized if the detected defaults are not what you want
-* 'Recipes' provide repeatable/human-readable/sharable descriptions of all processing steps
+* Automatically recognizes and auto-parses the default NINA, Asiair and Seestar raw file repos (adding support for other layouts is easy)
+* Multisession support by default (including automatic selection of correct flats, biases and dark frames)
 * 'Repos' can contain raw files, generated masters, preprocessed files, or recipes.
+
+## Features coming soon
+
+* Automatically performs **complete** preprocessing on OSC (broadband, narrowband or dual Duo filter), Mono (LRGB, SHO) data.  i.e. give you 'seestar level' auto-preprocessing, so you only need to do the (optional) custom post-processing.
+* Generates a per target report/config file which can be customized if the detected defaults or preprocessing are not what you want
+* 'Recipes' provide repeatable/human-readable/sharable descriptions of all processing steps
 * Repos can be on the local disk or shared via HTTPS/github/etc.  This is particularly useful for recipe repos
+* Uses Siril and Graxpert for its pre-processing operations (support for Pixinsight based recipies will probably be coming at some point...)
+* The target report can be used to auto generate a human friendly 'postable/sharable' report about that image
+* Target reports are sharable so that you can request comments by others and others can rerender with different settings
 
 ## Supported commands
 
@@ -59,19 +65,13 @@ See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-al
 - `sb process auto` - Automatic processing
 - `sb process masters` - Generate master flats, darks, and biases from available raw frames
 
-## Supported tools
+## Supported tools (now)
 
 * Siril
 * Graxpert
+* Python (you can add python code to recipies if necessary)
 
-# Future status
-
-## Supported tools
+## Supported tools (future?)
 
 * Pixinsight?
 * Autostakkert?
-
-## Features
-
-* The target report can be used to auto generate a human friendly 'postable/sharable' report about that image
-* Target reports are sharable so that you can request comments by others and others can rerender with different settings
