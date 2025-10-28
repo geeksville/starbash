@@ -33,7 +33,9 @@ See my personal [TODO](TODO.md) file.  I'll be looking for pre-alpha testers/fee
 * repo list
 * repo reindex REPONAME|REPONUM|all
 
-* user analytics on|off
+* user analytics on|off - turn analytics collection on/off
+* user name "Your Name" - used for attribution in generated images
+* user email "foo@blah.com" - used for attribution in generated images
 
 * selection any - remove any filters on targets, sessions, etc...
 * selection target TARGETNAME

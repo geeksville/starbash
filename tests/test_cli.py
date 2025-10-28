@@ -142,3 +142,52 @@ def test_session_command_empty_database(setup_test_environment):
     result = runner.invoke(app, ["session"])
     assert result.exit_code == 0
     # Should handle empty database gracefully
+
+
+def test_user_name_command(setup_test_environment):
+    """Test 'starbash user name' command - should not crash."""
+    result = runner.invoke(app, ["user", "name", "Test User"])
+    assert result.exit_code == 0
+    assert "User name set to: Test User" in result.stdout
+
+
+def test_user_email_command(setup_test_environment):
+    """Test 'starbash user email' command - should not crash."""
+    result = runner.invoke(app, ["user", "email", "test@example.com"])
+    assert result.exit_code == 0
+    assert "User email set to: test@example.com" in result.stdout
+
+
+def test_user_analytics_command(setup_test_environment):
+    """Test 'starbash user analytics' command - should not crash."""
+    # Test enabling analytics
+    result = runner.invoke(app, ["user", "analytics", "true"])
+    assert result.exit_code == 0
+    assert "enabled" in result.stdout.lower()
+
+    # Test disabling analytics
+    result = runner.invoke(app, ["user", "analytics", "false"])
+    assert result.exit_code == 0
+    assert "disabled" in result.stdout.lower()
+
+
+def test_user_help_commands():
+    """Test that user help commands work."""
+    # User help
+    result = runner.invoke(app, ["user", "--help"])
+    assert result.exit_code == 0
+    assert "name" in result.stdout.lower()
+    assert "email" in result.stdout.lower()
+    assert "analytics" in result.stdout.lower()
+
+    # User name help
+    result = runner.invoke(app, ["user", "name", "--help"])
+    assert result.exit_code == 0
+
+    # User email help
+    result = runner.invoke(app, ["user", "email", "--help"])
+    assert result.exit_code == 0
+
+    # User analytics help
+    result = runner.invoke(app, ["user", "analytics", "--help"])
+    assert result.exit_code == 0
