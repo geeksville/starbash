@@ -75,8 +75,12 @@ class Starbash:
         self.user_repo = self.repo_manager.add_repo("file://" + str(create_user()))
 
         self.analytics = NopAnalytics()
-        if self.user_repo.get("analytics.enabled", False):
-            analytics_setup(True)
+        if self.user_repo.get("analytics.enabled", True):
+            include_user = self.user_repo.get("analytics.include_user", False)
+            user_email = (
+                self.user_repo.get("user.email", None) if include_user else None
+            )
+            analytics_setup(allowed=True, user_email=user_email)
             # this is intended for use with "with" so we manually do enter/exit
             self.analytics = analytics_start_transaction(name="App session", op=cmd)
             self.analytics.__enter__()
@@ -103,11 +107,11 @@ class Starbash:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
+        handled = False
         if exc:
-            analytics_exception(exc)
-            # optionally return True to suppress exception propagation/log messages
+            handled = analytics_exception(exc)
         self.close()
-        return False
+        return handled
 
     def _add_session(self, f: str, image_doc_id: int, header: dict) -> None:
         filter = header.get(Database.FILTER_KEY, "unspecified")
