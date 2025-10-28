@@ -37,8 +37,8 @@ See my personal [TODO](TODO.md) file.  I'll be looking for pre-alpha testers/fee
 * user name "Your Name" - used for attribution in generated images
 * user email "foo@blah.com" - used for attribution in generated images
 
-* selection any - remove any filters on targets, sessions, etc...
-* selection target TARGETNAME
+* selection any - remove any filters on sessions, etc...
+* selection target TARGETNAME - limit the current selection to only the named targets
 * selection date op DATE - limit to sessions in the specified date range
 * selection - list information about the current selection
 

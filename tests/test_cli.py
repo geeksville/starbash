@@ -198,3 +198,82 @@ def test_user_help_commands():
     # User analytics help
     result = runner.invoke(app, ["user", "analytics", "--help"])
     assert result.exit_code == 0
+
+
+def test_selection_commands(setup_test_environment):
+    """Test 'starbash selection' commands - should not crash."""
+    # Clear any existing selection first
+    runner.invoke(app, ["selection", "any"])
+
+    # Test showing selection with no filters
+    result = runner.invoke(app, ["selection"])
+    assert result.exit_code == 0
+    assert (
+        "selecting all" in result.stdout.lower()
+        or "no filters" in result.stdout.lower()
+    )
+
+    # Test setting a target
+    result = runner.invoke(app, ["selection", "target", "M31"])
+    assert result.exit_code == 0
+    assert "M31" in result.stdout
+
+    # Test showing selection with a target
+    result = runner.invoke(app, ["selection"])
+    assert result.exit_code == 0
+    assert "M31" in result.stdout
+
+    # Test setting a date range
+    result = runner.invoke(app, ["selection", "date", "after", "2023-10-01"])
+    assert result.exit_code == 0
+    assert "2023-10-01" in result.stdout
+
+    # Test clearing selection
+    result = runner.invoke(app, ["selection", "any"])
+    assert result.exit_code == 0
+    assert "cleared" in result.stdout.lower()
+
+    # Verify selection is cleared
+    result = runner.invoke(app, ["selection"])
+    assert result.exit_code == 0
+    assert (
+        "selecting all" in result.stdout.lower()
+        or "no filters" in result.stdout.lower()
+    )
+
+
+def test_selection_date_between(setup_test_environment):
+    """Test 'starbash selection date between' command."""
+    # Clear any existing selection first
+    runner.invoke(app, ["selection", "any"])
+
+    result = runner.invoke(
+        app, ["selection", "date", "between", "2023-10-01", "2023-12-31"]
+    )
+    assert result.exit_code == 0
+    assert "2023-10-01" in result.stdout
+    assert "2023-12-31" in result.stdout
+
+    # Clean up after test
+    runner.invoke(app, ["selection", "any"])
+
+
+def test_selection_help_commands():
+    """Test that selection help commands work."""
+    # Selection help
+    result = runner.invoke(app, ["selection", "--help"])
+    assert result.exit_code == 0
+    assert "target" in result.stdout.lower()
+    assert "date" in result.stdout.lower()
+
+    # Selection target help
+    result = runner.invoke(app, ["selection", "target", "--help"])
+    assert result.exit_code == 0
+
+    # Selection date help
+    result = runner.invoke(app, ["selection", "date", "--help"])
+    assert result.exit_code == 0
+
+    # Selection any help
+    result = runner.invoke(app, ["selection", "any", "--help"])
+    assert result.exit_code == 0

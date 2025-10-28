@@ -15,7 +15,8 @@ from starbash.repo.manager import Repo
 from starbash.tool import Tool
 from starbash.repo import RepoManager
 from starbash.tool import tools
-from starbash.paths import get_user_config_dir
+from starbash.paths import get_user_config_dir, get_user_data_dir
+from starbash.selection import Selection
 from starbash.analytics import (
     NopAnalytics,
     analytics_exception,
@@ -92,6 +93,12 @@ class Starbash:
 
         self.db = Database()
         self.session_query = None  # None means search all sessions
+
+        # Initialize selection state
+        data_dir = get_user_data_dir()
+        selection_file = data_dir / "selection.json"
+        self.selection = Selection(selection_file)
+
         # FIXME, call reindex somewhere and also index whenever new repos are added
         # self.reindex_repos()
 
