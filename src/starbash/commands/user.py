@@ -61,3 +61,12 @@ def email(
         sb.user_repo.config["user.email"] = user_email
         sb.user_repo.write_config()
         console.print(f"User email set to: {user_email}")
+
+
+@app.callback(invoke_without_command=True)
+def main_callback(ctx: typer.Context):
+    """Main callback for the Starbash application."""
+    if ctx.invoked_subcommand is None:
+        # No command provided, show help
+        console.print(ctx.get_help())
+        raise typer.Exit()

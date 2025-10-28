@@ -37,7 +37,14 @@ Once pipx is installed just run:
 
 ```
 pipx install starbash
+  installed package starbash 0.1.3, installed using Python 3.12.3
+  These apps are now globally available
+    - sb
+    - starbash
+done! ✨ 🌟 ✨
 ```
+
+FIXME - add getting started instructions (possibly with a screenshare video)
 
 ## Supported commands
 
