@@ -23,8 +23,8 @@ def analytics_setup(allowed: bool = False, user_email: str | None = None) -> Non
     analytics_allowed = allowed
     if analytics_allowed:
         logging.info(
-            "Analytics/crash-reports enabled.  To learn more see: %s",
-            analytics_docs_url,
+            f"Analytics/crash-reports enabled.  To change [link={analytics_docs_url}]click here[/link]",
+            extra={"markup": True},
         )
         sentry_sdk.init(
             dsn="https://e9496a4ea8b37a053203a2cbc10d64e6@o209837.ingest.us.sentry.io/4510264204132352",
@@ -37,8 +37,8 @@ def analytics_setup(allowed: bool = False, user_email: str | None = None) -> Non
             sentry_sdk.set_user({"email": user_email})
     else:
         logging.info(
-            "Analytics/crash-reports disabled.  To learn more see: %s",
-            analytics_docs_url,
+            f"Analytics/crash-reports disabled.  To learn more [link={analytics_docs_url}]click here[/link]",
+            extra={"markup": True},
         )
 
 
@@ -83,14 +83,18 @@ def analytics_exception(exc: Exception) -> bool:
             f"""An unexpected error has occurred and been reported.  Thank you for your help.
                 If you'd like to chat with the devs about it, please click
                 [link={new_issue_url(str(report_id))}]here[/link] to open an issue.""",
+            extra={"markup": True},
         )
     else:
         logging.error(
             f"""An unexpected error has occurred. Automated crash reporting is disabled,
                       but we encourage you to contact the developers
                       at [link={new_issue_url()}]here[/link] and we will try to help.
-                      The full exception is: {exc}"""
+
+                      The full exception is: {exc}""",
+            extra={"markup": True},
         )
+    return True
 
 
 class NopAnalytics:
@@ -123,4 +127,4 @@ def analytics_start_transaction(**kwargs):
 
         return sentry_sdk.start_transaction(**kwargs)
     else:
-        return NopContextManager()
+        return NopAnalytics()

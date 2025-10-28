@@ -198,7 +198,9 @@ class Repo:
             logging.debug(f"Loading repo config from {repo_suffix}")
             return tomlkit.parse(config_content)
         except FileNotFoundError:
-            logging.warning(f"No {repo_suffix} found")
+            logging.debug(
+                f"No {repo_suffix} found"
+            )  # we currently make it optional to have the config file at root
             return tomlkit.TOMLDocument()  # empty placeholder
 
     def get(self, key: str, default=None):

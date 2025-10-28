@@ -65,7 +65,7 @@ class Starbash:
         and setting up the repository manager.
         """
         setup_logging()
-        logging.info("Starbash application initializing...")
+        logging.info("Starbash starting...")
 
         # Load app defaults and initialize the repository manager
         self.repo_manager = RepoManager()
