@@ -64,6 +64,9 @@ def session():
             )  # type of frames, filter, target
             # table.add_column("Released", justify="right", style="cyan", no_wrap=True)
 
+            total_images = 0
+            total_seconds = 0.0
+
             for sess in sessions:
                 date_iso = sess.get(Database.START_KEY, "N/A")
                 # Try to cnvert ISO UTC datetime to local short date string
@@ -81,9 +84,18 @@ def session():
                 # Format total exposure time as integer seconds
                 exptime_raw = str(sess.get(Database.EXPTIME_TOTAL_KEY, "N/A"))
                 try:
-                    total_secs = format_duration(int(float(exptime_raw)))
+                    exptime_float = float(exptime_raw)
+                    total_seconds += exptime_float
+                    total_secs = format_duration(int(exptime_float))
                 except (ValueError, TypeError):
                     total_secs = exptime_raw
+
+                # Count images
+                try:
+                    num_images = int(sess.get(Database.NUM_IMAGES_KEY, 0))
+                    total_images += num_images
+                except (ValueError, TypeError):
+                    num_images = sess.get(Database.NUM_IMAGES_KEY, "N/A")
 
                 type_str = image_type
                 if image_type.upper() == "LIGHT":
@@ -91,11 +103,22 @@ def session():
 
                 table.add_row(
                     date,
-                    str(sess.get(Database.NUM_IMAGES_KEY, "N/A")),
+                    str(num_images),
                     total_secs,
                     image_type,
                     object,
                 )
+
+            # Add totals row
+            if sessions:
+                table.add_row(
+                    "",
+                    f"[bold]{total_images}[/bold]",
+                    f"[bold]{format_duration(int(total_seconds))}[/bold]",
+                    "",
+                    "",
+                )
+
             console.print(table)
 
 
