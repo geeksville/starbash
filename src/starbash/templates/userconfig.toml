@@ -6,7 +6,10 @@
 [repo]
 kind = "preferences"
 
-# [preferences.author]
+[analytics]
+enabled = true
+
+# [author]
 # default author info
 # name = "Your Name"
 # email = "youremail@somedomain.com"

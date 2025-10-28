@@ -4,18 +4,21 @@
 * !unify the various processing routines by using a templating system
 * !move the old processing stuff into the starbash namespace (run siril, etc...)
 * !start writing user prefs in user prefs dir
-* make reindex smarter
+* !make reindex smarter
+* make the various filter options work
+* add targets list
+* use db find master bias frames
+* use db to find flat frames
+* use db to find light frames
+* make the siril prep rule work
 * add top level catch asking users to report bugs
-* add crash and usage analytics
+* add crash and usage analytics - sentry.io?
 * add automated session config looping (Sii, Oiii etc...)
 * add automated session looping (multiday)
 * pass stage outputs via the context?
 * !does repo glob even matter if we just throw everything in the db based on fits metadata?  do an experiment.  YES it does, use DB based on FITS for all operations (instead of globs)
-* Add a db starbash.Database class, populated from repos.  Regen as needed.
-* use db/globs to find master bias frames
-* use db/globs globs to find flat frames
-* use db/globs globs to find light frames
-* add frames to db, query db from tools to fetch files.  Possibly pass the queries as the description for the sesssion?
+* !Add a db starbash.Database class, populated from repos.  Regen as needed.
+* Possibly store the DB queries as the description for the sesssion inputs?
 * consider two different 'users' one who just wants to use the DB/repo stuff (doesn't need the auto processing) - for that user just let them do queries and build a 'process' directory for siril.  And the other user who wants our slick smart scripts to also do at least pre-processing.  In initial release just support the the query opts
 * add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
 * add makefile style dependencies

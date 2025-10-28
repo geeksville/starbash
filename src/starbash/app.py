@@ -16,6 +16,7 @@ from starbash.tool import Tool
 from starbash.repo import RepoManager
 from starbash.tool import tools
 from starbash.paths import get_user_config_dir
+from starbash.analytics import analytics_setup
 
 
 def setup_logging():
@@ -66,6 +67,9 @@ class Starbash:
 
         # Add user prefs as a repo
         self.user_repo = self.repo_manager.add_repo("file://" + str(create_user()))
+
+        if self.user_repo.get("analytics.enabled", False):
+            analytics_setup(True)
 
         logging.info(
             f"Repo manager initialized with {len(self.repo_manager.repos)} default repo references."

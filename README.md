@@ -33,6 +33,8 @@ See my personal [TODO](TODO.md) file.  I'll be looking for pre-alpha testers/fee
 * repo list
 * repo reindex REPONAME|REPONUM|all
 
+* user analytics on|off
+
 * selection any - remove any filters on targets, sessions, etc...
 * selection target TARGETNAME
 * selection date op DATE - limit to sessions in the specified date range
