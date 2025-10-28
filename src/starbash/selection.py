@@ -17,6 +17,7 @@ class Selection:
     - Date ranges
     - Filters
     - Image types
+    - Telescope names
 
     The selection state is saved to disk and can be used to build database queries.
     """
@@ -33,6 +34,7 @@ class Selection:
         self.date_end: Optional[str] = None
         self.filters: list[str] = []
         self.image_types: list[str] = []
+        self.telescopes: list[str] = []
 
         # Load existing state if it exists
         self._load()
@@ -48,6 +50,7 @@ class Selection:
                     self.date_end = data.get("date_end")
                     self.filters = data.get("filters", [])
                     self.image_types = data.get("image_types", [])
+                    self.telescopes = data.get("telescopes", [])
                 logging.debug(f"Loaded selection state from {self.state_file}")
             except Exception as e:
                 logging.warning(f"Failed to load selection state: {e}")
@@ -64,6 +67,7 @@ class Selection:
                 "date_end": self.date_end,
                 "filters": self.filters,
                 "image_types": self.image_types,
+                "telescopes": self.telescopes,
             }
 
             with open(self.state_file, "w") as f:
@@ -79,6 +83,7 @@ class Selection:
         self.date_end = None
         self.filters = []
         self.image_types = []
+        self.telescopes = []
         self._save()
 
     def add_target(self, target: str) -> None:
@@ -99,6 +104,26 @@ class Selection:
         """
         if target in self.targets:
             self.targets.remove(target)
+            self._save()
+
+    def add_telescope(self, telescope: str) -> None:
+        """Add a telescope to the selection.
+
+        Args:
+            telescope: Telescope name to add to the selection
+        """
+        if telescope not in self.telescopes:
+            self.telescopes.append(telescope)
+            self._save()
+
+    def remove_telescope(self, telescope: str) -> None:
+        """Remove a telescope from the selection.
+
+        Args:
+            telescope: Telescope name to remove from the selection
+        """
+        if telescope in self.telescopes:
+            self.telescopes.remove(telescope)
             self._save()
 
     def set_date_range(
@@ -146,6 +171,7 @@ class Selection:
             and self.date_end is None
             and not self.filters
             and not self.image_types
+            and not self.telescopes
         )
 
     def get_query_conditions(self) -> dict[str, Any]:
@@ -173,6 +199,13 @@ class Selection:
             # TODO: Support multiple filters in queries
             conditions["FILTER"] = self.filters[0] if len(self.filters) == 1 else None
 
+        if self.telescopes:
+            # For now, just use the first telescope
+            # TODO: Support multiple telescopes in queries
+            conditions["TELESCOP"] = (
+                self.telescopes[0] if len(self.telescopes) == 1 else None
+            )
+
         # Add date range conditions
         if self.date_start:
             conditions["date_start"] = self.date_start
@@ -197,6 +230,9 @@ class Selection:
 
         if self.targets:
             summary["criteria"].append(f"Targets: {', '.join(self.targets)}")
+
+        if self.telescopes:
+            summary["criteria"].append(f"Telescopes: {', '.join(self.telescopes)}")
 
         if self.date_start or self.date_end:
             date_range = []

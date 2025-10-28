@@ -31,9 +31,29 @@ def target(
     with Starbash("selection-target") as sb:
         # For now, replace existing targets with this one
         # In the future, we could support adding multiple targets
-        sb.selection.clear()
+        sb.selection.targets = []
         sb.selection.add_target(target_name)
         console.print(f"[green]Selection limited to target: {target_name}[/green]")
+
+
+@app.command()
+def telescope(
+    telescope_name: Annotated[
+        str,
+        typer.Argument(
+            help="Telescope name to add to the selection (e.g., 'Vespera', 'EdgeHD 8')"
+        ),
+    ],
+):
+    """Limit the current selection to only the named telescope."""
+    with Starbash("selection-telescope") as sb:
+        # For now, replace existing telescopes with this one
+        # In the future, we could support adding multiple telescopes
+        sb.selection.telescopes = []
+        sb.selection.add_telescope(telescope_name)
+        console.print(
+            f"[green]Selection limited to telescope: {telescope_name}[/green]"
+        )
 
 
 @app.command()
