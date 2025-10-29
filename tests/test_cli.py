@@ -301,8 +301,13 @@ def test_repo_reindex_out_of_range(setup_test_environment):
     assert "out of range" in result.stdout.lower()
 
 
-def test_help_commands():
+def test_help_commands(setup_test_environment):
     """Test that help commands work without requiring setup."""
+    # Ensure config file exists to avoid triggering reinit
+    from starbash.app import create_user
+
+    create_user()
+
     # Main help
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
