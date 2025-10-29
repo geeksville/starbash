@@ -11,6 +11,7 @@ import itertools
 from rich.progress import track
 from rich.logging import RichHandler
 
+from starbash import console
 from starbash.database import Database
 from starbash.repo.manager import Repo
 from starbash.tool import Tool
@@ -56,6 +57,57 @@ def create_user() -> Path:
         TOMLFile(userconfig_path).write(toml)
         logging.info(f"Created user config file: {userconfig_path}")
     return config_dir
+
+
+def copy_images_to_dir(images: list[dict[str, Any]], output_dir: Path) -> None:
+    """Copy images to the specified output directory (using symbolic links if possible)."""
+
+    # Export images
+    console.print(f"[cyan]Exporting {len(images)} images to {output_dir}...[/cyan]")
+
+    linked_count = 0
+    copied_count = 0
+    error_count = 0
+
+    for image in images:
+        # Get the source path from the image metadata
+        source_path = Path(image.get("path", ""))
+
+        if not source_path.exists():
+            console.print(f"[red]Warning: Source file not found: {source_path}[/red]")
+            error_count += 1
+            continue
+
+        # Determine destination filename
+        dest_path = output_dir / source_path.name
+        if dest_path.exists():
+            console.print(f"[yellow]Skipping existing file: {dest_path}[/yellow]")
+            error_count += 1
+            continue
+
+        # Try to create a symbolic link first
+        try:
+            dest_path.symlink_to(source_path.resolve())
+            linked_count += 1
+        except (OSError, NotImplementedError):
+            # If symlink fails, try to copy
+            try:
+                import shutil
+
+                shutil.copy2(source_path, dest_path)
+                copied_count += 1
+            except Exception as e:
+                console.print(f"[red]Error copying {source_path.name}: {e}[/red]")
+                error_count += 1
+
+    # Print summary
+    console.print(f"[green]Export complete![/green]")
+    if linked_count > 0:
+        console.print(f"  Linked: {linked_count} files")
+    if copied_count > 0:
+        console.print(f"  Copied: {copied_count} files")
+    if error_count > 0:
+        console.print(f"  [red]Errors: {error_count} files[/red]")
 
 
 class Starbash:

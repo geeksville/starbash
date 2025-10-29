@@ -7,7 +7,7 @@ from typing_extensions import Annotated
 from datetime import datetime
 from rich.table import Table
 
-from starbash.app import Starbash
+from starbash.app import Starbash, copy_images_to_dir
 from starbash.database import Database
 from starbash import console
 
@@ -294,52 +294,7 @@ def export(
             )
             raise typer.Exit(0)
 
-        # Export images
-        console.print(
-            f"[cyan]Exporting {len(images)} images from session {session_num} to {output_dir}...[/cyan]"
-        )
-
-        linked_count = 0
-        copied_count = 0
-        error_count = 0
-
-        for image in images:
-            # Get the source path from the image metadata
-            source_path = Path(image.get("path", ""))
-
-            if not source_path.exists():
-                console.print(
-                    f"[red]Warning: Source file not found: {source_path}[/red]"
-                )
-                error_count += 1
-                continue
-
-            # Determine destination filename
-            dest_path = output_dir / source_path.name
-
-            # Try to create a symbolic link first
-            try:
-                dest_path.symlink_to(source_path.resolve())
-                linked_count += 1
-            except (OSError, NotImplementedError):
-                # If symlink fails, try to copy
-                try:
-                    import shutil
-
-                    shutil.copy2(source_path, dest_path)
-                    copied_count += 1
-                except Exception as e:
-                    console.print(f"[red]Error copying {source_path.name}: {e}[/red]")
-                    error_count += 1
-
-        # Print summary
-        console.print(f"[green]Export complete![/green]")
-        if linked_count > 0:
-            console.print(f"  Linked: {linked_count} files")
-        if copied_count > 0:
-            console.print(f"  Copied: {copied_count} files")
-        if error_count > 0:
-            console.print(f"  [red]Errors: {error_count} files[/red]")
+        copy_images_to_dir(images, output_dir)
 
 
 @app.callback(invoke_without_command=True)
