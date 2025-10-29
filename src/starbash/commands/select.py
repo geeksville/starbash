@@ -1,6 +1,8 @@
 """Selection commands for filtering sessions and targets."""
 
+import os
 import typer
+from pathlib import Path
 from typing_extensions import Annotated
 from datetime import datetime
 from rich.table import Table
@@ -227,6 +229,117 @@ def list_sessions():
             sb.analytics.set_data("session.telescopes", telescopes)
             sb.analytics.set_data("session.filters", filters)
             sb.analytics.set_data("session.image_types", image_types)
+
+
+@app.command()
+def export(
+    session_num: Annotated[
+        int,
+        typer.Argument(help="Session number to export (from 'select list' output)"),
+    ],
+    destdir: Annotated[
+        str,
+        typer.Argument(help="Directory path to export to"),
+    ],
+):
+    """Export the images for the indicated session number.
+
+    Uses symbolic links when possible, otherwise copies files.
+    The session number corresponds to the '#' column in 'select list' output.
+    """
+    with Starbash("select-export") as sb:
+        # Get the filtered sessions
+        sessions = sb.search_session()
+
+        if not sessions or not isinstance(sessions, list):
+            console.print(
+                "[red]No sessions found. Check your selection criteria.[/red]"
+            )
+            raise typer.Exit(1)
+
+        # Validate session number
+        if session_num < 1 or session_num > len(sessions):
+            console.print(
+                f"[red]Error: Session number {session_num} is out of range. "
+                f"Valid range is 1-{len(sessions)}.[/red]"
+            )
+            console.print(
+                "[yellow]Use 'select list' to see available sessions.[/yellow]"
+            )
+            raise typer.Exit(1)
+
+        # Get the selected session (convert from 1-based to 0-based index)
+        session = sessions[session_num - 1]
+
+        # Get the session's database row ID
+        session_id = session.get("id")
+        if session_id is None:
+            console.print(
+                f"[red]Error: Could not find session ID for session {session_num}.[/red]"
+            )
+            raise typer.Exit(1)
+
+        # Determine output directory
+        output_dir = Path(destdir)
+
+        # Create output directory if it doesn't exist
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Get images for this session
+        images = sb.get_session_images(session_id)
+
+        if not images:
+            console.print(
+                f"[yellow]Warning: No images found for session {session_num}.[/yellow]"
+            )
+            raise typer.Exit(0)
+
+        # Export images
+        console.print(
+            f"[cyan]Exporting {len(images)} images from session {session_num} to {output_dir}...[/cyan]"
+        )
+
+        linked_count = 0
+        copied_count = 0
+        error_count = 0
+
+        for image in images:
+            # Get the source path from the image metadata
+            source_path = Path(image.get("path", ""))
+
+            if not source_path.exists():
+                console.print(
+                    f"[red]Warning: Source file not found: {source_path}[/red]"
+                )
+                error_count += 1
+                continue
+
+            # Determine destination filename
+            dest_path = output_dir / source_path.name
+
+            # Try to create a symbolic link first
+            try:
+                dest_path.symlink_to(source_path.resolve())
+                linked_count += 1
+            except (OSError, NotImplementedError):
+                # If symlink fails, try to copy
+                try:
+                    import shutil
+
+                    shutil.copy2(source_path, dest_path)
+                    copied_count += 1
+                except Exception as e:
+                    console.print(f"[red]Error copying {source_path.name}: {e}[/red]")
+                    error_count += 1
+
+        # Print summary
+        console.print(f"[green]Export complete![/green]")
+        if linked_count > 0:
+            console.print(f"  Linked: {linked_count} files")
+        if copied_count > 0:
+            console.print(f"  Copied: {copied_count} files")
+        if error_count > 0:
+            console.print(f"  [red]Errors: {error_count} files[/red]")
 
 
 @app.callback(invoke_without_command=True)

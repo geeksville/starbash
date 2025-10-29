@@ -71,7 +71,7 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 - `sb select target <TARGETNAME>` - Limit selection to the named target
 - `sb select telescope <TELESCOPENAME>` - Limit selection to the named telescope
 - `sb select date <after|before|between> <DATE> [DATE]` - Limit to sessions in the specified date range
-- `sb select export SESSIONNUM [DIRPATH]` - Export the images for indicated session number into the specified directory (or current directory if not specified).  If possible symbolic links are used to reach the actual image files (otherwise copies are done).
+- `sb select export SESSIONNUM DESTDIR` - Export the images for indicated session number into the specified directory (or current directory if not specified).  If possible symbolic links are used to reach the actual image files (otherwise copies are done).
 
 ### Viewing Data
 - `sb target` - List targets (filtered based on the current selection)
