@@ -129,15 +129,21 @@ class Repo:
         if "url" in ref:
             url = ref["url"]
         elif "dir" in ref:
-            path = Path(ref["dir"])
-            base_path = self.get_path()
-            if base_path and not path.is_absolute():
-                # Resolve relative to the current TOML file's directory
-                path = (base_path / path).resolve()
+            # FIXME don't allow ~ or .. in file paths for security reasons?
+            if self.is_scheme("file"):
+                path = Path(ref["dir"])
+                base_path = self.get_path()
+
+                if base_path and not path.is_absolute():
+                    # Resolve relative to the current TOML file's directory
+                    path = (base_path / path).resolve()
+                else:
+                    # Expand ~ and resolve from CWD
+                    path = path.expanduser().resolve()
+                url = f"file://{path}"
             else:
-                # Expand ~ and resolve from CWD
-                path = path.expanduser().resolve()
-            url = f"file://{path}"
+                # construct an URL relative to this repo's URL
+                url = self.url.rstrip("/") + "/" + ref["dir"].lstrip("/")
         else:
             raise ValueError(f"Invalid repo reference: {ref}")
         return self.manager.add_repo(url)
