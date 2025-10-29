@@ -54,6 +54,8 @@ def session():
         if sessions and isinstance(sessions, list):
             len_all = sb.db.len_session()
             table = Table(title=f"Sessions ({len(sessions)} selected out of {len_all})")
+            sb.analytics.set_data("session.num_selected", len(sessions))
+            sb.analytics.set_data("session.num_total", len_all)
 
             table.add_column("Date", style="cyan", no_wrap=True)
             table.add_column("# images", style="cyan", no_wrap=True)
@@ -67,6 +69,9 @@ def session():
 
             total_images = 0
             total_seconds = 0.0
+            filters = set()
+            image_types = set()
+            telescopes = set()
 
             for sess in sessions:
                 date_iso = sess.get(Database.START_KEY, "N/A")
@@ -80,8 +85,11 @@ def session():
 
                 object = str(sess.get(Database.OBJECT_KEY, "N/A"))
                 filter = sess.get(Database.FILTER_KEY, "N/A")
+                filters.add(filter)
                 image_type = str(sess.get(Database.IMAGETYP_KEY, "N/A"))
-                telescop = str(sess.get(Database.TELESCOP_KEY, "N/A"))
+                image_types.add(image_type)
+                telescope = str(sess.get(Database.TELESCOP_KEY, "N/A"))
+                telescopes.add(telescope)
 
                 # Format total exposure time as integer seconds
                 exptime_raw = str(sess.get(Database.EXPTIME_TOTAL_KEY, "N/A"))
@@ -112,7 +120,7 @@ def session():
                     str(num_images),
                     total_secs,
                     image_type,
-                    telescop,
+                    telescope,
                     object,
                 )
 
@@ -128,6 +136,14 @@ def session():
                 )
 
             console.print(table)
+
+            # FIXME - move these analytics elsewhere so they can be reused when search_session()
+            # is used to generate processing lists.
+            sb.analytics.set_data("session.total_images", total_images)
+            sb.analytics.set_data("session.total_exposure_seconds", int(total_seconds))
+            sb.analytics.set_data("session.telescopes", telescopes)
+            sb.analytics.set_data("session.filters", filters)
+            sb.analytics.set_data("session.image_types", image_types)
 
 
 # @app.command(hidden=True)

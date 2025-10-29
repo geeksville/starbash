@@ -54,7 +54,8 @@
 		"DISPLAY": "${localEnv:DISPLAY}",
 		"XAUTHORITY": "/tmp/.docker.xauth",
 		"PYTHONDEVMODE": "1", // Enable Python dev mode for better debug output
-		"PYTHONPYCACHEPREFIX": "/workspaces/starbash/.pycache"
+		"PYTHONPYCACHEPREFIX": "/workspaces/starbash/.pycache",
+		"SENTRY_ENVIRONMENT": "development" // For sentry.io reporting
 	},
 	"remoteUser": "vscode",
 	"postCreateCommand": "bash .devcontainer/post-create.sh",
