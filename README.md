@@ -74,11 +74,9 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 
 ### Setup & Configuration
 - `sb info` - Show user preferences location and other app info
-
-### Viewing Data
-- `sb target` - List targets (filtered based on the current selection)
-- `sb instrument` - List instruments (filtered based on the current selection)
-- `sb filter` - List all filters found in current selection
+- `sb info target` - List targets (filtered based on the current selection)
+- `sb info telescope` - List instruments (filtered based on the current selection)
+- `sb info filter` - List all filters found in current selection
 
 ### Export & Processing
 - `sb process siril` - Generate Siril directory tree and run Siril GUI

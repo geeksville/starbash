@@ -293,6 +293,17 @@ class Database:
         result = cursor.fetchone()
         return result[0] if result else 0
 
+    def get_column(self, column_name: str, table_name: str = "sessions") -> list[Any]:
+        """Return all values from a specific column in the specified table."""
+        cursor = self._db.cursor()
+        cursor.execute(f"SELECT {column_name} FROM {table_name}")
+
+        results = []
+        for row in cursor.fetchall():
+            results.append(row[column_name])
+
+        return results
+
     def get_image(self, path: str) -> dict[str, Any] | None:
         """Get an image record by path."""
         cursor = self._db.cursor()
