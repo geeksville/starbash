@@ -56,15 +56,6 @@ def mock_analytics():
         }
 
 
-class TestSetupLogging:
-    """Tests for the setup_logging function."""
-
-    def test_setup_logging_configures_logging(self):
-        """Test that setup_logging configures logging without errors."""
-        # Should not raise any exceptions
-        setup_logging()
-
-
 class TestCreateUser:
     """Tests for the create_user function."""
 

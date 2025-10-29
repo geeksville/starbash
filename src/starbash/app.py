@@ -29,19 +29,20 @@ from starbash.analytics import (
 )
 
 
+# Global variable for log filter level (can be changed via --debug flag)
+log_filter_level = "INFO"
+
+
 def setup_logging():
     """
     Configures basic logging.
     """
     logging.basicConfig(
-        level="INFO",  # don't print messages of lower priority than this
+        level=log_filter_level,  # use the global log filter level
         format="%(message)s",
         datefmt="[%X]",
         handlers=[RichHandler(rich_tracebacks=True)],
     )
-
-
-setup_logging()
 
 
 def get_user_config_path() -> Path:
@@ -146,7 +147,7 @@ class Starbash:
             self.analytics.__enter__()
 
         logging.info(
-            f"Repo manager initialized with {len(self.repo_manager.repos)} repo references."
+            f"Repo manager initialized with {len(self.repo_manager.repos)} repos."
         )
         # self.repo_manager.dump()
 
