@@ -1,4 +1,5 @@
 import logging
+import os
 
 from starbash import console
 import starbash.url as url
@@ -41,11 +42,13 @@ def analytics_shutdown() -> None:
         sentry_sdk.flush()
 
 
+def is_running_in_pytest() -> bool:
+    """Detect if code is being run inside pytest."""
+    return "PYTEST_CURRENT_TEST" in os.environ
+
+
 def is_development_environment() -> bool:
     """Detect if running in a development environment."""
-    import os
-    import sys
-    from pathlib import Path
 
     # Check for explicit environment variable
     if os.getenv("STARBASH_ENV") == "development":
@@ -68,7 +71,10 @@ def analytics_exception(exc: Exception) -> bool:
     if analytics_allowed:
         import sentry_sdk
 
-        report_id = sentry_sdk.capture_exception(exc)
+        if is_running_in_pytest():
+            report_id = "TESTING-ENVIRONMENT"
+        else:
+            report_id = sentry_sdk.capture_exception(exc)
 
         logging.info(
             f"""An unexpected error has occurred and been reported.  Thank you for your help.
