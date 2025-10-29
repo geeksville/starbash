@@ -17,7 +17,7 @@ app = typer.Typer()
 @app.command(name="any")
 def clear():
     """Remove any filters on sessions, etc... (select everything)."""
-    with Starbash("selection-clear") as sb:
+    with Starbash("selection.clear") as sb:
         sb.selection.clear()
         console.print("[green]Selection cleared - now selecting all sessions[/green]")
 
@@ -32,7 +32,7 @@ def target(
     ],
 ):
     """Limit the current selection to only the named target."""
-    with Starbash("selection-target") as sb:
+    with Starbash("selection.target") as sb:
         # For now, replace existing targets with this one
         # In the future, we could support adding multiple targets
         sb.selection.targets = []
@@ -50,7 +50,7 @@ def telescope(
     ],
 ):
     """Limit the current selection to only the named telescope."""
-    with Starbash("selection-telescope") as sb:
+    with Starbash("selection.telescope") as sb:
         # For now, replace existing telescopes with this one
         # In the future, we could support adding multiple telescopes
         sb.selection.telescopes = []
@@ -84,7 +84,7 @@ def date(
         starbash selection date before 2023-12-31
         starbash selection date between 2023-10-01 2023-12-31
     """
-    with Starbash("selection-date") as sb:
+    with Starbash("selection.date") as sb:
         operation = operation.lower()
 
         if operation == "after":
@@ -132,7 +132,7 @@ def format_duration(seconds: int):
 def list_sessions():
     """List sessions (filtered based on the current selection)"""
 
-    with Starbash("selection-list") as sb:
+    with Starbash("selection.list") as sb:
         sessions = sb.search_session()
         if sessions and isinstance(sessions, list):
             len_all = sb.db.len_session()
@@ -249,7 +249,7 @@ def export(
     Uses symbolic links when possible, otherwise copies files.
     The session number corresponds to the '#' column in 'select list' output.
     """
-    with Starbash("select-export") as sb:
+    with Starbash("selection.export") as sb:
         # Get the filtered sessions
         sessions = sb.search_session()
 
@@ -306,7 +306,7 @@ def show_selection(ctx: typer.Context):
     This is the default command when no subcommand is specified.
     """
     if ctx.invoked_subcommand is None:
-        with Starbash("selection-show") as sb:
+        with Starbash("selection.show") as sb:
             summary = sb.selection.summary()
 
             if summary["status"] == "all":

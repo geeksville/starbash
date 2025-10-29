@@ -22,7 +22,7 @@ def main(
     """
     # If no subcommand is invoked, run the list behavior
     if ctx.invoked_subcommand is None:
-        with Starbash("repo-list") as sb:
+        with Starbash("repo.list") as sb:
             repos = sb.repo_manager.repos if verbose else sb.repo_manager.regular_repos
             for i, repo in enumerate(repos):
                 if verbose:
@@ -38,7 +38,7 @@ def add(path: str):
     """
     Add a repository. path is either a local path or a remote URL.
     """
-    with Starbash("repo-add") as sb:
+    with Starbash("repo.add") as sb:
         repo = sb.user_repo.add_repo_ref(path)
         if repo:
             console.print(f"Added repository: {path}")
@@ -56,7 +56,7 @@ def remove(reponum: str):
     Remove a repository by number (from list).
     Use 'starbash repo' to see the repository numbers.
     """
-    with Starbash("repo-remove") as sb:
+    with Starbash("repo.remove") as sb:
         try:
             # Parse the repo number (1-indexed)
             repo_index = int(reponum) - 1
@@ -100,7 +100,7 @@ def reindex(
     If no number is given, reindex all repositories.
     Use 'starbash repo' to see the repository numbers.
     """
-    with Starbash("repo-reindex") as sb:
+    with Starbash("repo.reindex") as sb:
         if reponum is None:
             sb.reindex_repos(force=force)
         else:

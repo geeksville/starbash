@@ -49,10 +49,6 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 
 ## Supported commands
 
-### Setup & Configuration
-- `sb setup` - Configure starbash via a brief guided process
-- `sb info` - Show user preferences location and other app info
-
 ### Repository Management
 - `sb repo [--verbose]` - List installed repos (use `-v` for details)
 - `sb repo add <filepath|URL>` - Add a repository
@@ -63,6 +59,7 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 - `sb user name "Your Name"` - Set name for attribution in generated images
 - `sb user email "foo@example.com"` - Set email for attribution in generated images
 - `sb user analytics <on|off>` - Turn analytics collection on/off
+- `sb user reinit` - Configure starbash via a brief guided process
 
 ### Selection & Filtering
 - `sb select` - Show information about the current selection
@@ -71,7 +68,12 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 - `sb select target <TARGETNAME>` - Limit selection to the named target
 - `sb select telescope <TELESCOPENAME>` - Limit selection to the named telescope
 - `sb select date <after|before|between> <DATE> [DATE]` - Limit to sessions in the specified date range
-- `sb select export SESSIONNUM DESTDIR` - Export the images for indicated session number into the specified directory (or current directory if not specified).  If possible symbolic links are used to reach the actual image files (otherwise copies are done).
+- `sb select export SESSIONNUM DESTDIR` - Export the images for indicated session number into the specified directory (or current directory if not specified).  If possible symbolic links are used, if not the files are copied.
+
+## Not yet supported commands
+
+### Setup & Configuration
+- `sb info` - Show user preferences location and other app info
 
 ### Viewing Data
 - `sb target` - List targets (filtered based on the current selection)
@@ -79,7 +81,6 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 - `sb filter` - List all filters found in current selection
 
 ### Export & Processing
-- `sb export <dirs|BIAS|LIGHT|DARK|FLAT> [DIRLOC]` - Export data
 - `sb process siril` - Generate Siril directory tree and run Siril GUI
 - `sb process auto` - Automatic processing
 - `sb process masters` - Generate master flats, darks, and biases from available raw frames

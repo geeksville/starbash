@@ -360,6 +360,41 @@ def test_user_analytics_command(setup_test_environment):
     assert "disabled" in result.stdout.lower()
 
 
+def test_user_reinit_command(setup_test_environment):
+    """Test 'starbash user reinit' command with interactive prompts."""
+    # Test with full input
+    result = runner.invoke(
+        app, ["user", "reinit"], input="John Doe\njohn@example.com\ny\n"
+    )
+    assert result.exit_code == 0
+    assert "Configuration complete!" in result.stdout
+    assert "Name set to: John Doe" in result.stdout
+    assert "Email set to: john@example.com" in result.stdout
+    assert "Email will be included with crash reports" in result.stdout
+
+
+def test_user_reinit_command_skip_all(setup_test_environment):
+    """Test 'starbash user reinit' command skipping all questions."""
+    # Test with empty input (skip everything)
+    result = runner.invoke(app, ["user", "reinit"], input="\n\nn\n")
+    assert result.exit_code == 0
+    assert "Configuration complete!" in result.stdout
+    assert "Skipped name" in result.stdout
+    assert "Skipped email" in result.stdout
+    assert "Email will NOT be included with crash reports" in result.stdout
+
+
+def test_user_reinit_command_partial(setup_test_environment):
+    """Test 'starbash user reinit' command with partial input."""
+    # Test with only name provided
+    result = runner.invoke(app, ["user", "reinit"], input="Jane Smith\n\nn\n")
+    assert result.exit_code == 0
+    assert "Configuration complete!" in result.stdout
+    assert "Name set to: Jane Smith" in result.stdout
+    assert "Skipped email" in result.stdout
+    assert "Email will NOT be included with crash reports" in result.stdout
+
+
 def test_user_help_commands():
     """Test that user help commands work."""
     # User help
@@ -368,6 +403,7 @@ def test_user_help_commands():
     assert "name" in result.stdout.lower()
     assert "email" in result.stdout.lower()
     assert "analytics" in result.stdout.lower()
+    assert "reinit" in result.stdout.lower()
 
     # User name help
     result = runner.invoke(app, ["user", "name", "--help"])
@@ -379,6 +415,10 @@ def test_user_help_commands():
 
     # User analytics help
     result = runner.invoke(app, ["user", "analytics", "--help"])
+    assert result.exit_code == 0
+
+    # User reinit help
+    result = runner.invoke(app, ["user", "reinit", "--help"])
     assert result.exit_code == 0
 
 

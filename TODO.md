@@ -8,6 +8,7 @@
 * [x] make the various filter options work
 * [ ] add targets list
 * [ ] implement setup command (including username selection and analytics)
+* [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] include instrument name in session list (for seestar,asiair,etc)
 * [ ] track image quality on a per frame basis
 * [ ] use db find master bias frames

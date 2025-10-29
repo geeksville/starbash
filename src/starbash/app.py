@@ -44,20 +44,25 @@ def setup_logging():
 setup_logging()
 
 
+def get_user_config_path() -> Path:
+    """Returns the path to the user config file."""
+    config_dir = get_user_config_dir()
+    return config_dir / "starbash.toml"
+
+
 def create_user() -> Path:
     """Create user directories if they don't exist yet."""
-    config_dir = get_user_config_dir()
-    userconfig_path = config_dir / "starbash.toml"
-    if not (userconfig_path).exists():
+    path = get_user_config_path()
+    if not path.exists():
         tomlstr = (
             resources.files("starbash")
             .joinpath("templates/userconfig.toml")
             .read_text()
         )
         toml = tomlkit.parse(tomlstr)
-        TOMLFile(userconfig_path).write(toml)
-        logging.info(f"Created user config file: {userconfig_path}")
-    return config_dir
+        TOMLFile(path).write(toml)
+        logging.info(f"Created user config file: {path}")
+    return get_user_config_dir()
 
 
 def copy_images_to_dir(images: list[dict[str, Any]], output_dir: Path) -> None:
