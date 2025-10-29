@@ -114,6 +114,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 - **Add external tool**: Subclass `Tool` in `starbash.tool`, implement `run()`, register in `tools` dict
 - **Add recipe**: Create repo dir with `starbash.toml`, define `[[stage]]` entries with `tool`/`when`/`script-file`
 - **Test new feature**: Add test fixture using `setup_test_environment`, ensure `paths.set_test_directories()` called for isolation
+- **When adding/changing code**: Update or add docstrings, maintain typing hints, follow existing code style.  Add new or update unit tests as appropriate.
 
 ## Current status (see TODO.md)
 - **Working**: session listing with filtering, repo management, user settings, database indexing, CLI with 19 passing tests
