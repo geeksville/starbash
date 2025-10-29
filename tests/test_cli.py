@@ -30,14 +30,14 @@ def setup_test_environment(tmp_path):
 
 
 def test_session_command_no_data(setup_test_environment):
-    """Test 'starbash selection list' command with no data - should not crash."""
-    result = runner.invoke(app, ["selection", "list"])
+    """Test 'starbash select list' command with no data - should not crash."""
+    result = runner.invoke(app, ["select", "list"])
     assert result.exit_code == 0
     # Should run without errors even with no sessions
 
 
 def test_session_command_with_data(setup_test_environment, tmp_path):
-    """Test 'starbash selection list' command with some session data."""
+    """Test 'starbash select list' command with some session data."""
     # Create a database and add some session data
     data_dir = setup_test_environment["data_dir"]
     with Database(base_dir=data_dir) as db:
@@ -53,7 +53,7 @@ def test_session_command_with_data(setup_test_environment, tmp_path):
         }
         db.upsert_session(session)
 
-    result = runner.invoke(app, ["selection", "list"])
+    result = runner.invoke(app, ["select", "list"])
     assert result.exit_code == 0
     # Should display the session data
 
@@ -287,16 +287,16 @@ def test_help_commands():
     # Main help
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    assert "selection" in result.stdout.lower()
+    assert "select" in result.stdout.lower()
 
     # Test running without arguments shows help
     result = runner.invoke(app, [])
     assert result.exit_code == 0
-    assert "selection" in result.stdout.lower()
+    assert "select" in result.stdout.lower()
     assert "Commands" in result.stdout or "commands" in result.stdout.lower()
 
-    # Selection help
-    result = runner.invoke(app, ["selection", "--help"])
+    # Select help
+    result = runner.invoke(app, ["select", "--help"])
     assert result.exit_code == 0
 
     # Repo help
@@ -321,14 +321,14 @@ def test_invalid_command():
 
 
 def test_session_command_empty_database(setup_test_environment):
-    """Test selection list command when database exists but has no sessions."""
+    """Test select list command when database exists but has no sessions."""
     data_dir = setup_test_environment["data_dir"]
 
     # Initialize database but don't add any sessions
     with Database(base_dir=data_dir) as db:
         pass  # Just create the empty database
 
-    result = runner.invoke(app, ["selection", "list"])
+    result = runner.invoke(app, ["select", "list"])
     assert result.exit_code == 0
     # Should handle empty database gracefully
 
@@ -383,12 +383,12 @@ def test_user_help_commands():
 
 
 def test_selection_commands(setup_test_environment):
-    """Test 'starbash selection' commands - should not crash."""
+    """Test 'starbash select' commands - should not crash."""
     # Clear any existing selection first
-    runner.invoke(app, ["selection", "any"])
+    runner.invoke(app, ["select", "any"])
 
     # Test showing selection with no filters
-    result = runner.invoke(app, ["selection"])
+    result = runner.invoke(app, ["select"])
     assert result.exit_code == 0
     assert (
         "selecting all" in result.stdout.lower()
@@ -396,27 +396,27 @@ def test_selection_commands(setup_test_environment):
     )
 
     # Test setting a target
-    result = runner.invoke(app, ["selection", "target", "M31"])
+    result = runner.invoke(app, ["select", "target", "M31"])
     assert result.exit_code == 0
     assert "M31" in result.stdout
 
     # Test showing selection with a target
-    result = runner.invoke(app, ["selection"])
+    result = runner.invoke(app, ["select"])
     assert result.exit_code == 0
     assert "M31" in result.stdout
 
     # Test setting a date range
-    result = runner.invoke(app, ["selection", "date", "after", "2023-10-01"])
+    result = runner.invoke(app, ["select", "date", "after", "2023-10-01"])
     assert result.exit_code == 0
     assert "2023-10-01" in result.stdout
 
     # Test clearing selection
-    result = runner.invoke(app, ["selection", "any"])
+    result = runner.invoke(app, ["select", "any"])
     assert result.exit_code == 0
     assert "cleared" in result.stdout.lower()
 
     # Verify selection is cleared
-    result = runner.invoke(app, ["selection"])
+    result = runner.invoke(app, ["select"])
     assert result.exit_code == 0
     assert (
         "selecting all" in result.stdout.lower()
@@ -425,37 +425,37 @@ def test_selection_commands(setup_test_environment):
 
 
 def test_selection_date_between(setup_test_environment):
-    """Test 'starbash selection date between' command."""
+    """Test 'starbash select date between' command."""
     # Clear any existing selection first
-    runner.invoke(app, ["selection", "any"])
+    runner.invoke(app, ["select", "any"])
 
     result = runner.invoke(
-        app, ["selection", "date", "between", "2023-10-01", "2023-12-31"]
+        app, ["select", "date", "between", "2023-10-01", "2023-12-31"]
     )
     assert result.exit_code == 0
     assert "2023-10-01" in result.stdout
     assert "2023-12-31" in result.stdout
 
     # Clean up after test
-    runner.invoke(app, ["selection", "any"])
+    runner.invoke(app, ["select", "any"])
 
 
 def test_selection_help_commands():
-    """Test that selection help commands work."""
-    # Selection help
-    result = runner.invoke(app, ["selection", "--help"])
+    """Test that select help commands work."""
+    # Select help
+    result = runner.invoke(app, ["select", "--help"])
     assert result.exit_code == 0
     assert "target" in result.stdout.lower()
     assert "date" in result.stdout.lower()
 
-    # Selection target help
-    result = runner.invoke(app, ["selection", "target", "--help"])
+    # Select target help
+    result = runner.invoke(app, ["select", "target", "--help"])
     assert result.exit_code == 0
 
-    # Selection date help
-    result = runner.invoke(app, ["selection", "date", "--help"])
+    # Select date help
+    result = runner.invoke(app, ["select", "date", "--help"])
     assert result.exit_code == 0
 
-    # Selection any help
-    result = runner.invoke(app, ["selection", "any", "--help"])
+    # Select any help
+    result = runner.invoke(app, ["select", "any", "--help"])
     assert result.exit_code == 0

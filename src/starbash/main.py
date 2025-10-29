@@ -4,7 +4,7 @@ import typer
 import starbash.url as url
 
 from .app import Starbash
-from .commands import repo, user, selection
+from .commands import repo, select, user
 from . import console
 
 app = typer.Typer(
@@ -13,9 +13,7 @@ app = typer.Typer(
 )
 app.add_typer(user.app, name="user", help="Manage user settings.")
 app.add_typer(repo.app, name="repo", help="Manage Starbash repositories.")
-app.add_typer(
-    selection.app, name="selection", help="Manage session and target selection."
-)
+app.add_typer(select.app, name="select", help="Manage session and target selection.")
 
 
 @app.callback(invoke_without_command=True)

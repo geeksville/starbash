@@ -65,13 +65,13 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 - `sb user analytics <on|off>` - Turn analytics collection on/off
 
 ### Selection & Filtering
-- `sb selection` - Show information about the current selection
-- `sb selection list` - List sessions (filtered based on the current selection)
-- `sb selection any` - Remove all filters (select everything)
-- `sb selection target <TARGETNAME>` - Limit selection to the named target
-- `sb selection telescope <TELESCOPENAME>` - Limit selection to the named telescope
-- `sb selection date <after|before|between> <DATE> [DATE]` - Limit to sessions in the specified date range
-- `sb selection export SESSIONNUM [DIRPATH]` - Export the indicated session number into the specified directory (or current directory if not specified)
+- `sb select` - Show information about the current selection
+- `sb select list` - List sessions (filtered based on the current selection)
+- `sb select any` - Remove all filters (select everything)
+- `sb select target <TARGETNAME>` - Limit selection to the named target
+- `sb select telescope <TELESCOPENAME>` - Limit selection to the named telescope
+- `sb select date <after|before|between> <DATE> [DATE]` - Limit to sessions in the specified date range
+- `sb select export SESSIONNUM [DIRPATH]` - Export the images for indicated session number into the specified directory (or current directory if not specified).  If possible symbolic links are used to reach the actual image files (otherwise copies are done).
 
 ### Viewing Data
 - `sb target` - List targets (filtered based on the current selection)

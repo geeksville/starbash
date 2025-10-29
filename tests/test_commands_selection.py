@@ -4,7 +4,7 @@ import pytest
 from typer.testing import CliRunner
 from unittest.mock import patch, MagicMock
 
-from starbash.commands.selection import app
+from starbash.commands.select import app
 from starbash import paths
 
 runner = CliRunner()
