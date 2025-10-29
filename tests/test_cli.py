@@ -67,26 +67,45 @@ def test_repo_list_command(setup_test_environment):
 
 def test_repo_list_non_verbose(setup_test_environment):
     """Test 'starbash repo' without verbose shows only user-visible repos with numbers."""
-    result = runner.invoke(app, ["repo"])
-    assert result.exit_code == 0
+    # First add a test repo so we have something to list
+    import tempfile
+    from pathlib import Path
 
-    # Should show numbered repos (user-visible only)
-    output = result.stdout
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_repo = Path(tmpdir) / "test_repo"
+        test_repo.mkdir()
 
-    # Should have at least one numbered line (format: " 1: file://...")
-    assert any(
-        line.strip().startswith(f"{i}:")
-        for i in range(1, 20)
-        for line in output.split("\n")
-    )
+        # Add the test repo
+        result = runner.invoke(app, ["repo", "add", str(test_repo)])
+        assert result.exit_code == 0
 
-    # Should NOT show preferences or recipe repos in non-verbose mode
-    # (these are filtered out by regular_repos property)
-    assert "(kind=preferences)" not in output or output.count("(kind=preferences)") == 0
-    # Some repos might be shown, but recipe repos should be filtered
-    lines_with_repos = [
-        line for line in output.split("\n") if "file://" in line or "pkg://" in line
-    ]
+        # Now list repos
+        result = runner.invoke(app, ["repo"])
+        assert result.exit_code == 0
+
+        # Should show numbered repos (user-visible only)
+        output = result.stdout
+
+        # Should have at least one numbered line (format: " 1: file://...")
+        assert any(
+            line.strip().startswith(f"{i}:")
+            for i in range(1, 20)
+            for line in output.split("\n")
+        )
+
+        # Should NOT show preferences or recipe repos in non-verbose mode
+        # (these are filtered out by regular_repos property)
+        assert (
+            "(kind=preferences)" not in output
+            or output.count("(kind=preferences)") == 0
+        )
+        # Some repos might be shown, but pkg:// repos should be filtered
+        lines_with_repos = [
+            line for line in output.split("\n") if "file://" in line or "pkg://" in line
+        ]
+        # Should have file:// but not pkg://
+        assert any("file://" in line for line in lines_with_repos)
+        assert not any("pkg://" in line for line in lines_with_repos)
 
     # Verify numbered format exists
     has_numbers = any(
