@@ -18,7 +18,7 @@ kind = "preferences"
 
 # Add our built-in recipes (FIXME, add a "resource" repo type for directories we expect to find inside
 # our python blob)
-url = "pkg://recipies"
+url = "pkg://recipes"
 
 # [[repo-ref]]
 
@@ -39,7 +39,7 @@ url = "pkg://recipies"
 # or inband?
 
 
-# allow including multiple recipies FIXME old idea, not sure if needed.
+# allow including multiple recipes FIXME old idea, not sure if needed.
 # [[repo-ref]]
 
 # looks for a file with this name and .py for the code and .toml for the config

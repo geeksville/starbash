@@ -7,9 +7,11 @@
 * [x] make reindex smarter
 * [x] make the various filter options work
 * [ ] add targets list
-* [ ] implement setup command (including username selection and analytics)
+* [x] implement setup command (including username selection and analytics)
 * [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
-* [ ] include instrument name in session list (for seestar,asiair,etc)
+* [x] include instrument name in session list (for seestar,asiair,etc)
+* [ ] select default output should show summary info for current target.
+* [ ] make masters list work
 * [ ] track image quality on a per frame basis
 * [ ] use db find master bias frames
 * [ ] use db to find flat frames
@@ -42,7 +44,7 @@
 * [ ] use import importlib.util to load python code it is own namespace
 * [ ] make crude flat frame generation work
 * [ ] make crude light frame processing work
-* [ ] don't include recipies in the list of repos on the CLI.
+* [ ] don't include recipes in the list of repos on the CLI.
 * [x] add a repo-add command that creates repo.sb.toml file in the rootdir and references it from users preferences.
 * [ ] have repo-add auto recognize common nina/asiair/seestar layouts
 * [ ] generate a report on the final output including attribution for data sources, recpies etc...

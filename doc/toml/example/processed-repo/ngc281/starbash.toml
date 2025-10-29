@@ -7,7 +7,7 @@
 # Starbash will search all recipe repos to find this by name
 python-recipe = "osc-dual-duo"
 
-# other standard recipies...
+# other standard recipes...
 # osc-duo, osc-broadband
 # mono-sho (fixme find other names used in mono workflow land)
 

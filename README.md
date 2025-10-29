@@ -26,7 +26,7 @@ See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-al
 * Generates a per target report/config file which can be customized if the detected defaults or preprocessing are not what you want
 * 'Recipes' provide repeatable/human-readable/sharable descriptions of all processing steps
 * Repos can be on the local disk or shared via HTTPS/github/etc.  This is particularly useful for recipe repos
-* Uses Siril and Graxpert for its pre-processing operations (support for Pixinsight based recipies will probably be coming at some point...)
+* Uses Siril and Graxpert for its pre-processing operations (support for Pixinsight based recipes will probably be coming at some point...)
 * The target report can be used to auto generate a human friendly 'postable/sharable' report about that image
 * Target reports are sharable so that you can request comments by others and others can rerender with different settings
 
@@ -89,7 +89,7 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 
 * Siril
 * Graxpert
-* Python (you can add python code to recipies if necessary)
+* Python (you can add python code to recipes if necessary)
 
 ## Supported tools (future?)
 

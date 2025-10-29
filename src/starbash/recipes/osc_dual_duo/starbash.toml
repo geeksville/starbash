@@ -18,7 +18,7 @@ description = "Extract OSC dual duo filter Ha, Oiii and Sii channels"
 disabled = true # FIXME, debugging later stuff
 
 # FIXME-somehow-specify-what-filternames are used to auto detect this recipe can be used?
-# figure out how to support dual duo vs single duo.  Perhaps: the FIRST recipie that matches an auto rule
+# figure out how to support dual duo vs single duo.  Perhaps: the FIRST recipe that matches an auto rule
 # is used for any auto-defected defaults.  If an auto match is found it will be saved in the generated starter
 # project.toml file.
 
