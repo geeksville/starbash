@@ -146,7 +146,7 @@ class Starbash:
             self.analytics.__enter__()
 
         logging.info(
-            f"Repo manager initialized with {len(self.repo_manager.repos)} default repo references."
+            f"Repo manager initialized with {len(self.repo_manager.repos)} repo references."
         )
         # self.repo_manager.dump()
 

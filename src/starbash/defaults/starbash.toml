@@ -18,7 +18,7 @@ kind = "preferences"
 
 # Add our built-in recipes (FIXME, add a "resource" repo type for directories we expect to find inside
 # our python blob)
-dir = "/workspaces/starbash/doc/toml/example/recipe-repo"
+url = "pkg://recipies"
 
 # [[repo-ref]]
 
