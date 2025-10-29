@@ -39,12 +39,15 @@ def add(path: str):
     Add a repository. path is either a local path or a remote URL.
     """
     with Starbash("repo-add") as sb:
-        sb.user_repo.add_repo_ref(path)
-        # we don't yet write default config files at roots of repos, but it would be easy to add here
-        # r.write_config()
-        sb.user_repo.write_config()
-        # FIXME, we also need to index the newly added repo!!!
-        console.print(f"Added repository: {path}")
+        repo = sb.user_repo.add_repo_ref(path)
+        if repo:
+            console.print(f"Added repository: {path}")
+            sb.reindex_repo(repo)
+
+            # we don't yet write default config files at roots of repos, but it would be easy to add here
+            # r.write_config()
+            sb.user_repo.write_config()
+            # FIXME, we also need to index the newly added repo!!!
 
 
 @app.command()

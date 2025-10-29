@@ -52,19 +52,34 @@ class Repo:
         """
         return str(self.get("repo.kind", "unknown"))
 
-    def add_repo_ref(self, dir: str) -> None:
+    def add_repo_ref(self, dir: str) -> Repo | None:
+        """
+        Adds a new repo-ref to this repository's configuration.
+        if new returns the newly added Repo object, if already exists returns None"""
+
+        # if dir is not absolute, we need to resolve it relative to the cwd
+        if not Path(dir).is_absolute():
+            dir = str((Path.cwd() / dir).resolve())
+
+        # Add the ref to this repo
         aot = self.config.get(REPO_REF, None)
         if aot is None:
             aot = tomlkit.aot()
-        else:
-            self.config.remove(
-                REPO_REF
-            )  # We want to completely replace it at the end of the file
+            self.config[REPO_REF] = aot  # add an empty AoT at the end of the file
+
+        if type(aot) is not AoT:
+            raise ValueError(f"repo-ref in {self.url} is not an array")
+
+        for t in aot:
+            if "dir" in t and t["dir"] == dir:
+                logging.warning(f"Repo ref {dir} already exists - ignoring.")
+                return None  # already exists
 
         ref = {"dir": dir}
         aot.append(ref)
-        self.config[REPO_REF] = aot
-        self.add_from_ref(ref)
+
+        # Also add the repo to the manager
+        return self.add_from_ref(ref)
 
     def write_config(self) -> None:
         """
@@ -107,7 +122,7 @@ class Repo:
 
         return None
 
-    def add_from_ref(self, ref: dict) -> None:
+    def add_from_ref(self, ref: dict) -> Repo:
         """
         Adds a repository based on a repo-ref dictionary.
         """
@@ -125,7 +140,7 @@ class Repo:
             url = f"file://{path}"
         else:
             raise ValueError(f"Invalid repo reference: {ref}")
-        self.manager.add_repo(url)
+        return self.manager.add_repo(url)
 
     def add_by_repo_refs(self) -> None:
         """Add all repos mentioned by repo-refs in this repo's config."""
