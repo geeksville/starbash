@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 from importlib import resources
+from typing import Any
 
 import tomlkit
 from tomlkit.toml_file import TOMLFile
@@ -42,15 +43,15 @@ class Repo:
 
     __repr__ = __str__
 
-    @property
-    def kind(self) -> str:
+    def kind(self, unknown_kind: str = "unknown") -> str:
         """
         Read-only attribute for the repository kind (e.g., "recipe", "data", etc.).
 
         Returns:
             The kind of the repository as a string.
         """
-        return str(self.get("repo.kind", "unknown"))
+        c = self.get("repo.kind", unknown_kind)
+        return str(c)
 
     def add_repo_ref(self, dir: str) -> Repo | None:
         """
@@ -224,7 +225,7 @@ class Repo:
             )  # we currently make it optional to have the config file at root
             return tomlkit.TOMLDocument()  # empty placeholder
 
-    def get(self, key: str, default=None):
+    def get(self, key: str, default: Any | None = None) -> Any | None:
         """
         Gets a value from this repo's config for a given key.
         The key can be a dot-separated string for nested values.
@@ -242,6 +243,36 @@ class Repo:
                 return default
             value = value.get(k)
         return value if value is not None else default
+
+    def set(self, key: str, value: Any) -> None:
+        """
+        Sets a value in this repo's config for a given key.
+        The key can be a dot-separated string for nested values.
+        Creates nested Table structures as needed.
+
+        Args:
+            key: The dot-separated key to set (e.g., "repo.kind").
+            value: The value to set.
+
+        Example:
+            repo.set("repo.kind", "preferences")
+            repo.set("user.name", "John Doe")
+        """
+        keys = key.split(".")
+        current: Any = self.config
+
+        # Navigate/create nested structure for all keys except the last
+        for k in keys[:-1]:
+            if k not in current:
+                # Create a new nested table
+                current[k] = tomlkit.table()
+            elif not isinstance(current[k], dict):
+                # Overwrite non-dict value with a table
+                current[k] = tomlkit.table()
+            current = current[k]
+
+        # Set the final value
+        current[keys[-1]] = value
 
 
 class RepoManager:
@@ -272,7 +303,7 @@ class RepoManager:
         return [
             r
             for r in self.repos
-            if r.kind not in ("preferences") and not r.is_scheme("pkg")
+            if r.kind() not in ("preferences") and not r.is_scheme("pkg")
         ]
 
     def add_repo(self, url: str) -> Repo:

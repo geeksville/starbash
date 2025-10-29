@@ -25,12 +25,16 @@ def main(
         with Starbash("repo.list") as sb:
             repos = sb.repo_manager.repos if verbose else sb.repo_manager.regular_repos
             for i, repo in enumerate(repos):
+                kind = repo.kind("input")
+                # for unknown repos (probably because we haven't written a starbash.toml file to the root yet),
+                # we call them "input" because users will be less confused by that
+
                 if verbose:
                     # No numbers for verbose mode (system repos can't be removed)
-                    console.print(f"{ repo.url } (kind={ repo.kind})")
+                    console.print(f"{ repo.url } (kind={ kind })")
                 else:
                     # Show numbers for user repos (can be removed later)
-                    console.print(f"{ i + 1:2}: { repo.url } (kind={ repo.kind})")
+                    console.print(f"{ i + 1:2}: { repo.url } (kind={ kind })")
 
 
 @app.command()

@@ -57,7 +57,7 @@ def test_repo_manager_initialization(monkeypatch, tmp_path: Path):
     assert f"file://{ref_repo2_path}" in urls
 
     # Verify we can get values from all repos
-    kinds = [r.kind for r in repo_manager.repos]
+    kinds = [r.kind() for r in repo_manager.repos]
     assert "test" in kinds
     assert "recipes" in kinds
     assert "raws" in kinds
@@ -74,7 +74,7 @@ def test_repo_manager_get_with_real_repos(tmp_path: Path):
     (recipe_repo_path / "starbash.toml").write_text(
         """
         [repo]
-        kind = "recipe-repo"
+        kind = "recipe"
         [user]
         name = "default-user"
         """
@@ -85,7 +85,7 @@ def test_repo_manager_get_with_real_repos(tmp_path: Path):
     (user_prefs_path / "starbash.toml").write_text(
         """
         [repo]
-        kind = "user-prefs"
+        kind = "preferences"
         [user]
         email = "user@example.com"
         """
@@ -98,7 +98,7 @@ def test_repo_manager_get_with_real_repos(tmp_path: Path):
 
     # 3. Assert that the values are retrieved correctly, respecting precedence
     # Last repo added wins for .get()
-    assert repo_manager.get("repo.kind") == "user-prefs"
+    assert repo_manager.get("repo.kind") == "preferences"
     assert repo_manager.get("user.name") == "default-user"
     assert repo_manager.get("user.email") == "user@example.com"
     assert repo_manager.get("non.existent.key", "default") == "default"

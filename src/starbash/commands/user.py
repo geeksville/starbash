@@ -22,7 +22,7 @@ def analytics(
     """
     with Starbash("analytics.change") as sb:
         sb.analytics.set_data("analytics.enabled", enable)
-        sb.user_repo.config["analytics.enabled"] = enable
+        sb.user_repo.set("analytics.enabled", enable)
         sb.user_repo.write_config()
         status = "enabled" if enable else "disabled"
         console.print(f"Analytics (crash reports) {status}.")
@@ -41,7 +41,7 @@ def name(
     Set your name for attribution in generated images.
     """
     with Starbash("user.name") as sb:
-        sb.user_repo.config["user.name"] = user_name
+        sb.user_repo.set("user.name", user_name)
         sb.user_repo.write_config()
         console.print(f"User name set to: {user_name}")
 
@@ -59,7 +59,7 @@ def email(
     Set your email for attribution in generated images.
     """
     with Starbash("user.email") as sb:
-        sb.user_repo.config["user.email"] = user_email
+        sb.user_repo.set("user.email", user_email)
         sb.user_repo.write_config()
         console.print(f"User email set to: {user_email}")
 
@@ -83,7 +83,7 @@ def do_reinit(sb: Starbash) -> None:
     )
     sb.analytics.set_data("analytics.use_name", user_name != "")
     if user_name:
-        sb.user_repo.config["user.name"] = user_name
+        sb.user_repo.set("user.name", user_name)
         console.print(f"✅ Name set to: {user_name}")
     else:
         console.print("[dim]Skipped name[/dim]")
@@ -96,7 +96,7 @@ def do_reinit(sb: Starbash) -> None:
     )
     sb.analytics.set_data("analytics.use_email", user_email != "")
     if user_email:
-        sb.user_repo.config["user.email"] = user_email
+        sb.user_repo.set("user.email", user_email)
         console.print(f"✅ Email set to: {user_email}")
     else:
         console.print("[dim]Skipped email[/dim]")
@@ -108,7 +108,7 @@ def do_reinit(sb: Starbash) -> None:
         default=False,
     )
     sb.analytics.set_data("analytics.use_email_report", include_in_reports)
-    sb.user_repo.config["analytics.include_user"] = include_in_reports
+    sb.user_repo.set("analytics.include_user", include_in_reports)
     if include_in_reports:
         console.print("✅ Email will be included with crash reports")
     else:

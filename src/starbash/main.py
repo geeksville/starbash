@@ -33,8 +33,6 @@ def main_callback(
     # Set the log level based on --debug flag
     if debug:
         starbash.log_filter_level = logging.DEBUG
-        setup_logging()
-        logging.debug("Debug logging enabled")
 
     if ctx.invoked_subcommand is None:
         if not get_user_config_path().exists():
