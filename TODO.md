@@ -7,6 +7,7 @@
 * [x] make reindex smarter
 * [x] make the various filter options work
 * [ ] add targets list
+* [ ] implement setup command (including username selection and analytics)
 * [ ] include instrument name in session list (for seestar,asiair,etc)
 * [ ] track image quality on a per frame basis
 * [ ] use db find master bias frames

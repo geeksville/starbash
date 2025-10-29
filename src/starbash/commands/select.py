@@ -239,7 +239,9 @@ def export(
     ],
     destdir: Annotated[
         str,
-        typer.Argument(help="Directory path to export to"),
+        typer.Argument(
+            help="Directory path to export to (if it doesn't exist it will be created)"
+        ),
     ],
 ):
     """Export the images for the indicated session number.

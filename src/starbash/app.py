@@ -10,6 +10,7 @@ from astropy.io import fits
 import itertools
 from rich.progress import track
 from rich.logging import RichHandler
+import shutil
 
 from starbash import console
 from starbash.database import Database
@@ -92,8 +93,6 @@ def copy_images_to_dir(images: list[dict[str, Any]], output_dir: Path) -> None:
         except (OSError, NotImplementedError):
             # If symlink fails, try to copy
             try:
-                import shutil
-
                 shutil.copy2(source_path, dest_path)
                 copied_count += 1
             except Exception as e:

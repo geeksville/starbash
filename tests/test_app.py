@@ -1,12 +1,13 @@
 """Unit tests for the Starbash app module."""
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import Mock, MagicMock, patch, call
 import pytest
 import typer
 
-from starbash.app import Starbash, create_user, setup_logging
+from starbash.app import Starbash, create_user, setup_logging, copy_images_to_dir
 from starbash.database import Database
 from starbash.selection import Selection
 from starbash import paths
@@ -86,6 +87,224 @@ class TestCreateUser:
         config_dir2 = create_user()
         assert config_dir1 == config_dir2
         assert (config_dir1 / "starbash.toml").exists()
+
+
+class TestCopyImagesToDir:
+    """Tests for the copy_images_to_dir function."""
+
+    def test_copy_images_to_dir_with_symlinks(self, tmp_path, capsys):
+        """Test that copy_images_to_dir creates symlinks when possible."""
+        # Create source files
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+        file1 = source_dir / "image1.fit"
+        file2 = source_dir / "image2.fit"
+        file1.write_text("test data 1")
+        file2.write_text("test data 2")
+
+        # Create output directory
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        # Create image metadata
+        images = [
+            {"path": str(file1)},
+            {"path": str(file2)},
+        ]
+
+        # Call the function
+        copy_images_to_dir(images, output_dir)
+
+        # Verify symlinks were created
+        dest1 = output_dir / "image1.fit"
+        dest2 = output_dir / "image2.fit"
+        assert dest1.exists()
+        assert dest2.exists()
+        assert dest1.is_symlink()
+        assert dest2.is_symlink()
+        assert dest1.resolve() == file1.resolve()
+        assert dest2.resolve() == file2.resolve()
+
+        # Check output messages
+        captured = capsys.readouterr()
+        assert "Exporting 2 images" in captured.out
+        assert "Export complete!" in captured.out
+        assert "Linked: 2 files" in captured.out
+
+    @patch("pathlib.Path.symlink_to")
+    def test_copy_images_to_dir_fallback_to_copy(self, mock_symlink, tmp_path, capsys):
+        """Test that copy_images_to_dir falls back to copy when symlink fails."""
+        # Create source files
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+        file1 = source_dir / "image1.fit"
+        file1.write_text("test data 1")
+
+        # Create output directory
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        # Mock symlink to raise OSError
+        mock_symlink.side_effect = OSError("Symlink not supported")
+
+        # Create image metadata
+        images = [{"path": str(file1)}]
+
+        # Call the function
+        copy_images_to_dir(images, output_dir)
+
+        # Verify file was copied instead
+        dest1 = output_dir / "image1.fit"
+        assert dest1.exists()
+        assert not dest1.is_symlink()
+        assert dest1.read_text() == "test data 1"
+
+        # Check output messages
+        captured = capsys.readouterr()
+        assert "Exporting 1 images" in captured.out
+        assert "Export complete!" in captured.out
+        assert "Copied: 1 files" in captured.out
+
+    def test_copy_images_to_dir_missing_source(self, tmp_path, capsys):
+        """Test that copy_images_to_dir handles missing source files."""
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        # Create image metadata with non-existent file
+        images = [{"path": "/nonexistent/file.fit"}]
+
+        # Call the function
+        copy_images_to_dir(images, output_dir)
+
+        # Verify error was reported
+        captured = capsys.readouterr()
+        assert "Source file not found" in captured.out
+        assert "Errors: 1 files" in captured.out
+
+    def test_copy_images_to_dir_existing_destination(self, tmp_path, capsys):
+        """Test that copy_images_to_dir skips existing destination files."""
+        # Create source file
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+        file1 = source_dir / "image1.fit"
+        file1.write_text("test data")
+
+        # Create output directory with existing file
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        existing = output_dir / "image1.fit"
+        existing.write_text("existing data")
+
+        # Create image metadata
+        images = [{"path": str(file1)}]
+
+        # Call the function
+        copy_images_to_dir(images, output_dir)
+
+        # Verify file was not overwritten
+        assert existing.read_text() == "existing data"
+
+        # Check output messages
+        captured = capsys.readouterr()
+        assert "Skipping existing file" in captured.out
+        assert "Errors: 1 files" in captured.out
+
+    @patch("shutil.copy2")
+    @patch("pathlib.Path.symlink_to")
+    def test_copy_images_to_dir_copy_failure(
+        self, mock_symlink, mock_copy, tmp_path, capsys
+    ):
+        """Test that copy_images_to_dir handles copy failures."""
+        # Create source file
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+        file1 = source_dir / "image1.fit"
+        file1.write_text("test data")
+
+        # Create output directory
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        # Mock symlink to fail, then copy to fail
+        mock_symlink.side_effect = OSError("Symlink not supported")
+        mock_copy.side_effect = PermissionError("Permission denied")
+
+        # Create image metadata
+        images = [{"path": str(file1)}]
+
+        # Call the function
+        copy_images_to_dir(images, output_dir)
+
+        # Check output messages
+        captured = capsys.readouterr()
+        assert "Error copying" in captured.out
+        assert "Errors: 1 files" in captured.out
+
+    def test_copy_images_to_dir_mixed_results(self, tmp_path, capsys):
+        """Test copy_images_to_dir with a mix of successful and failed operations."""
+        # Create some source files
+        source_dir = tmp_path / "source"
+        source_dir.mkdir()
+        file1 = source_dir / "image1.fit"
+        file2 = source_dir / "image2.fit"
+        file1.write_text("test data 1")
+        file2.write_text("test data 2")
+
+        # Create output directory with one existing file
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        existing = output_dir / "image2.fit"
+        existing.write_text("existing")
+
+        # Create image metadata with one good, one existing, one missing
+        images = [
+            {"path": str(file1)},
+            {"path": str(file2)},
+            {"path": "/nonexistent/file.fit"},
+        ]
+
+        # Call the function
+        copy_images_to_dir(images, output_dir)
+
+        # Verify results
+        dest1 = output_dir / "image1.fit"
+        assert dest1.exists()
+        assert dest1.is_symlink()
+
+        # Check output messages
+        captured = capsys.readouterr()
+        assert "Exporting 3 images" in captured.out
+        assert "Linked: 1 files" in captured.out
+        assert "Errors: 2 files" in captured.out
+
+    def test_copy_images_to_dir_empty_list(self, tmp_path, capsys):
+        """Test copy_images_to_dir with empty image list."""
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        # Call with empty list
+        copy_images_to_dir([], output_dir)
+
+        # Check output
+        captured = capsys.readouterr()
+        assert "Exporting 0 images" in captured.out
+        assert "Export complete!" in captured.out
+
+    def test_copy_images_to_dir_missing_path_key(self, tmp_path, capsys):
+        """Test copy_images_to_dir handles images without path key."""
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        # Create image metadata without path key
+        images = [{"metadata": "some data"}]
+
+        # Call the function
+        copy_images_to_dir(images, output_dir)
+
+        # Check that it handled gracefully
+        captured = capsys.readouterr()
+        assert "Exporting 1 images" in captured.out
+        assert "Errors: 1 files" in captured.out
 
 
 class TestStarbashInit:
