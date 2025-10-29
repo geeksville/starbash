@@ -9,11 +9,12 @@ analytics_allowed = False
 
 
 def analytics_setup(allowed: bool = False, user_email: str | None = None) -> None:
-    import sentry_sdk
-
     global analytics_allowed
     analytics_allowed = allowed
     if analytics_allowed:
+        import sentry_sdk
+        from sentry_sdk.integrations.logging import LoggingIntegration
+
         logging.info(
             f"Analytics/crash-reports enabled.  To change [link={url.analytics_docs}]click here[/link]",
             extra={"markup": True},
@@ -23,6 +24,13 @@ def analytics_setup(allowed: bool = False, user_email: str | None = None) -> Non
             send_default_pii=True,
             enable_logs=True,
             traces_sample_rate=1.0,
+            integrations=[
+                LoggingIntegration(
+                    level=logging.INFO,  # Capture INFO and above as breadcrumbs
+                    event_level=None,  # Don't automatically convert error messages to sentry events
+                    sentry_logs_level=logging.INFO,  # Capture INFO and above as logs
+                ),
+            ],
         )
 
         if user_email:

@@ -99,3 +99,5 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 
 We try to make this project useful and friendly.  If you find problems please file a github issue.
 We accept pull-requests and enjoy discussing possible new development directions via github issues.  If you might want to work on this, just describe what your interests are and we can talk about how to get it merged.
+
+Project members can access crash reports [here](https://geeksville.sentry.io/insights/projects/starbash/?project=4510264204132352).
