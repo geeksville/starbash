@@ -1,3 +1,9 @@
 *.pyc
 __pycache__
 images
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml

@@ -19,6 +19,7 @@ sentry-sdk = "^2.42.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.4.2,<9.0.0"
+pytest-cov = "^6.0.0"
 
 [tool.poetry.scripts]
 starbash = "starbash.main:app"
@@ -27,6 +28,24 @@ sb = "starbash.main:app"       # std alias for convenience
 [tool.pytest.ini_options]
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 addopts = "-m 'not slow'"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+show_missing = true
+precision = 2
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
