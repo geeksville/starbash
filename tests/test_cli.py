@@ -30,14 +30,14 @@ def setup_test_environment(tmp_path):
 
 
 def test_session_command_no_data(setup_test_environment):
-    """Test 'starbash session' command with no data - should not crash."""
-    result = runner.invoke(app, ["session"])
+    """Test 'starbash selection list' command with no data - should not crash."""
+    result = runner.invoke(app, ["selection", "list"])
     assert result.exit_code == 0
     # Should run without errors even with no sessions
 
 
 def test_session_command_with_data(setup_test_environment, tmp_path):
-    """Test 'starbash session' command with some session data."""
+    """Test 'starbash selection list' command with some session data."""
     # Create a database and add some session data
     data_dir = setup_test_environment["data_dir"]
     with Database(base_dir=data_dir) as db:
@@ -53,7 +53,7 @@ def test_session_command_with_data(setup_test_environment, tmp_path):
         }
         db.upsert_session(session)
 
-    result = runner.invoke(app, ["session"])
+    result = runner.invoke(app, ["selection", "list"])
     assert result.exit_code == 0
     # Should display the session data
 
@@ -287,16 +287,16 @@ def test_help_commands():
     # Main help
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    assert "session" in result.stdout.lower()
+    assert "selection" in result.stdout.lower()
 
     # Test running without arguments shows help
     result = runner.invoke(app, [])
     assert result.exit_code == 0
-    assert "session" in result.stdout.lower()
+    assert "selection" in result.stdout.lower()
     assert "Commands" in result.stdout or "commands" in result.stdout.lower()
 
-    # Session help
-    result = runner.invoke(app, ["session", "--help"])
+    # Selection help
+    result = runner.invoke(app, ["selection", "--help"])
     assert result.exit_code == 0
 
     # Repo help
@@ -321,14 +321,14 @@ def test_invalid_command():
 
 
 def test_session_command_empty_database(setup_test_environment):
-    """Test session command when database exists but has no sessions."""
+    """Test selection list command when database exists but has no sessions."""
     data_dir = setup_test_environment["data_dir"]
 
     # Initialize database but don't add any sessions
     with Database(base_dir=data_dir) as db:
         pass  # Just create the empty database
 
-    result = runner.invoke(app, ["session"])
+    result = runner.invoke(app, ["selection", "list"])
     assert result.exit_code == 0
     # Should handle empty database gracefully
 

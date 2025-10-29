@@ -66,6 +66,7 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 
 ### Selection & Filtering
 - `sb selection` - Show information about the current selection
+- `sb selection list` - List sessions (filtered based on the current selection)
 - `sb selection any` - Remove all filters (select everything)
 - `sb selection target <TARGETNAME>` - Limit selection to the named target
 - `sb selection telescope <TELESCOPENAME>` - Limit selection to the named telescope
@@ -73,7 +74,6 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 - `sb selection export SESSIONNUM [DIRPATH]` - Export the indicated session number into the specified directory (or current directory if not specified)
 
 ### Viewing Data
-- `sb session` - List sessions (filtered based on the current selection)
 - `sb target` - List targets (filtered based on the current selection)
 - `sb instrument` - List instruments (filtered based on the current selection)
 - `sb filter` - List all filters found in current selection
