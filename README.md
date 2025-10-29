@@ -1,10 +1,10 @@
 # Starbash
 
-![PyPI - Version](https://img.shields.io/pypi/v/starbash)
-![GitHub branch check runs](https://img.shields.io/github/check-runs/geeksville/starbash/main)
+[![PyPI - Version](https://img.shields.io/pypi/v/starbash)](https://pypi.org/project/starbash/)
+[![GitHub branch check runs](https://img.shields.io/github/check-runs/geeksville/starbash/main)](https://github.com/geeksville/starbash/actions)
 [![codecov](https://codecov.io/github/geeksville/starbash/graph/badge.svg?token=47RE10I7O1)](https://codecov.io/github/geeksville/starbash)
 
- ![app icon](https://github.com/geeksville/starbash/blob/main/img/icon.png "Starbash: Astrophotography workflows simplified")
+ ![app icon](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/img/icon.png "Starbash: Astrophotography workflows simplified")
 
 A tool for automating/standardizing/sharing astrophotography workflows.
 
