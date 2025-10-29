@@ -4,12 +4,16 @@ import os
 import tempfile
 import pytest
 from pathlib import Path
+from unittest.mock import patch, MagicMock, call
 
 from starbash.tool import (
     _SafeFormatter,
     expand_context,
     make_safe_globals,
     strip_comments,
+    tool_run,
+    siril_run,
+    graxpert_run,
     Tool,
     PythonTool,
     SirilTool,
@@ -73,13 +77,20 @@ class TestExpandContext:
         result = expand_context("No placeholders here", {})
         assert result == "No placeholders here"
 
-    def test_max_iterations_warning(self):
-        """Test that recursive definitions trigger max iterations and raise error."""
+    def test_max_iterations_warning(self, caplog):
+        """Test that recursive definitions trigger max iterations warning."""
+        import logging
+
+        caplog.set_level(logging.WARNING)
+
         # Create a circular reference
         context = {"a": "{b}", "b": "{a}"}
-        # Should reach max iterations and then raise KeyError for unexpanded vars
+        # Should reach max iterations and log warning, then raise KeyError for unexpanded vars
         with pytest.raises(KeyError) as exc_info:
             expand_context("{a}", context)
+
+        # Check warning was logged
+        assert "reached max iterations" in caplog.text
         assert "a" in str(exc_info.value)
 
     def test_no_expansion_needed(self):
@@ -140,6 +151,14 @@ class TestMakeSafeGlobals:
         """Test that default context is an empty dict."""
         result = make_safe_globals()
         assert result["context"] == {}
+
+    def test_write_guard_function(self):
+        """Test that _write_ guard function works."""
+        result = make_safe_globals()
+        write_func = result["__builtins__"]["_write_"]
+        # write_test should just return the object passed to it
+        test_obj = {"key": "value"}
+        assert write_func(test_obj) == test_obj
 
 
 class TestStripComments:
@@ -360,3 +379,252 @@ class TestToolsDict:
         """Test that dict keys match tool names."""
         for key, tool in tools.items():
             assert key == tool.name
+
+
+class TestToolRun:
+    """Tests for tool_run function."""
+
+    @patch("starbash.tool.subprocess.run")
+    def test_tool_run_success(self, mock_run):
+        """Test successful tool execution."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="output", stderr="")
+
+        tool_run("test_command", "/tmp", "input commands")
+
+        mock_run.assert_called_once_with(
+            "test_command",
+            input="input commands",
+            shell=True,
+            capture_output=True,
+            text=True,
+            cwd="/tmp",
+        )
+
+    @patch("starbash.tool.subprocess.run")
+    def test_tool_run_with_stderr_warning(self, mock_run, caplog):
+        """Test that stderr output is logged as warning."""
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="output", stderr="warning message"
+        )
+
+        tool_run("test_command", "/tmp")
+
+        assert "warning message" in caplog.text
+
+    @patch("starbash.tool.subprocess.run")
+    def test_tool_run_failure_raises_error(self, mock_run):
+        """Test that non-zero return code raises RuntimeError."""
+        mock_run.return_value = MagicMock(
+            returncode=1, stdout="error output", stderr="error message"
+        )
+
+        with pytest.raises(RuntimeError, match="Tool failed with exit code 1"):
+            tool_run("failing_command", "/tmp")
+
+    @patch("starbash.tool.subprocess.run")
+    def test_tool_run_failure_logs_output(self, mock_run, caplog):
+        """Test that failure logs both stdout and stderr."""
+        mock_run.return_value = MagicMock(
+            returncode=1, stdout="error output", stderr="error message"
+        )
+
+        with pytest.raises(RuntimeError):
+            tool_run("failing_command", "/tmp")
+
+        assert "error output" in caplog.text
+        assert "error message" in caplog.text
+
+    @patch("starbash.tool.subprocess.run")
+    def test_tool_run_without_input_commands(self, mock_run):
+        """Test tool_run with no input commands (stdin)."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        tool_run("test_command", "/tmp", commands=None)
+
+        # Verify called with None for input
+        assert mock_run.call_args[1]["input"] is None
+
+    @patch("starbash.tool.subprocess.run")
+    def test_tool_run_logs_stdout_on_success(self, mock_run, caplog):
+        """Test that stdout is logged on successful run."""
+        import logging
+
+        caplog.set_level(logging.DEBUG)
+
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="successful output", stderr=""
+        )
+
+        tool_run("test_command", "/tmp")
+
+        # Check debug logs
+        assert "Tool command successful" in caplog.text
+
+
+class TestSirilRun:
+    """Tests for siril_run function."""
+
+    @patch("starbash.tool.tool_run")
+    @patch("starbash.tool.os.symlink")
+    def test_siril_run_creates_symlinks(self, mock_symlink, mock_tool_run):
+        """Test that siril_run creates symlinks for input files."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_files = ["/path/to/file1.fit", "/path/to/file2.fit"]
+
+            siril_run(temp_dir, "test commands", input_files)
+
+            # Verify symlinks were created
+            assert mock_symlink.call_count == 2
+            calls = mock_symlink.call_args_list
+            assert calls[0][0][0] == os.path.abspath("/path/to/file1.fit")
+            assert calls[1][0][0] == os.path.abspath("/path/to/file2.fit")
+
+    @patch("starbash.tool.tool_run")
+    @patch("starbash.tool.os.symlink")
+    def test_siril_run_calls_tool_run(self, mock_symlink, mock_tool_run):
+        """Test that siril_run calls tool_run with correct arguments."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            commands = "test siril commands"
+
+            siril_run(temp_dir, commands, [])
+
+            # Verify tool_run was called
+            mock_tool_run.assert_called_once()
+            call_args = mock_tool_run.call_args
+
+            # Check that command includes siril and temp_dir
+            assert "Siril" in call_args[0][0]
+            assert temp_dir in call_args[0][0]
+            assert call_args[0][1] == temp_dir
+            # Check that script content includes our commands
+            assert "test siril commands" in call_args[0][2]
+
+    @patch("starbash.tool.tool_run")
+    @patch("starbash.tool.os.symlink")
+    def test_siril_run_strips_comments(self, mock_symlink, mock_tool_run):
+        """Test that siril_run strips comments from commands."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            commands = "command1 # comment\ncommand2"
+
+            siril_run(temp_dir, commands, [])
+
+            script_content = mock_tool_run.call_args[0][2]
+            # Comments should be stripped
+            assert "# comment" not in script_content
+
+    @patch("starbash.tool.tool_run")
+    @patch("starbash.tool.os.symlink")
+    def test_siril_run_adds_requires_statement(self, mock_symlink, mock_tool_run):
+        """Test that siril_run adds requires statement to script."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            siril_run(temp_dir, "commands", [])
+
+            script_content = mock_tool_run.call_args[0][2]
+            assert "requires 1.4.0-beta3" in script_content
+
+    @patch("starbash.tool.tool_run")
+    @patch("starbash.tool.os.symlink")
+    def test_siril_run_with_empty_input_files(self, mock_symlink, mock_tool_run):
+        """Test siril_run with no input files."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            siril_run(temp_dir, "commands", [])
+
+            # No symlinks should be created
+            mock_symlink.assert_not_called()
+
+
+class TestGraxpertRun:
+    """Tests for graxpert_run function."""
+
+    @patch("starbash.tool.tool_run")
+    def test_graxpert_run_calls_tool_run(self, mock_tool_run):
+        """Test that graxpert_run calls tool_run correctly."""
+        graxpert_run("/tmp", "-cmd test")
+
+        mock_tool_run.assert_called_once()
+        call_args = mock_tool_run.call_args[0]
+
+        # Check command includes graxpert and arguments
+        assert "graxpert" in call_args[0]
+        assert "-cmd test" in call_args[0]
+        assert call_args[1] == "/tmp"
+
+    @patch("starbash.tool.tool_run")
+    def test_graxpert_run_with_complex_arguments(self, mock_tool_run):
+        """Test graxpert_run with complex argument string."""
+        arguments = "-cmd background-extraction -output /tmp/out test.fits"
+
+        graxpert_run("/work/dir", arguments)
+
+        call_args = mock_tool_run.call_args[0]
+        assert arguments in call_args[0]
+        assert call_args[1] == "/work/dir"
+
+
+class TestSirilToolRun:
+    """Tests for SirilTool.run method."""
+
+    @patch("starbash.tool.siril_run")
+    def test_siril_tool_run_expands_context(self, mock_siril_run):
+        """Test that SirilTool.run expands context variables."""
+        tool = SirilTool()
+        context = {"var1": "value1", "var2": "value2"}
+        commands = "command {var1} and {var2}"
+
+        tool.run("/tmp", commands, context)
+
+        # Verify siril_run was called with expanded commands
+        mock_siril_run.assert_called_once()
+        expanded_commands = mock_siril_run.call_args[0][1]
+        assert "value1" in expanded_commands
+        assert "value2" in expanded_commands
+        assert "{var1}" not in expanded_commands
+
+    @patch("starbash.tool.siril_run")
+    def test_siril_tool_run_passes_input_files(self, mock_siril_run):
+        """Test that SirilTool.run passes input files from context."""
+        tool = SirilTool()
+        input_files = ["file1.fit", "file2.fit"]
+        context = {"input_files": input_files}
+
+        tool.run("/tmp", "commands", context)
+
+        # Verify input files were passed to siril_run
+        mock_siril_run.assert_called_once()
+        passed_files = mock_siril_run.call_args[0][2]
+        assert passed_files == input_files
+
+    @patch("starbash.tool.siril_run")
+    def test_siril_tool_run_without_input_files(self, mock_siril_run):
+        """Test SirilTool.run with no input files in context."""
+        tool = SirilTool()
+
+        tool.run("/tmp", "commands", {})
+
+        # Should pass empty list for input files
+        passed_files = mock_siril_run.call_args[0][2]
+        assert passed_files == []
+
+
+class TestGraxpertToolRun:
+    """Tests for GraxpertTool.run method."""
+
+    @patch("starbash.tool.graxpert_run")
+    def test_graxpert_tool_run_calls_graxpert_run(self, mock_graxpert_run):
+        """Test that GraxpertTool.run calls graxpert_run."""
+        tool = GraxpertTool()
+
+        tool.run("/tmp", "test arguments", {})
+
+        mock_graxpert_run.assert_called_once_with("/tmp", "test arguments")
+
+    @patch("starbash.tool.graxpert_run")
+    def test_graxpert_tool_run_ignores_context(self, mock_graxpert_run):
+        """Test that GraxpertTool.run works with context dict."""
+        tool = GraxpertTool()
+        context = {"var": "value"}
+
+        tool.run("/work", "args", context)
+
+        # Context doesn't affect graxpert_run call
+        mock_graxpert_run.assert_called_once_with("/work", "args")

@@ -250,6 +250,7 @@ class TestAddSession:
 
             # Verify session was added to database
             sessions = app.db.search_session(None)
+            assert sessions
             assert len(sessions) == 1
             assert sessions[0][Database.OBJECT_KEY] == "M31"
 
@@ -267,6 +268,7 @@ class TestAddSession:
             # Should log warning and not add session
             assert "missing either DATE-OBS or IMAGETYP" in caplog.text
             sessions = app.db.search_session(None)
+            assert sessions
             assert len(sessions) == 0
 
     def test_add_session_missing_imagetyp(
@@ -294,6 +296,7 @@ class TestAddSession:
             app._add_session("/path/to/image.fit", 1, header)
 
             sessions = app.db.search_session(None)
+            assert sessions
             assert len(sessions) == 1
             assert sessions[0][Database.FILTER_KEY] == "unspecified"
             assert sessions[0][Database.OBJECT_KEY] == "unspecified"
@@ -325,6 +328,7 @@ class TestSearchSession:
                 app.db.upsert_session(session)
 
             results = app.search_session()
+            assert results is not None
             assert len(results) == 3
 
     def test_search_session_with_filters(self, setup_test_environment, mock_analytics):
@@ -359,6 +363,7 @@ class TestSearchSession:
             # Filter by target
             app.selection.add_target("M31")
             results = app.search_session()
+            assert results is not None
             assert len(results) == 1
             assert results[0][Database.OBJECT_KEY] == "M31"
 
@@ -398,6 +403,8 @@ class TestGetSessionImages:
 
             # Get the session ID
             sessions = app.db.search_session(None)
+            assert sessions is not None
+            assert len(sessions) > 0
             session_id = sessions[0]["id"]
 
             # Get images for this session
@@ -431,6 +438,8 @@ class TestGetSessionImages:
             app.db.upsert_session(session)
 
             sessions = app.db.search_session(None)
+            assert sessions is not None
+            assert len(sessions) > 0
             session_id = sessions[0]["id"]
 
             images = app.get_session_images(session_id)
@@ -566,6 +575,7 @@ class TestReindexRepo:
 
             # Verify the change was picked up
             image = app.db.get_image(str(fits_file))
+            assert image is not None
             assert image["FILTER"] == "OIII"
 
     def test_reindex_repo_handles_bad_fits(
