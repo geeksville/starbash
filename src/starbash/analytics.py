@@ -1,6 +1,7 @@
 import logging
 import os
 
+import starbash
 from starbash import console
 import starbash.url as url
 
@@ -26,9 +27,9 @@ def analytics_setup(allowed: bool = False, user_email: str | None = None) -> Non
             traces_sample_rate=1.0,
             integrations=[
                 LoggingIntegration(
-                    level=logging.INFO,  # Capture INFO and above as breadcrumbs
+                    level=starbash.log_filter_level,  # Capture INFO and above as breadcrumbs
                     event_level=None,  # Don't automatically convert error messages to sentry events
-                    sentry_logs_level=logging.INFO,  # Capture INFO and above as logs
+                    sentry_logs_level=starbash.log_filter_level,  # Capture INFO and above as logs
                 ),
             ],
         )

@@ -13,6 +13,7 @@
             "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
             "justMyCode": false,
             "args": [
+                "--debug",
                 "user",
                 "analytics",
                 "on"

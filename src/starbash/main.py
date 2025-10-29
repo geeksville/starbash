@@ -3,11 +3,11 @@ import typer
 from typing_extensions import Annotated
 
 import starbash.url as url
+import starbash
 
-from .app import Starbash, get_user_config_path
+from .app import Starbash, get_user_config_path, setup_logging
 from .commands import repo, select, user
 from . import console
-import starbash.app
 
 app = typer.Typer(
     rich_markup_mode="rich",
@@ -32,7 +32,9 @@ def main_callback(
     """Main callback for the Starbash application."""
     # Set the log level based on --debug flag
     if debug:
-        starbash.app.log_filter_level = "DEBUG"
+        starbash.log_filter_level = logging.DEBUG
+        setup_logging()
+        logging.debug("Debug logging enabled")
 
     if ctx.invoked_subcommand is None:
         if not get_user_config_path().exists():

@@ -12,6 +12,7 @@ from rich.progress import track
 from rich.logging import RichHandler
 import shutil
 
+import starbash
 from starbash import console
 from starbash.database import Database
 from starbash.repo.manager import Repo
@@ -29,16 +30,12 @@ from starbash.analytics import (
 )
 
 
-# Global variable for log filter level (can be changed via --debug flag)
-log_filter_level = "INFO"
-
-
 def setup_logging():
     """
     Configures basic logging.
     """
     logging.basicConfig(
-        level=log_filter_level,  # use the global log filter level
+        level=starbash.log_filter_level,  # use the global log filter level
         format="%(message)s",
         datefmt="[%X]",
         handlers=[RichHandler(rich_tracebacks=True)],
