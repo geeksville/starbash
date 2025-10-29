@@ -57,6 +57,7 @@ def session():
             sb.analytics.set_data("session.num_selected", len(sessions))
             sb.analytics.set_data("session.num_total", len_all)
 
+            table.add_column("#", style="cyan", no_wrap=True)
             table.add_column("Date", style="cyan", no_wrap=True)
             table.add_column("# images", style="cyan", no_wrap=True)
             table.add_column("Time", style="cyan", no_wrap=True)
@@ -73,7 +74,7 @@ def session():
             image_types = set()
             telescopes = set()
 
-            for sess in sessions:
+            for session_index, sess in enumerate(sessions):
                 date_iso = sess.get(Database.START_KEY, "N/A")
                 # Try to cnvert ISO UTC datetime to local short date string
                 try:
@@ -116,6 +117,7 @@ def session():
                     object = ""  # Don't show meaningless target
 
                 table.add_row(
+                    str(session_index + 1),
                     date,
                     str(num_images),
                     total_secs,
@@ -127,6 +129,7 @@ def session():
             # Add totals row
             if sessions:
                 table.add_row(
+                    "",
                     "",
                     f"[bold]{total_images}[/bold]",
                     f"[bold]{format_duration(int(total_seconds))}[/bold]",
