@@ -8,6 +8,13 @@
 
 A tool for automating/standardizing/sharing astrophotography workflows.
 
+* Automatic - with sensible defaults, that you can change as needed.
+* Easy - provides a 'seestar like' starting-point for autoprocessing all your sessions by default.
+* Fast - even with large image repositories
+* Sharable - you can share/use recipes for image preprocessing flows.
+
+(This project is currently 'alpha' and missing recipes for some workflows, but adding new recipes is easy and we're happy to help.  Please file a github issue if your images are not auto-processed and we'll work out a fix.)
+
 <br clear="right">
 
 # Current status
