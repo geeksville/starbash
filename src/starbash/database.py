@@ -33,6 +33,9 @@ class Database:
     OBJECT_KEY = "OBJECT"
     TELESCOP_KEY = "TELESCOP"
 
+    SESSIONS_TABLE = "sessions"
+    IMAGES_TABLE = "images"
+
     def __init__(
         self,
         base_dir: Optional[Path] = None,
@@ -59,8 +62,8 @@ class Database:
 
         # Create images table with DATE-OBS and DATE as indexed columns
         cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS images (
+            f"""
+            CREATE TABLE IF NOT EXISTS {self.IMAGES_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 path TEXT UNIQUE NOT NULL,
                 date_obs TEXT,
@@ -72,29 +75,29 @@ class Database:
 
         # Create index on path for faster lookups
         cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_images_path ON images(path)
+            f"""
+            CREATE INDEX IF NOT EXISTS idx_images_path ON {self.IMAGES_TABLE}(path)
         """
         )
 
         # Create index on date_obs for efficient date range queries
         cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_images_date_obs ON images(date_obs)
+            f"""
+            CREATE INDEX IF NOT EXISTS idx_images_date_obs ON {self.IMAGES_TABLE}(date_obs)
         """
         )
 
         # Create index on date for queries using DATE field
         cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_images_date ON images(date)
+            f"""
+            CREATE INDEX IF NOT EXISTS idx_images_date ON {self.IMAGES_TABLE}(date)
         """
         )
 
         # Create sessions table
         cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS sessions (
+            f"""
+            CREATE TABLE IF NOT EXISTS {self.SESSIONS_TABLE} (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 start TEXT NOT NULL,
                 end TEXT NOT NULL,
@@ -111,9 +114,9 @@ class Database:
 
         # Create index on session attributes for faster queries
         cursor.execute(
-            """
+            f"""
             CREATE INDEX IF NOT EXISTS idx_sessions_lookup
-            ON sessions(filter, imagetyp, object, telescop, start, end)
+            ON {self.SESSIONS_TABLE}(filter, imagetyp, object, telescop, start, end)
         """
         )
 
@@ -141,8 +144,8 @@ class Database:
 
         cursor = self._db.cursor()
         cursor.execute(
-            """
-            INSERT INTO images (path, date_obs, date, metadata) VALUES (?, ?, ?, ?)
+            f"""
+            INSERT INTO {self.IMAGES_TABLE} (path, date_obs, date, metadata) VALUES (?, ?, ?, ?)
             ON CONFLICT(path) DO UPDATE SET
                 date_obs = excluded.date_obs,
                 date = excluded.date,
@@ -154,7 +157,7 @@ class Database:
         self._db.commit()
 
         # Get the rowid of the inserted/updated record
-        cursor.execute("SELECT id FROM images WHERE path = ?", (path,))
+        cursor.execute(f"SELECT id FROM {self.IMAGES_TABLE} WHERE path = ?", (path,))
         result = cursor.fetchone()
         if result:
             return result[0]
@@ -190,7 +193,7 @@ class Database:
             params.append(date_end)
 
         # Build the query
-        query = "SELECT id, path, date_obs, date, metadata FROM images"
+        query = f"SELECT id, path, date_obs, date, metadata FROM {self.IMAGES_TABLE}"
         if where_clauses:
             query += " WHERE " + " AND ".join(where_clauses)
 
@@ -236,10 +239,10 @@ class Database:
 
         cursor = self._db.cursor()
         cursor.execute(
-            """
+            f"""
             SELECT id, start, end, filter, imagetyp, object, telescop,
                    num_images, exptime_total, image_doc_id
-            FROM sessions
+            FROM {self.SESSIONS_TABLE}
         """
         )
 
@@ -286,14 +289,14 @@ class Database:
 
         return results if results else None
 
-    def len_session(self) -> int:
-        """Return the total number of sessions."""
+    def len_table(self, table_name: str) -> int:
+        """Return the total number of rows in the specified table."""
         cursor = self._db.cursor()
-        cursor.execute("SELECT COUNT(*) FROM sessions")
+        cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
         result = cursor.fetchone()
         return result[0] if result else 0
 
-    def get_column(self, column_name: str, table_name: str = "sessions") -> list[Any]:
+    def get_column(self, column_name: str, table_name: str) -> list[Any]:
         """Return all values from a specific column in the specified table."""
         cursor = self._db.cursor()
         cursor.execute(f"SELECT {column_name} FROM {table_name}")
@@ -308,7 +311,7 @@ class Database:
         """Get an image record by path."""
         cursor = self._db.cursor()
         cursor.execute(
-            "SELECT id, path, date_obs, date, metadata FROM images WHERE path = ?",
+            f"SELECT id, path, date_obs, date, metadata FROM {self.IMAGES_TABLE} WHERE path = ?",
             (path,),
         )
         row = cursor.fetchone()
@@ -331,7 +334,9 @@ class Database:
     def all_images(self) -> list[dict[str, Any]]:
         """Return all image records."""
         cursor = self._db.cursor()
-        cursor.execute("SELECT id, path, date_obs, date, metadata FROM images")
+        cursor.execute(
+            f"SELECT id, path, date_obs, date, metadata FROM {self.IMAGES_TABLE}"
+        )
 
         results = []
         for row in cursor.fetchall():
@@ -353,10 +358,10 @@ class Database:
         """Return all session records."""
         cursor = self._db.cursor()
         cursor.execute(
-            """
+            f"""
             SELECT id, start, end, filter, imagetyp, object, telescop,
                    num_images, exptime_total, image_doc_id
-            FROM sessions
+            FROM {self.SESSIONS_TABLE}
         """
         )
 
@@ -389,10 +394,10 @@ class Database:
         """
         cursor = self._db.cursor()
         cursor.execute(
-            """
+            f"""
             SELECT id, start, end, filter, imagetyp, object, telescop,
                    num_images, exptime_total, image_doc_id
-            FROM sessions
+            FROM {self.SESSIONS_TABLE}
             WHERE id = ?
         """,
             (session_id,),
@@ -443,10 +448,10 @@ class Database:
         # comparison aligns with chronological ordering for a uniform format.
         cursor = self._db.cursor()
         cursor.execute(
-            """
+            f"""
             SELECT id, start, end, filter, imagetyp, object, telescop,
                    num_images, exptime_total, image_doc_id
-            FROM sessions
+            FROM {self.SESSIONS_TABLE}
             WHERE filter = ? AND imagetyp = ? AND object = ? AND telescop = ?
               AND start >= ? AND start <= ?
             LIMIT 1
@@ -489,8 +494,8 @@ class Database:
             ) + new.get(Database.EXPTIME_TOTAL_KEY, 0)
 
             cursor.execute(
-                """
-                UPDATE sessions
+                f"""
+                UPDATE {self.SESSIONS_TABLE}
                 SET start = ?, end = ?, num_images = ?, exptime_total = ?
                 WHERE id = ?
             """,
@@ -505,8 +510,8 @@ class Database:
         else:
             # Insert new session
             cursor.execute(
-                """
-                INSERT INTO sessions
+                f"""
+                INSERT INTO {self.SESSIONS_TABLE}
                 (start, end, filter, imagetyp, object, telescop, num_images, exptime_total, image_doc_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,

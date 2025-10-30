@@ -5,6 +5,7 @@ from typing_extensions import Annotated
 
 from starbash.app import Starbash
 from starbash import console
+from starbash.database import Database
 from starbash.paths import get_user_config_dir, get_user_data_dir
 
 app = typer.Typer()
@@ -76,7 +77,10 @@ def main_callback(ctx: typer.Context):
             table.add_row("User Repositories", str(len(sb.repo_manager.regular_repos)))
 
             # Show database stats
-            num_sessions = sb.db.len_session()
+            num_sessions = sb.db.len_table(Database.SESSIONS_TABLE)
             table.add_row("Sessions Indexed", str(num_sessions))
+
+            num_images = sb.db.len_table(Database.IMAGES_TABLE)
+            table.add_row("Images Indexed", str(num_images))
 
             console.print(table)

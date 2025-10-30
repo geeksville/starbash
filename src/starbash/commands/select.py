@@ -135,7 +135,7 @@ def list_sessions():
     with Starbash("selection.list") as sb:
         sessions = sb.search_session()
         if sessions and isinstance(sessions, list):
-            len_all = sb.db.len_session()
+            len_all = sb.db.len_table(Database.SESSIONS_TABLE)
             table = Table(title=f"Sessions ({len(sessions)} selected out of {len_all})")
             sb.analytics.set_data("session.num_selected", len(sessions))
             sb.analytics.set_data("session.num_total", len_all)
