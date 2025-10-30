@@ -2,7 +2,7 @@ import logging
 import os
 
 import starbash
-from starbash import console
+from starbash import console, _is_test_env
 import starbash.url as url
 
 # Default to no analytics/auto crash reports
@@ -51,11 +51,6 @@ def analytics_shutdown() -> None:
         sentry_sdk.flush()
 
 
-def is_running_in_pytest() -> bool:
-    """Detect if code is being run inside pytest."""
-    return "PYTEST_CURRENT_TEST" in os.environ
-
-
 def is_development_environment() -> bool:
     """Detect if running in a development environment."""
 
@@ -80,7 +75,7 @@ def analytics_exception(exc: Exception) -> bool:
     if analytics_allowed:
         import sentry_sdk
 
-        if is_running_in_pytest():
+        if _is_test_env:
             report_id = "TESTING-ENVIRONMENT"
         else:
             report_id = sentry_sdk.capture_exception(exc)

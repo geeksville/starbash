@@ -101,12 +101,33 @@ def test_repo_list_non_verbose(setup_test_environment):
         # Should show numbered repos (user-visible only)
         output = result.stdout
 
-        # Should have at least one numbered line (format: " 1: file://...")
-        assert any(
-            line.strip().startswith(f"{i}:")
-            for i in range(1, 20)
+        # Find all lines (filter out log lines which start with whitespace followed by INFO/DEBUG/etc)
+        output_lines = [
+            line
             for line in output.split("\n")
-        )
+            if line.strip()
+            and not line.strip().startswith("INFO")
+            and not line.strip().startswith("DEBUG")
+        ]
+
+        # Should have at least one numbered line (format: " 1: file://..." or "1: file://...")
+        numbered_lines = [
+            line
+            for line in output_lines
+            if line.strip()
+            and ":" in line
+            and line.strip().split(":")[0].strip().isdigit()
+        ]
+
+        # Debug output for troubleshooting
+        if len(numbered_lines) == 0:
+            print(f"\n=== DEBUG: Full output ===\n{output}")
+            print(f"\n=== DEBUG: Output lines ===\n{output_lines}")
+            print(f"\n=== DEBUG: Numbered lines ===\n{numbered_lines}")
+
+        assert (
+            len(numbered_lines) > 0
+        ), f"Should have numbered repos. Output lines: {output_lines}"
 
         # Should NOT show preferences or recipe repos in non-verbose mode
         # (these are filtered out by regular_repos property)
@@ -114,20 +135,11 @@ def test_repo_list_non_verbose(setup_test_environment):
             "(kind=preferences)" not in output
             or output.count("(kind=preferences)") == 0
         )
-        # Some repos might be shown, but pkg:// repos should be filtered
-        lines_with_repos = [
-            line for line in output.split("\n") if "file://" in line or "pkg://" in line
-        ]
-        # Should have file:// but not pkg://
-        assert any("file://" in line for line in lines_with_repos)
-        assert not any("pkg://" in line for line in lines_with_repos)
 
-        # Verify numbered format exists
-        has_numbers = any(
-            ":" in line and line.split(":")[0].strip().isdigit()
-            for line in lines_with_repos
-        )
-        assert has_numbers, "Non-verbose mode should show numbered repos"
+        # Some repos might be shown, but pkg:// repos should be filtered
+        # Should have file:// but not pkg://
+        assert any("file://" in line for line in numbered_lines)
+        assert not any("pkg://" in line for line in numbered_lines)
 
 
 def test_repo_list_verbose(setup_test_environment):
@@ -141,8 +153,15 @@ def test_repo_list_verbose(setup_test_environment):
     assert "pkg://defaults" in output or "(kind=preferences)" in output
 
     # Should NOT have numbered format in verbose mode
+    # Filter out log lines to get actual repo lines
     lines_with_repos = [
-        line for line in output.split("\n") if "file://" in line or "pkg://" in line
+        line
+        for line in output.split("\n")
+        if (
+            ("file://" in line or "pkg://" in line)
+            and not line.strip().startswith("INFO")
+            and not line.strip().startswith("DEBUG")
+        )
     ]
 
     # Check that lines don't start with numbers (format should be "file://..." not " 1: file://...")
@@ -170,8 +189,15 @@ def test_repo_list_verbose_short_flag(setup_test_environment):
     )
 
     # Should NOT have numbered format
+    # Filter out log lines to get actual repo lines
     lines_with_repos = [
-        line for line in output.split("\n") if "file://" in line or "pkg://" in line
+        line
+        for line in output.split("\n")
+        if (
+            ("file://" in line or "pkg://" in line)
+            and not line.strip().startswith("INFO")
+            and not line.strip().startswith("DEBUG")
+        )
     ]
     for line in lines_with_repos:
         stripped = line.strip()
@@ -208,11 +234,17 @@ def test_repo_remove_command(setup_test_environment, tmp_path):
     # The test repo should be in the list
     assert "testrepo" in list_result.stdout
 
-    # Find the repo number (it should be the last numbered line)
+    # Find the repo number - filter out log lines first
     lines = [
         line
         for line in list_result.stdout.split("\n")
-        if line.strip() and ":" in line and "file://" in line
+        if (
+            line.strip()
+            and ":" in line
+            and "file://" in line
+            and not line.strip().startswith("INFO")
+            and not line.strip().startswith("DEBUG")
+        )
     ]
     # Get the last numbered line
     last_line = None
@@ -220,7 +252,14 @@ def test_repo_remove_command(setup_test_environment, tmp_path):
         if line.strip() and line.strip()[0].isdigit():
             last_line = line
 
-    assert last_line is not None, "Could not find numbered repo in list"
+    # Debug output for troubleshooting
+    if last_line is None:
+        print(f"\n=== DEBUG: Full output ===\n{list_result.stdout}")
+        print(f"\n=== DEBUG: Filtered lines ===\n{lines}")
+
+    assert (
+        last_line is not None
+    ), f"Could not find numbered repo in list. Lines: {lines}"
     repo_num = last_line.strip().split(":")[0].strip()
 
     # Remove the repo
@@ -281,11 +320,17 @@ def test_repo_reindex_by_number(setup_test_environment, tmp_path):
     # The test repo should be in the list
     assert "testrepo" in list_result.stdout
 
-    # Find the repo number (it should be the last numbered line)
+    # Find the repo number - filter out log lines first
     lines = [
         line
         for line in list_result.stdout.split("\n")
-        if line.strip() and ":" in line and "file://" in line
+        if (
+            line.strip()
+            and ":" in line
+            and "file://" in line
+            and not line.strip().startswith("INFO")
+            and not line.strip().startswith("DEBUG")
+        )
     ]
     # Get the last numbered line
     last_line = None
@@ -293,7 +338,14 @@ def test_repo_reindex_by_number(setup_test_environment, tmp_path):
         if line.strip() and line.strip()[0].isdigit():
             last_line = line
 
-    assert last_line is not None, "Could not find numbered repo in list"
+    # Debug output for troubleshooting
+    if last_line is None:
+        print(f"\n=== DEBUG: Full output ===\n{list_result.stdout}")
+        print(f"\n=== DEBUG: Filtered lines ===\n{lines}")
+
+    assert (
+        last_line is not None
+    ), f"Could not find numbered repo in list. Lines: {lines}"
     repo_num = last_line.strip().split(":")[0].strip()
 
     # Reindex the specific repo

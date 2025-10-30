@@ -13,7 +13,7 @@ from rich.logging import RichHandler
 import shutil
 
 import starbash
-from starbash import console
+from starbash import console, _is_test_env
 from starbash.database import Database
 from starbash.repo.manager import Repo
 from starbash.tool import Tool
@@ -34,11 +34,12 @@ def setup_logging():
     """
     Configures basic logging.
     """
+    handlers = [RichHandler(rich_tracebacks=True)] if not _is_test_env else []
     logging.basicConfig(
         level=starbash.log_filter_level,  # use the global log filter level
         format="%(message)s",
         datefmt="[%X]",
-        handlers=[RichHandler(rich_tracebacks=True)],
+        handlers=handlers,
     )
 
 
