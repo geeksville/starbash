@@ -57,8 +57,8 @@ def main_callback(ctx: typer.Context):
             table.add_column("Value", style="green")
 
             # Show config and data directories
-            table.add_row("Config Directory", str(get_user_config_dir()))
-            table.add_row("Data Directory", str(get_user_data_dir()))
+            # table.add_row("Config Directory", str(get_user_config_dir()))
+            # table.add_row("Data Directory", str(get_user_data_dir()))
 
             # Show user preferences if set
             user_name = sb.user_repo.get("user.name")
@@ -68,10 +68,6 @@ def main_callback(ctx: typer.Context):
             user_email = sb.user_repo.get("user.email")
             if user_email:
                 table.add_row("User Email", str(user_email))
-
-            # Show analytics setting
-            analytics_enabled = sb.user_repo.get("analytics.enabled", True)
-            table.add_row("Analytics", "Enabled" if analytics_enabled else "Disabled")
 
             # Show number of repos
             table.add_row("Total Repositories", str(len(sb.repo_manager.repos)))

@@ -3,7 +3,8 @@
 # FIXME - switch to using github actions to generate https://github.com/charmbracelet/vhs-action?tab=readme-ov-file
 Output doc/vhs/sample-session.gif
 
-Set Padding 4
+Set Padding 6
+Set BorderRadius 3
 Set FontSize 20
 Set Width 1200
 Set Height 600
