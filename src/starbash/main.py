@@ -6,7 +6,7 @@ import starbash.url as url
 import starbash
 
 from .app import Starbash, get_user_config_path, setup_logging
-from .commands import repo, select, user
+from .commands import info, repo, select, user
 from . import console
 
 app = typer.Typer(
@@ -16,6 +16,7 @@ app = typer.Typer(
 app.add_typer(user.app, name="user", help="Manage user settings.")
 app.add_typer(repo.app, name="repo", help="Manage Starbash repositories.")
 app.add_typer(select.app, name="select", help="Manage session and target selection.")
+app.add_typer(info.app, name="info", help="Display system and data information.")
 
 
 @app.callback(invoke_without_command=True)

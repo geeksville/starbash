@@ -10,7 +10,7 @@
 * [x] implement setup command (including username selection and analytics)
 * [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [x] include instrument name in session list (for seestar,asiair,etc)
-* [ ] select default output should show summary info for current target.
+* [ ] select default output should show summary info for current target & telescope.
 * [ ] make masters list work
 * [ ] track image quality on a per frame basis
 * [ ] use db find master bias frames
