@@ -4,7 +4,7 @@
 [![GitHub branch check runs](https://img.shields.io/github/check-runs/geeksville/starbash/main)](https://github.com/geeksville/starbash/actions)
 [![codecov](https://codecov.io/github/geeksville/starbash/graph/badge.svg?token=47RE10I7O1)](https://codecov.io/github/geeksville/starbash)
 
- ![app icon](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/img/icon.png "Starbash: Astrophotography workflows simplified")
+<img src="https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/img/icon.png" alt="Starbash: Astrophotography workflows simplified" width="50%">
 
 A tool for automating/standardizing/sharing astrophotography workflows.
 
@@ -13,6 +13,8 @@ A tool for automating/standardizing/sharing astrophotography workflows.
 Not quite ready 😊.  But making good progress.
 
 See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-alpha testers/feedback soon.
+
+![Sample session movie](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/vhs/sample-session.gif)
 
 ## Current features
 
