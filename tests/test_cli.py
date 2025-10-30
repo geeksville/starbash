@@ -13,8 +13,29 @@ runner = CliRunner()
 
 
 def strip_ansi(text: str) -> str:
-    """Remove ANSI escape codes from text."""
-    ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+    """Remove ANSI escape codes from text.
+
+    Removes all ANSI escape sequences including:
+    - SGR (colors/styles): ESC[...m
+    - CSI sequences: ESC[...letter (cursor movement, etc.)
+    - OSC sequences: ESC]...BEL or ESC]...ST
+    - Other escape sequences: ESC followed by various characters
+    """
+    # Pattern matches:
+    # \x1b\[[0-9;?]*[a-zA-Z]  - CSI sequences (includes SGR)
+    # \x1b\][^\x07]*\x07      - OSC sequences terminated by BEL
+    # \x1b\][^\x1b]*\x1b\\    - OSC sequences terminated by ST
+    # \x1b[()][AB012]         - Character set selection
+    # \x1b[=>]                - Keypad modes
+    # \x1b.                   - Other single-char escapes
+    ansi_escape = re.compile(
+        r"\x1b\[[0-9;?]*[a-zA-Z]"  # CSI sequences
+        r"|\x1b\][^\x07]*\x07"  # OSC with BEL
+        r"|\x1b\][^\x1b]*\x1b\\"  # OSC with ST
+        r"|\x1b[()][AB012]"  # Character set
+        r"|\x1b[=>]"  # Keypad modes
+        r"|\x1b."  # Other escapes
+    )
     return ansi_escape.sub("", text)
 
 
