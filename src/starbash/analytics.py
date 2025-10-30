@@ -60,7 +60,7 @@ def is_development_environment() -> bool:
     """Detect if running in a development environment."""
 
     # Check for explicit environment variable
-    if os.getenv("STARBASH_ENV") == "development":
+    if os.getenv("SENTRY_ENVIRONMENT") == "development":
         return True
 
     # Check if running under VS Code
