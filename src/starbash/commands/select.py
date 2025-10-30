@@ -10,6 +10,7 @@ from rich.table import Table
 from starbash.app import Starbash, copy_images_to_dir
 from starbash.database import Database
 from starbash import console
+from starbash.commands import format_duration
 
 app = typer.Typer()
 
@@ -112,20 +113,6 @@ def date(
                 f"[red]Error: Unknown operation '{operation}'. Use 'after', 'before', or 'between'[/red]"
             )
             raise typer.Exit(1)
-
-
-def format_duration(seconds: int):
-    """Format seconds as a human-readable duration string."""
-    if seconds < 60:
-        return f"{int(seconds)}s"
-    elif seconds < 120:
-        minutes = int(seconds // 60)
-        secs = int(seconds % 60)
-        return f"{minutes}m {secs}s" if secs else f"{minutes}m"
-    else:
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        return f"{hours}h {minutes}m" if minutes else f"{hours}h"
 
 
 @app.command(name="list")

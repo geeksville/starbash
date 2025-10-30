@@ -7,6 +7,7 @@ from starbash.app import Starbash
 from starbash import console
 from starbash.database import Database
 from starbash.paths import get_user_config_dir, get_user_data_dir
+from starbash.commands import format_duration
 
 app = typer.Typer()
 
@@ -83,8 +84,9 @@ def main_callback(ctx: typer.Context):
 
             table.add_row("Images Indexed", str(sb.db.len_table(Database.IMAGES_TABLE)))
 
+            total_exptime = sb.db.sum_column(Database.SESSIONS_TABLE, "exptime_total")
             table.add_row(
                 "Total image time",
-                str(sb.db.sum_column(Database.SESSIONS_TABLE, "exptime_total")),
+                format_duration(total_exptime),
             )
             console.print(table)
