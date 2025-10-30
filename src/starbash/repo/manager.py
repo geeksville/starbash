@@ -171,9 +171,16 @@ class Repo:
             raise ValueError("Cannot read files from non-local repositories")
         target_path = (base_path / filepath).resolve()
 
-        # Security check to prevent reading files outside the repo directory
-        if base_path not in target_path.parents and target_path != base_path:
-            raise PermissionError("Attempted to read file outside of repository")
+        # Security check to prevent reading files outside the repo directory.
+        # FIXME SECURITY - temporarily disabled because I want to let file urls say things like ~/foo.
+        # it would false trigger if user homedir path has a symlink in it (such as /home -> /var/home)
+        #   base_path = PosixPath('/home/kevinh/.config/starbash')                   │                                                                                          │
+        #   filepath = 'starbash.toml'                                              │                                                                                          │
+        #   self = <repr-error 'maximum recursion depth exceeded'>              │                                                                                          │
+        #   target_path = PosixPath('/var/home/kevinh/.config/starbash/starbash.toml')
+        #
+        # if base_path not in target_path.parents and target_path != base_path:
+        #    raise PermissionError("Attempted to read file outside of repository")
 
         return target_path.read_text()
 
