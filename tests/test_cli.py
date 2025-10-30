@@ -122,12 +122,12 @@ def test_repo_list_non_verbose(setup_test_environment):
         assert any("file://" in line for line in lines_with_repos)
         assert not any("pkg://" in line for line in lines_with_repos)
 
-    # Verify numbered format exists
-    has_numbers = any(
-        ":" in line and line.split(":")[0].strip().isdigit()
-        for line in lines_with_repos
-    )
-    assert has_numbers, "Non-verbose mode should show numbered repos"
+        # Verify numbered format exists
+        has_numbers = any(
+            ":" in line and line.split(":")[0].strip().isdigit()
+            for line in lines_with_repos
+        )
+        assert has_numbers, "Non-verbose mode should show numbered repos"
 
 
 def test_repo_list_verbose(setup_test_environment):
