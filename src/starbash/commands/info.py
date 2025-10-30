@@ -9,7 +9,7 @@ from starbash.app import Starbash
 from starbash import console
 from starbash.database import Database
 from starbash.paths import get_user_config_dir, get_user_data_dir
-from starbash.commands import format_duration
+from starbash.commands import format_duration, TABLE_COLUMN_STYLE, TABLE_VALUE_STYLE
 
 app = typer.Typer()
 
@@ -38,8 +38,10 @@ def dump_column(sb: Starbash, human_name: str, column_name: str) -> None:
 
     # Create and display table
     table = Table(title=f"{plural(human_name)} ({len(telescope_counts)} found)")
-    table.add_column(human_name, style="cyan", no_wrap=False)
-    table.add_column("# of sessions", style="cyan", no_wrap=True, justify="right")
+    table.add_column(human_name, style=TABLE_COLUMN_STYLE, no_wrap=False)
+    table.add_column(
+        "# of sessions", style=TABLE_COLUMN_STYLE, no_wrap=True, justify="right"
+    )
 
     for telescope, count in sorted_telescopes:
         table.add_row(telescope, str(count))
@@ -76,11 +78,9 @@ def main_callback(ctx: typer.Context):
     """
     if ctx.invoked_subcommand is None:
         with Starbash("info") as sb:
-            from rich.table import Table
-
             table = Table(title="Starbash Information")
-            table.add_column("Setting", style="cyan", no_wrap=True)
-            table.add_column("Value", style="green")
+            table.add_column("Setting", style=TABLE_COLUMN_STYLE, no_wrap=True)
+            table.add_column("Value", style=TABLE_VALUE_STYLE)
 
             # Show config and data directories
             # table.add_row("Config Directory", str(get_user_config_dir()))

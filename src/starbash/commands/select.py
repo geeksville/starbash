@@ -10,7 +10,7 @@ from rich.table import Table
 from starbash.app import Starbash, copy_images_to_dir
 from starbash.database import Database
 from starbash import console
-from starbash.commands import format_duration, to_shortdate
+from starbash.commands import format_duration, to_shortdate, TABLE_COLUMN_STYLE, TABLE_VALUE_STYLE
 
 app = typer.Typer()
 
@@ -127,14 +127,14 @@ def list_sessions():
             sb.analytics.set_data("session.num_selected", len(sessions))
             sb.analytics.set_data("session.num_total", len_all)
 
-            table.add_column("#", style="cyan", no_wrap=True)
-            table.add_column("Date", style="cyan", no_wrap=True)
-            table.add_column("# images", style="cyan", no_wrap=True)
-            table.add_column("Time", style="cyan", no_wrap=True)
-            table.add_column("Type/Filter", style="cyan", no_wrap=True)
-            table.add_column("Telescope", style="cyan", no_wrap=True)
+            table.add_column("#", style=TABLE_COLUMN_STYLE, no_wrap=True)
+            table.add_column("Date", style=TABLE_COLUMN_STYLE, no_wrap=True)
+            table.add_column("# images", style=TABLE_COLUMN_STYLE, no_wrap=True)
+            table.add_column("Time", style=TABLE_COLUMN_STYLE, no_wrap=True)
+            table.add_column("Type/Filter", style=TABLE_COLUMN_STYLE, no_wrap=True)
+            table.add_column("Telescope", style=TABLE_COLUMN_STYLE, no_wrap=True)
             table.add_column(
-                "About", style="cyan", no_wrap=True
+                "About", style=TABLE_COLUMN_STYLE, no_wrap=True
             )  # type of frames, filter, target
 
             total_images = 0
@@ -294,8 +294,8 @@ def show_selection(ctx: typer.Context):
                 console.print(f"[yellow]{summary['message']}[/yellow]")
             else:
                 table = Table(title="Current Selection")
-                table.add_column("Criteria", style="cyan")
-                table.add_column("Value", style="green")
+                table.add_column("Criteria", style=TABLE_COLUMN_STYLE)
+                table.add_column("Value", style=TABLE_VALUE_STYLE)
 
                 for criterion in summary["criteria"]:
                     parts = criterion.split(": ", 1)

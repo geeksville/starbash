@@ -1,6 +1,11 @@
 """Shared utilities for starbash commands."""
 
 from datetime import datetime
+from rich.style import Style
+
+# Define reusable table styles
+TABLE_COLUMN_STYLE = Style(color="cyan")
+TABLE_VALUE_STYLE = Style(color="green")
 
 
 def format_duration(seconds: int | float) -> str:
