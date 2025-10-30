@@ -72,7 +72,7 @@
 * [ ] get a real app icon (instead of current placeholder)
 * [ ] experiment with auto generation of report text
 * [ ] experiment with telescopus upload (filling in fields of image info with backpointers requesting feedback)
-
+* [ ] make a "gen_test_db() function that can be used to generate either a huge or a tiny DB with 'real looking' test data (for performance tesing and CI).  Have it use a couple of real stripped FITS files.
 ## astrosnake ideas
 
 Use https://siril.org/tutorials/bash-scripts/ for scripting externally? and or testing
