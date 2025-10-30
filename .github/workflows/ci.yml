@@ -8,7 +8,13 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Run the test job on a matrix of OSes. Add 'windows-2025' as requested.
+    # Note: if GitHub does not provide a 'windows-2025' runner this job will fail;
+    # you can replace it with 'windows-2022' which is commonly available.
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-2025, macos-latest]
+    runs-on: ${{ matrix.os }}
     environment: ci
 
     steps:
@@ -38,7 +44,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-${{ matrix.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       #----------------------------------------------
       # install dependencies if cache does not exist
@@ -48,9 +54,40 @@ jobs:
         run: poetry install --no-interaction --with dev
 
       - name: Run tests
-        run: |
-          export SENTRY_ENVIRONMENT=ci
-          poetry run pytest --cov --cov-report=term --cov-report=xml --junitxml=junit.xml
+        env:
+          SENTRY_ENVIRONMENT: ci
+        run: poetry run pytest --cov --cov-report=term --cov-report=xml --junitxml=junit.xml
+
+      - name: Upload coverage artifact
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+      - name: Upload junit artifact
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-xml
+          path: junit.xml
+
+  upload:
+    # Single upload job that runs once (on linux) after the matrix test job completes
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-xml
+          path: .
+
+      - name: Download junit artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: junit-xml
+          path: .
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
