@@ -32,16 +32,17 @@ def test_repo_manager_initialization(monkeypatch, tmp_path: Path):
     )
 
     # Write test repo config with repo-refs
+    # Use as_posix() to convert Windows paths to forward slashes for TOML compatibility
     (test_repo_path / "starbash.toml").write_text(
         f"""
         [repo]
         kind = "test"
 
         [[repo-ref]]
-        dir = "{ref_repo1_path}"
+        dir = "{ref_repo1_path.as_posix()}"
 
         [[repo-ref]]
-        dir = "{ref_repo2_path}"
+        dir = "{ref_repo2_path.as_posix()}"
         """
     )
 
