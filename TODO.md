@@ -6,8 +6,10 @@
 * [x] start writing user prefs in user prefs dir
 * [x] make reindex smarter
 * [x] make the various filter options work
+* [ ] given a session, return a best set of flats or biases for that session (generalize later)
 * [ ] add targets list
 * [x] implement setup command (including username selection and analytics)
+* [ ] make a nicer movie
 * [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [x] include instrument name in session list (for seestar,asiair,etc)
 * [ ] select default output should show summary info for current target & telescope.
@@ -22,6 +24,8 @@
 * [ ] add automated session config looping (Sii, Oiii etc...)
 * [ ] add automated session looping (multiday)
 * [ ] pass stage outputs via the context?
+* [ ] generalize the various session selectors to make them just come from an array of column names (should allow removing the select telescope, select foo variants)
+* [ ] add the concept of filter aliases
 * [ ] record # of repos, # of images, # of sessions, in analytics - to measure db sufficiency
 * [x] does repo glob even matter if we just throw everything in the db based on fits metadata?  do an experiment.  YES it does, use DB based on FITS for all operations (instead of globs)
 * [x] Add a db starbash.Database class, populated from repos.  Regen as needed.
