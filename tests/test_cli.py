@@ -1,5 +1,6 @@
 """Tests for CLI commands to ensure they don't crash on invocation."""
 
+import re
 from pathlib import Path
 from typer.testing import CliRunner
 import pytest
@@ -9,6 +10,12 @@ from starbash.database import Database
 from starbash import paths
 
 runner = CliRunner()
+
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI escape codes from text."""
+    ansi_escape = re.compile(r"\x1b\[[0-9;]*m")
+    return ansi_escape.sub("", text)
 
 
 @pytest.fixture
@@ -199,14 +206,15 @@ def test_repo_remove_command(setup_test_environment, tmp_path):
         for line in list_result.stdout.split("\n")
         if line.strip() and ":" in line and "file://" in line
     ]
-    # Get the last numbered line
+    # Get the last numbered line (strip ANSI codes first for cross-platform compatibility)
     last_line = None
     for line in lines:
-        if line.strip() and line.strip()[0].isdigit():
-            last_line = line
+        clean_line = strip_ansi(line).strip()
+        if clean_line and clean_line[0].isdigit():
+            last_line = clean_line
 
     assert last_line is not None, "Could not find numbered repo in list"
-    repo_num = last_line.strip().split(":")[0].strip()
+    repo_num = last_line.split(":")[0].strip()
 
     # Remove the repo
     remove_result = runner.invoke(app, ["repo", "remove", repo_num])
@@ -272,14 +280,15 @@ def test_repo_reindex_by_number(setup_test_environment, tmp_path):
         for line in list_result.stdout.split("\n")
         if line.strip() and ":" in line and "file://" in line
     ]
-    # Get the last numbered line
+    # Get the last numbered line (strip ANSI codes first for cross-platform compatibility)
     last_line = None
     for line in lines:
-        if line.strip() and line.strip()[0].isdigit():
-            last_line = line
+        clean_line = strip_ansi(line).strip()
+        if clean_line and clean_line[0].isdigit():
+            last_line = clean_line
 
     assert last_line is not None, "Could not find numbered repo in list"
-    repo_num = last_line.strip().split(":")[0].strip()
+    repo_num = last_line.split(":")[0].strip()
 
     # Reindex the specific repo
     result = runner.invoke(app, ["repo", "reindex", repo_num])

@@ -311,8 +311,11 @@ class TestPythonTool:
 
         with tempfile.TemporaryDirectory() as temp_dir:
             tool.run(temp_dir, code, context)
-            # Verify cwd was changed during execution
-            assert context["cwd_during_run"][0] == temp_dir
+            # Verify cwd was changed during execution. Use realpath to
+            # resolve macOS /private vs /var symlink differences.
+            assert os.path.realpath(context["cwd_during_run"][0]) == os.path.realpath(
+                temp_dir
+            )
             # Verify cwd was restored after execution
             assert os.getcwd() == original_cwd
 
