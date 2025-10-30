@@ -55,7 +55,9 @@
 		"XAUTHORITY": "/tmp/.docker.xauth",
 		"PYTHONDEVMODE": "1", // Enable Python dev mode for better debug output
 		"PYTHONPYCACHEPREFIX": "/workspaces/starbash/.pycache",
-		"SENTRY_ENVIRONMENT": "development" // For sentry.io reporting
+		"SENTRY_ENVIRONMENT": "development", // For sentry.io reporting
+		// Allows 'docker' commands to work inside the container via the host's podman
+		"DOCKER_HOST": "unix:///run/user/1000/podman/podman.sock",
 	},
 	"remoteUser": "vscode",
 	"postCreateCommand": "bash .devcontainer/post-create.sh",

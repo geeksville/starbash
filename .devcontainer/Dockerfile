@@ -10,8 +10,10 @@ USER root
 
 # Add core python packages
 RUN apt-get update && apt-get -y install --no-install-recommends \
-        python3 python3-pip python3-venv python-is-python3 python3-tk sudo git flatpak sqlitebrowser \
-    && rm -rf /var/lib/apt/lists/*
+        python3 python3-pip python3-venv python-is-python3 python3-tk sudo git flatpak sqlitebrowser
+
+# Not yet using docker (we might need docker for using the vhs movie maker)
+# RUN apt-get install docker.io
 
 # Create a non-root user if one doesn't exist, and give it sudo rights
 RUN if ! id -u ${USERNAME} > /dev/null 2>&1; then \
@@ -30,8 +32,8 @@ ENV PATH="/home/${USERNAME}/.local/bin:$HOME/.local/share/flatpak/exports/bin/:$
 
 # astropy provides the fitsheader command line tool
 RUN pip install --user --no-cache-dir --break-system-packages pipx \
-    && pipx install --pip-args=--no-cache-dir graxpert[cpuonly] \
-    && pipx install --pip-args=--no-cache-dir poetry astropy
+        && pipx install --pip-args=--no-cache-dir graxpert[cpuonly] \
+        && pipx install --pip-args=--no-cache-dir poetry astropy
 
 # Install Siril (as non-root user)
 # Note: this must be done here, if done in Dockerfile it doesn't work - this env var is a nasty hack to allow
@@ -42,3 +44,18 @@ RUN flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/rep
 RUN flatpak install --user -y flathub org.siril.Siril
 # Let siril see /tmp
 RUN flatpak --user override --filesystem=/tmp org.siril.Siril
+
+# Install homebrew (works - but not currently used)
+#RUN sudo apt-get install build-essential curl git -y
+#RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+#RUN echo >> /home/vscode/.bashrc && \
+#    echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> /home/vscode/.bashrc && \
+#    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+
+# install vhs command-line movie maker (not used - we instead use the docker version)
+#RUN brew install vhs
+
+USER root
+
+# Make container smaller.  Do this last, so that if we change the container it is fast to use existing apts
+RUN rm -rf /var/lib/apt/lists/*
