@@ -45,17 +45,18 @@ RUN flatpak install --user -y flathub org.siril.Siril
 # Let siril see /tmp
 RUN flatpak --user override --filesystem=/tmp org.siril.Siril
 
-# Install homebrew (works - but not currently used)
-#RUN sudo apt-get install build-essential curl git -y
-#RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-#RUN echo >> /home/vscode/.bashrc && \
-#    echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> /home/vscode/.bashrc && \
-#    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-
-# install vhs command-line movie maker (not used - we instead use the docker version)
-#RUN brew install vhs
+# Install homebrew (vhs command-line movie maker)
+RUN sudo apt-get install build-essential curl git -y
+RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+RUN echo >> /home/vscode/.bashrc && \
+        echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> /home/vscode/.bashrc && \
+        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && \
+        brew install vhs
 
 USER root
 
+# needed for vhs to make movies
+RUN apt-get install -y --no-install-recommends chromium-browser chromium-codecs-ffmpeg
+
 # Make container smaller.  Do this last, so that if we change the container it is fast to use existing apts
-RUN rm -rf /var/lib/apt/lists/*
+# RUN rm -rf /var/lib/apt/lists/*
