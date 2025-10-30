@@ -37,6 +37,7 @@
 * [ ] make single DUO processing work
 * [x] add a command to select the current set of sessions to process (allow filtering by target name, date, instrument, etc...)
 * [ ] keep quality metadata for every image that has been processed
+* [ ] have tab completion work for dates or target names (showing a shorthand of what the new selection would mean)
 * [x] user https://typer.tiangolo.com/ for CLI support and rich-click
 * [x] support subcommands per https://typer.tiangolo.com/tutorial/subcommands/add-typer/#put-them-together
 * [ ] support shell autocompletion on target names etc... https://typer.tiangolo.com/tutorial/options-autocompletion/#review-completion

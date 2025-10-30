@@ -10,7 +10,7 @@ from rich.table import Table
 from starbash.app import Starbash, copy_images_to_dir
 from starbash.database import Database
 from starbash import console
-from starbash.commands import format_duration
+from starbash.commands import format_duration, to_shortdate
 
 app = typer.Typer()
 
@@ -145,13 +145,7 @@ def list_sessions():
 
             for session_index, sess in enumerate(sessions):
                 date_iso = sess.get(Database.START_KEY, "N/A")
-                # Try to convert ISO UTC datetime to local short date string
-                try:
-                    dt_utc = datetime.fromisoformat(date_iso)
-                    dt_local = dt_utc.astimezone()
-                    date = dt_local.strftime("%Y-%m-%d")
-                except (ValueError, TypeError):
-                    date = date_iso
+                date = to_shortdate(date_iso)
 
                 object = str(sess.get(Database.OBJECT_KEY, "N/A"))
                 filter = sess.get(Database.FILTER_KEY, "N/A")

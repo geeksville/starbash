@@ -9,8 +9,8 @@
 A tool for automating/standardizing/sharing astrophotography workflows.
 
 * Automatic - with sensible defaults, that you can change as needed.
-* Easy - provides a 'seestar like' starting-point for autoprocessing all your sessions by default.
-* Fast - even with large image repositories
+* Easy - provides a 'seestar like' starting-point for autoprocessing all your sessions (by default).
+* Fast - even with large image repositories.  Automatic master bias and flat generation and reasonable defaults
 * Sharable - you can share/use recipes for image preprocessing flows.
 
 (This project is currently 'alpha' and missing recipes for some workflows, but adding new recipes is easy and we're happy to help.  Please file a github issue if your images are not auto-processed and we'll work out a fix.)
@@ -45,15 +45,20 @@ See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-al
 
 Currently the easiest way to install this command-line based tool is to install is via [pipx](https://pipx.pypa.io/stable/).  If you don't already have pipx and you have python installed, you can auto install it by running "pip install --user pipx."  If you don't have python installed see the pipx link for pipx installers for any OS.
 
-Once pipx is installed just run:
+Once pipx is installed just run the following **two** commands (the sb --install-completion will make TAB auto-complete automatically complete sb options (for most platforms)):
 
 ```
-pipx install starbash
+➜ pipx install starbash
   installed package starbash 0.1.3, installed using Python 3.12.3
   These apps are now globally available
     - sb
     - starbash
 done! ✨ 🌟 ✨
+
+➜ sb --install-completion
+bash completion installed in /home/.../sb.sh
+Completion will take effect once you restart the terminal
+
 ```
 
 FIXME - add getting started instructions (possibly with a screenshare video)
