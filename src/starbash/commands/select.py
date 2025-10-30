@@ -10,7 +10,12 @@ from rich.table import Table
 from starbash.app import Starbash, copy_images_to_dir
 from starbash.database import Database
 from starbash import console
-from starbash.commands import format_duration, to_shortdate, TABLE_COLUMN_STYLE, TABLE_VALUE_STYLE
+from starbash.commands import (
+    format_duration,
+    to_shortdate,
+    TABLE_COLUMN_STYLE,
+    TABLE_VALUE_STYLE,
+)
 
 app = typer.Typer()
 
