@@ -37,19 +37,18 @@ jobs:
           virtualenvs-path: .venv
           installer-parallel: true
 
-      - name: Install Poetry via pipx (Windows)
+      - name: Install Poetry via pip (Windows)
         if: matrix.os == 'windows-2025'
         shell: pwsh
         run: |
-          # Upgrade pip, install pipx for the current user, ensure pipx path is set,
-          # then install Poetry via pipx so Poetry is available for subsequent steps.
+          # Install Poetry directly via pip to avoid pipx path issues on Windows.
+          # pipx warns about spaces in paths (e.g., "C:\Program Files (x86)\pipx_bin").
           & python -m pip install --upgrade pip
-          & python -m pip install --user pipx
-          & python -m pipx ensurepath
-          & python -m pipx install poetry
-          # Compute the user scripts directory (where pipx places executables) and add it to GITHUB_PATH
-          $path = (& python -c "import site, os; print(os.path.join(site.getuserbase(), 'Scripts'))")
-          Add-Content -Path $env:GITHUB_PATH -Value $path
+          & python -m pip install --user poetry
+          # Add the user Scripts directory to PATH so poetry.exe is available
+          $scriptsPath = [System.IO.Path]::Combine($env:APPDATA, "Python", "Python312", "Scripts")
+          Add-Content -Path $env:GITHUB_PATH -Value $scriptsPath
+          Write-Host "Added to PATH: $scriptsPath"
 
       #----------------------------------------------
       #       load cached venv if cache exists per https://github.com/marketplace/actions/install-poetry-action
