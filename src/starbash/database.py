@@ -296,16 +296,23 @@ class Database:
         result = cursor.fetchone()
         return result[0] if result else 0
 
-    def get_column(self, column_name: str, table_name: str) -> list[Any]:
+    def get_column(self, table_name: str, column_name: str) -> list[Any]:
         """Return all values from a specific column in the specified table."""
         cursor = self._db.cursor()
-        cursor.execute(f"SELECT {column_name} FROM {table_name}")
+        cursor.execute(f'SELECT "{column_name}" FROM {table_name}')
 
         results = []
         for row in cursor.fetchall():
             results.append(row[column_name])
 
         return results
+
+    def sum_column(self, table_name: str, column_name: str) -> float:
+        """Return the SUM of all values in a specific column in the specified table."""
+        cursor = self._db.cursor()
+        cursor.execute(f'SELECT SUM("{column_name}") FROM {table_name}')
+        result = cursor.fetchone()
+        return result[0] if result and result[0] is not None else 0
 
     def get_image(self, path: str) -> dict[str, Any] | None:
         """Get an image record by path."""

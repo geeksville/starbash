@@ -77,10 +77,14 @@ def main_callback(ctx: typer.Context):
             table.add_row("User Repositories", str(len(sb.repo_manager.regular_repos)))
 
             # Show database stats
-            num_sessions = sb.db.len_table(Database.SESSIONS_TABLE)
-            table.add_row("Sessions Indexed", str(num_sessions))
+            table.add_row(
+                "Sessions Indexed", str(sb.db.len_table(Database.SESSIONS_TABLE))
+            )
 
-            num_images = sb.db.len_table(Database.IMAGES_TABLE)
-            table.add_row("Images Indexed", str(num_images))
+            table.add_row("Images Indexed", str(sb.db.len_table(Database.IMAGES_TABLE)))
 
+            table.add_row(
+                "Total image time",
+                str(sb.db.sum_column(Database.SESSIONS_TABLE, "exptime_total")),
+            )
             console.print(table)
