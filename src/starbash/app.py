@@ -222,9 +222,12 @@ class Starbash:
         * same filter as reference session (in the case want_type==FLAT only)
         * same telescope as reference session
 
+        Quality is determined by (most important first):
+        * temperature of CCD-TEMP is closer to the reference session
+        * smaller DATE-OBS delta to the reference session
+
         Eventually the code will check the following for 'nice to have' (but not now):
-        * same camera temperature as the ref session
-        * close in time to the provided reference session
+        * TBD
 
         Possibly eventually this code could be moved into recipes.
 
