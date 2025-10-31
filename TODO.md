@@ -6,9 +6,10 @@
 * [x] start writing user prefs in user prefs dir
 * [x] make reindex smarter
 * [x] make the various filter options work
-* [ ] apply filters to info commands
+* [x] apply filters to info commands
 * [ ] given a session, return a best set of flats or biases for that session (generalize later)
-* [ ] add targets list
+* [ ] make the siril prep rule work
+* [x] add targets list
 * [x] implement setup command (including username selection and analytics)
 * [ ] make a nicer movie
 * [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
@@ -19,7 +20,6 @@
 * [ ] use db find master bias frames
 * [ ] use db to find flat frames
 * [ ] use db to find light frames
-* [ ] make the siril prep rule work
 * [x] add top level catch asking users to report bugs
 * [x] add crash and usage analytics - sentry.io?
 * [ ] add automated session config looping (Sii, Oiii etc...)

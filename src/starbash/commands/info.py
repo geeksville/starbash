@@ -71,7 +71,7 @@ def telescope():
 
 @app.command()
 def filter():
-    """List all filters found in current selection."""
+    """List all filters (filtered based on the current selection)."""
     with Starbash("info.filter") as sb:
         dump_column(sb, "Filter", Database.FILTER_KEY)
 
