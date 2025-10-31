@@ -227,9 +227,7 @@ class Database:
 
         return results if results else None
 
-    def search_session(
-        self, conditions: dict[str, Any] | None
-    ) -> list[dict[str, Any]] | None:
+    def where_session(self, conditions: dict[str, Any] | None) -> tuple[str, list[Any]]:
         """Search for sessions matching the given conditions.
 
         Args:
@@ -239,7 +237,7 @@ class Database:
                        - 'date_end': Filter sessions starting on or before this date
 
         Returns:
-            List of matching session records or None
+            Tuple of (WHERE clause string, list of parameters)
         """
         if conditions is None:
             conditions = {}
@@ -269,14 +267,40 @@ class Database:
                 params.append(value)
 
         # Build the query
+        query = ""
+
+        if where_clauses:
+            query += " WHERE " + " AND ".join(where_clauses)
+
+        return (query, params)
+
+    def search_session(
+        self, conditions: dict[str, Any] | None
+    ) -> list[dict[str, Any]] | None:
+        """Search for sessions matching the given conditions.
+
+        Args:
+            conditions: Dictionary of session key-value pairs to match, or None for all.
+                       Special keys:
+                       - 'date_start': Filter sessions starting on or after this date
+                       - 'date_end': Filter sessions starting on or before this date
+
+        Returns:
+            List of matching session records or None
+        """
+        if conditions is None:
+            conditions = {}
+
+        # Build WHERE clause dynamically based on conditions
+        where_clause, params = self.where_session(conditions)
+
+        # Build the query
         query = f"""
             SELECT id, start, end, filter, imagetyp, object, telescop,
                    num_images, exptime_total, image_doc_id
             FROM {self.SESSIONS_TABLE}
+            {where_clause}
         """
-
-        if where_clauses:
-            query += " WHERE " + " AND ".join(where_clauses)
 
         cursor = self._db.cursor()
         cursor.execute(query, params)
