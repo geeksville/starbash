@@ -4,6 +4,7 @@ import os
 import starbash
 from starbash import console, _is_test_env
 import starbash.url as url
+from sentry_sdk.integrations.excepthook import ExcepthookIntegration
 
 # Default to no analytics/auto crash reports
 analytics_allowed = False
@@ -25,6 +26,9 @@ def analytics_setup(allowed: bool = False, user_email: str | None = None) -> Non
             send_default_pii=True,
             enable_logs=True,
             traces_sample_rate=1.0,
+            disabled_integrations=[
+                ExcepthookIntegration()
+            ],  # This line removes the aggressive unhandled exception catcher
             integrations=[
                 LoggingIntegration(
                     level=starbash.log_filter_level,  # Capture INFO and above as breadcrumbs
