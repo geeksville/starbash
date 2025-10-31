@@ -136,8 +136,8 @@ def test_info_target_command_no_data(setup_test_environment):
     result = runner.invoke(app, ["info", "target"])
     assert result.exit_code == 0
 
-    # Should indicate no targets found
-    assert "No" in result.stdout or "found" in result.stdout.lower()
+    # Should show empty table with 0 / 0 selected
+    assert "(0 / 0 selected)" in result.stdout or "Targets" in result.stdout
 
 
 def test_info_target_command_with_data(populated_database):
@@ -166,8 +166,8 @@ def test_info_telescope_command_no_data(setup_test_environment):
     result = runner.invoke(app, ["info", "telescope"])
     assert result.exit_code == 0
 
-    # Should indicate no telescopes found
-    assert "No" in result.stdout or "found" in result.stdout.lower()
+    # Should show empty table with 0 / 0 selected
+    assert "(0 / 0 selected)" in result.stdout or "Telescopes" in result.stdout
 
 
 def test_info_telescope_command_with_data(populated_database):
@@ -193,8 +193,8 @@ def test_info_filter_command_no_data(setup_test_environment):
     result = runner.invoke(app, ["info", "filter"])
     assert result.exit_code == 0
 
-    # Should indicate no filters found
-    assert "No" in result.stdout or "found" in result.stdout.lower()
+    # Should show empty table with 0 / 0 selected
+    assert "(0 / 0 selected)" in result.stdout or "Filters" in result.stdout
 
 
 def test_info_filter_command_with_data(populated_database):
