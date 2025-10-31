@@ -7,7 +7,7 @@ from collections import Counter
 
 from starbash.app import Starbash
 from starbash import console
-from starbash.database import Database
+from starbash.database import Database, get_column_name
 from starbash.paths import get_user_config_dir, get_user_data_dir
 from starbash.commands import format_duration, TABLE_COLUMN_STYLE, TABLE_VALUE_STYLE
 
@@ -24,27 +24,29 @@ def plural(name: str) -> str:
 
 def dump_column(sb: Starbash, human_name: str, column_name: str) -> None:
     # Get all telescopes from the database
-    telescopes = sb.db.get_column(Database.SESSIONS_TABLE, column_name)
+    sessions = sb.search_session()
+    column_name = get_column_name(column_name)
+    i = [session[column_name] for session in sessions if session[column_name]]
 
-    if not telescopes:
+    if not i:
         console.print(f"[yellow]No {human_name} found in database.[/yellow]")
         return
 
     # Count occurrences of each telescope
-    telescope_counts = Counter(telescopes)
+    counts = Counter(i)
 
     # Sort by telescope name
-    sorted_telescopes = sorted(telescope_counts.items())
+    sorted_telescopes = sorted(counts.items())
 
     # Create and display table
-    table = Table(title=f"{plural(human_name)} ({len(telescope_counts)} found)")
+    table = Table(title=f"{plural(human_name)} ({len(counts)} found)")
     table.add_column(human_name, style=TABLE_COLUMN_STYLE, no_wrap=False)
     table.add_column(
         "# of sessions", style=TABLE_COLUMN_STYLE, no_wrap=True, justify="right"
     )
 
-    for telescope, count in sorted_telescopes:
-        table.add_row(telescope, str(count))
+    for i, count in sorted_telescopes:
+        table.add_row(i, str(count))
 
     console.print(table)
 
