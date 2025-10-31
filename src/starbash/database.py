@@ -306,7 +306,7 @@ class Database:
         cursor.execute(query, params)
 
         results = [dict(row) for row in cursor.fetchall()]
-        return results if results else None
+        return results
 
     def len_table(self, table_name: str) -> int:
         """Return the total number of rows in the specified table."""
