@@ -8,3 +8,6 @@ htmlcov/
 .coverage.*
 coverage.xml
 junit.xml
+
+starbash*.tar.gz
+starbash*.whl

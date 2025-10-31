@@ -4,7 +4,10 @@ version = "0.1.7"
 description = "A tool for automating/standardizing/sharing astrophotography workflows."
 authors = ["Kevin Hester <kevinh@geeksville.com>"]
 readme = "README.md"
-packages = [{ include = "starbash", from = "src" }]
+packages = [
+    { include = "starbash", from = "src" },
+    { include = "repo", from = "src" },
+]
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.15"         # RestrictedPython doesn't yet work on 3.15
