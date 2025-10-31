@@ -25,21 +25,25 @@ def plural(name: str) -> str:
 def dump_column(sb: Starbash, human_name: str, column_name: str) -> None:
     # Get all telescopes from the database
     sessions = sb.search_session()
-    column_name = get_column_name(column_name)
-    i = [session[column_name] for session in sessions if session[column_name]]
 
-    if not i:
-        console.print(f"[yellow]No {human_name} found in database.[/yellow]")
-        return
+    # Also do a complete unfiltered search so we can compare for the users
+    allsessions = sb.db.search_session()
+
+    column_name = get_column_name(column_name)
+    found = [session[column_name] for session in sessions if session[column_name]]
+    allfound = [session[column_name] for session in allsessions if session[column_name]]
 
     # Count occurrences of each telescope
-    counts = Counter(i)
+    found_counts = Counter(found)
+    all_counts = Counter(allfound)
 
     # Sort by telescope name
-    sorted_telescopes = sorted(counts.items())
+    sorted_telescopes = sorted(found_counts.items())
 
     # Create and display table
-    table = Table(title=f"{plural(human_name)} ({len(counts)} found)")
+    table = Table(
+        title=f"{plural(human_name)} ({len(found_counts)} / {len(all_counts)} selected)"
+    )
     table.add_column(human_name, style=TABLE_COLUMN_STYLE, no_wrap=False)
     table.add_column(
         "# of sessions", style=TABLE_COLUMN_STYLE, no_wrap=True, justify="right"

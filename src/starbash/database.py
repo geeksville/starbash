@@ -275,8 +275,8 @@ class Database:
         return (query, params)
 
     def search_session(
-        self, conditions: dict[str, Any] | None
-    ) -> list[dict[str, Any]] | None:
+        self, conditions: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """Search for sessions matching the given conditions.
 
         Args:

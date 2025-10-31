@@ -205,15 +205,11 @@ class Starbash:
             session = self.db.get_session(new)
             self.db.upsert_session(new, existing=session)
 
-    def search_session(self) -> list[dict[str, Any]] | None:
+    def search_session(self) -> list[dict[str, Any]]:
         """Search for sessions, optionally filtered by the current selection."""
-        # If selection has filters, use them; otherwise return all sessions
-        if self.selection.is_empty():
-            return self.db.search_session(None)
-        else:
-            # Get query conditions from selection
-            conditions = self.selection.get_query_conditions()
-            return self.db.search_session(conditions)
+        # Get query conditions from selection
+        conditions = self.selection.get_query_conditions()
+        return self.db.search_session(conditions)
 
     def get_session_images(self, session_id: int) -> list[dict[str, Any]]:
         """
