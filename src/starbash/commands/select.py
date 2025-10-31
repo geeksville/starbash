@@ -272,14 +272,6 @@ def export(
         # Get the selected session (convert from 1-based to 0-based index)
         session = sessions[session_num - 1]
 
-        # Get the session's database row ID
-        session_id = session.get("id")
-        if session_id is None:
-            console.print(
-                f"[red]Error: Could not find session ID for session {session_num}.[/red]"
-            )
-            raise typer.Exit(1)
-
         # Determine output directory
         output_dir = Path(destdir)
 
@@ -287,7 +279,7 @@ def export(
         output_dir.mkdir(parents=True, exist_ok=True)
 
         # Get images for this session
-        images = sb.get_session_images(session_id)
+        images = sb.get_session_images(session)
 
         if not images:
             console.print(

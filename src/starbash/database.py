@@ -174,7 +174,7 @@ class Database:
             return result[0]
         return cursor.lastrowid if cursor.lastrowid is not None else 0
 
-    def search_image(self, conditions: dict[str, Any]) -> list[SessionRow] | None:
+    def search_image(self, conditions: dict[str, Any]) -> list[SessionRow]:
         """Search for images matching the given conditions.
 
         Args:
@@ -229,7 +229,7 @@ class Database:
             if match:
                 results.append(metadata)
 
-        return results if results else None
+        return results
 
     def search_session(self, where_tuple: tuple[str, list[Any]]) -> list[SessionRow]:
         """Search for sessions matching the given conditions.

@@ -14,7 +14,7 @@ import shutil
 
 import starbash
 from starbash import console, _is_test_env
-from starbash.database import Database, SessionRow
+from starbash.database import Database, SessionRow, ImageRow
 from repo.manager import Repo
 from starbash.tool import Tool
 from repo import RepoManager
@@ -66,7 +66,7 @@ def create_user() -> Path:
     return get_user_config_dir()
 
 
-def copy_images_to_dir(images: list[dict[str, Any]], output_dir: Path) -> None:
+def copy_images_to_dir(images: list[ImageRow], output_dir: Path) -> None:
     """Copy images to the specified output directory (using symbolic links if possible)."""
 
     # Export images
@@ -182,6 +182,7 @@ class Starbash:
         return handled
 
     def _add_session(self, f: str, image_doc_id: int, header: dict) -> None:
+        """We just added a new image, create or update its session entry as needed."""
         filter = header.get(Database.FILTER_KEY, "unspecified")
         image_type = header.get(Database.IMAGETYP_KEY)
         date = header.get(Database.DATE_OBS_KEY)
@@ -240,7 +241,18 @@ class Starbash:
         conditions = self.selection.get_query_conditions()
         return self.db.search_session(conditions)
 
-    def get_session_images(self, session_id: int) -> list[dict[str, Any]]:
+    def get_session_image(self, session: SessionRow) -> ImageRow:
+        """
+        Get the reference ImageRow for a session."""
+        images = self.db.search_image(
+            {Database.IMAGE_DOC_KEY: session[Database.IMAGE_DOC_KEY]}
+        )
+        assert (
+            len(images) == 1
+        ), f"Expected exactly one reference for session, found {len(images)}"
+        return images[0]
+
+    def get_session_images(self, session: SessionRow) -> list[ImageRow]:
         """
         Get all images belonging to a specific session.
 
@@ -258,11 +270,6 @@ class Starbash:
         Raises:
             ValueError: If session_id is not found in the database
         """
-        # First get the session details
-        session = self.db.get_session_by_id(session_id)
-        if session is None:
-            raise ValueError(f"Session with id {session_id} not found")
-
         # Query images that match ALL session criteria including date range
         conditions = {
             Database.FILTER_KEY: session[Database.FILTER_KEY],
