@@ -250,12 +250,14 @@ class Starbash:
         # Build search conditions - MUST match criteria
         conditions = {
             Database.IMAGETYP_KEY: want_type,
-            Database.TELESCOP_KEY: ref_session[Database.TELESCOP_KEY],
+            Database.TELESCOP_KEY: ref_session[get_column_name(Database.TELESCOP_KEY)],
         }
 
         # For FLAT frames, filter must match the reference session
         if want_type.upper() == "FLAT":
-            conditions[Database.FILTER_KEY] = ref_session[Database.FILTER_KEY]
+            conditions[Database.FILTER_KEY] = ref_session[
+                get_column_name(Database.FILTER_KEY)
+            ]
 
         # Search for candidate sessions
         candidates = self.db.search_session(where_tuple(conditions))
@@ -327,7 +329,7 @@ class Starbash:
         Get the reference ImageRow for a session.
         """
         images = self.db.search_image(
-            {Database.IMAGE_DOC_KEY: session[get_column_name(Database.IMAGE_DOC_KEY)]}
+            {Database.ID_KEY: session[get_column_name(Database.IMAGE_DOC_KEY)]}
         )
         assert (
             len(images) == 1

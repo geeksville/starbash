@@ -7,8 +7,10 @@
 * [x] make reindex smarter
 * [x] make the various filter options work
 * [x] apply filters to info commands
-* [ ] given a session, return a best set of flats or biases for that session (generalize later)
-* [ ] make the siril prep rule work
+* [x] given a session, return a best set of flats or biases for that session (generalize later)
+* [x] make the siril prep rule work
+* [ ] make siril prep smarter about best sets, include report in toml file, show options on log
+* [ ] validate resolution and binning when looking for darks etc...
 * [x] add targets list
 * [x] implement setup command (including username selection and analytics)
 * [ ] make a nicer movie

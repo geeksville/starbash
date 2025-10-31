@@ -43,6 +43,7 @@ class Database:
     IMAGETYP_KEY = "IMAGETYP"
     OBJECT_KEY = "OBJECT"
     TELESCOP_KEY = "TELESCOP"
+    ID_KEY = "id"  # for finding any row by its ID
 
     SESSIONS_TABLE = "sessions"
     IMAGES_TABLE = "images"
