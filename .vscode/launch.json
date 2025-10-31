@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: starbash app",
+            "name": "Python Debugger: starbash user",
             "type": "debugpy",
             "request": "launch",
             "module": "starbash.main",
@@ -17,6 +17,20 @@
                 "user",
                 "email",
                 "kevinh@geeksville.com"
+            ]
+        },
+        {
+            "name": "Python Debugger: starbash select",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "starbash.main",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
+            "justMyCode": false,
+            "args": [
+                "--debug",
+                "select",
+                "list"
             ]
         },
         {

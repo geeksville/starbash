@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import sqlite3
 from pathlib import Path
 from typing import Any, Optional
@@ -8,6 +7,14 @@ from datetime import datetime, timedelta
 import json
 
 from .paths import get_user_data_dir
+
+
+def get_column_name(k: str) -> str:
+    """Convert keynames to SQL legal column names"""
+    k = k.lower()
+    k = k.replace(" ", "_")
+    k = k.replace("-", "_")
+    return k
 
 
 class Database:
@@ -235,58 +242,46 @@ class Database:
             List of matching session records or None
         """
         if conditions is None:
-            return self.all_sessions()
+            conditions = {}
 
-        cursor = self._db.cursor()
-        cursor.execute(
-            f"""
+        # Build WHERE clause dynamically based on conditions
+        where_clauses = []
+        params = []
+
+        # Extract date range conditions
+        date_start = conditions.get("date_start")
+        date_end = conditions.get("date_end")
+
+        # Add date range filters to WHERE clause
+        if date_start:
+            where_clauses.append("start >= ?")
+            params.append(date_start)
+
+        if date_end:
+            where_clauses.append("start <= ?")
+            params.append(date_end)
+
+        # Add standard conditions to WHERE clause
+        for key, value in conditions.items():
+            if key not in ("date_start", "date_end") and value is not None:
+                column_name = key
+                where_clauses.append(f"{column_name} = ?")
+                params.append(value)
+
+        # Build the query
+        query = f"""
             SELECT id, start, end, filter, imagetyp, object, telescop,
                    num_images, exptime_total, image_doc_id
             FROM {self.SESSIONS_TABLE}
         """
-        )
 
-        # Extract date range conditions if present
-        date_start = conditions.get("date_start")
-        date_end = conditions.get("date_end")
+        if where_clauses:
+            query += " WHERE " + " AND ".join(where_clauses)
 
-        # Create a copy without date range keys for standard matching
-        standard_conditions = {
-            k: v
-            for k, v in conditions.items()
-            if k not in ("date_start", "date_end") and v is not None
-        }
+        cursor = self._db.cursor()
+        cursor.execute(query, params)
 
-        results = []
-        for row in cursor.fetchall():
-            session = {
-                "id": row["id"],
-                self.START_KEY: row["start"],
-                self.END_KEY: row["end"],
-                self.FILTER_KEY: row["filter"],
-                self.IMAGETYP_KEY: row["imagetyp"],
-                self.OBJECT_KEY: row["object"],
-                self.TELESCOP_KEY: row["telescop"],
-                self.NUM_IMAGES_KEY: row["num_images"],
-                self.EXPTIME_TOTAL_KEY: row["exptime_total"],
-                self.IMAGE_DOC_KEY: row["image_doc_id"],
-            }
-
-            # Check if all standard conditions match
-            match = all(session.get(k) == v for k, v in standard_conditions.items())
-
-            # Apply date range filtering
-            if match and date_start:
-                session_start = session.get(self.START_KEY, "")
-                match = match and session_start >= date_start
-
-            if match and date_end:
-                session_start = session.get(self.START_KEY, "")
-                match = match and session_start <= date_end
-
-            if match:
-                results.append(session)
-
+        results = [dict(row) for row in cursor.fetchall()]
         return results if results else None
 
     def len_table(self, table_name: str) -> int:
@@ -361,35 +356,6 @@ class Database:
 
         return results
 
-    def all_sessions(self) -> list[dict[str, Any]]:
-        """Return all session records."""
-        cursor = self._db.cursor()
-        cursor.execute(
-            f"""
-            SELECT id, start, end, filter, imagetyp, object, telescop,
-                   num_images, exptime_total, image_doc_id
-            FROM {self.SESSIONS_TABLE}
-        """
-        )
-
-        results = []
-        for row in cursor.fetchall():
-            session = {
-                "id": row["id"],
-                self.START_KEY: row["start"],
-                self.END_KEY: row["end"],
-                self.FILTER_KEY: row["filter"],
-                self.IMAGETYP_KEY: row["imagetyp"],
-                self.OBJECT_KEY: row["object"],
-                self.TELESCOP_KEY: row["telescop"],
-                self.NUM_IMAGES_KEY: row["num_images"],
-                self.EXPTIME_TOTAL_KEY: row["exptime_total"],
-                self.IMAGE_DOC_KEY: row["image_doc_id"],
-            }
-            results.append(session)
-
-        return results
-
     def get_session_by_id(self, session_id: int) -> dict[str, Any] | None:
         """Get a session record by its ID.
 
@@ -414,18 +380,7 @@ class Database:
         if row is None:
             return None
 
-        return {
-            "id": row["id"],
-            self.START_KEY: row["start"],
-            self.END_KEY: row["end"],
-            self.FILTER_KEY: row["filter"],
-            self.IMAGETYP_KEY: row["imagetyp"],
-            self.OBJECT_KEY: row["object"],
-            self.TELESCOP_KEY: row["telescop"],
-            self.NUM_IMAGES_KEY: row["num_images"],
-            self.EXPTIME_TOTAL_KEY: row["exptime_total"],
-            self.IMAGE_DOC_KEY: row["image_doc_id"],
-        }
+        return dict(row)
 
     def get_session(self, to_find: dict[str, str]) -> dict[str, Any] | None:
         """Find a session matching the given criteria.
@@ -470,18 +425,7 @@ class Database:
         if row is None:
             return None
 
-        return {
-            "id": row["id"],
-            self.START_KEY: row["start"],
-            self.END_KEY: row["end"],
-            self.FILTER_KEY: row["filter"],
-            self.IMAGETYP_KEY: row["imagetyp"],
-            self.OBJECT_KEY: row["object"],
-            self.TELESCOP_KEY: row["telescop"],
-            self.NUM_IMAGES_KEY: row["num_images"],
-            self.EXPTIME_TOTAL_KEY: row["exptime_total"],
-            self.IMAGE_DOC_KEY: row["image_doc_id"],
-        }
+        return dict(row)
 
     def upsert_session(
         self, new: dict[str, Any], existing: dict[str, Any] | None = None

@@ -1,6 +1,7 @@
 """Selection commands for filtering sessions and targets."""
 
 import os
+from typing import Any
 import typer
 from pathlib import Path
 from typing_extensions import Annotated
@@ -8,7 +9,7 @@ from datetime import datetime
 from rich.table import Table
 
 from starbash.app import Starbash, copy_images_to_dir
-from starbash.database import Database
+from starbash.database import Database, get_column_name
 from starbash import console
 from starbash.commands import (
     format_duration,
@@ -148,20 +149,25 @@ def list_sessions():
             image_types = set()
             telescopes = set()
 
+            def get_key(k: str, default: Any = "N/A") -> Any:
+                """Convert keynames to SQL legal column names"""
+                k = get_column_name(k)
+                return sess.get(k, default)
+
             for session_index, sess in enumerate(sessions):
-                date_iso = sess.get(Database.START_KEY, "N/A")
+                date_iso = get_key(Database.START_KEY)
                 date = to_shortdate(date_iso)
 
-                object = str(sess.get(Database.OBJECT_KEY, "N/A"))
-                filter = sess.get(Database.FILTER_KEY, "N/A")
+                object = get_key(Database.OBJECT_KEY)
+                filter = get_key(Database.FILTER_KEY)
                 filters.add(filter)
-                image_type = str(sess.get(Database.IMAGETYP_KEY, "N/A"))
+                image_type = get_key(Database.IMAGETYP_KEY)
                 image_types.add(image_type)
-                telescope = str(sess.get(Database.TELESCOP_KEY, "N/A"))
+                telescope = get_key(Database.TELESCOP_KEY)
                 telescopes.add(telescope)
 
                 # Format total exposure time as integer seconds
-                exptime_raw = str(sess.get(Database.EXPTIME_TOTAL_KEY, "N/A"))
+                exptime_raw = get_key(Database.EXPTIME_TOTAL_KEY)
                 try:
                     exptime_float = float(exptime_raw)
                     total_seconds += exptime_float
@@ -171,10 +177,10 @@ def list_sessions():
 
                 # Count images
                 try:
-                    num_images = int(sess.get(Database.NUM_IMAGES_KEY, 0))
+                    num_images = int(get_key(Database.NUM_IMAGES_KEY, 0))
                     total_images += num_images
                 except (ValueError, TypeError):
-                    num_images = sess.get(Database.NUM_IMAGES_KEY, "N/A")
+                    num_images = get_key(Database.NUM_IMAGES_KEY)
 
                 type_str = image_type
                 if image_type.upper() == "LIGHT":
