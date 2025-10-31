@@ -1,26 +1,9 @@
-# a file like this is auto generated at the root of the output processing tree
+[repo]
+kind="session"
+
+# This is auto generated at the root of a session processing tree
 # it is initially auto populated based on the best guess of starbash, but the user
 # can hand customize as needed
-
-[recipe]
-
-# Starbash will search all recipe repos to find this by name
-python-recipe = "osc-dual-duo"
-
-# other standard recipes...
-# osc-duo, osc-broadband
-# mono-sho (fixme find other names used in mono workflow land)
-
-# a default starbash file for a particular processed target will typically contain only the preceeding
-
-[recipe.author]
-
-# (if not present this section will be auto generated at processing time)
-# this whole secion is auto copied from userprefs.sb.toml
-name = "Bob Dude"
-email = "foo@foo.com"
-website = "http://mydomain.com/astocruft"
-license = "Creative commons etc..."
 
 [about] # (if not present this section will be auto generated at processing time)
 
@@ -29,28 +12,123 @@ license = "Creative commons etc..."
 
 target.id = "NGC281"
 target.name = "Some Big Nebula"
+target.ra = "123.45"
+# OBJCTRA = '00 23 44'           / [H M S] RA of imaged object
+# OBJCTDEC= '+89 55 28'
 
-[[acquisition]]
-date = 1979-05-27T07:32:00
-num-frames = 45
-exposure = 120
-filter = "HaOiii"
+[[sessions]]
+# Session #1
+start = 1979-05-27T07:32:00    # first date of observation
+end = 1979-05-27T11:45:00      # last date of observation
+date = 1979-05-27T07:32:00     # date of processing
+num-frames = 45                # Total number of times
+exposure = 120                 # Average exposure in seconds
+filter = "HaOiii"              # all images of a session are guaranteed to have the same filter
 temperature = 23.5
 wind = 4.5
 telescope = "Askar V"
 focal-length = 600
 apeture = 80
 mount = "ZWO AM5"
+kind = "light"                 # all images of a session are guaranteed to have the same kind
 
-processing.settings.flat-file = "/blag/blah.fits"
+# if masters were selected for use processing this session they will be listed here
 # (if not present this section will be auto generated at processing time)
 # time of first frame in this session-config
 # storing these settings here ensure if we reprocess settings remain the same
-processing.settings.bias-file = "/images/masters/biases/foo-2025-09-23-bias_stacked.fits"
-processing.settings.dark-file = "/images/masters/darks/foo-2025-09-23-120s_dark_stacked.fits"
+master.flat = "/blag/blah.fits"
+master.dark = ""
+master.bias = ""
 
-[[acquisition]]
-date = "2025/09/25"
-num-frames = 30
-exposure = 30
-filter = "SiiOiii"
+# either images.url or images.dir must be present
+
+# URL for where the raw images are for this session.  We assume a "*.fit*" glob will be
+# appended to this base URL to find all the images of this session
+images.url = "file:///images/ngc281/session1/light/frame" # the directory for these images
+
+# a sub directory relative to the location of this toml file directory
+images.dir = "2025-09-01/light"
+
+# if present it will be a full array listing the filenames of all images used in this session
+# we assume it is unlikely users of the toml file will want FITS headers from each file
+# so to keep our toml small we don't use an Array-of-tables.
+# Unlikely to ever be used/populated except for debugging or very small sessions.
+# if not present - generated dynamically at load time from imagesbase+"*.fit*"
+# images = [ "file://images/ngc281/session1/light/frame0001.fits" ]
+
+[sessions.rejected]
+
+# various other candidates for this session that were either manually or automatically rejected
+master.flat = ["/blag/blah.fits"]
+master.dark = [""]
+master.bias = [""]
+
+[sessions.author]
+
+# The creator of this image session
+# (if not present this section will be auto generated at processing time)
+# this whole secion is auto copied from userprefs.sb.toml
+name = "Bob Dude"
+email = "foo@foo.com"
+website = "http://mydomain.com/astocruft"
+license = "Creative commons etc..."
+
+
+
+[[sessions]]
+# Session #2
+start = 1979-05-27T07:32:00    # first date of observation
+end = 1979-05-27T11:45:00      # last date of observation
+date = 1979-05-27T07:32:00     # date of processing
+num-frames = 45                # Total number of times
+# same sort of content as sessions #1
+
+[preprocessing]
+
+# later during preprocessing information and attribution for recipe/tool usage etc will be added here
+
+[preprocessing.citation]
+
+# The creator of this image session
+# (if not present this section will be auto generated at processing time)
+# this whole secion is auto copied from userprefs.sb.toml
+# The format of this session is compatible with the Citation File Format (CFF)
+# see https://github.com/citation-file-format/citation-file-format/blob/main/schema-guide.md
+# for details.
+# The only difference is to facilitate toml parsing we use an = sign instead of :
+# if/when .cff file exports are required we'll do that conversion then.
+message = "If you use this image please cite it below.  I liked making it."
+cff-version = "1.2.0"
+title = "My Research Software"
+version = "2.0.4"
+doi = "10.5281/zenodo.1234"
+date-released = "2017-12-18"
+url = "https://github.com/github-linguist/linguist"
+
+[[preprocessing.citation.authors]]
+family-names = "Lisa"
+given-names = "Mona"
+orcid = "https://orcid.org/0000-0000-0000-0000"
+
+[[preprocessing.citation.authors]]
+family-names = "Bot"
+given-names = "Hew"
+orcid = "https://orcid.org/0000-0000-0000-0000"
+
+
+[preprocessing.recipe]
+
+# if specified a specific recipe will be used, otherwiase one will be chosen and run
+# automatically
+# Starbash will search all recipe repos to find this by name
+url = "http://foo.blah/osc-dual-duo"
+
+# other standard recipes...
+# osc-duo, osc-broadband
+# mono-sho (fixme find other names used in mono workflow land)
+
+# a default starbash file for a particular processed target will typically contain only the preceeding
+
+[preprocessing.recipe.rejected]
+# other eligible recipes which were found and rejected during recipe selection
+url = ["file:///blah/blah/recipes/osc-broadband.toml"]

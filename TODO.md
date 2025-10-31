@@ -10,7 +10,11 @@
 * [x] given a session, return a best set of flats or biases for that session (generalize later)
 * [x] make the siril prep rule work
 * [ ] make siril prep smarter about best sets, include report in toml file, show options on log
+* [ ] add exposure length as another common element for a session
 * [ ] validate resolution and binning when looking for darks etc...
+* [ ] auto select workflows by filter name
+* [ ] make auto process work again for dual-duo single session workflows
+* [ ] make auto process work again for dual-duo _multi_ session workflows
 * [x] add targets list
 * [x] implement setup command (including username selection and analytics)
 * [ ] make a nicer movie
@@ -37,6 +41,7 @@
 * [ ] consider two different 'users' one who just wants to use the DB/repo stuff (doesn't need the auto processing) - for that user just let them do queries and build a 'process' directory for siril.  And the other user who wants our slick smart scripts to also do at least pre-processing.  In initial release just support the the query opts
 * [ ] add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
 * [ ] add makefile style dependencies
+* [ ] allow selecting targets using OBJCTRA and OBJECTDEC + an angle of view - because it makes name differences meaningless.  possibly start with a name and then query a DB to find RA/DEC then look for the local images.
 * [x] add FITS based filter detection (use astropy.io https://docs.astropy.org/en/stable/install.html)
 * [ ] make single DUO processing work
 * [x] add a command to select the current set of sessions to process (allow filtering by target name, date, instrument, etc...)
