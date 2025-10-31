@@ -5,8 +5,12 @@ from pathlib import Path
 from typing import Any, Optional
 from datetime import datetime, timedelta
 import json
+from typing import TypeAlias
 
 from .paths import get_user_data_dir
+
+SessionRow: TypeAlias = dict[str, Any]
+ImageRow: TypeAlias = dict[str, Any]
 
 
 def get_column_name(k: str) -> str:
@@ -170,7 +174,7 @@ class Database:
             return result[0]
         return cursor.lastrowid if cursor.lastrowid is not None else 0
 
-    def search_image(self, conditions: dict[str, Any]) -> list[dict[str, Any]] | None:
+    def search_image(self, conditions: dict[str, Any]) -> list[SessionRow] | None:
         """Search for images matching the given conditions.
 
         Args:
@@ -227,9 +231,7 @@ class Database:
 
         return results if results else None
 
-    def search_session(
-        self, where_tuple: tuple[str, list[Any]]
-    ) -> list[dict[str, Any]]:
+    def search_session(self, where_tuple: tuple[str, list[Any]]) -> list[SessionRow]:
         """Search for sessions matching the given conditions.
 
         Args:
@@ -283,7 +285,7 @@ class Database:
         result = cursor.fetchone()
         return result[0] if result and result[0] is not None else 0
 
-    def get_image(self, path: str) -> dict[str, Any] | None:
+    def get_image(self, path: str) -> ImageRow | None:
         """Get an image record by path."""
         cursor = self._db.cursor()
         cursor.execute(
@@ -307,7 +309,7 @@ class Database:
 
         return metadata
 
-    def all_images(self) -> list[dict[str, Any]]:
+    def all_images(self) -> list[ImageRow]:
         """Return all image records."""
         cursor = self._db.cursor()
         cursor.execute(
@@ -356,7 +358,7 @@ class Database:
 
         return dict(row)
 
-    def get_session(self, to_find: dict[str, str]) -> dict[str, Any] | None:
+    def get_session(self, to_find: dict[str, str]) -> SessionRow | None:
         """Find a session matching the given criteria.
 
         Searches for sessions with the same filter, image type, target, and telescope

@@ -14,7 +14,7 @@ import shutil
 
 import starbash
 from starbash import console, _is_test_env
-from starbash.database import Database
+from starbash.database import Database, SessionRow
 from repo.manager import Repo
 from starbash.tool import Tool
 from repo import RepoManager
@@ -28,6 +28,8 @@ from starbash.analytics import (
     analytics_shutdown,
     analytics_start_transaction,
 )
+
+# Type aliases for better documentation
 
 
 def setup_logging():
@@ -205,7 +207,31 @@ class Starbash:
             session = self.db.get_session(new)
             self.db.upsert_session(new, existing=session)
 
-    def search_session(self) -> list[dict[str, Any]]:
+    def guess_sessions(
+        self, ref_session: SessionRow, want_type: str
+    ) -> list[SessionRow]:
+        """Given a particular session type (i.e. FLAT or BIAS etc...) and an
+        existing session (which is assumed to generally be a LIGHT frame based session):
+
+        Return a list of possible sessions which would be acceptable.  The more desirable
+        matches are first in the list.  Possibly in the future I might have a 'score' and reason
+        given for each ranking.
+
+        The following critera MUST match to be acceptable:
+        * matches requested imagetyp.
+        * same filter as reference session (in the case want_type==FLAT only)
+        * same telescope as reference session
+
+        Eventually the code will check the following for 'nice to have' (but not now):
+        * same camera temperature as the ref session
+        * close in time to the provided reference session
+
+        Possibly eventually this code could be moved into recipes.
+
+        """
+        raise NotImplementedError("guess_sessions not yet implemented")
+
+    def search_session(self) -> list[SessionRow]:
         """Search for sessions, optionally filtered by the current selection."""
         # Get query conditions from selection
         conditions = self.selection.get_query_conditions()
