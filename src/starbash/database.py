@@ -39,7 +39,7 @@ class Database:
     EXPTIME_TOTAL_KEY = "exptime-total"
     DATE_OBS_KEY = "DATE-OBS"
     DATE_KEY = "DATE"
-    IMAGE_DOC_KEY = "image-doc"
+    IMAGE_DOC_KEY = "image-doc-id"
     IMAGETYP_KEY = "IMAGETYP"
     OBJECT_KEY = "OBJECT"
     TELESCOP_KEY = "TELESCOP"
@@ -404,7 +404,7 @@ class Database:
         return dict(row)
 
     def upsert_session(
-        self, new: dict[str, Any], existing: dict[str, Any] | None = None
+        self, new: SessionRow, existing: SessionRow | None = None
     ) -> None:
         """Insert or update a session record."""
         cursor = self._db.cursor()

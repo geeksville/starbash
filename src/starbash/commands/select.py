@@ -9,7 +9,7 @@ from datetime import datetime
 from rich.table import Table
 
 from starbash.app import Starbash, copy_images_to_dir
-from starbash.database import Database, get_column_name
+from starbash.database import Database, SessionRow, get_column_name
 from starbash import console
 from starbash.commands import (
     format_duration,
@@ -230,6 +230,32 @@ def list_sessions(
             sb.analytics.set_data("session.image_types", image_types)
 
 
+def selection_by_number(
+    sb: Starbash,
+    session_num: int,
+) -> SessionRow:
+    """Get the session corresponding to the given session number in the current selection."""
+    # Get the filtered sessions
+    sessions = sb.search_session()
+
+    if not sessions or not isinstance(sessions, list):
+        console.print("[red]No sessions found. Check your selection criteria.[/red]")
+        raise typer.Exit(1)
+
+    # Validate session number
+    if session_num < 1 or session_num > len(sessions):
+        console.print(
+            f"[red]Error: Session number {session_num} is out of range. "
+            f"Valid range is 1-{len(sessions)}.[/red]"
+        )
+        console.print("[yellow]Use 'select list' to see available sessions.[/yellow]")
+        raise typer.Exit(1)
+
+    # Get the selected session (convert from 1-based to 0-based index)
+    session = sessions[session_num - 1]
+    return session
+
+
 @app.command()
 def export(
     session_num: Annotated[
@@ -249,43 +275,22 @@ def export(
     The session number corresponds to the '#' column in 'select list' output.
     """
     with Starbash("selection.export") as sb:
-        # Get the filtered sessions
-        sessions = sb.search_session()
-
-        if not sessions or not isinstance(sessions, list):
-            console.print(
-                "[red]No sessions found. Check your selection criteria.[/red]"
-            )
-            raise typer.Exit(1)
-
-        # Validate session number
-        if session_num < 1 or session_num > len(sessions):
-            console.print(
-                f"[red]Error: Session number {session_num} is out of range. "
-                f"Valid range is 1-{len(sessions)}.[/red]"
-            )
-            console.print(
-                "[yellow]Use 'select list' to see available sessions.[/yellow]"
-            )
-            raise typer.Exit(1)
-
         # Get the selected session (convert from 1-based to 0-based index)
-        session = sessions[session_num - 1]
+        session = selection_by_number(sb, session_num)
+
+        # Get images for this session
+        images = sb.get_session_images(session)
+        if not images:
+            console.print(
+                f"[red]Error: No images found for session {session_num}.[/red]"
+            )
+            raise typer.Exit(0)
 
         # Determine output directory
         output_dir = Path(destdir)
 
         # Create output directory if it doesn't exist
         output_dir.mkdir(parents=True, exist_ok=True)
-
-        # Get images for this session
-        images = sb.get_session_images(session)
-
-        if not images:
-            console.print(
-                f"[yellow]Warning: No images found for session {session_num}.[/yellow]"
-            )
-            raise typer.Exit(0)
 
         copy_images_to_dir(images, output_dir)
 

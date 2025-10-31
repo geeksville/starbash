@@ -15,7 +15,7 @@ from datetime import datetime
 
 import starbash
 from starbash import console, _is_test_env
-from starbash.database import Database, SessionRow, ImageRow
+from starbash.database import Database, SessionRow, ImageRow, get_column_name
 from repo.manager import Repo
 from starbash.tool import Tool
 from repo import RepoManager
@@ -324,9 +324,10 @@ class Starbash:
 
     def get_session_image(self, session: SessionRow) -> ImageRow:
         """
-        Get the reference ImageRow for a session."""
+        Get the reference ImageRow for a session.
+        """
         images = self.db.search_image(
-            {Database.IMAGE_DOC_KEY: session[Database.IMAGE_DOC_KEY]}
+            {Database.IMAGE_DOC_KEY: session[get_column_name(Database.IMAGE_DOC_KEY)]}
         )
         assert (
             len(images) == 1
@@ -353,12 +354,12 @@ class Starbash:
         """
         # Query images that match ALL session criteria including date range
         conditions = {
-            Database.FILTER_KEY: session[Database.FILTER_KEY],
-            Database.IMAGETYP_KEY: session[Database.IMAGETYP_KEY],
-            Database.OBJECT_KEY: session[Database.OBJECT_KEY],
-            Database.TELESCOP_KEY: session[Database.TELESCOP_KEY],
-            "date_start": session[Database.START_KEY],
-            "date_end": session[Database.END_KEY],
+            Database.FILTER_KEY: session[get_column_name(Database.FILTER_KEY)],
+            Database.IMAGETYP_KEY: session[get_column_name(Database.IMAGETYP_KEY)],
+            Database.OBJECT_KEY: session[get_column_name(Database.OBJECT_KEY)],
+            Database.TELESCOP_KEY: session[get_column_name(Database.TELESCOP_KEY)],
+            "date_start": session[get_column_name(Database.START_KEY)],
+            "date_end": session[get_column_name(Database.END_KEY)],
         }
 
         # Single query with all conditions

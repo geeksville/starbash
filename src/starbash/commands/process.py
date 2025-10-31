@@ -4,8 +4,10 @@ import typer
 from pathlib import Path
 from typing_extensions import Annotated
 
-from starbash.app import Starbash
+from starbash.app import Starbash, copy_images_to_dir
 from starbash import console
+from starbash.commands.select import selection_by_number
+from starbash.database import SessionRow
 
 app = typer.Typer()
 
@@ -41,12 +43,46 @@ def siril(
     """
     with Starbash("process.siril") as sb:
         console.print(
-            f"[yellow]Processing session {session_num} with Siril to {destdir}...[/yellow]"
+            f"[yellow]Processing session {session_num} for Siril in {destdir}...[/yellow]"
         )
-        console.print(
-            "[red]Not yet implemented - see https://github.com/geeksville/starbash/issues[/red]"
-        )
-        raise typer.Exit(1)
+
+        # Determine output directory
+        output_dir = Path(destdir)
+
+        # Get the selected session (convert from 1-based to 0-based index)
+        session = selection_by_number(sb, session_num)
+
+        # Get images for this session
+
+        def session_to_dir(src_session: SessionRow, subdir_name: str):
+            """Copy the images from the specified session to the subdir"""
+            img_dir = output_dir / subdir_name
+            img_dir.mkdir(parents=True, exist_ok=True)
+            images = sb.get_session_images(src_session)
+            copy_images_to_dir(images, img_dir)
+
+        # FIXME - pull this dirname from preferences
+        lights = "lights"
+        session_to_dir(session, lights)
+
+        extras = [
+            # FIXME search for BIAS/DARK/FLAT etc... using multiple canonical names
+            ("BIAS", "biases"),
+            ("DARK", "darks"),
+            ("FLAT", "flats"),
+        ]
+        for typ, subdir in extras:
+            candidates = sb.guess_sessions(session, typ)
+            if not candidates:
+                console.print(
+                    f"[yellow]No candidate sessions found for {typ} calibration frames.[/yellow]"
+                )
+            else:
+                session_to_dir(candidates[0], subdir)
+
+        # FIXME put an starbash.toml repo file in output_dir (with info about what we picked/why)
+        # to allow users to override/reprocess with the same settings.
+        # Also FIXME, check for the existence of such a file
 
 
 @app.command()
@@ -79,7 +115,7 @@ def auto(
             console.print("[yellow]Auto-processing all selected sessions...[/yellow]")
 
         console.print(
-            "[red]Not yet implemented - see https://github.com/geeksville/starbash/issues[/red]"
+            "[red]Still in development - see https://github.com/geeksville/starbash[/red]"
         )
         raise typer.Exit(1)
 
@@ -100,7 +136,7 @@ def masters():
             "[yellow]Generating master frames from current selection...[/yellow]"
         )
         console.print(
-            "[red]Not yet implemented - see https://github.com/geeksville/starbash/issues[/red]"
+            "[red]Still in development - see https://github.com/geeksville/starbash[/red]"
         )
         raise typer.Exit(1)
 
