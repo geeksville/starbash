@@ -122,7 +122,14 @@ def date(
 
 
 @app.command(name="list")
-def list_sessions():
+def list_sessions(
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Show all sessions (normally Dark/Bias/Flat are hidden)",
+    )
+):
     """List sessions (filtered based on the current selection)"""
 
     with Starbash("selection.list") as sb:

@@ -227,55 +227,8 @@ class Database:
 
         return results if results else None
 
-    def where_session(self, conditions: dict[str, Any] | None) -> tuple[str, list[Any]]:
-        """Search for sessions matching the given conditions.
-
-        Args:
-            conditions: Dictionary of session key-value pairs to match, or None for all.
-                       Special keys:
-                       - 'date_start': Filter sessions starting on or after this date
-                       - 'date_end': Filter sessions starting on or before this date
-
-        Returns:
-            Tuple of (WHERE clause string, list of parameters)
-        """
-        if conditions is None:
-            conditions = {}
-
-        # Build WHERE clause dynamically based on conditions
-        where_clauses = []
-        params = []
-
-        # Extract date range conditions
-        date_start = conditions.get("date_start")
-        date_end = conditions.get("date_end")
-
-        # Add date range filters to WHERE clause
-        if date_start:
-            where_clauses.append("start >= ?")
-            params.append(date_start)
-
-        if date_end:
-            where_clauses.append("start <= ?")
-            params.append(date_end)
-
-        # Add standard conditions to WHERE clause
-        for key, value in conditions.items():
-            if key not in ("date_start", "date_end") and value is not None:
-                column_name = key
-                where_clauses.append(f"{column_name} = ?")
-                params.append(value)
-
-        # Build the query
-        query = ""
-
-        if where_clauses:
-            query += " WHERE " + " AND ".join(where_clauses)
-
-        return (query, params)
-
     def search_session(
-        self, conditions: dict[str, Any] | None = None
+        self, where_tuple: tuple[str, list[Any]]
     ) -> list[dict[str, Any]]:
         """Search for sessions matching the given conditions.
 
@@ -288,11 +241,8 @@ class Database:
         Returns:
             List of matching session records or None
         """
-        if conditions is None:
-            conditions = {}
-
         # Build WHERE clause dynamically based on conditions
-        where_clause, params = self.where_session(conditions)
+        where_clause, params = where_tuple
 
         # Build the query
         query = f"""
