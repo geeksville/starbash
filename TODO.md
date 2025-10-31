@@ -6,6 +6,7 @@
 * [x] start writing user prefs in user prefs dir
 * [x] make reindex smarter
 * [x] make the various filter options work
+* [ ] apply filters to info commands
 * [ ] given a session, return a best set of flats or biases for that session (generalize later)
 * [ ] add targets list
 * [x] implement setup command (including username selection and analytics)

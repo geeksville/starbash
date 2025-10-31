@@ -15,9 +15,9 @@ import shutil
 import starbash
 from starbash import console, _is_test_env
 from starbash.database import Database
-from starbash.repo.manager import Repo
+from repo.manager import Repo
 from starbash.tool import Tool
-from starbash.repo import RepoManager
+from repo import RepoManager
 from starbash.tool import tools
 from starbash.paths import get_user_config_dir, get_user_data_dir
 from starbash.selection import Selection
