@@ -11,6 +11,7 @@ import itertools
 from rich.progress import track
 from rich.logging import RichHandler
 import shutil
+from datetime import datetime
 
 import starbash
 from starbash import console, _is_test_env
@@ -20,7 +21,7 @@ from starbash.tool import Tool
 from repo import RepoManager
 from starbash.tool import tools
 from starbash.paths import get_user_config_dir, get_user_data_dir
-from starbash.selection import Selection
+from starbash.selection import Selection, where_tuple
 from starbash.analytics import (
     NopAnalytics,
     analytics_exception,
@@ -233,7 +234,87 @@ class Starbash:
         Possibly eventually this code could be moved into recipes.
 
         """
-        raise NotImplementedError("guess_sessions not yet implemented")
+        # Get reference image to access CCD-TEMP and DATE-OBS
+        ref_image = self.get_session_image(ref_session)
+        ref_temp = ref_image.get("CCD-TEMP", None)
+        ref_date_str = ref_image.get(Database.DATE_OBS_KEY)
+
+        # Parse reference date for time delta calculations
+        ref_date = None
+        if ref_date_str:
+            try:
+                ref_date = datetime.fromisoformat(ref_date_str)
+            except (ValueError, TypeError):
+                logging.warning(f"Malformed session ref date: {ref_date_str}")
+
+        # Build search conditions - MUST match criteria
+        conditions = {
+            Database.IMAGETYP_KEY: want_type,
+            Database.TELESCOP_KEY: ref_session[Database.TELESCOP_KEY],
+        }
+
+        # For FLAT frames, filter must match the reference session
+        if want_type.upper() == "FLAT":
+            conditions[Database.FILTER_KEY] = ref_session[Database.FILTER_KEY]
+
+        # Search for candidate sessions
+        candidates = self.db.search_session(where_tuple(conditions))
+
+        # Now score and sort the candidates
+        scored_candidates = []
+
+        for candidate in candidates:
+            score = 0.0
+
+            # Get candidate image metadata to access CCD-TEMP and DATE-OBS
+            try:
+                candidate_image = self.get_session_image(candidate)
+
+                # Score by CCD-TEMP difference (most important)
+                # Lower temperature difference = better score
+                if ref_temp is not None:
+                    candidate_temp = candidate_image.get("CCD-TEMP")
+                    if candidate_temp is not None:
+                        try:
+                            temp_diff = abs(float(ref_temp) - float(candidate_temp))
+                            # Use exponential decay: closer temps get much better scores
+                            # Perfect match (0°C diff) = 1000, 1°C diff ≈ 368, 2°C diff ≈ 135
+                            score += 1000 * (2.718 ** (-temp_diff))
+                        except (ValueError, TypeError):
+                            # If we can't parse temps, give a neutral score
+                            score += 0
+
+                # Score by date/time proximity (secondary importance)
+                if ref_date is not None:
+                    candidate_date_str = candidate_image.get(Database.DATE_OBS_KEY)
+                    if candidate_date_str:
+                        try:
+                            candidate_date = datetime.fromisoformat(candidate_date_str)
+                            time_delta = abs(
+                                (ref_date - candidate_date).total_seconds()
+                            )
+                            # Closer in time = better score
+                            # Same day ≈ 100, 7 days ≈ 37, 30 days ≈ 9
+                            # Using 7-day half-life
+                            score += 100 * (2.718 ** (-time_delta / (7 * 86400)))
+                        except (ValueError, TypeError):
+                            logging.warning(
+                                f"Could not parse candidate date: {candidate_date_str}"
+                            )
+
+                scored_candidates.append((score, candidate))
+
+            except (AssertionError, KeyError) as e:
+                # If we can't get the session image, log and skip this candidate
+                logging.warning(
+                    f"Could not score candidate session {candidate.get('id')}: {e}"
+                )
+                continue
+
+        # Sort by score (highest first) and return just the sessions
+        scored_candidates.sort(key=lambda x: x[0], reverse=True)
+
+        return [candidate for score, candidate in scored_candidates]
 
     def search_session(self) -> list[SessionRow]:
         """Search for sessions, optionally filtered by the current selection."""
