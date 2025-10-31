@@ -86,18 +86,18 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 - `sb select date <after|before|between> <DATE> [DATE]` - Limit to sessions in the specified date range
 - `sb select export SESSIONNUM DESTDIR` - Export the images for indicated session number into the specified directory (or current directory if not specified).  If possible symbolic links are used, if not the files are copied.
 
-## Not yet supported commands
-
-### Setup & Configuration
+### Selection information
 - `sb info` - Show user preferences location and other app info
 - `sb info target` - List targets (filtered based on the current selection)
 - `sb info telescope` - List instruments (filtered based on the current selection)
 - `sb info filter` - List all filters found in current selection
 
+## Not yet supported commands
+
 ### Export & Processing
-- `sb process siril` - Generate Siril directory tree and run Siril GUI
-- `sb process auto` - Automatic processing
-- `sb process masters` - Generate master flats, darks, and biases from available raw frames
+- `sb process siril [--run] SESSIONNUM DESTDIR` - Generate Siril directory tree and optionally run Siril GUI
+- `sb process auto [SESSIONNUM]` - Automatic processing.  If session # is specified process only that session, otherwise all selected sessions will be processed
+- `sb process masters` - Generate master flats, darks, and biases from available raw frames in the current selection
 
 ## Supported tools (now)
 
