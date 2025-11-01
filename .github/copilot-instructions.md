@@ -4,13 +4,13 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 
 ## Big picture
 - **Starbash** automates and standardizes astrophotography workflows by organizing FITS image data, managing processing recipes via TOML "repos", and orchestrating external tools (Siril, GraXpert).
-- **Entry point**: `starbash.main:app` is a Typer CLI application. Commands include `session`, `repo`, `user`, and `selection`.
+- **Entry point**: `starbash.main:app` is a Typer CLI application. Top-level commands: `select`, `info`, `process`, `repo`, `user`.
 - **Core architecture**:
-  - `starbash.main` — Typer CLI app with Rich markup, defines commands (session, repo, user, selection)
+  - `starbash.main` — Typer CLI app with Rich markup, registers subcommand modules from `starbash.commands/`
   - `starbash.app.Starbash` — main application context manager, initializes database, repo manager, selection state, and analytics
   - `starbash.database.Database` — SQLite3-backed storage for FITS metadata (images table) and session aggregates (sessions table)
-  - `starbash.selection.Selection` — persistent JSON-based state for filtering sessions by target, date range, filter, image type
-  - `starbash.repo.manager.RepoManager` — loads/merges TOML repos with precedence rules, exposes `union()` (MultiDict) and `get()`
+  - `starbash.selection.Selection` — persistent JSON-based state for filtering sessions by target, telescope, date range, filter, image type
+  - `repo.manager.RepoManager` — separate package, loads/merges TOML repos with precedence rules, exposes `union()` (MultiDict) and `get()`
   - `starbash.tool` — tool runners for Siril, GraXpert, Python (RestrictedPython); handles safe template expansion
   - `starbash.paths` — centralized path management with test override support for config/data directories
   - `starbash.analytics` — optional Sentry.io integration for crash reports and usage analytics
@@ -26,25 +26,35 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
   - Key constants defined in `Database` class: `EXPTIME_KEY`, `FILTER_KEY`, `START_KEY`, `OBJECT_KEY`, etc.
 
 ## CLI commands (via Typer)
-- **session** — list sessions filtered by current selection, shows totals row with bold counts
+- **select** — manage session filtering and display
+  - `select` — show current selection summary
+  - `select list` — list sessions filtered by current selection, shows totals row with bold counts
+  - `select any` — clear all filters
+  - `select target NAME` — filter by target name
+  - `select telescope NAME` — filter by telescope/instrument name
+  - `select date after|before|between DATE [DATE]` — filter by date range
+  - `select export SESSION_NUM DESTDIR` — export session images via symlinks/copy
+- **info** — display system and filtered data summaries
+  - `info` — show user preferences location and app info
+  - `info target` — list targets in current selection (with counts)
+  - `info telescope` — list instruments in current selection (with counts)
+  - `info filter` — list optical filters in current selection
+- **process** — automated processing workflows
+  - `process siril SESSION_NUM DESTDIR [--run]` — generate Siril directory tree, optionally launch GUI
 - **repo add/remove/list/reindex** — manage TOML repo references
-- **user name/email/analytics** — manage user profile and analytics opt-in
-- **selection any/target/date** — manage persistent filter state for sessions
-  - `selection any` — clear all filters
-  - `selection target NAME` — filter by target name
-  - `selection date after|before|between DATE [DATE]` — filter by date range
+- **user name/email/analytics/reinit** — manage user profile and analytics opt-in
 - Console script aliases: `starbash` and `sb` (defined in `pyproject.toml`)
 
 ## Selection and filtering system
 - **Selection class** (`starbash.selection.Selection`):
   - Persists state to `~/.local/share/starbash/selection.json`
-  - Tracks: `targets` (list), `date_start`, `date_end`, `filters` (list), `image_types` (list)
-  - `get_query_conditions()` returns dict with keys: `OBJECT`, `FILTER`, `date_start`, `date_end`
+  - Tracks: `targets` (list), `telescopes` (list), `date_start`, `date_end`, `filters` (list), `image_types` (list)
+  - `get_query_conditions()` returns dict with keys: `OBJECT`, `TELESCOP`, `FILTER`, `date_start`, `date_end`
   - Used by `Starbash.search_session()` to filter database queries
 - **Database filtering** (`Database.search_session()`):
   - Accepts conditions dict from `Selection.get_query_conditions()`
   - Extracts `date_start`/`date_end` for special `>=`/`<=` filtering on `start` column
-  - Standard keys (OBJECT, FILTER, IMAGETYP) use exact match
+  - Standard keys (OBJECT, TELESCOP, FILTER, IMAGETYP) use exact match
 
 ## Repos and precedence
 - A "repo" is a directory with `starbash.toml` at root (examples in `doc/toml/example/recipe-repo/`)
@@ -87,24 +97,30 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 - **Python**: 3.12-3.14 required (RestrictedPython not yet compatible with 3.15)
 - **Dependencies**: tomlkit, multidict, rich, restrictedpython, astropy, platformdirs, typer, sentry-sdk
 - **Install**: `poetry install --with dev` (includes pytest)
-- **Run**: `poetry run sb [command]` or `poetry run sb [command]`
+- **Run**: `poetry run sb [command]` or `poetry run starbash [command]`
 - **Test**: `poetry run pytest` (auto-deselects slow tests via marker)
+  - **300 tests total** across 10 test modules, comprehensive coverage
   - Tests use isolated directories via `paths.set_test_directories()`
-  - `tests/test_cli.py` — 19 CLI invocation tests (session, repo, user, selection)
-  - `tests/test_database.py` — SQLite operations
+  - `tests/test_cli.py` — CLI invocation tests (select, repo, user commands)
+  - `tests/test_database.py` — SQLite operations and schema
   - `tests/test_repo_manager.py` — repo loading and precedence
+  - `tests/test_analytics.py` — Sentry.io integration and environment detection
+  - `tests/test_app.py` — Starbash lifecycle and context management
+  - `tests/test_selection.py` — filter state persistence
+  - `tests/test_tool.py` — external tool execution and template expansion
 - **Logging**: Rich handler with INFO level default, tracebacks enabled
 
 ## Key file locations
 - `src/starbash/main.py` — CLI app definition, session command with totals row
 - `src/starbash/app.py` — Starbash context manager, orchestrates DB/repos/selection/analytics
-- `src/starbash/database.py` — SQLite persistence layer (406 lines)
+- `src/starbash/database.py` — SQLite persistence layer (471 lines)
 - `src/starbash/selection.py` — filter state management (216 lines)
-- `src/starbash/repo/manager.py` — TOML repo loading with precedence
+- `src/repo/manager.py` — TOML repo loading with precedence (separate package)
 - `src/starbash/tool.py` — external tool runners and template expansion
 - `src/starbash/paths.py` — path management with test overrides
 - `src/starbash/analytics.py` — Sentry.io integration
-- `src/starbash/commands/` — subcommand modules (repo.py, user.py, selection.py)
+- `src/starbash/commands/` — subcommand modules (repo.py, user.py, selection.py, info.py, process.py)
+- `src/starbash/recipes/` — built-in processing recipes (OSC dual-duo, single-duo, master frames)
 - `tests/test_cli.py` — comprehensive CLI test suite
 
 ## Patterns to follow
@@ -117,7 +133,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 - **When adding/changing code**: Update or add docstrings, maintain typing hints, follow existing code style.  Ensure that you don't introduce new linter warnings. Add new or update unit tests as appropriate.
 
 ## Current status (see TODO.md)
-- **Working**: session listing with filtering, repo management, user settings, database indexing, CLI with 19 passing tests
+- **Working**: session listing with filtering, repo management, user settings, database indexing, export functionality, Siril prep, CLI with 300 passing tests
 - **In progress**: processing automation (see `poc/process.py`), master frame generation, multi-session support
 - **Planned**: HTTP repos, automated quality tracking, GUI (Flet), target reports, shell autocompletion
 

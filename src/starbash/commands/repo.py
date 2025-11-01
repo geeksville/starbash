@@ -41,10 +41,12 @@ def main(
 
 
 @app.command()
-def add(path: str,
+def add(
+    path: str,
     master: bool = typer.Option(
         False, "--master", help="Mark this new repository for master files."
-    )):
+    ),
+):
     """
     Add a repository. path is either a local path or a remote URL.
     """
@@ -64,7 +66,7 @@ def add(path: str,
                 overrides={
                     "REPO_TYPE": repo_type,
                     "REPO_PATH": str(p),
-                    "DEFAULT_RELATIVE": "{instrument}/{date}/{imagetyp}/{sessionconfig}.fits",
+                    "DEFAULT_RELATIVE": "{instrument}/{datetime}/{imagetyp}/{sessionconfig}.fits",
                 },
             )
         else:
