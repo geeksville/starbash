@@ -452,10 +452,6 @@ class Starbash:
         for repo in track(self.repo_manager.repos, description="Reindexing repos..."):
             self.reindex_repo(repo, force=force)
 
-    def test_processing(self):
-        """A crude test of image processing pipeline - FIXME move into testing"""
-        self.run_all_stages()
-
     def run_all_stages(self):
         """On the currently active session, run all processing stages"""
         logging.info("--- Running all stages ---")

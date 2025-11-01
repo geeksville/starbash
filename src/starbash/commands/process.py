@@ -117,7 +117,7 @@ def auto(
         console.print(
             "[red]Still in development - see https://github.com/geeksville/starbash[/red]"
         )
-        raise typer.Exit(1)
+        sb.run_all_stages()
 
 
 @app.command()
