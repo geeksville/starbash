@@ -50,6 +50,22 @@
             ]
         },
         {
+            "name": "Python Debugger: starbash repo",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "starbash.main",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
+            "justMyCode": false,
+            "args": [
+                "--debug",
+                "repo",
+                "add",
+                "--master",
+                "/tmp/repo/master"
+            ]
+        },
+        {
             "name": "Python Debugger: processing script",
             "type": "debugpy",
             "request": "launch",

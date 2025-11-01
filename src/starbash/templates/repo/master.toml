@@ -3,7 +3,7 @@
 # This file marks the root directory of a set of auto matinained astrophotography
 # 'master' files, such as master darks, flats or biases.
 #
-# You generally don't need to edit this file directly - it is auto generated when you ran
+# You generally don't need to edit this file directly - it was auto generated when you ran
 # "sb repo add --master {REPO_PATH}".
 #
 

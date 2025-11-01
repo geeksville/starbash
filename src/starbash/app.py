@@ -16,7 +16,7 @@ from datetime import datetime
 import starbash
 from starbash import console, _is_test_env
 from starbash.database import Database, SessionRow, ImageRow, get_column_name
-from repo.manager import Repo
+from repo.manager import Repo, repo_suffix
 from starbash.toml import toml_from_template
 from starbash.tool import Tool
 from repo import RepoManager
@@ -50,7 +50,7 @@ def setup_logging():
 def get_user_config_path() -> Path:
     """Returns the path to the user config file."""
     config_dir = get_user_config_dir()
-    return config_dir / "starbash.toml"
+    return config_dir / repo_suffix
 
 
 def create_user() -> Path:

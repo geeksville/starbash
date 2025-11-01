@@ -2,6 +2,7 @@ import typer
 from typing_extensions import Annotated
 from pathlib import Path
 
+from repo.manager import repo_suffix
 from starbash.app import Starbash
 from starbash import console
 from starbash.toml import toml_from_template
@@ -40,19 +41,43 @@ def main(
 
 
 @app.command()
-def add(path: str):
+def add(path: str,
+    master: bool = typer.Option(
+        False, "--master", help="Mark this new repository for master files."
+    )):
     """
     Add a repository. path is either a local path or a remote URL.
     """
     repo_type = None
+    if master:
+        repo_type = "master"
     with Starbash("repo.add") as sb:
         p = Path(path)
+
         if repo_type:
-            toml_from_template(f"repo/{repo_type}", p, overrides={"REPO_TYPE": repo_type,
-                                                                  "DEFAULT_RELATIVE": "FIXME"})
+            console.print(f"Creating {repo_type} repository: {p}")
+            p.mkdir(parents=True, exist_ok=True)
+
+            toml_from_template(
+                f"repo/{repo_type}",
+                p / repo_suffix,
+                overrides={
+                    "REPO_TYPE": repo_type,
+                    "REPO_PATH": str(p),
+                    "DEFAULT_RELATIVE": "{instrument}/{date}/{imagetyp}/{sessionconfig}.fits",
+                },
+            )
+        else:
+            # No type specified, therefore (for now) assume we are just using this as an input
+            # repo (and it must exist)
+            if not p.exists():
+                console.print(f"[red]Error: Repo path does not exist: {p}[/red]")
+                raise typer.Exit(code=1)
+
+            console.print(f"Adding repository: {p}")
+
         repo = sb.user_repo.add_repo_ref(p)
         if repo:
-            console.print(f"Added repository: {p}")
             sb.reindex_repo(repo)
 
             # we don't yet write default config files at roots of repos, but it would be easy to add here

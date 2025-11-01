@@ -76,7 +76,7 @@ class Repo:
                 logging.warning(f"Repo ref {dir} already exists - ignoring.")
                 return None  # already exists
 
-        ref = {"dir": dir}
+        ref = {"dir": str(dir)}
         aot.append(ref)
 
         # Also add the repo to the manager
