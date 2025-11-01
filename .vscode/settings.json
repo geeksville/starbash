@@ -17,9 +17,10 @@
     "cSpell.words": [
         "apeture",
         "ASIAIR",
-        "starbash",
+        "myxauth",
         "Oiii",
-        "SEESTAR"
+        "SEESTAR",
+        "starbash"
     ],
     "python.testing.pytestArgs": [
         "tests"

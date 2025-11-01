@@ -33,11 +33,10 @@
 		// Mount the X11 authority file to allow GUI apps in the container to connect to the host's display
 		//"source=${localEnv:XAUTHORITY},target=${localEnv:XAUTHORITY},type=bind",
 		{
-			"source": "${env:XAUTHORITY}",
+			// was ${env:XAUTHORITY} but that file keeps changing, so just mount a temp file and have fix-xauth.sh update it
+			"source": "${localEnv:HOME}/myxauth.lnk",
 			"target": "/tmp/.docker.xauth",
-			"type": "bind",
-			"readOnly": true,
-			"consistency": "cached"
+			"type": "bind"
 		},
 		// vscode auto export of git config into my container sometimes seems busted (actually this isn't needed - it only happens if precreate.sh bails)
 		// "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
