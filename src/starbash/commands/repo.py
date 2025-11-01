@@ -2,7 +2,7 @@ import typer
 from typing_extensions import Annotated
 from pathlib import Path
 
-from repo.manager import repo_suffix
+from repo import repo_suffix
 from starbash.app import Starbash
 from starbash import console
 from starbash.toml import toml_from_template

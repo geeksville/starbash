@@ -6,7 +6,7 @@ import pytest
 import tomlkit
 
 from starbash.selection import Selection
-from repo.manager import Repo, RepoManager, repo_suffix
+from repo import Repo, RepoManager, repo_suffix
 
 
 @pytest.fixture

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Optional, TYPE_CHECKING
-from repo.manager import Repo
+from repo import Repo
 
 
 def where_tuple(conditions: dict[str, Any] | None) -> tuple[str, list[Any]]:

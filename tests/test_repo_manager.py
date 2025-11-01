@@ -1,7 +1,7 @@
 from pathlib import Path
 import pytest
 import tomlkit
-from repo.manager import RepoManager
+from repo import RepoManager
 
 
 def test_repo_manager_initialization(monkeypatch, tmp_path: Path):
