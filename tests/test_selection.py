@@ -3,20 +3,42 @@
 import json
 from pathlib import Path
 import pytest
+import tomlkit
 
 from starbash.selection import Selection
+from repo.manager import Repo, RepoManager, repo_suffix
+
+
+@pytest.fixture
+def temp_repo_dir(tmp_path):
+    """Create a temporary directory with a starbash.toml file for use as a repo."""
+    repo_dir = tmp_path / "test_repo"
+    repo_dir.mkdir(exist_ok=True)
+
+    # Create a minimal starbash.toml file
+    toml_path = repo_dir / repo_suffix
+    toml_path.write_text("")
+
+    return repo_dir
 
 
 @pytest.fixture
 def temp_state_file(tmp_path):
-    """Create a temporary state file path."""
+    """Create a temporary state file path (for backward compatibility with some tests)."""
     return tmp_path / "selection.json"
 
 
 @pytest.fixture
-def selection(temp_state_file):
-    """Create a Selection instance with a temporary state file."""
-    return Selection(temp_state_file)
+def user_repo(temp_repo_dir):
+    """Create a Repo instance for testing."""
+    manager = RepoManager()
+    return manager.add_repo(f"file://{temp_repo_dir}")
+
+
+@pytest.fixture
+def selection(user_repo):
+    """Create a Selection instance with a temporary repo."""
+    return Selection(user_repo)
 
 
 class TestSelectionInit:
@@ -32,21 +54,19 @@ class TestSelectionInit:
         assert sel.image_types == []
         assert sel.telescopes == []
 
-    def test_init_loads_existing_state(self, temp_state_file):
-        """Test that initializing Selection loads existing state from disk."""
-        # Create a state file with data
-        state_data = {
-            "targets": ["M31", "M42"],
-            "date_start": "2023-01-01",
-            "date_end": "2023-12-31",
-            "filters": ["Ha", "OIII"],
-            "image_types": ["Light"],
-            "telescopes": ["Vespera"],
-        }
-        temp_state_file.write_text(json.dumps(state_data))
+    def test_init_loads_existing_state(self, user_repo):
+        """Test that initializing Selection loads existing state from repo."""
+        # Pre-populate the repo with selection data
+        user_repo.set("selection.targets", ["M31", "M42"])
+        user_repo.set("selection.date_start", "2023-01-01")
+        user_repo.set("selection.date_end", "2023-12-31")
+        user_repo.set("selection.filters", ["Ha", "OIII"])
+        user_repo.set("selection.image_types", ["Light"])
+        user_repo.set("selection.telescopes", ["Vespera"])
+        user_repo.write_config()
 
         # Load selection
-        sel = Selection(temp_state_file)
+        sel = Selection(user_repo)
         assert sel.targets == ["M31", "M42"]
         assert sel.date_start == "2023-01-01"
         assert sel.date_end == "2023-12-31"
@@ -54,28 +74,28 @@ class TestSelectionInit:
         assert sel.image_types == ["Light"]
         assert sel.telescopes == ["Vespera"]
 
-    def test_init_handles_missing_file(self, temp_state_file):
-        """Test that initializing Selection with non-existent file works."""
-        sel = Selection(temp_state_file)
+    def test_init_handles_missing_file(self, user_repo):
+        """Test that initializing Selection with empty repo works."""
+        sel = Selection(user_repo)
         assert sel.targets == []
-        assert not temp_state_file.exists()
 
-    def test_init_handles_corrupt_json(self, temp_state_file, caplog):
-        """Test that initializing Selection handles corrupt JSON gracefully."""
-        temp_state_file.write_text("not valid json{{{")
+    def test_init_handles_corrupt_json(self, user_repo, caplog):
+        """Test that initializing Selection handles invalid data gracefully."""
+        # Set invalid data type (string instead of list)
+        user_repo.set("selection.targets", "not a list")
+        user_repo.write_config()
 
-        sel = Selection(temp_state_file)
-        # Should still create empty selection
+        sel = Selection(user_repo)
+        # Should still create empty selection due to type checking
         assert sel.targets == []
-        assert "Failed to load selection state" in caplog.text
 
-    def test_init_handles_partial_data(self, temp_state_file):
+    def test_init_handles_partial_data(self, user_repo):
         """Test that initializing Selection handles partial state data."""
         # Only some fields present
-        state_data = {"targets": ["M31"]}
-        temp_state_file.write_text(json.dumps(state_data))
+        user_repo.set("selection.targets", ["M31"])
+        user_repo.write_config()
 
-        sel = Selection(temp_state_file)
+        sel = Selection(user_repo)
         assert sel.targets == ["M31"]
         assert sel.date_start is None
         assert sel.filters == []
@@ -84,24 +104,34 @@ class TestSelectionInit:
 class TestSelectionSave:
     """Tests for Selection._save method."""
 
-    def test_save_creates_file(self, selection, temp_state_file):
-        """Test that saving creates the state file."""
+    def test_save_creates_file(self, selection, user_repo):
+        """Test that saving writes to the repo config file."""
         selection.targets = ["M31"]
         selection._save()
 
-        assert temp_state_file.exists()
+        # Verify the config file was written
+        config_path = user_repo.get_path() / repo_suffix
+        assert config_path.exists()
 
     def test_save_creates_parent_directory(self, tmp_path):
         """Test that saving creates parent directories if needed."""
-        nested_path = tmp_path / "subdir" / "another" / "selection.json"
-        sel = Selection(nested_path)
+        nested_path = tmp_path / "subdir" / "another"
+        nested_path.mkdir(parents=True, exist_ok=True)
+
+        # Create repo in nested path
+        toml_path = nested_path / repo_suffix
+        toml_path.write_text("")
+
+        manager = RepoManager()
+        repo = manager.add_repo(f"file://{nested_path}")
+        sel = Selection(repo)
         sel.targets = ["M31"]
         sel._save()
 
+        assert toml_path.exists()
         assert nested_path.exists()
-        assert nested_path.parent.exists()
 
-    def test_save_writes_all_fields(self, selection, temp_state_file):
+    def test_save_writes_all_fields(self, selection, user_repo):
         """Test that saving writes all selection fields."""
         selection.targets = ["M31"]
         selection.date_start = "2023-01-01"
@@ -111,23 +141,37 @@ class TestSelectionSave:
         selection.telescopes = ["Vespera"]
         selection._save()
 
-        data = json.loads(temp_state_file.read_text())
-        assert data["targets"] == ["M31"]
-        assert data["date_start"] == "2023-01-01"
-        assert data["date_end"] == "2023-12-31"
-        assert data["filters"] == ["Ha"]
-        assert data["image_types"] == ["Light"]
-        assert data["telescopes"] == ["Vespera"]
+        # Reload repo and verify all fields
+        config_path = user_repo.get_path() / repo_suffix
+        config = tomlkit.parse(config_path.read_text())
+        selection_section = config.get("selection", {})
+        assert selection_section.get("targets") == ["M31"]
+        assert selection_section.get("date_start") == "2023-01-01"
+        assert selection_section.get("date_end") == "2023-12-31"
+        assert selection_section.get("filters") == ["Ha"]
+        assert selection_section.get("image_types") == ["Light"]
+        assert selection_section.get("telescopes") == ["Vespera"]
 
     def test_save_handles_write_error(self, selection, caplog):
         """Test that save handles write errors gracefully."""
-        # Make the file path invalid (directory instead of file)
-        selection.state_file.mkdir(parents=True, exist_ok=True)
+        # Make the repo path read-only to trigger write error
+        repo_path = selection.user_repo.get_path()
+        config_path = repo_path / repo_suffix
 
-        selection.targets = ["M31"]
-        selection._save()  # Should not raise
+        # Make directory read-only
+        import os
 
-        assert "Failed to save selection state" in caplog.text
+        old_mode = repo_path.stat().st_mode
+        os.chmod(repo_path, 0o444)
+
+        try:
+            selection.targets = ["M31"]
+            selection._save()  # Should not raise
+
+            assert "Failed to save selection state" in caplog.text
+        finally:
+            # Restore permissions
+            os.chmod(repo_path, old_mode)
 
 
 class TestSelectionClear:
@@ -149,15 +193,15 @@ class TestSelectionClear:
         assert selection.image_types == []
         assert selection.telescopes == []
 
-    def test_clear_saves_state(self, selection, temp_state_file):
-        """Test that clear saves the cleared state to disk."""
+    def test_clear_saves_state(self, selection, user_repo):
+        """Test that clear saves the cleared state to repo."""
         selection.targets = ["M31"]
         selection._save()
 
         selection.clear()
 
         # Reload and verify cleared
-        new_sel = Selection(temp_state_file)
+        new_sel = Selection(user_repo)
         assert new_sel.targets == []
 
 
@@ -175,12 +219,12 @@ class TestSelectionAddTarget:
         selection.add_target("M31")
         assert selection.targets.count("M31") == 1
 
-    def test_add_target_saves_state(self, selection, temp_state_file):
-        """Test that add_target saves state to disk."""
+    def test_add_target_saves_state(self, selection, user_repo):
+        """Test that add_target saves state to repo."""
         selection.add_target("M31")
 
         # Reload and verify
-        new_sel = Selection(temp_state_file)
+        new_sel = Selection(user_repo)
         assert "M31" in new_sel.targets
 
     def test_add_multiple_targets(self, selection):
@@ -232,12 +276,12 @@ class TestSelectionAddTelescope:
         selection.add_telescope("Vespera")
         assert selection.telescopes.count("Vespera") == 1
 
-    def test_add_telescope_saves_state(self, selection, temp_state_file):
-        """Test that add_telescope saves state to disk."""
+    def test_add_telescope_saves_state(self, selection, user_repo):
+        """Test that add_telescope saves state to repo."""
         selection.add_telescope("Vespera")
 
         # Reload and verify
-        new_sel = Selection(temp_state_file)
+        new_sel = Selection(user_repo)
         assert "Vespera" in new_sel.telescopes
 
     def test_add_multiple_telescopes(self, selection):
@@ -306,12 +350,12 @@ class TestSelectionSetDateRange:
         assert selection.date_start is None
         assert selection.date_end is None
 
-    def test_set_date_range_saves_state(self, selection, temp_state_file):
-        """Test that set_date_range saves state to disk."""
+    def test_set_date_range_saves_state(self, selection, user_repo):
+        """Test that set_date_range saves state to repo."""
         selection.set_date_range(start="2023-01-01", end="2023-12-31")
 
         # Reload and verify
-        new_sel = Selection(temp_state_file)
+        new_sel = Selection(user_repo)
         assert new_sel.date_start == "2023-01-01"
         assert new_sel.date_end == "2023-12-31"
 
@@ -330,12 +374,12 @@ class TestSelectionAddFilter:
         selection.add_filter("Ha")
         assert selection.filters.count("Ha") == 1
 
-    def test_add_filter_saves_state(self, selection, temp_state_file):
-        """Test that add_filter saves state to disk."""
+    def test_add_filter_saves_state(self, selection, user_repo):
+        """Test that add_filter saves state to repo."""
         selection.add_filter("Ha")
 
         # Reload and verify
-        new_sel = Selection(temp_state_file)
+        new_sel = Selection(user_repo)
         assert "Ha" in new_sel.filters
 
     def test_add_multiple_filters(self, selection):
@@ -631,35 +675,35 @@ class TestSelectionSummary:
 class TestSelectionPersistence:
     """Tests for Selection state persistence."""
 
-    def test_changes_persist_across_instances(self, temp_state_file):
+    def test_changes_persist_across_instances(self, user_repo):
         """Test that changes persist when creating new instances."""
         # Create first instance and modify
-        sel1 = Selection(temp_state_file)
+        sel1 = Selection(user_repo)
         sel1.add_target("M31")
         sel1.set_date_range(start="2023-01-01")
 
         # Create second instance and verify
-        sel2 = Selection(temp_state_file)
+        sel2 = Selection(user_repo)
         assert "M31" in sel2.targets
         assert sel2.date_start == "2023-01-01"
 
-    def test_clear_persists(self, temp_state_file):
+    def test_clear_persists(self, user_repo):
         """Test that clear operation persists."""
         # Add data
-        sel1 = Selection(temp_state_file)
+        sel1 = Selection(user_repo)
         sel1.add_target("M31")
 
         # Clear
         sel1.clear()
 
         # Verify cleared in new instance
-        sel2 = Selection(temp_state_file)
+        sel2 = Selection(user_repo)
         assert sel2.targets == []
         assert sel2.is_empty()
 
-    def test_multiple_operations_persist(self, temp_state_file):
+    def test_multiple_operations_persist(self, user_repo):
         """Test that multiple operations all persist correctly."""
-        sel = Selection(temp_state_file)
+        sel = Selection(user_repo)
 
         sel.add_target("M31")
         sel.add_telescope("Vespera")
@@ -667,7 +711,7 @@ class TestSelectionPersistence:
         sel.set_date_range(start="2023-01-01", end="2023-12-31")
 
         # Reload and verify all operations persisted
-        new_sel = Selection(temp_state_file)
+        new_sel = Selection(user_repo)
         assert new_sel.targets == ["M31"]
         assert new_sel.telescopes == ["Vespera"]
         assert new_sel.filters == ["Ha"]

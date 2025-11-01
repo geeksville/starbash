@@ -151,10 +151,8 @@ class Starbash:
         self.db = Database()
         self.session_query = None  # None means search all sessions
 
-        # Initialize selection state
-        data_dir = get_user_data_dir()
-        selection_file = data_dir / "selection.json"
-        self.selection = Selection(selection_file)
+        # Initialize selection state (stored in user config repo)
+        self.selection = Selection(self.user_repo)
 
         # FIXME, call reindex somewhere and also index whenever new repos are added
         # self.reindex_repos()

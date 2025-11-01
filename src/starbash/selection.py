@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import logging
-from pathlib import Path
-from typing import Any, Optional
-from datetime import datetime
+from typing import Any, Optional, TYPE_CHECKING
+from repo.manager import Repo
 
 
 def where_tuple(conditions: dict[str, Any] | None) -> tuple[str, list[Any]]:
@@ -67,16 +65,17 @@ class Selection:
     - Image types
     - Telescope names
 
-    The selection state is saved to disk and can be used to build database queries.
+    The selection state is saved to the user config repo TOML file and can be
+    used to build database queries.
     """
 
-    def __init__(self, state_file: Path):
-        """Initialize the Selection with a state file path.
+    def __init__(self, user_repo: "Repo"):
+        """Initialize the Selection with the user config repository.
 
         Args:
-            state_file: Path to the JSON file where selection state is persisted
+            user_repo: The Repo object for user preferences where selection state is persisted
         """
-        self.state_file = state_file
+        self.user_repo = user_repo
         self.targets: list[str] = []
         self.date_start: Optional[str] = None
         self.date_end: Optional[str] = None
@@ -88,39 +87,59 @@ class Selection:
         self._load()
 
     def _load(self) -> None:
-        """Load selection state from disk."""
-        if self.state_file.exists():
-            try:
-                with open(self.state_file, "r") as f:
-                    data = json.load(f)
-                    self.targets = data.get("targets", [])
-                    self.date_start = data.get("date_start")
-                    self.date_end = data.get("date_end")
-                    self.filters = data.get("filters", [])
-                    self.image_types = data.get("image_types", [])
-                    self.telescopes = data.get("telescopes", [])
-                logging.debug(f"Loaded selection state from {self.state_file}")
-            except Exception as e:
-                logging.warning(f"Failed to load selection state: {e}")
+        """Load selection state from user config repo."""
+        try:
+            # Load with type-safe defaults
+            targets = self.user_repo.get("selection.targets", [])
+            self.targets = targets if isinstance(targets, list) else []
+
+            self.date_start = self.user_repo.get("selection.date_start")
+            self.date_end = self.user_repo.get("selection.date_end")
+
+            filters = self.user_repo.get("selection.filters", [])
+            self.filters = filters if isinstance(filters, list) else []
+
+            image_types = self.user_repo.get("selection.image_types", [])
+            self.image_types = image_types if isinstance(image_types, list) else []
+
+            telescopes = self.user_repo.get("selection.telescopes", [])
+            self.telescopes = telescopes if isinstance(telescopes, list) else []
+
+            logging.debug(f"Loaded selection state from {self.user_repo.url}")
+        except Exception as e:
+            logging.warning(f"Failed to load selection state: {e}")
 
     def _save(self) -> None:
-        """Save selection state to disk."""
+        """Save selection state to user config repo."""
         try:
-            # Ensure parent directory exists
-            self.state_file.parent.mkdir(parents=True, exist_ok=True)
+            self.user_repo.set("selection.targets", self.targets)
 
-            data = {
-                "targets": self.targets,
-                "date_start": self.date_start,
-                "date_end": self.date_end,
-                "filters": self.filters,
-                "image_types": self.image_types,
-                "telescopes": self.telescopes,
-            }
+            # Handle date fields - set if not None, delete if None (to clear them)
+            if self.date_start is not None:
+                self.user_repo.set("selection.date_start", self.date_start)
+            else:
+                # Delete the key if it exists
+                if "selection" in self.user_repo.config:
+                    sel_section = self.user_repo.config["selection"]
+                    if isinstance(sel_section, dict) and "date_start" in sel_section:
+                        del sel_section["date_start"]  # type: ignore
 
-            with open(self.state_file, "w") as f:
-                json.dump(data, f, indent=2)
-            logging.debug(f"Saved selection state to {self.state_file}")
+            if self.date_end is not None:
+                self.user_repo.set("selection.date_end", self.date_end)
+            else:
+                # Delete the key if it exists
+                if "selection" in self.user_repo.config:
+                    sel_section = self.user_repo.config["selection"]
+                    if isinstance(sel_section, dict) and "date_end" in sel_section:
+                        del sel_section["date_end"]  # type: ignore
+
+            self.user_repo.set("selection.filters", self.filters)
+            self.user_repo.set("selection.image_types", self.image_types)
+            self.user_repo.set("selection.telescopes", self.telescopes)
+
+            # Write the updated config to disk
+            self.user_repo.write_config()
+            logging.debug(f"Saved selection state to {self.user_repo.url}")
         except Exception as e:
             logging.error(f"Failed to save selection state: {e}")
 
