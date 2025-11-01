@@ -17,6 +17,7 @@ import starbash
 from starbash import console, _is_test_env
 from starbash.database import Database, SessionRow, ImageRow, get_column_name
 from repo.manager import Repo
+from starbash.toml import toml_from_template
 from starbash.tool import Tool
 from repo import RepoManager
 from starbash.tool import tools
@@ -56,13 +57,7 @@ def create_user() -> Path:
     """Create user directories if they don't exist yet."""
     path = get_user_config_path()
     if not path.exists():
-        tomlstr = (
-            resources.files("starbash")
-            .joinpath("templates/userconfig.toml")
-            .read_text()
-        )
-        toml = tomlkit.parse(tomlstr)
-        TOMLFile(path).write(toml)
+        toml_from_template("userconfig", path)
         logging.info(f"Created user config file: {path}")
     return get_user_config_dir()
 

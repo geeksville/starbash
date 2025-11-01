@@ -10,4 +10,4 @@
 [repo]
 kind = "master"
 
-relative = "{sessionid}/{imagetyp}/*_{sessionconfig}_*.fit*"
+relative = "{DEFAULT_RELATIVE}"

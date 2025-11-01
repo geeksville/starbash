@@ -9,6 +9,8 @@
 * [x] apply filters to info commands
 * [x] given a session, return a best set of flats or biases for that session (generalize later)
 * [x] make the siril prep rule work
+* [ ] make master repo add work
+* [ ] make "session_to_master()" work - given a single session it will write masters/instrument/typ/foo-date-temp-bias.fits
 * [ ] make siril prep smarter about best sets, include report in toml file, show options on log
 * [ ] add exposure length as another common element for a session
 * [ ] validate resolution and binning when looking for darks etc...
