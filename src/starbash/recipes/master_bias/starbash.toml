@@ -10,7 +10,7 @@ author.email = "FIXMESiril?"
 [[stage]]
 
 description = "Generate master bias"
-disabled = true # FIXME, debugging later stuff
+disabled = false # FIXME, debugging later stuff
 
 # Restrict processing of this stage to only if detected hardware was found for this session
 # For any camera
@@ -23,9 +23,9 @@ tool = "siril"
 # input.source = "most-recent" # only look for the most recent set of raws for this particular type
 input.type = "bias" # look in all raw repos, but look only for bias files
 
-# for early development we have support for simple absolute file paths with globs
-input.source = "path"
-input.path = "/workspaces/starbash/images/from_astroboy/masters-raw/2025-09-09/BIAS/*.fit*"
+# Look for files in input repos, finding them by using the "relative" tag they contain
+input.source = "repo"
+# input.path = ".../from_astroboy/masters-raw/2025-09-09/BIAS/*.fit*"
 input.required = true # Is at least one input file required?  If true, we will skip running this stage entirely (with a warning)
 
 # make the following also work
@@ -34,7 +34,7 @@ input.required = true # Is at least one input file required?  If true, we will s
 #os.makedirs(os.path.dirname(process_dir), exist_ok=True)
 #frames = glob(f"{masters_raw}/{date}/BIAS/{date}_*.fit*")
 #siril_run_in_temp_dir(frames, ...
-when = "session-config" # run at the start of each session process
+when = "setup.masters" # run when master biases are regenerated
 
 # The following constants are auto defined before running the tool
 # context.process_dir (points to the session specific semi-persistent local dir for that sessions written/read data files)
@@ -42,8 +42,15 @@ when = "session-config" # run at the start of each session process
 # context.temp_dir (points to a temporary directory this tool can use for writing)
 
 # Everything in the constants dict will be predefined as named variables for use by the script
-context.date = "2025-09-09"  # FIXME - later find auto latest date with bias frames
-context.output = "{masters}/biases/{date}_stacked.fits" # if the output already exists processing will be skipped
+# context.date = "2025-09-0.9"  # FIXME - later find auto latest date with bias frames
+
+# output file will be place in the masters repo
+# if the output already exists processing will be skipped
+#
+# with a path like "{instrument}/{date}/{imagetyp}/{sessionconfig}.fits"
+# this path comes from master_repo.relative
+# context.output = "{instrument}/{date}/{imagetyp}/{sessionconfig}.fits"
+
 
 script = '''
     # Convert Bias Frames to .fit files

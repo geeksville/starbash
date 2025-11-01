@@ -1,5 +1,6 @@
 import logging
 from importlib import resources
+import os
 from pathlib import Path
 import typer
 import tomlkit
@@ -469,30 +470,49 @@ class Starbash:
                 f"invalid stage definition: a stage is missing the required 'priority' key"
             ) from e
 
-        # 3. Get all available task definitions (the `[[stage]]` tables with tool, script, when).
-        task_definitions = self.repo_manager.merged.getall("stage")
-        all_tasks = list(itertools.chain.from_iterable(task_definitions))
-
         logging.info(
             f"Found {len(sorted_pipeline)} pipeline steps to run in order of priority."
         )
 
-        self.start_session()
+        self.init_context()
         # 4. Iterate through the sorted pipeline and execute the associated tasks.
         for step in sorted_pipeline:
             step_name = step.get("name")
             if not step_name:
                 raise ValueError("Invalid pipeline step found: missing 'name' key.")
+            self.run_pipeline_step(step_name)
 
-            logging.info(
-                f"--- Running pipeline step: '{step_name}' (Priority: {step['priority']}) ---"
-            )
-            # Find all tasks that should run during this pipeline step.
-            tasks_to_run = [task for task in all_tasks if task.get("when") == step_name]
-            for task in tasks_to_run:
-                self.run_stage(task)
+    def run_pipeline_step(self, step_name: str):
+        logging.info(f"--- Running pipeline step: '{step_name}' ---")
 
-    def start_session(self) -> None:
+        # 3. Get all available task definitions (the `[[stage]]` tables with tool, script, when).
+        task_definitions = self.repo_manager.merged.getall("stage")
+        all_tasks = list(itertools.chain.from_iterable(task_definitions))
+
+        # Find all tasks that should run during this pipeline step.
+        tasks_to_run = [task for task in all_tasks if task.get("when") == step_name]
+        for task in tasks_to_run:
+            self.run_stage(task)
+
+    def run_master_stages(self):
+        """Generate any missing master frames
+
+        Steps:
+        * set all_tasks to be all tasks for when == "setup.masters"
+        * loop over all currently unfiltered sessions
+        * for each session loop across all_tasks
+        * if task input.type == the imagetyp for this current session
+        *    add_input_to_context() add the input files to the context (from the session)
+        *    run_stage(task) to generate the new master frame
+        """
+
+        self.init_context()
+        self.add_session_to_context()
+
+        # FIXME improve run_pipeline_step to filter tasks by imagetyp (i.e. use the bias script for bias frames, flat script for flat frames)
+        self.run_pipeline_step("setup.masters")
+
+    def init_context(self) -> None:
         """Do common session init"""
 
         # Context is preserved through all stages, so each stage can add new symbols to it for use by later stages
@@ -500,10 +520,14 @@ class Starbash:
 
         # Update the context with runtime values.
         runtime_context = {
-            "process_dir": "/workspaces/starbash/images/process",  # FIXME - create/find this more correctly per session
-            "masters": "/workspaces/starbash/images/masters",  # FIXME find this the correct way
+            # "process_dir": "/workspaces/starbash/images/process",  # FIXME - create/find this more correctly per session
+            # " masters": "/workspaces/starbash/images/masters",  # FIXME find this the correct way
         }
         self.context.update(runtime_context)
+
+    def add_session_to_context(self):
+        """add the input files to the context (from the session)"""
+        pass
 
     def run_stage(self, stage: dict) -> None:
         """
@@ -546,12 +570,9 @@ class Starbash:
             )
 
         # This allows recipe TOML to define their own default variables.
+        # (apply all of the changes to context that the task demands)
         stage_context = stage.get("context", {})
         self.context.update(stage_context)
-
-        # Assume no files for this stage
-        if "input_files" in self.context:
-            del self.context["input_files"]
 
         input_files = []
         input_config = stage.get("input")
@@ -569,7 +590,19 @@ class Starbash:
                 input_files  # Pass in the file list via the context dict
             )
 
+            # FIXME compare context.output to see if it already exists and is newer than the input files, if so skip processing
+        else:
+            # The script doesn't mention input, therefore assume it doesn't want input_files
+            if "input_files" in self.context:
+                del self.context["input_files"]
+
         if input_required and not input_files:
             raise RuntimeError("No input files found for stage")
 
         tool.run_in_temp_dir(script, context=self.context)
+
+        # verify context.output was created if it was specified
+        if "output" in self.context:
+            output_path = self.context["output"]
+            if not os.path.exists(output_path):
+                raise RuntimeError(f"Expected output file not found: {output_path}")

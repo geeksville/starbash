@@ -12,6 +12,7 @@
 * [x] make master repo add work
 * [ ] make "session_to_master()" work - given a single session it will write masters/instrument/typ/foo-date-temp-bias.fits
 * [ ] make siril prep smarter about best sets, include report in toml file, show options on log
+* [ ] probably: instead of a list of repos we should keep repos in memory in a tree structure - which would allow walking up the tree to inherit/override entries.
 * [ ] add exposure length as another common element for a session
 * [ ] validate resolution and binning when looking for darks etc...
 * [ ] auto select workflows by filter name

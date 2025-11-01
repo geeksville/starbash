@@ -21,6 +21,11 @@ dir = "osc_single_duo"
 
 # processing stages, currently all declared here, but possibly in the future they could be added by user/other toml files
 
+# Not included in standard list - for now we run manually
+#[[stages]]
+#name = "setup-masters" # for flat processing, master generation etc
+#priority = 5
+
 [[stages]]
 name = "session-config" # for flat processing, master generation etc
 priority = 10
