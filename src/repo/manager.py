@@ -53,14 +53,14 @@ class Repo:
         c = self.get("repo.kind", unknown_kind)
         return str(c)
 
-    def add_repo_ref(self, dir: str) -> Repo | None:
+    def add_repo_ref(self, dir: Path) -> Repo | None:
         """
         Adds a new repo-ref to this repository's configuration.
         if new returns the newly added Repo object, if already exists returns None"""
 
         # if dir is not absolute, we need to resolve it relative to the cwd
-        if not Path(dir).is_absolute():
-            dir = str((Path.cwd() / dir).resolve())
+        if not dir.is_absolute():
+            dir = (Path.cwd() / dir).resolve()
 
         # Add the ref to this repo
         aot = self.config.get(REPO_REF, None)

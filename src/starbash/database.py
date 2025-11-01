@@ -232,7 +232,7 @@ class Database:
 
         return results
 
-    def search_session(self, where_tuple: tuple[str, list[Any]]) -> list[SessionRow]:
+    def search_session(self, where_tuple: tuple[str, list[Any]] = ("", [])) -> list[SessionRow]:
         """Search for sessions matching the given conditions.
 
         Args:

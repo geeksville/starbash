@@ -1,8 +1,10 @@
 import typer
 from typing_extensions import Annotated
+from pathlib import Path
 
 from starbash.app import Starbash
 from starbash import console
+from starbash.toml import toml_from_template
 
 app = typer.Typer(invoke_without_command=True)
 
@@ -42,10 +44,15 @@ def add(path: str):
     """
     Add a repository. path is either a local path or a remote URL.
     """
+    repo_type = None
     with Starbash("repo.add") as sb:
-        repo = sb.user_repo.add_repo_ref(path)
+        p = Path(path)
+        if repo_type:
+            toml_from_template(f"repo/{repo_type}", p, overrides={"REPO_TYPE": repo_type,
+                                                                  "DEFAULT_RELATIVE": "FIXME"})
+        repo = sb.user_repo.add_repo_ref(p)
         if repo:
-            console.print(f"Added repository: {path}")
+            console.print(f"Added repository: {p}")
             sb.reindex_repo(repo)
 
             # we don't yet write default config files at roots of repos, but it would be easy to add here

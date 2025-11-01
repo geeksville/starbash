@@ -459,7 +459,7 @@ class TestAddSession:
             app._add_session("/path/to/image.fit", 1, header)
 
             # Verify session was added to database
-            sessions = app.db.search_session(None)
+            sessions = app.db.search_session()
             assert sessions
             assert len(sessions) == 1
             assert sessions[0][Database.OBJECT_KEY] == "M31"
@@ -477,7 +477,7 @@ class TestAddSession:
 
             # Should log warning and not add session
             assert "missing either DATE-OBS or IMAGETYP" in caplog.text
-            sessions = app.db.search_session(None)
+            sessions = app.db.search_session()
             assert sessions
             assert len(sessions) == 0
 
@@ -505,7 +505,7 @@ class TestAddSession:
             }
             app._add_session("/path/to/image.fit", 1, header)
 
-            sessions = app.db.search_session(None)
+            sessions = app.db.search_session()
             assert sessions
             assert len(sessions) == 1
             assert sessions[0][Database.FILTER_KEY] == "unspecified"
@@ -612,7 +612,7 @@ class TestGetSessionImages:
             app.db.upsert_session(session)
 
             # Get the session ID
-            sessions = app.db.search_session(None)
+            sessions = app.db.search_session()
             assert sessions is not None
             assert len(sessions) > 0
             session_id = sessions[0]["id"]
@@ -647,7 +647,7 @@ class TestGetSessionImages:
             }
             app.db.upsert_session(session)
 
-            sessions = app.db.search_session(None)
+            sessions = app.db.search_session()
             assert sessions is not None
             assert len(sessions) > 0
             session_id = sessions[0]["id"]
@@ -667,7 +667,7 @@ class TestRemoveRepoRef:
             test_repo.mkdir()
             (test_repo / "starbash.toml").write_text("[repo]\nkind = 'test'\n")
 
-            app.user_repo.add_repo_ref(str(test_repo))
+            app.user_repo.add_repo_ref(Path(test_repo))
 
             # Remove it
             app.remove_repo_ref(f"file://{test_repo}")
