@@ -22,7 +22,7 @@ from starbash import console, _is_test_env, to_shortdate
 from starbash.database import Database, SessionRow, ImageRow, get_column_name
 from repo import Repo, repo_suffix
 from starbash.toml import toml_from_template
-from starbash.tool import Tool
+from starbash.tool import Tool, expand_context
 from repo import RepoManager
 from starbash.tool import tools
 from starbash.paths import get_user_config_dir, get_user_data_dir
@@ -646,8 +646,70 @@ class Starbash:
             raise RuntimeError("No input files found for stage")
 
     def add_output_path(self, stage: dict) -> None:
-        """ """
-        pass
+        """Adds output path information to context based on the stage output config.
+
+        Sets the following context variables:
+        - context.output.root_path - base path of the destination repo
+        - context.output.base_path - full path without file extension
+        - context.output.suffix - file extension (e.g., .fits or .fit.gz)
+        - context.output.full_path - complete output file path
+        """
+        output_config = stage.get("output")
+        if not output_config:
+            # No output configuration, remove any existing output from context
+            if "output" in self.context:
+                del self.context["output"]
+            return
+
+        dest = output_config.get("dest")
+        if not dest:
+            raise ValueError(
+                f"Stage '{stage.get('description', 'unknown')}' has 'output' config but missing 'dest'"
+            )
+
+        if dest == "repo":
+            # Find the destination repo by type/kind
+            output_type = output_config.get("type")
+            if not output_type:
+                raise ValueError(
+                    f"Stage '{stage.get('description', 'unknown')}' has output.dest='repo' but missing 'type'"
+                )
+
+            # Find the repo with matching kind
+            dest_repo = self.repo_manager.get_repo_by_kind(output_type)
+            if not dest_repo:
+                raise ValueError(
+                    f"No repository found with kind '{output_type}' for output destination"
+                )
+
+            repo_base = dest_repo.get_path()
+            if not repo_base:
+                raise ValueError(f"Repository '{dest_repo.url}' has no filesystem path")
+
+            repo_relative: str | None = dest_repo.get("repo.relative")
+            if not repo_relative:
+                raise ValueError(
+                    f"Repository '{dest_repo.url}' is missing 'repo.relative' configuration"
+                )
+
+            # we support context variables in the relative path
+            repo_relative = expand_context(repo_relative, self.context)
+            full_path = repo_base / repo_relative
+
+            suffix = ".fits"
+
+            # Set context variables as documented in the TOML
+            self.context["output"] = {
+                # "root_path": repo_relative, not needed I think
+                "base_path": full_path.stem,
+                # "suffix": full_path.suffix, not needed I think
+                "full_path": full_path,
+            }
+
+        else:
+            raise ValueError(
+                f"Unsupported output destination type: {dest}. Only 'repo' is currently supported."
+            )
 
     def run_stage(self, stage: dict) -> None:
         """
@@ -700,6 +762,12 @@ class Starbash:
 
         # verify context.output was created if it was specified
         if "output" in self.context:
-            output_path = self.context["output"]
-            if not os.path.exists(output_path):
+            output_info = self.context["output"]
+            # Handle both old string format and new dict format
+            if isinstance(output_info, dict):
+                output_path = output_info.get("full_path")
+            else:
+                output_path = output_info
+
+            if output_path and not os.path.exists(output_path):
                 raise RuntimeError(f"Expected output file not found: {output_path}")

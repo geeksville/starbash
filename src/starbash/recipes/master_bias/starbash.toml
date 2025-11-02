@@ -41,10 +41,10 @@ output.dest = "repo" # write to a particular repo
 output.type = "master" # write output to the special masters repo
 
 # the following fields will be auto populated in the context before entry:
-# context.output.root_path - points to the base of the destination repo
 # context.output.base_path - the full filepath to write the output file to **excluding the suffix**
-# context.output.suffix - the suffix to append to the output file (e.g. .fits or .fit.gz)
 # context.output.full_path - the full filepath to write the output file to (including suffix)
+# (NOT implemented / needed) context.output.root_path - points to the base of the destination repo
+# (NOT implemented / needed) context.output.suffix - the suffix to append to the output file (e.g. .fits or .fit.gz)
 
 # The following constants are auto defined before running the tool
 # context.process_dir (points to the session specific semi-persistent local dir for that sessions written/read data files)
@@ -68,5 +68,5 @@ script = '''
     cd {process_dir}
 
     # Stack Bias Frames to bias_stacked.fit
-    stack bias rej 3 3 -nonorm -out={output}
+    stack bias rej 3 3 -nonorm -out={output.base_path}
     '''
