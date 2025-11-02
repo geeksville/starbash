@@ -67,6 +67,33 @@ jobs:
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --with dev
 
+      #----------------------------------------------
+      # Install GraXpert and Siril (Linux only)
+      #----------------------------------------------
+      - name: Install system dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flatpak pipx
+
+      - name: Install GraXpert (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          pipx install graxpert[cpuonly]
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install Siril via Flatpak (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          # Add flathub remote
+          flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          # Install Siril
+          flatpak install --user -y flathub org.siril.Siril
+          # Let siril see /tmp
+          flatpak --user override --filesystem=/tmp org.siril.Siril
+          # Add flatpak bin to PATH
+          echo "$HOME/.local/share/flatpak/exports/bin" >> $GITHUB_PATH
+
       - name: Run tests
         env:
           SENTRY_ENVIRONMENT: ci
