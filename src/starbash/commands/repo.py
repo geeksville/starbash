@@ -25,6 +25,15 @@ def complete_repo_by_num(incomplete: str):
                 yield (str(num), repo.url)
 
 
+def complete_repo_by_url(incomplete: str):
+    with Starbash("repo.complete.url") as sb:
+        repos = sb.repo_manager.regular_repos
+
+        for repo in repos:
+            if repo.url.startswith(incomplete):
+                yield (repo.url, f"kind={repo.kind('input')}")
+
+
 @app.command()
 def list(
     verbose: bool = typer.Option(
@@ -118,7 +127,7 @@ def add(
 def remove(
     reponum: Annotated[
         str,
-        typer.Argument(help="Repository number", autocompletion=complete_repo_by_num),
+        typer.Argument(help="Repository number", autocompletion=complete_repo_by_url),
     ],
 ):
     """

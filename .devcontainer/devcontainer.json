@@ -72,7 +72,10 @@
 				"tamasfe.even-better-toml",
 				"github.copilot"
 				// "google.geminicodeassist"
-			]
+			],
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "zsh"
+			}
 		}
 	}
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
