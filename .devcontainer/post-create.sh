@@ -7,7 +7,6 @@ echo "source .devcontainer/on-shell-start.sh" >> ~/.bashrc
 # already done and persistent
 # poetry config virtualenvs.in-project true --local
 poetry install
-export PATH="$PWD/.venv/bin:$PATH"
 
 # Setup poetry build env
 poetry completions bash >> ~/.bash_completion
