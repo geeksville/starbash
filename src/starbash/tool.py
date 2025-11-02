@@ -128,12 +128,21 @@ def tool_run(cmd: str, cwd: str, commands: str | None = None) -> None:
         logger.debug(f"Tool output:\n{result.stdout.strip()}")
 
 
-# siril_path = "/home/kevinh/packages/Siril-1.4.0~beta3-x86_64.AppImage"
-siril_path = "org.siril.Siril"  # flatpak
+def executable_path(commands: list[str], name: str) -> str:
+    """Find the correct executable path to run for the given tool"""
+    for cmd in commands:
+        if shutil.which(cmd):
+            return cmd
+    raise FileNotFoundError(f"{name} not found, you probably need to install it.")
 
 
 def siril_run(temp_dir: str, commands: str, input_files: list[str] = []) -> None:
     """Executes Siril with a script of commands in a given working directory."""
+
+    # siril_path = "/home/kevinh/packages/Siril-1.4.0~beta3-x86_64.AppImage"
+    # Possible siril commands, with preferred option first
+    siril_commands = ["org.siril.Siril", "siril-cli", "siril"]
+    siril_path = executable_path(siril_commands, "Siril")
 
     # Create symbolic links for all input files in the temp directory
     for f in input_files:
@@ -163,8 +172,11 @@ def siril_run(temp_dir: str, commands: str, input_files: list[str] = []) -> None
 def graxpert_run(cwd: str, arguments: str) -> None:
     """Executes Graxpert with the specified command line arguments"""
 
+    graxpert_commands = ["graxpert"]
+    graxpert_path = executable_path(graxpert_commands, "Graxpert")
+
     # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
-    cmd = f"graxpert {arguments}"
+    cmd = f"{graxpert_path} {arguments}"
 
     tool_run(cmd, cwd)
 
