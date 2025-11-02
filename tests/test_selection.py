@@ -154,24 +154,19 @@ class TestSelectionSave:
 
     def test_save_handles_write_error(self, selection, caplog):
         """Test that save handles write errors gracefully."""
-        # Make the repo path read-only to trigger write error
-        repo_path = selection.user_repo.get_path()
-        config_path = repo_path / repo_suffix
+        from unittest.mock import patch
 
-        # Make directory read-only
-        import os
+        selection.targets = ["M31"]
 
-        old_mode = repo_path.stat().st_mode
-        os.chmod(repo_path, 0o444)
-
-        try:
-            selection.targets = ["M31"]
+        # Mock write_config to raise an exception
+        with patch.object(
+            selection.user_repo,
+            "write_config",
+            side_effect=OSError("Permission denied"),
+        ):
             selection._save()  # Should not raise
 
             assert "Failed to save selection state" in caplog.text
-        finally:
-            # Restore permissions
-            os.chmod(repo_path, old_mode)
 
 
 class TestSelectionClear:
