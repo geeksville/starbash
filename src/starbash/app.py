@@ -116,6 +116,14 @@ def copy_images_to_dir(images: list[ImageRow], output_dir: Path) -> None:
         console.print(f"  [red]Errors: {error_count} files[/red]")
 
 
+def imagetyp_equals(imagetyp1: str, imagetyp2: str) -> bool:
+    """Imagetyps (BIAS, Dark, FLAT, flats) have a number of slightly different convetions.
+    Do a sloppy equality check.
+
+    Eventually handle non english variants by using the repos aliases table."""
+    return imagetyp1.strip().lower() == imagetyp2.strip().lower()
+
+
 class Starbash:
     """The main Starbash application class."""
 
@@ -515,12 +523,32 @@ class Starbash:
         *    add_input_to_context() add the input files to the context (from the session)
         *    run_stage(task) to generate the new master frame
         """
+        sessions = self.search_session()
+        for session in sessions:
+            imagetyp = session[get_column_name(Database.IMAGETYP_KEY)]
+            logging.debug(
+                f"Processing session ID {session[get_column_name(Database.ID_KEY)]} with imagetyp '{imagetyp}'"
+            )
 
-        self.init_context()
-        self.add_session_to_context()
+            # 3. Get all available task definitions (the `[[stage]]` tables with tool, script, when).
+            task_definitions = self.repo_manager.merged.getall("stage")
+            all_tasks = list(itertools.chain.from_iterable(task_definitions))
 
-        # FIXME improve run_pipeline_step to filter tasks by imagetyp (i.e. use the bias script for bias frames, flat script for flat frames)
-        self.run_pipeline_step("setup.masters")
+            # Find all tasks that should run during the "setup.masters" step.
+            tasks_to_run = [
+                task for task in all_tasks if task.get("when") == "setup.masters"
+            ]
+
+            for task in tasks_to_run:
+                input_config = task.get("input", {})
+                input_type = input_config.get("type")
+                if imagetyp_equals(input_type, imagetyp):
+                    logging.info(
+                        f"  Running master stage task for imagetyp '{imagetyp}'"
+                    )
+                    self.init_context()
+                    self.add_session_to_context(session)
+                    self.run_stage(task)
 
     def init_context(self) -> None:
         """Do common session init"""
@@ -535,9 +563,14 @@ class Starbash:
         }
         self.context.update(runtime_context)
 
-    def add_session_to_context(self):
+    def add_session_to_context(self, session: SessionRow) -> None:
         """add the input files to the context (from the session)"""
-        pass
+        # Get images for this session
+        images = self.get_session_images(session)
+        logging.debug(f"Adding {len(images)} files as context.input_files")
+        self.context["input_files"] = [
+            img["path"] for img in images
+        ]  # Pass in the file list via the context dict
 
     def run_stage(self, stage: dict) -> None:
         """
@@ -584,21 +617,36 @@ class Starbash:
         stage_context = stage.get("context", {})
         self.context.update(stage_context)
 
-        input_files = []
         input_config = stage.get("input")
         input_required = False
         if input_config:
             # if there is an "input" dict, we assume input.required is true if unset
             input_required = input_config.get("required", True)
-            if "path" in input_config:
+            source = input_config.get("source")
+            if source is None:
+                raise ValueError(
+                    f"Stage '{stage.get('name')}' has invalid 'input' configuration: missing 'source'"
+                )
+            if source == "path":
                 # The path might contain context variables that need to be expanded.
                 # path_pattern = expand_context(input_config["path"], context)
                 path_pattern = input_config["path"]
                 input_files = glob.glob(path_pattern, recursive=True)
 
-            self.context["input_files"] = (
-                input_files  # Pass in the file list via the context dict
-            )
+                self.context["input_files"] = (
+                    input_files  # Pass in the file list via the context dict
+                )
+            elif source == "repo":
+                # We expect that higher level code has already added the correct input files
+                # to the context
+                if not "input_files" in self.context:
+                    raise RuntimeError(
+                        "Input config specifies 'repo' but no 'input_files' found in context"
+                    )
+            else:
+                raise ValueError(
+                    f"Stage '{stage.get('name')}' has invalid 'input' source: {source}"
+                )
 
             # FIXME compare context.output to see if it already exists and is newer than the input files, if so skip processing
         else:
@@ -606,7 +654,7 @@ class Starbash:
             if "input_files" in self.context:
                 del self.context["input_files"]
 
-        if input_required and not input_files:
+        if input_required and not "input_files" in self.context:
             raise RuntimeError("No input files found for stage")
 
         tool.run_in_temp_dir(script, context=self.context)

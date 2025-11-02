@@ -44,6 +44,9 @@ def expand_context(s: str, context: dict) -> str:
 
     # throw an error if any remaining unexpanded variables remain unexpanded
     unexpanded_vars = re.findall(r"\{([^{}]+)\}", expanded)
+
+    # Remove duplicates
+    unexpanded_vars = list(dict.fromkeys(unexpanded_vars))
     if unexpanded_vars:
         raise KeyError("Missing context variable(s): " + ", ".join(unexpanded_vars))
 
@@ -269,4 +272,6 @@ class PythonTool(Tool):
 
 
 # A dictionary mapping tool names to their respective tool instances.
-tools = {tool.name: tool for tool in [SirilTool(), GraxpertTool(), PythonTool()]}
+tools: dict[str, Tool] = {
+    tool.name: tool for tool in [SirilTool(), GraxpertTool(), PythonTool()]
+}

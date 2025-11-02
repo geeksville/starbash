@@ -3,6 +3,23 @@
 [repo]
 kind = "preferences"
 
+[aliases]
+# aliases can be used to map non standard (or non english) frame names to standard terms
+# This is also used to map filters based on common misspellings or variations.
+# We assume the first listed option in the list is the 'canonical' name used for printing etc...
+
+# frame types
+dark = ["dark", "darks"]
+flat = ["flat", "flats"]
+bias = ["bias", "biases"]
+
+# file suffixes
+fit = ["fits", "fit"]
+
+# filter names
+SiiOiii = ["SiiOiii", "SII-OIII", "S2-O3"]
+HaOiii = ["HaOiii", "HA-OIII", "Halpha-O3"]
+
 # FIXME, somewhere here list default patterns which can be used to identify NINA, ASIAIR, SEESTAR
 # raw repo layouts
 

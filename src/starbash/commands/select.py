@@ -144,6 +144,7 @@ def telescope(
 
 
 def complete_name(incomplete: str, names: list[str]):
+    """Return typer style autocompletion from a list of string constants."""
     for name in names:
         if name.startswith(incomplete):
             yield name
