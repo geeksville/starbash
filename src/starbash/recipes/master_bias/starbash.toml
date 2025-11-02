@@ -39,6 +39,7 @@ when = "setup.masters" # run when master biases are regenerated
 # Based on the following definitions in this toml file...
 output.dest = "repo" # write to a particular repo
 output.type = "master" # write output to the special masters repo
+
 # the following fields will be auto populated in the context before entry:
 # context.output.root_path - points to the base of the destination repo
 # context.output.base_path - the full filepath to write the output file to **excluding the suffix**

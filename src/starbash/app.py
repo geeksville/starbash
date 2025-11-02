@@ -603,6 +603,48 @@ class Starbash:
         if date:
             self.context["date"] = to_shortdate(date)
 
+    def add_input_files(self, stage: dict) -> None:
+        """adds to context.input_files based on the stage input config"""
+        input_config = stage.get("input")
+        input_required = False
+        if input_config:
+            # if there is an "input" dict, we assume input.required is true if unset
+            input_required = input_config.get("required", True)
+            source = input_config.get("source")
+            if source is None:
+                raise ValueError(
+                    f"Stage '{stage.get('name')}' has invalid 'input' configuration: missing 'source'"
+                )
+            if source == "path":
+                # The path might contain context variables that need to be expanded.
+                # path_pattern = expand_context(input_config["path"], context)
+                path_pattern = input_config["path"]
+                input_files = glob.glob(path_pattern, recursive=True)
+
+                self.context["input_files"] = (
+                    input_files  # Pass in the file list via the context dict
+                )
+            elif source == "repo":
+                # We expect that higher level code has already added the correct input files
+                # to the context
+                if not "input_files" in self.context:
+                    raise RuntimeError(
+                        "Input config specifies 'repo' but no 'input_files' found in context"
+                    )
+            else:
+                raise ValueError(
+                    f"Stage '{stage.get('name')}' has invalid 'input' source: {source}"
+                )
+
+            # FIXME compare context.output to see if it already exists and is newer than the input files, if so skip processing
+        else:
+            # The script doesn't mention input, therefore assume it doesn't want input_files
+            if "input_files" in self.context:
+                del self.context["input_files"]
+
+        if input_required and not "input_files" in self.context:
+            raise RuntimeError("No input files found for stage")
+
     def run_stage(self, stage: dict) -> None:
         """
         Executes a single processing stage.
@@ -647,46 +689,7 @@ class Starbash:
         # (apply all of the changes to context that the task demands)
         stage_context = stage.get("context", {})
         self.context.update(stage_context)
-
-        input_config = stage.get("input")
-        input_required = False
-        if input_config:
-            # if there is an "input" dict, we assume input.required is true if unset
-            input_required = input_config.get("required", True)
-            source = input_config.get("source")
-            if source is None:
-                raise ValueError(
-                    f"Stage '{stage.get('name')}' has invalid 'input' configuration: missing 'source'"
-                )
-            if source == "path":
-                # The path might contain context variables that need to be expanded.
-                # path_pattern = expand_context(input_config["path"], context)
-                path_pattern = input_config["path"]
-                input_files = glob.glob(path_pattern, recursive=True)
-
-                self.context["input_files"] = (
-                    input_files  # Pass in the file list via the context dict
-                )
-            elif source == "repo":
-                # We expect that higher level code has already added the correct input files
-                # to the context
-                if not "input_files" in self.context:
-                    raise RuntimeError(
-                        "Input config specifies 'repo' but no 'input_files' found in context"
-                    )
-            else:
-                raise ValueError(
-                    f"Stage '{stage.get('name')}' has invalid 'input' source: {source}"
-                )
-
-            # FIXME compare context.output to see if it already exists and is newer than the input files, if so skip processing
-        else:
-            # The script doesn't mention input, therefore assume it doesn't want input_files
-            if "input_files" in self.context:
-                del self.context["input_files"]
-
-        if input_required and not "input_files" in self.context:
-            raise RuntimeError("No input files found for stage")
+        self.add_input_files(stage)
 
         tool.run_in_temp_dir(script, context=self.context)
 
