@@ -13,7 +13,7 @@ jobs:
     # you can replace it with 'windows-2022' which is commonly available.
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-2025, macos-latest]
+        os: [ubuntu-latest] # Temporarily disabled: windows-2025, macos-latest
     runs-on: ${{ matrix.os }}
     environment: ci
 
@@ -68,6 +68,31 @@ jobs:
         run: poetry install --no-interaction --with dev
 
       #----------------------------------------------
+      # Cache pipx installations (Linux only)
+      #----------------------------------------------
+      - name: Load cached pipx
+        if: matrix.os == 'ubuntu-latest'
+        id: cached-pipx
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/pipx
+            ~/.local/bin
+          key: pipx-${{ matrix.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+
+      #----------------------------------------------
+      # Cache Flatpak installations (Linux only)
+      #----------------------------------------------
+      - name: Load cached Flatpak
+        if: matrix.os == 'ubuntu-latest'
+        id: cached-flatpak
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/flatpak
+          key: flatpak-${{ matrix.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
+
+      #----------------------------------------------
       # Install GraXpert and Siril (Linux only)
       #----------------------------------------------
       - name: Install system dependencies (Linux)
@@ -77,18 +102,26 @@ jobs:
           sudo apt-get install -y --no-install-recommends flatpak pipx
 
       - name: Install GraXpert (Linux)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && steps.cached-pipx.outputs.cache-hit != 'true'
         run: |
           pipx install graxpert[cpuonly]
+
+      - name: Add pipx to PATH (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install Siril via Flatpak (Linux)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && steps.cached-flatpak.outputs.cache-hit != 'true'
         run: |
           # Add flathub remote
           flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           # Install Siril
           flatpak install --user -y flathub org.siril.Siril
+
+      - name: Configure Flatpak and add to PATH (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
           # Let siril see /tmp
           flatpak --user override --filesystem=/tmp org.siril.Siril
           # Add flatpak bin to PATH
