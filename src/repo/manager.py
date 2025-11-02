@@ -59,6 +59,21 @@ class RepoManager:
 
         return r
 
+    def get_repo_by_kind(self, kind: str) -> Repo | None:
+        """
+        Retrieves the first repository matching the specified kind.
+
+        Args:
+            kind: The kind of repository to search for (e.g., "recipe", "preferences").
+
+        Returns:
+            The first Repo instance matching the kind, or None if not found.
+        """
+        for repo in self.repos:
+            if repo.kind() == kind:
+                return repo
+        return None
+
     def get(self, key: str, default=None):
         """
         Searches for a key across all repositories and returns the first value found.

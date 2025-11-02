@@ -645,6 +645,10 @@ class Starbash:
         if input_required and not "input_files" in self.context:
             raise RuntimeError("No input files found for stage")
 
+    def add_output_path(self, stage: dict) -> None:
+        """ """
+        pass
+
     def run_stage(self, stage: dict) -> None:
         """
         Executes a single processing stage.
@@ -690,6 +694,7 @@ class Starbash:
         stage_context = stage.get("context", {})
         self.context.update(stage_context)
         self.add_input_files(stage)
+        self.add_output_path(stage)
 
         tool.run_in_temp_dir(script, context=self.context)
 
