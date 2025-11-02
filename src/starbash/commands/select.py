@@ -38,6 +38,46 @@ def get_column(sb: Starbash, column_name: str) -> Counter:
     return all_counts
 
 
+def complete_date(incomplete: str, column_name: str):
+    """calls get_column() and assumes the returned str->count object has iso datetime strings as the keys
+    it merges the counts for all dates that are on the same local timezone day.
+    in the returned str->count, just include the date portion (YYYY-MM-DD)."""
+
+    # We need to use stderr_logging to prevent confusing the bash completion parser
+    starbash.log_filter_level = (
+        logging.ERROR
+    )  # avoid showing output while doing completion
+    with Starbash("select.complete.date", stderr_logging=True) as sb:
+        c = get_column(sb, column_name)
+
+        # Merge counts by date (YYYY-MM-DD) in local timezone
+        date_counts = Counter()
+        for datetime_str, count in c.items():
+            try:
+                # Parse the ISO datetime string (assumes UTC if no timezone specified)
+                dt = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
+
+                # Convert to local timezone
+                local_dt = dt.astimezone()
+
+                # Extract just the date portion (YYYY-MM-DD) from local datetime
+                date_only = local_dt.strftime("%Y-%m-%d")
+                date_counts[date_only] += count
+            except (ValueError, AttributeError):
+                # If it's not a valid datetime string, try splitting on 'T' as fallback
+                try:
+                    date_only = datetime_str.split("T")[0]
+                    date_counts[date_only] += count
+                except (AttributeError, IndexError):
+                    # Skip if we can't parse it at all
+                    continue
+
+        # Yield completions matching the incomplete input
+        for date, count in sorted(date_counts.items(), reverse=True):
+            if date.startswith(incomplete):
+                yield (date, f"{count} sessions")
+
+
 def complete_column(incomplete: str, column_name: str):
     # We need to use stderr_logging to prevent confusing the bash completion parser
     starbash.log_filter_level = (
@@ -112,12 +152,20 @@ def date(
     date_value: Annotated[
         str,
         typer.Argument(
-            help="Date in ISO format (YYYY-MM-DD) or two dates separated by space for 'between'"
+            help="Date in ISO format (YYYY-MM-DD) or two dates separated by space for 'between'",
+            autocompletion=lambda incomplete: complete_date(
+                incomplete, Database.START_KEY
+            ),
         ),
     ],
     end_date: Annotated[
         str | None,
-        typer.Argument(help="End date for 'between' operation (YYYY-MM-DD)"),
+        typer.Argument(
+            help="End date for 'between' operation (YYYY-MM-DD)",
+            autocompletion=lambda incomplete: complete_date(
+                incomplete, Database.START_KEY
+            ),
+        ),
     ] = None,
 ):
     """Limit to sessions in the specified date range.
