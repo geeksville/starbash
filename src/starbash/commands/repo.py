@@ -1,10 +1,12 @@
 import typer
 from typing_extensions import Annotated
 from pathlib import Path
+import logging
 
-from repo import repo_suffix
+import starbash
+from repo import repo_suffix, Repo
 from starbash.app import Starbash
-from starbash import console
+from starbash import console, log_filter_level
 from starbash.toml import toml_from_template
 
 app = typer.Typer(invoke_without_command=True)
@@ -19,14 +21,22 @@ def repo_enumeration(sb: Starbash):
 
 
 def complete_repo_by_num(incomplete: str):
-    with Starbash("repo.complete.num") as sb:
+    # We need to use stderr_logging to prevent confusing the bash completion parser
+    starbash.log_filter_level = (
+        logging.ERROR
+    )  # avoid showing output while doing completion
+    with Starbash("repo.complete.num", stderr_logging=True) as sb:
         for num, repo in repo_enumeration(sb).items():
             if str(num).startswith(incomplete):
                 yield (str(num), repo.url)
 
 
 def complete_repo_by_url(incomplete: str):
-    with Starbash("repo.complete.url") as sb:
+    # We need to use stderr_logging to prevent confusing the bash completion parser
+    starbash.log_filter_level = (
+        logging.ERROR
+    )  # avoid showing output while doing completion
+    with Starbash("repo.complete.url", stderr_logging=True) as sb:
         repos = sb.repo_manager.regular_repos
 
         for repo in repos:
@@ -123,11 +133,45 @@ def add(
             # FIXME, we also need to index the newly added repo!!!
 
 
+def repo_url_to_repo(sb: Starbash, repo_url: str | None) -> Repo | None:
+    """Helper to get a Repo instance from a URL or number"""
+    if repo_url is None:
+        return None
+
+    # try to find by URL
+    for repo in sb.repo_manager.repos:
+        if repo.url == repo_url:
+            return repo
+
+    # Fall back to finding by number
+    try:
+        # Parse the repo number (1-indexed)
+        repo_index = int(repo_url) - 1
+
+        # Get only the regular (user-visible) repos
+        regular_repos = sb.repo_manager.regular_repos
+
+        if repo_index < 0 or repo_index >= len(regular_repos):
+            console.print(
+                f"[red]Error: '{repo_url}' is not a valid repository number.  Please enter a repository number or URL.[/red]"
+            )
+            raise typer.Exit(code=1)
+
+        return regular_repos[repo_index]
+    except ValueError:
+        console.print(
+            f"[red]Error: '{repo_url}' is not valid.  Please enter a repository number or URL.[/red]"
+        )
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def remove(
     reponum: Annotated[
         str,
-        typer.Argument(help="Repository number", autocompletion=complete_repo_by_url),
+        typer.Argument(
+            help="Repository number or URL", autocompletion=complete_repo_by_url
+        ),
     ],
 ):
     """
@@ -135,41 +179,25 @@ def remove(
     Use 'starbash repo' to see the repository numbers.
     """
     with Starbash("repo.remove") as sb:
-        try:
-            # Parse the repo number (1-indexed)
-            repo_index = int(reponum) - 1
-
-            # Get only the regular (user-visible) repos
-            regular_repos = sb.repo_manager.regular_repos
-
-            if repo_index < 0 or repo_index >= len(regular_repos):
-                console.print(
-                    f"[red]Error: Repository number {reponum} is out of range. Valid range: 1-{len(regular_repos)}[/red]"
-                )
-                raise typer.Exit(code=1)
-
-            # Get the repo to remove
-            repo_to_remove = regular_repos[repo_index]
-            repo_url = repo_to_remove.url
-
-            # Remove the repo reference from user config
-            sb.remove_repo_ref(repo_url)
-            console.print(f"[green]Removed repository: {repo_url}[/green]")
-
-        except ValueError:
-            console.print(
-                f"[red]Error: '{reponum}' is not a valid repository number. Please use a number from 'repo list'.[/red]"
-            )
+        # Get the repo to remove
+        repo_to_remove = repo_url_to_repo(sb, reponum)
+        if repo_to_remove is None:
+            console.print(f"[red]Error: You must specify a repository[/red]")
             raise typer.Exit(code=1)
+        repo_url = repo_to_remove.url
+
+        # Remove the repo reference from user config
+        sb.remove_repo_ref(repo_url)
+        console.print(f"[green]Removed repository: {repo_url}[/green]")
 
 
 @app.command()
 def reindex(
-    reponum: Annotated[
+    repo_url: Annotated[
         str | None,
         typer.Argument(
-            help="The repository number, if not specified reindex all.",
-            autocompletion=complete_repo_by_num,
+            help="The repository URL, if not specified reindex all.",
+            autocompletion=complete_repo_by_url,
         ),
     ] = None,
     force: bool = typer.Option(
@@ -182,35 +210,17 @@ def reindex(
     Use 'starbash repo' to see the repository numbers.
     """
     with Starbash("repo.reindex") as sb:
-        if reponum is None:
+        repo_to_reindex = repo_url_to_repo(sb, repo_url)
+
+        if repo_to_reindex is None:
             sb.reindex_repos(force=force)
         else:
-            try:
-                # Parse the repo number (1-indexed)
-                repo_index = int(reponum) - 1
-
-                # Get only the regular (user-visible) repos
-                regular_repos = sb.repo_manager.regular_repos
-
-                if repo_index < 0 or repo_index >= len(regular_repos):
-                    console.print(
-                        f"[red]Error: Repository number {reponum} is out of range. Valid range: 1-{len(regular_repos)}[/red]"
-                    )
-                    raise typer.Exit(code=1)
-
-                # Get the repo to reindex
-                repo_to_reindex = regular_repos[repo_index]
-                console.print(f"Reindexing repository: {repo_to_reindex.url}")
-                sb.reindex_repo(repo_to_reindex, force=force)
-                console.print(
-                    f"[green]Successfully reindexed repository {reponum}[/green]"
-                )
-
-            except ValueError:
-                console.print(
-                    f"[red]Error: '{reponum}' is not a valid repository number. Please use a number from 'starbash repo'.[/red]"
-                )
-                raise typer.Exit(code=1)
+            # Get the repo to reindex
+            console.print(f"Reindexing repository: {repo_to_reindex.url}")
+            sb.reindex_repo(repo_to_reindex, force=force)
+            console.print(
+                f"[green]Successfully reindexed repository {repo_to_reindex}[/green]"
+            )
 
 
 if __name__ == "__main__":

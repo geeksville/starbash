@@ -45,7 +45,7 @@ See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-al
 
 Currently the easiest way to install this command-line based tool is to install is via [pipx](https://pipx.pypa.io/stable/).  If you don't already have pipx and you have python installed, you can auto install it by running "pip install --user pipx."  If you don't have python installed see the pipx link for pipx installers for any OS.
 
-Once pipx is installed just run the following **two** commands (the sb --install-completion will make TAB auto-complete automatically complete sb options (for most platforms)):
+Once pipx is installed just run the following **two** commands (the sb --install-completion will make TAB auto-complete automatically complete sb options (for most platforms)).  Installing auto-complete is **highly** recommended because it makes entering starbash commands fast - by pressing the TAB key:
 
 ```
 ➜ pipx install starbash
@@ -68,8 +68,8 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 ### Repository Management
 - `sb repo list [--verbose]` - List installed repos (use `-v` for details)
 - `sb repo add [--master] <filepath|URL>` - Add a repository, optionally specifying the type
-- `sb repo remove <REPONUM>` - Remove the indicated repo from the repo list
-- `sb repo reindex [--force] [REPONUM]` - Reindex the specified repo (or all repos if none specified)
+- `sb repo remove <REPOURL>` - Remove the indicated repo from the repo list
+- `sb repo reindex [--force] <REPOURL>` - Reindex the specified repo (or all repos if none specified)
 
 ### User Preferences
 - `sb user name "Your Name"` - Set name for attribution in generated images

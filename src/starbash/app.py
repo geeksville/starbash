@@ -13,6 +13,7 @@ from rich.progress import track
 from rich.logging import RichHandler
 import shutil
 from datetime import datetime
+import rich.console
 
 import starbash
 from starbash import console, _is_test_env
@@ -35,11 +36,14 @@ from starbash.analytics import (
 # Type aliases for better documentation
 
 
-def setup_logging():
+def setup_logging(stderr: bool = False):
     """
     Configures basic logging.
     """
-    handlers = [RichHandler(rich_tracebacks=True)] if not _is_test_env else []
+    console = rich.console.Console(stderr=stderr)
+    handlers = (
+        [RichHandler(console=console, rich_tracebacks=True)] if not _is_test_env else []
+    )
     logging.basicConfig(
         level=starbash.log_filter_level,  # use the global log filter level
         format="%(message)s",
@@ -115,12 +119,12 @@ def copy_images_to_dir(images: list[ImageRow], output_dir: Path) -> None:
 class Starbash:
     """The main Starbash application class."""
 
-    def __init__(self, cmd: str = "unspecified"):
+    def __init__(self, cmd: str = "unspecified", stderr_logging: bool = False):
         """
         Initializes the Starbash application by loading configurations
         and setting up the repository manager.
         """
-        setup_logging()
+        setup_logging(stderr=stderr_logging)
         logging.info("Starbash starting...")
 
         # Load app defaults and initialize the repository manager
