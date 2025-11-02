@@ -368,10 +368,11 @@ class Starbash:
         repo_url = image.get("repo_url")
         relative_path = image.get("path")
 
-        if repo_url and repo_url.startswith("file://") and relative_path:
-            repo_base = Path(repo_url[len("file://") :])
-            absolute_path = repo_base / relative_path
-            image["path"] = str(absolute_path)
+        if repo_url and relative_path:
+            repo = self.repo_manager.get_repo_by_url(repo_url)
+            if repo:
+                absolute_path = repo.resolve_path(relative_path)
+                image["path"] = str(absolute_path)
 
         return image
 

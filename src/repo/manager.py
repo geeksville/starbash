@@ -59,6 +59,21 @@ class RepoManager:
 
         return r
 
+    def get_repo_by_url(self, url: str) -> Repo | None:
+        """
+        Retrieves a repository by its URL.
+
+        Args:
+            url: The URL of the repository to retrieve.
+
+        Returns:
+            The Repo instance with the matching URL, or None if not found.
+        """
+        for repo in self.repos:
+            if repo.url == url:
+                return repo
+        return None
+
     def get_repo_by_kind(self, kind: str) -> Repo | None:
         """
         Retrieves the first repository matching the specified kind.
