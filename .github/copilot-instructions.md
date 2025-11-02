@@ -97,7 +97,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 - **Python**: 3.12-3.14 required (RestrictedPython not yet compatible with 3.15)
 - **Dependencies**: tomlkit, multidict, rich, restrictedpython, astropy, platformdirs, typer, sentry-sdk
 - **Install**: `poetry install --with dev` (includes pytest)
-- **Run**: `poetry run sb [command]` or `poetry run starbash [command]`
+- **Run**: `sb [command]` (which is provided by poetry's venv)
 - **Test**: `poetry run pytest` (auto-deselects slow tests via marker)
   - **300 tests total** across 10 test modules, comprehensive coverage
   - Tests use isolated directories via `paths.set_test_directories()`

@@ -34,7 +34,7 @@
             ]
         },
         {
-            "name": "Python Debugger: starbash process",
+            "name": "Python Debugger: starbash process siril",
             "type": "debugpy",
             "request": "launch",
             "module": "starbash.main",
@@ -47,6 +47,20 @@
                 "siril",
                 "5",
                 "/tmp/sir1"
+            ]
+        },
+        {
+            "name": "Python Debugger: starbash process masters",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "starbash.main",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
+            "justMyCode": false,
+            "args": [
+                "--debug",
+                "process",
+                "masters"
             ]
         },
         {

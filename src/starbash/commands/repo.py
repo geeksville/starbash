@@ -10,34 +10,60 @@ from starbash.toml import toml_from_template
 app = typer.Typer(invoke_without_command=True)
 
 
-@app.callback()
-def main(
-    ctx: typer.Context,
+def repo_enumeration(sb: Starbash):
+    """return a dict of int (1 based) to Repo instances"""
+    verbose = False  # assume not verbose for enum picking
+    repos = sb.repo_manager.repos if verbose else sb.repo_manager.regular_repos
+
+    return {i + 1: repo for i, repo in enumerate(repos)}
+
+
+def complete_repo_by_num(incomplete: str):
+    with Starbash("repo.complete.num") as sb:
+        for num, repo in repo_enumeration(sb).items():
+            if str(num).startswith(incomplete):
+                yield (str(num), repo.url)
+
+
+@app.command()
+def list(
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show all repos including system repos"
     ),
 ):
     """
+    lists all repositories.
+    Use --verbose to show all repos including system/recipe repos.
+    """
+    with Starbash("repo.list") as sb:
+        repos = sb.repo_manager.repos if verbose else sb.repo_manager.regular_repos
+        for i, repo in enumerate(repos):
+            kind = repo.kind("input")
+            # for unknown repos (probably because we haven't written a starbash.toml file to the root yet),
+            # we call them "input" because users will be less confused by that
+
+            if verbose:
+                # No numbers for verbose mode (system repos can't be removed)
+                console.print(f"{ repo.url } (kind={ kind })")
+            else:
+                # Show numbers for user repos (can be removed later)
+                console.print(f"{ i + 1:2}: { repo.url } (kind={ kind })")
+
+
+@app.callback()
+def main(
+    ctx: typer.Context,
+):
+    """
     Manage repositories.
 
     When called without a subcommand, lists all repositories.
-    Use --verbose to show all repos including system/recipe repos.
     """
     # If no subcommand is invoked, run the list behavior
     if ctx.invoked_subcommand is None:
-        with Starbash("repo.list") as sb:
-            repos = sb.repo_manager.repos if verbose else sb.repo_manager.regular_repos
-            for i, repo in enumerate(repos):
-                kind = repo.kind("input")
-                # for unknown repos (probably because we haven't written a starbash.toml file to the root yet),
-                # we call them "input" because users will be less confused by that
-
-                if verbose:
-                    # No numbers for verbose mode (system repos can't be removed)
-                    console.print(f"{ repo.url } (kind={ kind })")
-                else:
-                    # Show numbers for user repos (can be removed later)
-                    console.print(f"{ i + 1:2}: { repo.url } (kind={ kind })")
+        # No command provided, show help
+        console.print(ctx.get_help())
+        raise typer.Exit()
 
 
 @app.command()
@@ -89,7 +115,12 @@ def add(
 
 
 @app.command()
-def remove(reponum: str):
+def remove(
+    reponum: Annotated[
+        str,
+        typer.Argument(help="Repository number", autocompletion=complete_repo_by_num),
+    ],
+):
     """
     Remove a repository by number (from list).
     Use 'starbash repo' to see the repository numbers.
@@ -127,7 +158,10 @@ def remove(reponum: str):
 def reindex(
     reponum: Annotated[
         str | None,
-        typer.Argument(help="The repository number, if not specified reindex all."),
+        typer.Argument(
+            help="The repository number, if not specified reindex all.",
+            autocompletion=complete_repo_by_num,
+        ),
     ] = None,
     force: bool = typer.Option(
         default=False, help="Reread FITS headers, even if they are already indexed."
