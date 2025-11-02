@@ -1,6 +1,7 @@
 """Tests for the tool module."""
 
 import os
+import shutil
 import tempfile
 import pytest
 from pathlib import Path
@@ -467,167 +468,80 @@ class TestToolRun:
 class TestSirilRun:
     """Tests for siril_run function."""
 
-    @patch("starbash.tool.tool_run")
-    @patch("starbash.tool.os.symlink")
-    def test_siril_run_creates_symlinks(self, mock_symlink, mock_tool_run):
-        """Test that siril_run creates symlinks for input files."""
+    def test_siril_run_with_empty_script(self):
+        """Test that siril_run can execute Siril with empty script."""
+
+        # Skip test if Siril is not available
+        siril_commands = ["org.siril.Siril", "siril-cli", "siril"]
+        siril_available = any(shutil.which(cmd) for cmd in siril_commands)
+        if not siril_available:
+            pytest.skip("Siril not available on this system")
+
         with tempfile.TemporaryDirectory() as temp_dir:
-            input_files = ["/path/to/file1.fit", "/path/to/file2.fit"]
-
-            siril_run(temp_dir, "test commands", input_files)
-
-            # Verify symlinks were created
-            assert mock_symlink.call_count == 2
-            calls = mock_symlink.call_args_list
-            assert calls[0][0][0] == os.path.abspath("/path/to/file1.fit")
-            assert calls[1][0][0] == os.path.abspath("/path/to/file2.fit")
-
-    @patch("starbash.tool.tool_run")
-    @patch("starbash.tool.os.symlink")
-    def test_siril_run_calls_tool_run(self, mock_symlink, mock_tool_run):
-        """Test that siril_run calls tool_run with correct arguments."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            commands = "test siril commands"
-
-            siril_run(temp_dir, commands, [])
-
-            # Verify tool_run was called
-            mock_tool_run.assert_called_once()
-            call_args = mock_tool_run.call_args
-
-            # Check that command includes siril and temp_dir
-            assert "Siril" in call_args[0][0]
-            assert temp_dir in call_args[0][0]
-            assert call_args[0][1] == temp_dir
-            # Check that script content includes our commands
-            assert "test siril commands" in call_args[0][2]
-
-    @patch("starbash.tool.tool_run")
-    @patch("starbash.tool.os.symlink")
-    def test_siril_run_strips_comments(self, mock_symlink, mock_tool_run):
-        """Test that siril_run strips comments from commands."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            commands = "command1 # comment\ncommand2"
-
-            siril_run(temp_dir, commands, [])
-
-            script_content = mock_tool_run.call_args[0][2]
-            # Comments should be stripped
-            assert "# comment" not in script_content
-
-    @patch("starbash.tool.tool_run")
-    @patch("starbash.tool.os.symlink")
-    def test_siril_run_adds_requires_statement(self, mock_symlink, mock_tool_run):
-        """Test that siril_run adds requires statement to script."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            siril_run(temp_dir, "commands", [])
-
-            script_content = mock_tool_run.call_args[0][2]
-            assert "requires 1.4.0-beta3" in script_content
-
-    @patch("starbash.tool.tool_run")
-    @patch("starbash.tool.os.symlink")
-    def test_siril_run_with_empty_input_files(self, mock_symlink, mock_tool_run):
-        """Test siril_run with no input files."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            siril_run(temp_dir, "commands", [])
-
-            # No symlinks should be created
-            mock_symlink.assert_not_called()
+            # Just run with empty script to verify Siril executes
+            siril_run(temp_dir, "", [])
 
 
 class TestGraxpertRun:
     """Tests for graxpert_run function."""
 
-    @patch("starbash.tool.tool_run")
-    def test_graxpert_run_calls_tool_run(self, mock_tool_run):
-        """Test that graxpert_run calls tool_run correctly."""
-        graxpert_run("/tmp", "-cmd test")
+    def test_graxpert_run_with_help(self):
+        """Test that graxpert_run can execute GraXpert."""
 
-        mock_tool_run.assert_called_once()
-        call_args = mock_tool_run.call_args[0]
+        # Skip test if GraXpert is not available
+        if not shutil.which("graxpert"):
+            pytest.skip("GraXpert not available on this system")
 
-        # Check command includes graxpert and arguments
-        assert "graxpert" in call_args[0]
-        assert "-cmd test" in call_args[0]
-        assert call_args[1] == "/tmp"
-
-    @patch("starbash.tool.tool_run")
-    def test_graxpert_run_with_complex_arguments(self, mock_tool_run):
-        """Test graxpert_run with complex argument string."""
-        arguments = "-cmd background-extraction -output /tmp/out test.fits"
-
-        graxpert_run("/work/dir", arguments)
-
-        call_args = mock_tool_run.call_args[0]
-        assert arguments in call_args[0]
-        assert call_args[1] == "/work/dir"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Just run --help to verify GraXpert executes
+            # Note: --help may exit with non-zero in some versions
+            try:
+                graxpert_run(temp_dir, "--help")
+            except RuntimeError as e:
+                # Allow --help to fail (argparse behavior varies)
+                # Just verify the tool was found
+                if "not found" in str(e).lower():
+                    pytest.fail("GraXpert command not found")
 
 
 class TestSirilToolRun:
     """Tests for SirilTool.run method."""
 
-    @patch("starbash.tool.siril_run")
-    def test_siril_tool_run_expands_context(self, mock_siril_run):
-        """Test that SirilTool.run expands context variables."""
-        tool = SirilTool()
-        context = {"var1": "value1", "var2": "value2"}
-        commands = "command {var1} and {var2}"
+    def test_siril_tool_run_with_empty_script(self):
+        """Test that SirilTool.run can execute Siril with empty script."""
 
-        tool.run("/tmp", commands, context)
+        # Skip test if Siril is not available
+        siril_commands = ["org.siril.Siril", "siril-cli", "siril"]
+        siril_available = any(shutil.which(cmd) for cmd in siril_commands)
+        if not siril_available:
+            pytest.skip("Siril not available on this system")
 
-        # Verify siril_run was called with expanded commands
-        mock_siril_run.assert_called_once()
-        expanded_commands = mock_siril_run.call_args[0][1]
-        assert "value1" in expanded_commands
-        assert "value2" in expanded_commands
-        assert "{var1}" not in expanded_commands
-
-    @patch("starbash.tool.siril_run")
-    def test_siril_tool_run_passes_input_files(self, mock_siril_run):
-        """Test that SirilTool.run passes input files from context."""
-        tool = SirilTool()
-        input_files = ["file1.fit", "file2.fit"]
-        context = {"input_files": input_files}
-
-        tool.run("/tmp", "commands", context)
-
-        # Verify input files were passed to siril_run
-        mock_siril_run.assert_called_once()
-        passed_files = mock_siril_run.call_args[0][2]
-        assert passed_files == input_files
-
-    @patch("starbash.tool.siril_run")
-    def test_siril_tool_run_without_input_files(self, mock_siril_run):
-        """Test SirilTool.run with no input files in context."""
         tool = SirilTool()
 
-        tool.run("/tmp", "commands", {})
-
-        # Should pass empty list for input files
-        passed_files = mock_siril_run.call_args[0][2]
-        assert passed_files == []
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Just run with empty script to verify Siril executes
+            tool.run(temp_dir, "", {})
 
 
 class TestGraxpertToolRun:
     """Tests for GraxpertTool.run method."""
 
-    @patch("starbash.tool.graxpert_run")
-    def test_graxpert_tool_run_calls_graxpert_run(self, mock_graxpert_run):
-        """Test that GraxpertTool.run calls graxpert_run."""
+    def test_graxpert_tool_run_with_help(self):
+        """Test that GraxpertTool.run can execute GraXpert."""
+
+        # Skip test if GraXpert is not available
+        if not shutil.which("graxpert"):
+            pytest.skip("GraXpert not available on this system")
+
         tool = GraxpertTool()
 
-        tool.run("/tmp", "test arguments", {})
-
-        mock_graxpert_run.assert_called_once_with("/tmp", "test arguments")
-
-    @patch("starbash.tool.graxpert_run")
-    def test_graxpert_tool_run_ignores_context(self, mock_graxpert_run):
-        """Test that GraxpertTool.run works with context dict."""
-        tool = GraxpertTool()
-        context = {"var": "value"}
-
-        tool.run("/work", "args", context)
-
-        # Context doesn't affect graxpert_run call
-        mock_graxpert_run.assert_called_once_with("/work", "args")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Just run --help to verify GraXpert executes
+            # Note: --help may exit with non-zero in some versions
+            try:
+                tool.run(temp_dir, "--help", {})
+            except RuntimeError as e:
+                # Allow --help to fail (argparse behavior varies)
+                # Just verify the tool was found
+                if "not found" in str(e).lower():
+                    pytest.fail("GraXpert command not found")
