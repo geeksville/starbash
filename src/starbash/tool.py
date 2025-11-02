@@ -69,6 +69,7 @@ def expand_context_unsafe(s: str, context: dict) -> str:
         String with all expressions evaluated and substituted
 
     Note: Uses RestrictedPython for safety, but still has security implications.
+    This is a more powerful but less safe alternative to expand_context().
     """
     # Find all expressions in curly braces
     pattern = r"\{([^{}]+)\}"
@@ -88,9 +89,7 @@ def expand_context_unsafe(s: str, context: dict) -> str:
             return str(result)
 
         except Exception as e:
-            logger.warning(f"Failed to evaluate expression '{expr}': {e}")
-            # Return the original expression on error
-            return match.group(0)
+            raise ValueError(f"Failed to evaluate expression '{expr}'") from e
 
     # Replace all expressions
     expanded = re.sub(pattern, eval_expression, s)
@@ -100,7 +99,7 @@ def expand_context_unsafe(s: str, context: dict) -> str:
     return expanded
 
 
-def make_safe_globals(context: dict = {}) -> dict:
+def make_safe_globals(extra_globals: dict = {}) -> dict:
     """Generate a set of RestrictedPython globals for AstoGlue exec/eval usage"""
     # Define the global and local namespaces for the restricted execution.
     # FIXME - this is still unsafe, policies need to be added to limit import/getattr etc...
@@ -138,9 +137,9 @@ def make_safe_globals(context: dict = {}) -> dict:
         "__name__": "__starbash_script__",
         "__metaclass__": type,
         # Extra globals auto imported into the scripts context
-        "context": context,
         "logger": logging.getLogger("script"),  # Allow logging within the script
     }
+    execution_globals.update(extra_globals)
     return execution_globals
 
 
@@ -269,7 +268,7 @@ class SirilTool(Tool):
 
         # Iteratively expand the command string to handle nested placeholders.
         # The loop continues until the string no longer changes.
-        expanded = expand_context(commands, context)
+        expanded = expand_context_unsafe(commands, context)
 
         input_files = context.get("input_files", [])
 
@@ -307,13 +306,12 @@ class PythonTool(Tool):
                 )
                 # No locals yet
                 execution_locals = None
-                exec(byte_code, make_safe_globals(context), execution_locals)
+                globals = {"context": context}
+                exec(byte_code, make_safe_globals(globals), execution_locals)
             except SyntaxError as e:
-                logger.error(f"Syntax error in python script: {e}")
-                raise
+                raise ValueError(f"Syntax error in python script") from e
             except Exception as e:
-                logger.error(f"Error during python script execution: {e}")
-                raise
+                raise ValueError(f"Error during python script execution") from e
         finally:
             os.chdir(original_cwd)
 

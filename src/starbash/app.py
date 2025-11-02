@@ -22,7 +22,7 @@ from starbash import console, _is_test_env, to_shortdate
 from starbash.database import Database, SessionRow, ImageRow, get_column_name
 from repo import Repo, repo_suffix
 from starbash.toml import toml_from_template
-from starbash.tool import Tool, expand_context
+from starbash.tool import Tool, expand_context, expand_context_unsafe
 from repo import RepoManager
 from starbash.tool import tools
 from starbash.paths import get_user_config_dir, get_user_data_dir
@@ -693,13 +693,13 @@ class Starbash:
                 )
 
             # we support context variables in the relative path
-            repo_relative = expand_context(repo_relative, self.context)
+            repo_relative = expand_context_unsafe(repo_relative, self.context)
             full_path = repo_base / repo_relative
 
             # Set context variables as documented in the TOML
             self.context["output"] = {
                 # "root_path": repo_relative, not needed I think
-                "base_path": full_path.stem,
+                "base_path": full_path.parent / full_path.stem,
                 # "suffix": full_path.suffix, not needed I think
                 "full_path": full_path,
             }
