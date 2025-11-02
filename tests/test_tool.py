@@ -10,6 +10,7 @@ from unittest.mock import patch, MagicMock, call
 from starbash.tool import (
     _SafeFormatter,
     expand_context,
+    expand_context_unsafe,
     make_safe_globals,
     strip_comments,
     tool_run,
@@ -105,6 +106,62 @@ class TestExpandContext:
         assert result == "test_middle_end"
 
 
+class TestExpandContextUnsafe:
+    """Tests for expand_context_unsafe function using RestrictedPython."""
+
+    def test_simple_arithmetic(self):
+        """Test simple arithmetic expression."""
+        result = expand_context_unsafe("result: {1 + 2}", {})
+        assert result == "result: 3"
+
+    def test_string_concatenation(self):
+        """Test string concatenation in expression."""
+        result = expand_context_unsafe("name: {'Hello' + ' ' + 'World'}", {})
+        assert result == "name: Hello World"
+
+    def test_direct_variable_access(self):
+        """Test accessing context variables directly (without prefix)."""
+        context = {"name": "Alice", "age": 30}
+        result = expand_context_unsafe("User: {name}", context)
+        assert result == "User: Alice"
+
+    def test_path_building(self):
+        """Test building filesystem paths (real use case)."""
+        context = {"instrument": "MyScope", "date": "2025-01-01", "imagetyp": "BIAS"}
+        result = expand_context_unsafe(
+            "{instrument}/{date}/{imagetyp}/output.fits", context
+        )
+        assert result == "MyScope/2025-01-01/BIAS/output.fits"
+
+    def test_arithmetic_with_context(self):
+        """Test arithmetic using context values."""
+        context = {"x": 5, "y": 3}
+        result = expand_context_unsafe("Sum: {x + y}", context)
+        assert result == "Sum: 8"
+
+    def test_string_formatting(self):
+        """Test string formatting expressions."""
+        context = {"value": 42}
+        result = expand_context_unsafe("Value is {value}", context)
+        assert result == "Value is 42"
+
+    def test_no_expressions(self):
+        """Test string with no expressions."""
+        result = expand_context_unsafe("plain text", {})
+        assert result == "plain text"
+
+    def test_invalid_expression_raises_error(self):
+        """Test that invalid expressions raise ValueError."""
+        # Invalid syntax should raise ValueError
+        with pytest.raises(ValueError, match="Failed to evaluate expression"):
+            expand_context_unsafe("bad: {this is not valid}", {})
+
+    def test_missing_variable_raises_error(self):
+        """Test that missing variables raise ValueError."""
+        with pytest.raises(ValueError, match="Failed to evaluate expression.*missing"):
+            expand_context_unsafe("value: {missing}", {})
+
+
 class TestMakeSafeGlobals:
     """Tests for make_safe_globals function."""
 
@@ -120,10 +177,12 @@ class TestMakeSafeGlobals:
         assert isinstance(result["__builtins__"], dict)
 
     def test_includes_context(self):
-        """Test that context is passed through."""
-        test_context = {"key": "value"}
+        """Test that context items are merged into execution globals."""
+        test_context = {"key": "value", "another_key": 42}
         result = make_safe_globals(test_context)
-        assert result["context"] == test_context
+        # Context items should be merged directly into execution_globals
+        assert result["key"] == "value"
+        assert result["another_key"] == 42
 
     def test_includes_logger(self):
         """Test that logger is available."""
@@ -149,9 +208,13 @@ class TestMakeSafeGlobals:
         assert "_write_" in builtins
 
     def test_empty_context_by_default(self):
-        """Test that default context is an empty dict."""
+        """Test that execution_globals has base keys without extra context."""
         result = make_safe_globals()
-        assert result["context"] == {}
+        # Should have base keys like __builtins__, logger, etc.
+        assert "__builtins__" in result
+        assert "logger" in result
+        # But no extra context variables should be added
+        assert "key" not in result  # example context key should not be present
 
     def test_write_guard_function(self):
         """Test that _write_ guard function works."""
@@ -282,17 +345,19 @@ class TestPythonTool:
             assert context["output"] == [20]
 
     def test_python_tool_syntax_error_raises(self):
-        """Test that syntax errors are raised."""
+        """Test that syntax errors are re-raised directly."""
         tool = PythonTool()
 
         code = "if True"  # Invalid syntax
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            with pytest.raises(SyntaxError):
+            with pytest.raises(SyntaxError) as exc_info:
                 tool.run(temp_dir, code, {})
+            # RestrictedPython provides detailed syntax error messages
+            assert "SyntaxError" in str(exc_info.value)
 
     def test_python_tool_runtime_error_raises(self):
-        """Test that runtime errors are raised."""
+        """Test that runtime errors are wrapped in ValueError."""
         tool = PythonTool()
 
         code = "raise ValueError('test error')"
@@ -300,7 +365,8 @@ class TestPythonTool:
         with tempfile.TemporaryDirectory() as temp_dir:
             with pytest.raises(ValueError) as exc_info:
                 tool.run(temp_dir, code, {})
-            assert "test error" in str(exc_info.value)
+            # The error is wrapped, so we get the generic message
+            assert "Error during python script execution" in str(exc_info.value)
 
     def test_python_tool_changes_directory(self):
         """Test that Python tool changes to the working directory."""
@@ -328,7 +394,7 @@ class TestPythonTool:
         code = "raise RuntimeError('test')"
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            with pytest.raises(RuntimeError):
+            with pytest.raises(ValueError):  # Exceptions are wrapped in ValueError
                 tool.run(temp_dir, code, {})
             # Verify cwd was restored after error
             assert os.getcwd() == original_cwd

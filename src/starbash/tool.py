@@ -56,17 +56,23 @@ def expand_context(s: str, context: dict) -> str:
 def expand_context_unsafe(s: str, context: dict) -> str:
     """Expand a string with Python expressions in curly braces using RestrictedPython.
 
+    Context variables are directly available in expressions without a prefix.
+
     Supports expressions like:
     - "foo {1 + 2}" -> "foo 3"
-    - "bar {field['val']}" -> "bar <value of field['val']>"
-    - "baz {context.instrument}" -> "baz <value of context.instrument>"
+    - "bar {name}" -> "bar <value of context['name']>"
+    - "path {instrument}/{date}/file.fits" -> "path MyScope/2025-01-01/file.fits"
+    - "sum {x + y}" -> "sum <value of context['x'] + context['y']>"
 
     Args:
         s: String with Python expressions in curly braces
-        context: Dictionary of variables available to expressions
+        context: Dictionary of variables available directly in expressions
 
     Returns:
         String with all expressions evaluated and substituted
+
+    Raises:
+        ValueError: If any expression cannot be evaluated (syntax errors, missing variables, etc.)
 
     Note: Uses RestrictedPython for safety, but still has security implications.
     This is a more powerful but less safe alternative to expand_context().
@@ -309,7 +315,7 @@ class PythonTool(Tool):
                 globals = {"context": context}
                 exec(byte_code, make_safe_globals(globals), execution_locals)
             except SyntaxError as e:
-                raise ValueError(f"Syntax error in python script") from e
+                raise  # Just rethrow - no need to rewrap
             except Exception as e:
                 raise ValueError(f"Error during python script execution") from e
         finally:

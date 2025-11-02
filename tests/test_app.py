@@ -1112,3 +1112,159 @@ class TestProcessing:
 
             with pytest.raises(ValueError, match="missing 'name' key"):
                 app.run_all_stages()
+
+
+class TestAddOutputPath:
+    """Tests for the add_output_path method."""
+
+    def test_add_output_path_no_config(self, setup_test_environment, mock_analytics):
+        """Test that add_output_path removes output when no config provided."""
+        with Starbash() as app:
+            app.init_context()
+            app.context["output"] = "should_be_removed"
+
+            stage = {}  # No output config
+            app.add_output_path(stage)
+
+            assert "output" not in app.context
+
+    def test_add_output_path_missing_dest(self, setup_test_environment, mock_analytics):
+        """Test that add_output_path raises error when dest is missing."""
+        with Starbash() as app:
+            app.init_context()
+
+            stage = {"output": {}}  # Missing dest
+
+            with pytest.raises(ValueError, match="missing 'dest'"):
+                app.add_output_path(stage)
+
+    def test_add_output_path_missing_type(self, setup_test_environment, mock_analytics):
+        """Test that add_output_path raises error when type is missing."""
+        with Starbash() as app:
+            app.init_context()
+
+            stage = {"output": {"dest": "repo"}}  # Missing type
+
+            with pytest.raises(ValueError, match="missing 'type'"):
+                app.add_output_path(stage)
+
+    def test_add_output_path_repo_not_found(
+        self, setup_test_environment, mock_analytics
+    ):
+        """Test that add_output_path raises error when repo kind not found."""
+        with Starbash() as app:
+            app.init_context()
+
+            stage = {
+                "description": "test stage",
+                "output": {"dest": "repo", "type": "nonexistent"},
+            }
+
+            with pytest.raises(ValueError, match="No repository found with kind"):
+                app.add_output_path(stage)
+
+    def test_add_output_path_success(
+        self, setup_test_environment, mock_analytics, tmp_path
+    ):
+        """Test successful output path creation."""
+        with Starbash() as app:
+            app.init_context()
+
+            # Create a mock repo with proper configuration
+            mock_repo = MagicMock()
+            mock_repo.get_path.return_value = tmp_path / "output_repo"
+            mock_repo.get.return_value = "{instrument}/{date}/{imagetyp}/output.fits"
+            mock_repo.url = "file:///test/repo"
+
+            app.repo_manager.get_repo_by_kind = MagicMock(return_value=mock_repo)
+
+            # Set required context variables
+            app.context["instrument"] = "TestScope"
+            app.context["date"] = "2025-01-01"
+            app.context["imagetyp"] = "BIAS"
+
+            stage = {
+                "description": "test stage",
+                "output": {"dest": "repo", "type": "master"},
+            }
+
+            app.add_output_path(stage)
+
+            # Check that output was set
+            assert "output" in app.context
+            assert isinstance(app.context["output"], dict)
+            assert "base_path" in app.context["output"]
+            assert "full_path" in app.context["output"]
+
+    def test_add_output_path_creates_directories(
+        self, setup_test_environment, mock_analytics, tmp_path
+    ):
+        """Test that add_output_path creates output directories."""
+        output_repo = tmp_path / "output_repo"
+
+        with Starbash() as app:
+            app.init_context()
+
+            # Create a mock repo
+            mock_repo = MagicMock()
+            mock_repo.get_path.return_value = output_repo
+            mock_repo.get.return_value = "{instrument}/{date}/{imagetyp}/output.fits"
+            mock_repo.url = "file:///test/repo"
+
+            app.repo_manager.get_repo_by_kind = MagicMock(return_value=mock_repo)
+
+            app.context["instrument"] = "TestScope"
+            app.context["date"] = "2025-01-01"
+            app.context["imagetyp"] = "FLAT"
+
+            stage = {"output": {"dest": "repo", "type": "master"}}
+
+            app.add_output_path(stage)
+
+            # Check that the directory structure was created
+            expected_dir = output_repo / "TestScope" / "2025-01-01" / "FLAT"
+            assert expected_dir.exists()
+
+    def test_add_output_path_unsupported_dest(
+        self, setup_test_environment, mock_analytics
+    ):
+        """Test that add_output_path raises error for unsupported dest types."""
+        with Starbash() as app:
+            app.init_context()
+
+            stage = {"output": {"dest": "unsupported_dest", "type": "master"}}
+
+            with pytest.raises(ValueError, match="Unsupported output destination type"):
+                app.add_output_path(stage)
+
+    def test_add_output_path_with_context_expansion(
+        self, setup_test_environment, mock_analytics, tmp_path
+    ):
+        """Test that add_output_path expands context variables in path."""
+        output_repo = tmp_path / "output_repo"
+
+        with Starbash() as app:
+            app.init_context()
+
+            # Create a mock repo with a path containing context variables
+            mock_repo = MagicMock()
+            mock_repo.get_path.return_value = output_repo
+            mock_repo.get.return_value = (
+                "{context['instrument']}/{context['date']}/output.fits"
+            )
+            mock_repo.url = "file:///test/repo"
+
+            app.repo_manager.get_repo_by_kind = MagicMock(return_value=mock_repo)
+
+            app.context["instrument"] = "MyTelescope"
+            app.context["date"] = "2025-12-25"
+            app.context["imagetyp"] = "LIGHT"
+
+            stage = {"output": {"dest": "repo", "type": "master"}}
+
+            app.add_output_path(stage)
+
+            # Verify output path contains expanded values
+            full_path = Path(app.context["output"]["full_path"])
+            assert "MyTelescope" in str(full_path)
+            assert "2025-12-25" in str(full_path)

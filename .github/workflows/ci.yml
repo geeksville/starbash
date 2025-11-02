@@ -13,7 +13,7 @@ jobs:
     # you can replace it with 'windows-2022' which is commonly available.
     strategy:
       matrix:
-        os: [ubuntu-latest] # Temporarily disabled: windows-2025, macos-latest
+        os: [ubuntu-latest, windows-2025, macos-latest] # Temporarily disabled:
     runs-on: ${{ matrix.os }}
     environment: ci
 
