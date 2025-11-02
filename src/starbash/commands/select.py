@@ -143,11 +143,22 @@ def telescope(
         )
 
 
+def complete_name(incomplete: str, names: list[str]):
+    for name in names:
+        if name.startswith(incomplete):
+            yield name
+
+
 @app.command()
 def date(
     operation: Annotated[
         str,
-        typer.Argument(help="Date operation: 'after', 'before', or 'between'"),
+        typer.Argument(
+            help="Date operation: 'after', 'before', or 'between'",
+            autocompletion=lambda incomplete: complete_name(
+                incomplete, ["after", "before", "between"]
+            ),
+        ),
     ],
     date_value: Annotated[
         str,
