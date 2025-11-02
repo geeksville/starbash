@@ -37,7 +37,7 @@ class Repo:
 
         Example: "Repo(kind=recipe, local=True, url=file:///path/to/repo)"
         """
-        return f"Repo(kind={self.kind}, url={self.url})"
+        return f"Repo(kind={self.kind()}, url={self.url})"
 
     __repr__ = __str__
 

@@ -95,7 +95,7 @@ def test_repo_list_non_verbose(setup_test_environment):
         assert result.exit_code == 0
 
         # Now list repos
-        result = runner.invoke(app, ["repo"])
+        result = runner.invoke(app, ["repo", "list"])
         assert result.exit_code == 0
 
         # Should show numbered repos (user-visible only)
@@ -143,8 +143,8 @@ def test_repo_list_non_verbose(setup_test_environment):
 
 
 def test_repo_list_verbose(setup_test_environment):
-    """Test 'starbash repo --verbose' shows all repos without numbers."""
-    result = runner.invoke(app, ["repo", "--verbose"])
+    """Test 'starbash repo list --verbose' shows all repos without numbers."""
+    result = runner.invoke(app, ["repo", "list", "--verbose"])
     assert result.exit_code == 0
 
     output = result.stdout
@@ -175,8 +175,8 @@ def test_repo_list_verbose(setup_test_environment):
 
 
 def test_repo_list_verbose_short_flag(setup_test_environment):
-    """Test 'starbash repo -v' (short flag) shows all repos without numbers."""
-    result = runner.invoke(app, ["repo", "-v"])
+    """Test 'starbash repo list -v' (short flag) shows all repos without numbers."""
+    result = runner.invoke(app, ["repo", "list", "-v"])
     assert result.exit_code == 0
 
     output = result.stdout
@@ -228,7 +228,7 @@ def test_repo_remove_command(setup_test_environment, tmp_path):
     assert add_result.exit_code == 0
 
     # List to find the repo number
-    list_result = runner.invoke(app, ["repo"])
+    list_result = runner.invoke(app, ["repo", "list"])
     assert list_result.exit_code == 0
 
     # The test repo should be in the list
@@ -268,7 +268,7 @@ def test_repo_remove_command(setup_test_environment, tmp_path):
     assert "Removed repository" in remove_result.stdout
 
     # Verify it's gone
-    list_after = runner.invoke(app, ["repo"])
+    list_after = runner.invoke(app, ["repo", "list"])
     assert list_after.exit_code == 0
     assert "testrepo" not in list_after.stdout
 
@@ -278,7 +278,7 @@ def test_repo_remove_invalid_number(setup_test_environment):
     # Try to remove with invalid number
     result = runner.invoke(app, ["repo", "remove", "abc"])
     assert result.exit_code == 1
-    assert "not a valid repository number" in result.stdout.lower()
+    assert "not valid" in result.stdout.lower()
 
 
 def test_repo_remove_out_of_range(setup_test_environment):
@@ -286,7 +286,7 @@ def test_repo_remove_out_of_range(setup_test_environment):
     # Try to remove with out of range number
     result = runner.invoke(app, ["repo", "remove", "999"])
     assert result.exit_code == 1
-    assert "out of range" in result.stdout.lower()
+    assert "not a valid repository number" in result.stdout.lower()
 
 
 def test_repo_reindex_command(setup_test_environment):
@@ -314,7 +314,7 @@ def test_repo_reindex_by_number(setup_test_environment, tmp_path):
     assert add_result.exit_code == 0
 
     # Find the repo number
-    list_result = runner.invoke(app, ["repo"])
+    list_result = runner.invoke(app, ["repo", "list"])
     assert list_result.exit_code == 0
 
     # The test repo should be in the list
@@ -358,14 +358,83 @@ def test_repo_reindex_invalid_number(setup_test_environment):
     """Test 'starbash repo reindex' with invalid input."""
     result = runner.invoke(app, ["repo", "reindex", "abc"])
     assert result.exit_code == 1
-    assert "not a valid repository number" in result.stdout.lower()
+    assert "not valid" in result.stdout.lower()
 
 
 def test_repo_reindex_out_of_range(setup_test_environment):
     """Test 'starbash repo reindex' with out of range number."""
     result = runner.invoke(app, ["repo", "reindex", "999"])
     assert result.exit_code == 1
-    assert "out of range" in result.stdout.lower()
+    assert "not a valid repository number" in result.stdout.lower()
+
+
+def test_repo_remove_by_url(setup_test_environment, tmp_path):
+    """Test 'starbash repo remove' command with URL instead of number."""
+    # Add a test repo first
+    test_repo = tmp_path / "testrepo"
+    test_repo.mkdir()
+
+    add_result = runner.invoke(app, ["repo", "add", str(test_repo)])
+    assert add_result.exit_code == 0
+
+    # Remove by URL
+    repo_url = f"file://{test_repo}"
+    remove_result = runner.invoke(app, ["repo", "remove", repo_url])
+    assert remove_result.exit_code == 0
+    assert "Removed repository" in remove_result.stdout
+
+    # Verify it's gone
+    list_after = runner.invoke(app, ["repo"])
+    assert list_after.exit_code == 0
+    assert "testrepo" not in list_after.stdout
+
+
+def test_repo_reindex_by_url(setup_test_environment, tmp_path):
+    """Test 'starbash repo reindex URL' command - reindex a specific repo by URL."""
+    # First add a test repo
+    test_repo = tmp_path / "testrepo"
+    test_repo.mkdir()
+    add_result = runner.invoke(app, ["repo", "add", str(test_repo)])
+    assert add_result.exit_code == 0
+
+    # Reindex by URL
+    repo_url = f"file://{test_repo}"
+    result = runner.invoke(app, ["repo", "reindex", repo_url])
+    assert result.exit_code == 0
+    assert "Successfully reindexed" in result.stdout
+
+
+def test_repo_complete_by_num(setup_test_environment, tmp_path):
+    """Test the complete_repo_by_num function."""
+    from starbash.commands.repo import complete_repo_by_num
+
+    # Add a test repo
+    test_repo = tmp_path / "testrepo"
+    test_repo.mkdir()
+    runner.invoke(app, ["repo", "add", str(test_repo)])
+
+    # Test completion
+    completions = list(complete_repo_by_num("1"))
+    assert len(completions) > 0
+    # Should return tuples of (number, url)
+    assert all(isinstance(c, tuple) and len(c) == 2 for c in completions)
+
+
+def test_repo_complete_by_url(setup_test_environment, tmp_path):
+    """Test the complete_repo_by_url function."""
+    from starbash.commands.repo import complete_repo_by_url
+
+    # Add a test repo
+    test_repo = tmp_path / "testrepo"
+    test_repo.mkdir()
+    runner.invoke(app, ["repo", "add", str(test_repo)])
+
+    # Test completion with file:// prefix
+    completions = list(complete_repo_by_url("file://"))
+    assert len(completions) > 0
+    # Should return tuples of (url, description)
+    assert all(isinstance(c, tuple) and len(c) == 2 for c in completions)
+    assert all(c[0].startswith("file://") for c in completions)
 
 
 def test_help_commands(setup_test_environment):
