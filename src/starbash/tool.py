@@ -198,6 +198,10 @@ def siril_run(temp_dir: str, commands: str, input_files: list[str] = []) -> None
     # Possible siril commands, with preferred option first
     siril_commands = ["org.siril.Siril", "siril-cli", "siril"]
     siril_path = executable_path(siril_commands, "Siril")
+    if siril_path == "org.siril.Siril":
+        # The executable is inside a flatpak, so run the lighter/faster/no-gui required exe
+        # from inside the flatpak
+        siril_path = "flatpak run --command=siril-cli org.siril.Siril"
 
     # Create symbolic links for all input files in the temp directory
     for f in input_files:
