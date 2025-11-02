@@ -2,6 +2,7 @@ import logging
 from importlib import resources
 import os
 from pathlib import Path
+import tempfile
 import typer
 import tomlkit
 from tomlkit.toml_file import TOMLFile
@@ -546,9 +547,17 @@ class Starbash:
                     logging.info(
                         f"  Running master stage task for imagetyp '{imagetyp}'"
                     )
-                    self.init_context()
-                    self.add_session_to_context(session)
-                    self.run_stage(task)
+
+                    # Create a default process dir in /tmp, though more advanced 'session' based workflows will
+                    # probably override this and place it somewhere persistent.
+                    with tempfile.TemporaryDirectory(prefix="session_tmp_") as temp_dir:
+                        logging.debug(
+                            f"Created temporary session directory: {temp_dir}"
+                        )
+                        self.init_context()
+                        self.context["process_dir"] = temp_dir
+                        self.add_session_to_context(session)
+                        self.run_stage(task)
 
     def init_context(self) -> None:
         """Do common session init"""
@@ -558,8 +567,7 @@ class Starbash:
 
         # Update the context with runtime values.
         runtime_context = {
-            # "process_dir": "/workspaces/starbash/images/process",  # FIXME - create/find this more correctly per session
-            # " masters": "/workspaces/starbash/images/masters",  # FIXME find this the correct way
+            "masters": "/workspaces/starbash/images/masters",  # FIXME find this the correct way
         }
         self.context.update(runtime_context)
 
