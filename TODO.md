@@ -61,6 +61,7 @@
 * [ ] use import importlib.util to load python code it is own namespace
 * [ ] make crude flat frame generation work
 * [ ] make crude light frame processing work
+* [ ] normalize instrument names (removing spaces) when creating masters directories
 * [ ] don't include recipes in the list of repos on the CLI.
 * [x] add a repo-add command that creates repo.sb.toml file in the rootdir and references it from users preferences.
 * [ ] have repo-add auto recognize common nina/asiair/seestar layouts

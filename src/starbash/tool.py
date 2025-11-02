@@ -53,6 +53,53 @@ def expand_context(s: str, context: dict) -> str:
     return expanded
 
 
+def expand_context_unsafe(s: str, context: dict) -> str:
+    """Expand a string with Python expressions in curly braces using RestrictedPython.
+
+    Supports expressions like:
+    - "foo {1 + 2}" -> "foo 3"
+    - "bar {field['val']}" -> "bar <value of field['val']>"
+    - "baz {context.instrument}" -> "baz <value of context.instrument>"
+
+    Args:
+        s: String with Python expressions in curly braces
+        context: Dictionary of variables available to expressions
+
+    Returns:
+        String with all expressions evaluated and substituted
+
+    Note: Uses RestrictedPython for safety, but still has security implications.
+    """
+    # Find all expressions in curly braces
+    pattern = r"\{([^{}]+)\}"
+
+    def eval_expression(match):
+        """Evaluate a single expression and return its string representation."""
+        expr = match.group(1).strip()
+
+        try:
+            # Compile the expression with RestrictedPython
+            byte_code = RestrictedPython.compile_restricted(
+                expr, filename="<template expression>", mode="eval"
+            )
+
+            # Evaluate with safe globals and the context
+            result = eval(byte_code, make_safe_globals(context), None)
+            return str(result)
+
+        except Exception as e:
+            logger.warning(f"Failed to evaluate expression '{expr}': {e}")
+            # Return the original expression on error
+            return match.group(0)
+
+    # Replace all expressions
+    expanded = re.sub(pattern, eval_expression, s)
+
+    logger.debug(f"Unsafe expanded '{s}' into '{expanded}'")
+
+    return expanded
+
+
 def make_safe_globals(context: dict = {}) -> dict:
     """Generate a set of RestrictedPython globals for AstoGlue exec/eval usage"""
     # Define the global and local namespaces for the restricted execution.

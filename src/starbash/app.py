@@ -696,8 +696,6 @@ class Starbash:
             repo_relative = expand_context(repo_relative, self.context)
             full_path = repo_base / repo_relative
 
-            suffix = ".fits"
-
             # Set context variables as documented in the TOML
             self.context["output"] = {
                 # "root_path": repo_relative, not needed I think
