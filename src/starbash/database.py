@@ -165,7 +165,8 @@ class Database:
                 telescop TEXT NOT NULL,
                 num_images INTEGER NOT NULL,
                 exptime_total REAL NOT NULL,
-                image_doc_id INTEGER
+                image_doc_id INTEGER,
+                FOREIGN KEY (image_doc_id) REFERENCES {self.IMAGES_TABLE}(id)
             )
         """
         )
@@ -368,23 +369,31 @@ class Database:
                        - 'date_end': Filter sessions starting on or before this date
 
         Returns:
-            List of matching session records or None
+            List of matching session records with metadata from the reference image
         """
         # Build WHERE clause dynamically based on conditions
         where_clause, params = where_tuple
 
-        # Build the query
+        # Build the query with JOIN to images table to get reference image metadata
         query = f"""
-            SELECT id, start, end, filter, imagetyp, object, telescop,
-                   num_images, exptime_total, image_doc_id
-            FROM {self.SESSIONS_TABLE}
+            SELECT s.id, s.start, s.end, s.filter, s.imagetyp, s.object, s.telescop,
+                   s.num_images, s.exptime_total, s.image_doc_id, i.metadata
+            FROM {self.SESSIONS_TABLE} s
+            LEFT JOIN {self.IMAGES_TABLE} i ON s.image_doc_id = i.id
             {where_clause}
         """
 
         cursor = self._db.cursor()
         cursor.execute(query, params)
 
-        results = [dict(row) for row in cursor.fetchall()]
+        results = []
+        for row in cursor.fetchall():
+            session_dict = dict(row)
+            # Parse the metadata JSON if it exists
+            if session_dict.get("metadata"):
+                session_dict["metadata"] = json.loads(session_dict["metadata"])
+            results.append(session_dict)
+
         return results
 
     def len_table(self, table_name: str) -> int:
