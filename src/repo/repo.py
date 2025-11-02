@@ -70,7 +70,7 @@ class Repo:
             raise ValueError(f"repo-ref in {self.url} is not an array")
 
         for t in aot:
-            if "dir" in t and t["dir"] == dir:
+            if "dir" in t and t["dir"] == str(dir):
                 logging.warning(f"Repo ref {dir} already exists - ignoring.")
                 return None  # already exists
 
