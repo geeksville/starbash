@@ -152,7 +152,7 @@ class Starbash:
         )
         # self.repo_manager.dump()
 
-        self.db = Database()
+        self._db = None  # Lazy initialization - only create when accessed
         self.session_query = None  # None means search all sessions
 
         # Initialize selection state (stored in user config repo)
@@ -161,12 +161,20 @@ class Starbash:
         # FIXME, call reindex somewhere and also index whenever new repos are added
         # self.reindex_repos()
 
+    @property
+    def db(self) -> Database:
+        """Lazy initialization of database - only created as needed."""
+        if self._db is None:
+            self._db = Database()
+        return self._db
+
     # --- Lifecycle ---
     def close(self) -> None:
         self.analytics.__exit__(None, None, None)
 
         analytics_shutdown()
-        self.db.close()
+        if self._db is not None:
+            self._db.close()
 
     # Context manager support
     def __enter__(self) -> "Starbash":
