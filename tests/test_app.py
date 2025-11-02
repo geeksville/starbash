@@ -588,14 +588,14 @@ class TestGetSessionImages:
         with Starbash() as app:
             # Add an image
             image = {
-                "path": "/path/to/image.fit",
+                "path": "image.fit",  # Relative path
                 Database.DATE_OBS_KEY: "2023-10-15T20:30:00",
                 Database.FILTER_KEY: "Ha",
                 Database.IMAGETYP_KEY: "Light",
                 Database.OBJECT_KEY: "M31",
                 Database.TELESCOP_KEY: "Test",
             }
-            app.db.upsert_image(image)
+            app.db.upsert_image(image, "file:///path/to")
 
             # Add a session
             session = {

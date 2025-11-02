@@ -176,7 +176,23 @@ class Starbash:
         """Lazy initialization of database - only created as needed."""
         if self._db is None:
             self._db = Database()
+            # Ensure all repos are registered in the database
+            self.repo_db_update()
         return self._db
+
+    def repo_db_update(self) -> None:
+        """Update the database with all managed repositories.
+
+        Iterates over all repos in the RepoManager and ensures each one
+        has a record in the repos table. This is called during lazy database
+        initialization to prepare repo_id values for image insertion.
+        """
+        if self._db is None:
+            return
+
+        for repo in self.repo_manager.repos:
+            self._db.upsert_repo(repo.url)
+            logging.debug(f"Registered repo in database: {repo.url}")
 
     # --- Lifecycle ---
     def close(self) -> None:
@@ -340,9 +356,28 @@ class Starbash:
         conditions = self.selection.get_query_conditions()
         return self.db.search_session(conditions)
 
+    def _reconstruct_image_path(self, image: ImageRow) -> ImageRow:
+        """Reconstruct absolute path from image row containing repo_url and relative path.
+
+        Args:
+            image: Image record with 'repo_url' and 'path' (relative) fields
+
+        Returns:
+            Modified image record with 'path' as absolute path
+        """
+        repo_url = image.get("repo_url")
+        relative_path = image.get("path")
+
+        if repo_url and repo_url.startswith("file://") and relative_path:
+            repo_base = Path(repo_url[len("file://") :])
+            absolute_path = repo_base / relative_path
+            image["path"] = str(absolute_path)
+
+        return image
+
     def get_session_image(self, session: SessionRow) -> ImageRow:
         """
-        Get the reference ImageRow for a session.
+        Get the reference ImageRow for a session with absolute path.
         """
         images = self.db.search_image(
             {Database.ID_KEY: session[get_column_name(Database.IMAGE_DOC_KEY)]}
@@ -350,7 +385,7 @@ class Starbash:
         assert (
             len(images) == 1
         ), f"Expected exactly one reference for session, found {len(images)}"
-        return images[0]
+        return self._reconstruct_image_path(images[0])
 
     def get_session_images(self, session: SessionRow) -> list[ImageRow]:
         """
@@ -382,7 +417,8 @@ class Starbash:
 
         # Single query with all conditions
         images = self.db.search_image(conditions)
-        return images if images else []
+        # Reconstruct absolute paths for all images
+        return [self._reconstruct_image_path(img) for img in images] if images else []
 
     def remove_repo_ref(self, url: str) -> None:
         """
@@ -439,7 +475,10 @@ class Starbash:
             ):
                 # progress.console.print(f"Indexing {f}...")
                 try:
-                    found = self.db.get_image(str(f))
+                    # Convert absolute path to relative path within repo
+                    relative_path = f.relative_to(path)
+
+                    found = self.db.get_image(repo.url, str(relative_path))
                     if not found or force:
                         # Read and log the primary header (HDU 0)
                         with fits.open(str(f), memmap=False) as hdul:
@@ -455,8 +494,9 @@ class Starbash:
                                 if (not whitelist) or (key in whitelist):
                                     headers[key] = value
                             logging.debug("Headers for %s: %s", f, headers)
-                            headers["path"] = str(f)
-                            image_doc_id = self.db.upsert_image(headers)
+                            # Store relative path in database
+                            headers["path"] = str(relative_path)
+                            image_doc_id = self.db.upsert_image(headers, repo.url)
 
                             if not found:
                                 # Update the session infos, but ONLY on first file scan

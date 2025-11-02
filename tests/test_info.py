@@ -88,14 +88,14 @@ def populated_database(setup_test_environment):
 
         # Add some test images
         images = [
-            {"path": "/tmp/image1.fit", "FILTER": "Ha", "OBJECT": "M31"},
-            {"path": "/tmp/image2.fit", "FILTER": "OIII", "OBJECT": "M31"},
-            {"path": "/tmp/image3.fit", "FILTER": "Ha", "OBJECT": "NGC 7635"},
-            {"path": "/tmp/image4.fit", "FILTER": "RGB", "OBJECT": "M42"},
+            {"path": "image1.fit", "FILTER": "Ha", "OBJECT": "M31"},
+            {"path": "image2.fit", "FILTER": "OIII", "OBJECT": "M31"},
+            {"path": "image3.fit", "FILTER": "Ha", "OBJECT": "NGC 7635"},
+            {"path": "image4.fit", "FILTER": "RGB", "OBJECT": "M42"},
         ]
 
         for image_data in images:
-            db.upsert_image(image_data)
+            db.upsert_image(image_data, "file:///tmp")
 
     return setup_test_environment
 
