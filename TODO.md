@@ -11,8 +11,11 @@
 * [x] make the siril prep rule work
 * [x] make master repo add work
 * [x] make "session_to_master()" work - given a single session it will write masters/instrument/typ/foo-date-temp-bias.fits
-* [ ] make flat rule work
+* [ ] clean up database abstraction and add repo table
 * [ ] make 'regen all masters' work
+* [ ] store master info in the root toml file for masters
+* [ ] make flat rule work
+* [ ] when reindexing/adding masters, put them in the session db as some sort of special entry
 * [ ] make auto process work again for dual-duo single session workflows
 * [ ] make siril prep smarter about best sets, include report in toml file, show options on log
 * [ ] probably: instead of a list of repos we should keep repos in memory in a tree structure - which would allow walking up the tree to inherit/override entries.

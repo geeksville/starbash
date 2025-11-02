@@ -25,10 +25,47 @@ class Database:
     """SQLite-backed application database.
 
     Stores data under the OS-specific user data directory using platformdirs.
+
+    Tables:
+    #1: images
     Provides an `images` table for FITS metadata and basic helpers.
 
     The images table stores DATE-OBS and DATE as indexed SQL columns for
     efficient date-based queries, while other FITS metadata is stored in JSON.
+
+    Notably, the 'path' column is currently a full absolute path to the image file.
+    But when we implement the repos table this path will become a relative path within
+    a repo, and the repos table will map repo IDs to root paths.  At that point we'll need
+    to add a repo_id column to images to facilitate this linkage.  All images will belong to
+    exactly one repo.
+
+    # 2: sessions
+    The sessions table has one row per observing session, summarizing key info.
+    Sessions are identified by filter, image type, target, telescope, etc, and start/end times.
+    They correspond to groups of images taken together during an observing run (e.g.
+    session start/end describes the range of images DATE-OBS).
+
+    each session also has an image_doc_id field which will point to a representative
+    image in the images table.  Eventually we'll use joins to add extra info from images to
+    the exposed 'session' row.
+
+    #3: repos (future - FIXME)
+    This is a small table which just has one row per repo.  The only non ID column is just the url (which is the
+    url to the repo root).  When implementing this a few changes will be needed:
+    * add a repo_id column to images to indicate which repo each image belongs to
+    * change the images 'path' column in images to be a relative path within the repo
+    * change upsert_image() to have an extra repo_url paramter, which will look up from the
+    repo table the repo_id for that url, and store that in the images table.  We will assume the
+    path passed in as part of the image is **relative** to that repo.
+    * add a upsert_repo(url: str) method to this class
+    * in in Starbash class add a repo_db_update() method, which will iterate over the list
+        of repos and call upsert_repo() for each one. (this will ensure there is a unique record id
+        ready for each repo - for when we later add images to the db).  Do this as part of
+        the 'lazy' database instanciation.
+    * in app.py where we call upsert_image() we will need to pass in the repo url as well.
+    * when making these changes, ignore any need for migrating old databases - we will just delete
+    them.
+
     """
 
     EXPTIME_KEY = "EXPTIME"
@@ -232,7 +269,9 @@ class Database:
 
         return results
 
-    def search_session(self, where_tuple: tuple[str, list[Any]] = ("", [])) -> list[SessionRow]:
+    def search_session(
+        self, where_tuple: tuple[str, list[Any]] = ("", [])
+    ) -> list[SessionRow]:
         """Search for sessions matching the given conditions.
 
         Args:
