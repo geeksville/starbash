@@ -695,15 +695,16 @@ class Starbash:
             # we support context variables in the relative path
             repo_relative = expand_context_unsafe(repo_relative, self.context)
             full_path = repo_base / repo_relative
+
+            # base_path but without spaces - because Siril doesn't like that
+            full_path = Path(str(full_path).replace(" ", r"_"))
+
             base_path = full_path.parent / full_path.stem
-            # base_path but with \ before any spaces
-            safe_base_path = str(base_path).replace(" ", r"\ ")
 
             # Set context variables as documented in the TOML
             self.context["output"] = {
                 # "root_path": repo_relative, not needed I think
                 "base_path": base_path,
-                "safe_base_path": safe_base_path,
                 # "suffix": full_path.suffix, not needed I think
                 "full_path": full_path,
             }
@@ -760,16 +761,23 @@ class Starbash:
         self.add_input_files(stage)
         self.add_output_path(stage)
 
+        # if the output path already exists and is newer than all input files, skip processing
+        output_info: dict | None = self.context.get("output")
+        if output_info:
+            output_path = output_info.get("full_path")
+
+            if output_path and os.path.exists(output_path):
+                logging.info(
+                    f"Output file already exists, skipping processing: {output_path}"
+                )
+                return
+
         tool.run_in_temp_dir(script, context=self.context)
 
         # verify context.output was created if it was specified
-        if "output" in self.context:
-            output_info = self.context["output"]
-            # Handle both old string format and new dict format
-            if isinstance(output_info, dict):
-                output_path = output_info.get("full_path")
-            else:
-                output_path = output_info
+        output_info: dict | None = self.context.get("output")
+        if output_info:
+            output_path = output_info.get("full_path")
 
-            if output_path and not os.path.exists(output_path):
+            if not output_path or not os.path.exists(output_path):
                 raise RuntimeError(f"Expected output file not found: {output_path}")
