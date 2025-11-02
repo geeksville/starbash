@@ -182,6 +182,45 @@ class Database:
         self._db.commit()
 
     # --- Convenience helpers for common repo operations ---
+    def remove_repo(self, url: str) -> None:
+        """Remove a repo record by URL.
+
+        This will cascade delete all images belonging to this repo, and all sessions
+        that reference those images.
+
+        Args:
+            url: The repository URL (e.g., 'file:///path/to/repo')
+        """
+        cursor = self._db.cursor()
+
+        # First get the repo_id
+        repo_id = self.get_repo_id(url)
+        if repo_id is None:
+            return  # Repo doesn't exist, nothing to delete
+
+        # Delete sessions that reference images from this repo
+        # This deletes sessions where image_doc_id points to any image in this repo
+        cursor.execute(
+            f"""
+            DELETE FROM {self.SESSIONS_TABLE}
+            WHERE image_doc_id IN (
+                SELECT id FROM {self.IMAGES_TABLE} WHERE repo_id = ?
+            )
+            """,
+            (repo_id,),
+        )
+
+        # Delete all images from this repo
+        cursor.execute(
+            f"DELETE FROM {self.IMAGES_TABLE} WHERE repo_id = ?",
+            (repo_id,),
+        )
+
+        # Finally delete the repo itself
+        cursor.execute(f"DELETE FROM {self.REPOS_TABLE} WHERE id = ?", (repo_id,))
+
+        self._db.commit()
+
     def upsert_repo(self, url: str) -> int:
         """Insert or update a repo record by unique URL.
 

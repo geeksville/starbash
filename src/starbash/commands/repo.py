@@ -139,9 +139,9 @@ def repo_url_to_repo(sb: Starbash, repo_url: str | None) -> Repo | None:
         return None
 
     # try to find by URL
-    for repo in sb.repo_manager.repos:
-        if repo.url == repo_url:
-            return repo
+    repo = sb.repo_manager.get_repo_by_url(repo_url)
+    if repo is not None:
+        return repo
 
     # Fall back to finding by number
     try:

@@ -431,6 +431,8 @@ class Starbash:
         Raises:
             ValueError: If the repository URL is not found in user configuration
         """
+        self.db.remove_repo(url)
+
         # Get the repo-ref list from user config
         repo_refs = self.user_repo.config.get("repo-ref")
 
@@ -456,6 +458,10 @@ class Starbash:
 
     def reindex_repo(self, repo: Repo, force: bool = False):
         """Reindex all repositories managed by the RepoManager."""
+
+        # make sure this new repo is listed in the repos table
+        self.repo_db_update()  # not really ideal, a more optimal version would just add the new repo
+
         # FIXME, add a method to get just the repos that contain images
         if repo.is_scheme("file") and repo.kind != "recipe":
             logging.debug("Reindexing %s...", repo.url)
