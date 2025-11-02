@@ -68,5 +68,5 @@ script = '''
     cd {process_dir}
 
     # Stack Bias Frames to bias_stacked.fit
-    stack bias rej 3 3 -nonorm -out={output["base_path"]}
+    stack bias rej 3 3 -nonorm -out={output["safe_base_path"]}
     '''

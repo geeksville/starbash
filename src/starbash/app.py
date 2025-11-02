@@ -695,11 +695,15 @@ class Starbash:
             # we support context variables in the relative path
             repo_relative = expand_context_unsafe(repo_relative, self.context)
             full_path = repo_base / repo_relative
+            base_path = full_path.parent / full_path.stem
+            # base_path but with \ before any spaces
+            safe_base_path = str(base_path).replace(" ", r"\ ")
 
             # Set context variables as documented in the TOML
             self.context["output"] = {
                 # "root_path": repo_relative, not needed I think
-                "base_path": full_path.parent / full_path.stem,
+                "base_path": base_path,
+                "safe_base_path": safe_base_path,
                 # "suffix": full_path.suffix, not needed I think
                 "full_path": full_path,
             }
