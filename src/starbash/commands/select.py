@@ -6,17 +6,16 @@ from collections import Counter
 import typer
 from pathlib import Path
 from typing_extensions import Annotated
-from datetime import datetime
 from rich.table import Table
 import logging
 
 import starbash
+from starbash import to_shortdate
 from starbash.app import Starbash, copy_images_to_dir
 from starbash.database import Database, SessionRow, get_column_name
 from starbash import console
 from starbash.commands import (
     format_duration,
-    to_shortdate,
     TABLE_COLUMN_STYLE,
     TABLE_VALUE_STYLE,
 )
@@ -53,24 +52,9 @@ def complete_date(incomplete: str, column_name: str):
         # Merge counts by date (YYYY-MM-DD) in local timezone
         date_counts = Counter()
         for datetime_str, count in c.items():
-            try:
-                # Parse the ISO datetime string (assumes UTC if no timezone specified)
-                dt = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
-
-                # Convert to local timezone
-                local_dt = dt.astimezone()
-
-                # Extract just the date portion (YYYY-MM-DD) from local datetime
-                date_only = local_dt.strftime("%Y-%m-%d")
-                date_counts[date_only] += count
-            except (ValueError, AttributeError):
-                # If it's not a valid datetime string, try splitting on 'T' as fallback
-                try:
-                    date_only = datetime_str.split("T")[0]
-                    date_counts[date_only] += count
-                except (AttributeError, IndexError):
-                    # Skip if we can't parse it at all
-                    continue
+            # Extract just the date portion (YYYY-MM-DD) from local datetime
+            date_only = to_shortdate(datetime_str)
+            date_counts[date_only] += count
 
         # Yield completions matching the incomplete input
         for date, count in sorted(date_counts.items(), reverse=True):

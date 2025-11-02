@@ -20,20 +20,3 @@ def format_duration(seconds: int | float) -> str:
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
         return f"{hours}h {minutes}m" if minutes else f"{hours}h"
-
-
-def to_shortdate(date_iso: str) -> str:
-    """Convert ISO UTC datetime string to local short date string (YYYY-MM-DD).
-
-    Args:
-        date_iso: ISO format datetime string (e.g., "2023-10-15T14:30:00Z")
-
-    Returns:
-        Short date string in YYYY-MM-DD format, or the original string if conversion fails
-    """
-    try:
-        dt_utc = datetime.fromisoformat(date_iso)
-        dt_local = dt_utc.astimezone()
-        return dt_local.strftime("%Y-%m-%d")
-    except (ValueError, TypeError):
-        return date_iso

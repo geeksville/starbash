@@ -15,9 +15,10 @@ from rich.logging import RichHandler
 import shutil
 from datetime import datetime
 import rich.console
+import copy
 
 import starbash
-from starbash import console, _is_test_env
+from starbash import console, _is_test_env, to_shortdate
 from starbash.database import Database, SessionRow, ImageRow, get_column_name
 from repo import Repo, repo_suffix
 from starbash.toml import toml_from_template
@@ -572,13 +573,35 @@ class Starbash:
         self.context.update(runtime_context)
 
     def add_session_to_context(self, session: SessionRow) -> None:
-        """add the input files to the context (from the session)"""
+        """adds to context from the indicated session:
+        * input_files - all of the files mentioned in the session
+        * instrument - for the session
+        * date - the localtimezone date of the session
+        * imagetyp - the imagetyp of the session
+        * session - the current session row (joined with a typical image) (can be used to
+        find things like telescope, temperature ...)
+        """
         # Get images for this session
         images = self.get_session_images(session)
         logging.debug(f"Adding {len(images)} files as context.input_files")
         self.context["input_files"] = [
             img["path"] for img in images
         ]  # Pass in the file list via the context dict
+
+        # it is okay to give them the actual session row, because we're never using it again
+        self.context["session"] = session
+
+        instrument = session.get(get_column_name(Database.TELESCOP_KEY))
+        if instrument:
+            self.context["instrument"] = instrument
+
+        imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
+        if imagetyp:
+            self.context["imagetyp"] = imagetyp
+
+        date = session.get(get_column_name(Database.START_KEY))
+        if date:
+            self.context["date"] = to_shortdate(date)
 
     def run_stage(self, stage: dict) -> None:
         """
