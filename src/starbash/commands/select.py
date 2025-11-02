@@ -2,12 +2,15 @@
 
 import os
 from typing import Any
+from collections import Counter
 import typer
 from pathlib import Path
 from typing_extensions import Annotated
 from datetime import datetime
 from rich.table import Table
+import logging
 
+import starbash
 from starbash.app import Starbash, copy_images_to_dir
 from starbash.database import Database, SessionRow, get_column_name
 from starbash import console
@@ -19,6 +22,33 @@ from starbash.commands import (
 )
 
 app = typer.Typer()
+
+
+def get_column(sb: Starbash, column_name: str) -> Counter:
+
+    # Also do a complete unfiltered search so we can compare for the users
+    allsessions = sb.db.search_session(("", []))
+
+    column_name = get_column_name(column_name)
+    allfound = [session[column_name] for session in allsessions if session[column_name]]
+
+    # Count occurrences of each telescope
+    all_counts = Counter(allfound)
+
+    return all_counts
+
+
+def complete_column(incomplete: str, column_name: str):
+    # We need to use stderr_logging to prevent confusing the bash completion parser
+    starbash.log_filter_level = (
+        logging.ERROR
+    )  # avoid showing output while doing completion
+    with Starbash("repo.complete.column", stderr_logging=True) as sb:
+        c = get_column(sb, column_name)
+
+        for item, count in c.items():
+            if item.startswith(incomplete):
+                yield (item, f"{count} sessions")
 
 
 @app.command(name="any")
@@ -34,7 +64,10 @@ def target(
     target_name: Annotated[
         str,
         typer.Argument(
-            help="Target name to add to the selection (e.g., 'M31', 'NGC 7000')"
+            help="Target name to add to the selection (e.g., 'M31', 'NGC 7000')",
+            autocompletion=lambda incomplete: complete_column(
+                incomplete, Database.OBJECT_KEY
+            ),
         ),
     ],
 ):
@@ -52,7 +85,10 @@ def telescope(
     telescope_name: Annotated[
         str,
         typer.Argument(
-            help="Telescope name to add to the selection (e.g., 'Vespera', 'EdgeHD 8')"
+            help="Telescope name to add to the selection (e.g., 'Vespera', 'EdgeHD 8')",
+            autocompletion=lambda incomplete: complete_column(
+                incomplete, Database.TELESCOP_KEY
+            ),
         ),
     ],
 ):

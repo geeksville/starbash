@@ -38,7 +38,7 @@ def dump_column(sb: Starbash, human_name: str, column_name: str) -> None:
     all_counts = Counter(allfound)
 
     # Sort by telescope name
-    sorted_telescopes = sorted(found_counts.items())
+    sorted_list = sorted(found_counts.items())
 
     # Create and display table
     table = Table(
@@ -49,7 +49,7 @@ def dump_column(sb: Starbash, human_name: str, column_name: str) -> None:
         "# of sessions", style=TABLE_COLUMN_STYLE, no_wrap=True, justify="right"
     )
 
-    for i, count in sorted_telescopes:
+    for i, count in sorted_list:
         table.add_row(i, str(count))
 
     console.print(table)
