@@ -34,7 +34,7 @@ kind = "light"                 # all images of a session are guaranteed to have 
 
 # if masters were selected for use processing this session they will be listed here
 # (if not present this section will be auto generated at processing time)
-# time of first frame in this session-config
+# time of first frame in this session.config
 # storing these settings here ensure if we reprocess settings remain the same
 master.flat = "/blag/blah.fits"
 master.dark = ""

@@ -72,7 +72,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 - Pipeline stages defined in TOML with `[[stages]]` having `name` and `priority`
 - Work items are `[[stage]]` tables across repos:
   - `tool`: one of `siril`, `graxpert`, `python` (see `starbash.tool.tools`)
-  - `when`: matches stage name (e.g., `session-config`, `session-light`, `session-stack`)
+  - `when`: matches stage name (e.g., `session.config`, `session.light`, `session.stack`)
   - `script` or `script-file` (resolved relative to repo via `stage.source`)
   - `context` (dict merged into runtime context), `input` (glob patterns for files)
 - **Context expansion** (`expand_context()`):

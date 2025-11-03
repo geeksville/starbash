@@ -10,27 +10,38 @@ author.email = "FIXMESiril?"
 
 [[stage]]
 
-description = "Generate master flat"
-disabled = true # FIXME, debugging later stuff
+# See master_bias/starbash.toml for more documentation
 
-# For any camera
-auto.for-camera = []
+description = "Generate master flat"
+# disabled = false
 
 tool.name = "siril"
+# tool.timeout = 15.0 # allow up to 15 seconds before we timeout and kill tool
 
-# input.source = "session" # or auto? prefer ones in session otherwise find by in masters
-input.type = "flat" # look in _session_ directories, but look only for flat files
+# or auto?
+# find the most recent raw fits for the current instrument (as of the time of session start)
+# input.source = "most-recent" # only look for the most recent set of raws for this particular type
+input.type = "flat" # look in all raw repos, but look only for flat files
 
-# FIXME for early development we have support for simple absolute file paths with globs
-input.source = "path"
-input.path = "/workspaces/starbash/images/from_astroboy/M 27/2025-09-16/FLAT/*.fit*"
+# Look for files in input repos, finding them by using the "relative" tag they contain
+input.source = "repo"
 input.required = true # Is at least one input file required?  If true, we will skip running this stage entirely (with a warning)
 
-when = "session-config" # run once per session-config
-context.output = "{process_dir}/flat_s{sessionid}_c{sessionconfig}.fits"
+# We require a master bias frame for this recipe.  By the time our recipe is invoked
+# context.master.bias will have been set to a full path to a master bias frame
+input.master.bias = true
 
-# FIXME, bias should have been added to context by two previous stages.  But for now hardwire
-context.bias = '/workspaces/starbash/images/masters/biases/2025-09-09_stacked.fits'
+when = "setup.master.flat" # run when master biases are regenerated
+
+# Based on the following definitions in the stage toml file...
+output.dest = "repo" # write to a particular repo
+output.type = "master" # write output to the special masters repo
+
+
+# FIXME for early development we have support for simple absolute file paths with globs
+#input.source = "path"
+#input.path = "/workspaces/starbash/images/from_astroboy/M 27/2025-09-16/FLAT/*.fit*"
+#input.required = true # Is at least one input file required?  If true, we will skip running this stage entirely (with a warning)
 
 script = '''
     # Create a sequence from the raw flat frames
@@ -38,7 +49,7 @@ script = '''
     cd {process_dir}
 
     # Calibrate the flat frames using master bias
-    calibrate flat -bias={bias}
+    calibrate flat -bias={master["bias"]}
 
     # Stack the pre-processed (calibrated) flat frames (writes to flat_stacked.fit)
     stack pp_flat rej 3 3 -norm=mul -out=flat_stacked

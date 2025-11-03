@@ -569,12 +569,14 @@ class Starbash:
         for repo in track(self.repo_manager.repos, description="Reindexing repos..."):
             self.reindex_repo(repo, force=force)
 
-    def run_all_stages(self):
-        """On the currently active session, run all processing stages"""
-        logging.info("--- Running all stages ---")
+    def _get_stages(self, name: str) -> list[dict[str, Any]]:
+        """Get all pipeline stages defined in the merged configuration.
 
+        Returns:
+            List of stage definitions (dictionaries with 'name' and 'priority')
+        """
         # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
-        pipeline_definitions = self.repo_manager.merged.getall("stages")
+        pipeline_definitions = self.repo_manager.merged.getall(name)
         flat_pipeline_steps = list(itertools.chain.from_iterable(pipeline_definitions))
 
         # 2. Sort the pipeline steps by their 'priority' field.
@@ -589,6 +591,14 @@ class Starbash:
         logging.info(
             f"Found {len(sorted_pipeline)} pipeline steps to run in order of priority."
         )
+        return sorted_pipeline
+
+    def run_all_stages(self):
+        """On the currently active session, run all processing stages"""
+        logging.info("--- Running all stages ---")
+
+        # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
+        sorted_pipeline = self._get_stages("stages")
 
         self.init_context()
         # 4. Iterate through the sorted pipeline and execute the associated tasks.
@@ -614,7 +624,7 @@ class Starbash:
         """Generate any missing master frames
 
         Steps:
-        * set all_tasks to be all tasks for when == "setup.masters"
+        * set all_tasks to be all tasks for when == "setup.master.bias"
         * loop over all currently unfiltered sessions
         * for each session loop across all_tasks
         * if task input.type == the imagetyp for this current session
@@ -632,9 +642,9 @@ class Starbash:
             task_definitions = self.repo_manager.merged.getall("stage")
             all_tasks = list(itertools.chain.from_iterable(task_definitions))
 
-            # Find all tasks that should run during the "setup.masters" step.
+            # Find all tasks that should run during this step
             tasks_to_run = [
-                task for task in all_tasks if task.get("when") == "setup.masters"
+                task for task in all_tasks if task.get("when") == "setup.master.bias"
             ]
 
             for task in tasks_to_run:

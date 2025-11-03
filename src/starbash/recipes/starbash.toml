@@ -26,14 +26,32 @@ dir = "osc_single_duo"
 #name = "setup-masters" # for flat processing, master generation etc
 #priority = 5
 
+#
+# master specific stages
+#
+[[master-stages]]
+name = "setup.master.bias" # generate master bias frames
+priority = 10
+
+[[master-stages]]
+name = "setup.master.dark" # generate master bias frames
+priority = 10
+
+[[master-stages]]
+name = "setup.master.flat" # generate master flat frames
+priority = 20
+
+#
+# session specific processing stages
+#
 [[stages]]
-name = "session-config" # for flat processing, master generation etc
+name = "session.config" # for flat processing, master generation etc
 priority = 10
 
 [[stages]]
-name = "session-light" # generate light frames from lights and with reference to flats/bias
+name = "session.light" # generate light frames from lights and with reference to flats/bias
 priority = 20
 
 [[stages]]
-name = "session-stack" # stack frames
+name = "session.stack" # stack frames
 priority = 30

@@ -32,7 +32,7 @@ auto.for-camera = ["OSC"]
 
 tool.name = "siril"
 
-when = "session-light" # run once per session-config
+when = "session.light" # run once per session.config
 output = "FIXME"
 
 # FIXME, bias and flat should have been added to context by two previous stages.  But for now hardwire
@@ -77,7 +77,7 @@ context.targets = "/workspaces/starbash/images/processed" # FIXME, do something 
 
 tool.name = "python"
 
-when = "session-stack" # run once after all session/session-config processing was done
+when = "session.stack" # run once after all session/session.config processing was done
 
 # if not specified starbash.py used
 # script-file = "script.py"
