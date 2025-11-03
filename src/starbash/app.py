@@ -434,7 +434,17 @@ class Starbash:
             SearchCondition(
                 "i.date_obs", "<=", session[get_column_name(Database.END_KEY)]
             ),
+            SearchCondition(
+                "i.imagetyp", "=", session[get_column_name(Database.IMAGETYP_KEY)]
+            ),
         ]
+
+        # we never want to return 'master' images as part of the session image paths
+        # (because we will be passing these tool siril or whatever to generate masters or
+        # some other downstream image)
+        master_repo = self.repo_manager.get_repo_by_kind("master")
+        if master_repo is not None:
+            conditions.append(SearchCondition("r.url", "<>", master_repo.url))
 
         # Single query with indexed date conditions
         images = self.db.search_image(conditions)
@@ -446,8 +456,6 @@ class Starbash:
             if (
                 img.get(Database.FILTER_KEY)
                 == session[get_column_name(Database.FILTER_KEY)]
-                and img.get(Database.IMAGETYP_KEY)
-                == session[get_column_name(Database.IMAGETYP_KEY)]
                 and img.get(Database.OBJECT_KEY)
                 == session[get_column_name(Database.OBJECT_KEY)]
                 and img.get(Database.TELESCOP_KEY)
