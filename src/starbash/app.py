@@ -638,33 +638,48 @@ class Starbash:
                 f"Processing session ID {session[get_column_name(Database.ID_KEY)]} with imagetyp '{imagetyp}'"
             )
 
-            # 3. Get all available task definitions (the `[[stage]]` tables with tool, script, when).
-            task_definitions = self.repo_manager.merged.getall("stage")
-            all_tasks = list(itertools.chain.from_iterable(task_definitions))
+            sorted_pipeline = self._get_stages("master-stages")
 
-            # Find all tasks that should run during this step
-            tasks_to_run = [
-                task for task in all_tasks if task.get("when") == "setup.master.bias"
-            ]
+            # 4. Iterate through the sorted pipeline and execute the associated tasks.
+            # FIXME unify the master vs normal step running code
+            for step in sorted_pipeline:
+                step_name = step.get("name")
+                if not step_name:
+                    raise ValueError("Invalid pipeline step found: missing 'name' key.")
 
-            for task in tasks_to_run:
-                input_config = task.get("input", {})
-                input_type = input_config.get("type")
-                if imagetyp_equals(input_type, imagetyp):
-                    logging.info(
-                        f"  Running master stage task for imagetyp '{imagetyp}'"
-                    )
+                # 3. Get all available task definitions (the `[[stage]]` tables with tool, script, when).
+                task_definitions = self.repo_manager.merged.getall("stage")
+                all_tasks = list(itertools.chain.from_iterable(task_definitions))
 
-                    # Create a default process dir in /tmp, though more advanced 'session' based workflows will
-                    # probably override this and place it somewhere persistent.
-                    with tempfile.TemporaryDirectory(prefix="session_tmp_") as temp_dir:
-                        logging.debug(
-                            f"Created temporary session directory: {temp_dir}"
+                # Find all tasks that should run during this step
+                tasks_to_run = [
+                    task for task in all_tasks if task.get("when") == step_name
+                ]
+
+                for task in tasks_to_run:
+                    input_config = task.get("input", {})
+                    input_type = input_config.get("type")
+                    if not input_type:
+                        raise ValueError(
+                            f"Task for step '{step_name}' missing required input.type"
                         )
-                        self.init_context()
-                        self.context["process_dir"] = temp_dir
-                        self.add_session_to_context(session)
-                        self.run_stage(task)
+                    if imagetyp_equals(input_type, imagetyp):
+                        logging.info(
+                            f"  Running {step_name} task for imagetyp '{imagetyp}'"
+                        )
+
+                        # Create a default process dir in /tmp, though more advanced 'session' based workflows will
+                        # probably override this and place it somewhere persistent.
+                        with tempfile.TemporaryDirectory(
+                            prefix="session_tmp_"
+                        ) as temp_dir:
+                            logging.debug(
+                                f"Created temporary session directory: {temp_dir}"
+                            )
+                            self.init_context()
+                            self.context["process_dir"] = temp_dir
+                            self.add_session_to_context(session)
+                            self.run_stage(task)
 
     def init_context(self) -> None:
         """Do common session init"""
