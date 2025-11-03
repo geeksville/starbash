@@ -76,6 +76,59 @@ def filter():
         dump_column(sb, "Filter", Database.FILTER_KEY)
 
 
+@app.command()
+def master():
+    """List all precalculated master images (darks, biases, flats)."""
+    with Starbash("info.master") as sb:
+        # Get the master repo
+        master_repo = sb.repo_manager.get_repo_by_kind("master")
+
+        if master_repo is None:
+            console.print("[yellow]No master repository found.[/yellow]")
+            return
+
+        # Search for images in the master repo only
+        images = sb.db.search_image({"repo_url": master_repo.url})
+
+        if not images:
+            console.print(
+                f"[yellow]No master images found in {master_repo.url}[/yellow]"
+            )
+            return
+
+        # Create table to display results
+        table = Table(title=f"Master Images ({len(images)} total)")
+        table.add_column("Date", style=TABLE_COLUMN_STYLE, no_wrap=True)
+        table.add_column("Type", style=TABLE_COLUMN_STYLE, no_wrap=True)
+        table.add_column("Filename", style=TABLE_VALUE_STYLE, no_wrap=False)
+
+        # Sort by date, then by type
+        sorted_images = sorted(
+            images,
+            key=lambda img: (
+                img.get(Database.DATE_OBS_KEY) or img.get(Database.DATE_KEY) or "",
+                img.get(Database.IMAGETYP_KEY) or "",
+            ),
+        )
+
+        for image in sorted_images:
+            date = (
+                image.get(Database.DATE_OBS_KEY)
+                or image.get(Database.DATE_KEY)
+                or "Unknown"
+            )
+            # Extract just the date part (YYYY-MM-DD) if it's a full ISO timestamp
+            if "T" in date:
+                date = date.split("T")[0]
+
+            kind = image.get(Database.IMAGETYP_KEY) or "Unknown"
+            filename = image.get("path") or "Unknown"
+
+            table.add_row(date, kind, filename)
+
+        console.print(table)
+
+
 @app.callback(invoke_without_command=True)
 def main_callback(ctx: typer.Context):
     """Show user preferences location and other app info.

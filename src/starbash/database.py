@@ -340,14 +340,16 @@ class Database:
                        Special keys:
                        - 'date_start': Filter images with DATE-OBS >= this date
                        - 'date_end': Filter images with DATE-OBS <= this date
+                       - 'repo_url': Filter images by repository URL
 
         Returns:
             List of matching image records with relative path, repo_id, and repo_url
         """
-        # Extract special date filter keys (make a copy to avoid modifying caller's dict)
+        # Extract special filter keys (make a copy to avoid modifying caller's dict)
         conditions_copy = dict(conditions)
         date_start = conditions_copy.pop("date_start", None)
         date_end = conditions_copy.pop("date_end", None)
+        repo_url = conditions_copy.pop("repo_url", None)
 
         # Build SQL query with WHERE clauses for date filtering
         where_clauses = []
@@ -360,6 +362,10 @@ class Database:
         if date_end:
             where_clauses.append("i.date_obs <= ?")
             params.append(date_end)
+
+        if repo_url:
+            where_clauses.append("r.url = ?")
+            params.append(repo_url)
 
         # Build the query with JOIN to repos table
         query = f"""

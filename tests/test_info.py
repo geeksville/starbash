@@ -299,3 +299,31 @@ def test_info_with_user_preferences(populated_database):
     result = runner.invoke(app, ["info"])
     assert result.exit_code == 0
     assert "test@example.com" in result.stdout
+
+
+def test_info_master_command_no_repo(setup_test_environment):
+    """Test 'starbash info master' with no master repo - should show warning."""
+    result = runner.invoke(app, ["info", "master"])
+    assert result.exit_code == 0
+
+    # Should show message about no master repository
+    assert (
+        "master repository" in result.stdout.lower()
+        or "no master" in result.stdout.lower()
+    )
+
+
+def test_info_master_command_no_data(setup_test_environment):
+    """Test 'starbash info master' with master repo but no images."""
+    # This test would require adding a master repo but no images
+    # For now, just ensure the command exists and doesn't crash
+    result = runner.invoke(app, ["info", "master"])
+    assert result.exit_code == 0
+
+
+def test_info_master_help(setup_test_environment):
+    """Test 'starbash info master --help' works."""
+    result = runner.invoke(app, ["info", "master", "--help"])
+    assert result.exit_code == 0
+    assert "master" in result.stdout.lower()
+    assert "precalculated" in result.stdout.lower() or "images" in result.stdout.lower()
