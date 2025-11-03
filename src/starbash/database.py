@@ -34,8 +34,8 @@ class Database:
     #2: images
     Provides an `images` table for FITS metadata and basic helpers.
 
-    The images table stores DATE-OBS and DATE as indexed SQL columns for
-    efficient date-based queries, while other FITS metadata is stored in JSON.
+    The images table stores DATE-OBS, DATE, and IMAGETYP as indexed SQL columns for
+    efficient date-based and type-based queries, while other FITS metadata is stored in JSON.
 
     The 'path' column contains a path **relative** to the repository root.
     Each image belongs to exactly one repo, linked via the repo_id foreign key.
@@ -116,7 +116,7 @@ class Database:
         """
         )
 
-        # Create images table with DATE-OBS and DATE as indexed columns
+        # Create images table with DATE-OBS, DATE, and IMAGETYP as indexed columns
         cursor.execute(
             f"""
             CREATE TABLE IF NOT EXISTS {self.IMAGES_TABLE} (
@@ -125,6 +125,7 @@ class Database:
                 path TEXT NOT NULL,
                 date_obs TEXT,
                 date TEXT,
+                imagetyp TEXT,
                 metadata TEXT NOT NULL,
                 FOREIGN KEY (repo_id) REFERENCES {self.REPOS_TABLE}(id),
                 UNIQUE(repo_id, path)
@@ -150,6 +151,13 @@ class Database:
         cursor.execute(
             f"""
             CREATE INDEX IF NOT EXISTS idx_images_date ON {self.IMAGES_TABLE}(date)
+        """
+        )
+
+        # Create index on imagetyp for efficient image type filtering
+        cursor.execute(
+            f"""
+            CREATE INDEX IF NOT EXISTS idx_images_imagetyp ON {self.IMAGES_TABLE}(imagetyp)
         """
         )
 
@@ -283,7 +291,7 @@ class Database:
 
         The record must include a 'path' key (relative to repo); other keys are arbitrary FITS metadata.
         The path is stored as-is - caller is responsible for making it relative to the repo.
-        DATE-OBS and DATE are extracted and stored as indexed columns for efficient queries.
+        DATE-OBS, DATE, and IMAGETYP are extracted and stored as indexed columns for efficient queries.
 
         Args:
             record: Dictionary containing image metadata including 'path' (relative to repo)
@@ -301,24 +309,26 @@ class Database:
         if repo_id is None:
             repo_id = self.upsert_repo(repo_url)
 
-        # Extract date fields for column storage
+        # Extract special fields for column storage
         date_obs = record.get(self.DATE_OBS_KEY)
         date = record.get(self.DATE_KEY)
+        imagetyp = record.get(self.IMAGETYP_KEY)
 
-        # Separate path and date fields from metadata
+        # Separate path and special fields from metadata
         metadata = {k: v for k, v in record.items() if k != "path"}
         metadata_json = json.dumps(metadata)
 
         cursor = self._db.cursor()
         cursor.execute(
             f"""
-            INSERT INTO {self.IMAGES_TABLE} (repo_id, path, date_obs, date, metadata) VALUES (?, ?, ?, ?, ?)
+            INSERT INTO {self.IMAGES_TABLE} (repo_id, path, date_obs, date, imagetyp, metadata) VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(repo_id, path) DO UPDATE SET
                 date_obs = excluded.date_obs,
                 date = excluded.date,
+                imagetyp = excluded.imagetyp,
                 metadata = excluded.metadata
         """,
-            (repo_id, str(path), date_obs, date, metadata_json),
+            (repo_id, str(path), date_obs, date, imagetyp, metadata_json),
         )
 
         self._db.commit()
@@ -370,7 +380,7 @@ class Database:
 
         # Build the query with JOIN to repos table
         query = f"""
-            SELECT i.id, i.repo_id, i.path, i.date_obs, i.date, i.metadata, r.url as repo_url
+            SELECT i.id, i.repo_id, i.path, i.date_obs, i.date, i.imagetyp, i.metadata, r.url as repo_url
             FROM {self.IMAGES_TABLE} i
             JOIN {self.REPOS_TABLE} r ON i.repo_id = r.id
         """
@@ -389,11 +399,13 @@ class Database:
             metadata[Database.REPO_URL_KEY] = row[Database.REPO_URL_KEY]
             metadata["id"] = row["id"]
 
-            # Add date fields back to metadata for compatibility
+            # Add special fields back to metadata for compatibility
             if row["date_obs"]:
                 metadata[self.DATE_OBS_KEY] = row["date_obs"]
             if row["date"]:
                 metadata[self.DATE_KEY] = row["date"]
+            if row["imagetyp"]:
+                metadata[self.IMAGETYP_KEY] = row["imagetyp"]
 
             # Check if remaining conditions match (those stored in JSON metadata)
             match = all(metadata.get(k) == v for k, v in conditions_copy.items())
@@ -480,7 +492,7 @@ class Database:
         cursor = self._db.cursor()
         cursor.execute(
             f"""
-            SELECT i.id, i.repo_id, i.path, i.date_obs, i.date, i.metadata, r.url as repo_url
+            SELECT i.id, i.repo_id, i.path, i.date_obs, i.date, i.imagetyp, i.metadata, r.url as repo_url
             FROM {self.IMAGES_TABLE} i
             JOIN {self.REPOS_TABLE} r ON i.repo_id = r.id
             WHERE r.url = ? AND i.path = ?
@@ -498,11 +510,13 @@ class Database:
         metadata[Database.REPO_URL_KEY] = row[Database.REPO_URL_KEY]
         metadata["id"] = row["id"]
 
-        # Add date fields back to metadata for compatibility
+        # Add special fields back to metadata for compatibility
         if row["date_obs"]:
             metadata[self.DATE_OBS_KEY] = row["date_obs"]
         if row["date"]:
             metadata[self.DATE_KEY] = row["date"]
+        if row["imagetyp"]:
+            metadata[self.IMAGETYP_KEY] = row["imagetyp"]
 
         return metadata
 
@@ -511,7 +525,7 @@ class Database:
         cursor = self._db.cursor()
         cursor.execute(
             f"""
-            SELECT i.id, i.repo_id, i.path, i.date_obs, i.date, i.metadata, r.url as repo_url
+            SELECT i.id, i.repo_id, i.path, i.date_obs, i.date, i.imagetyp, i.metadata, r.url as repo_url
             FROM {self.IMAGES_TABLE} i
             JOIN {self.REPOS_TABLE} r ON i.repo_id = r.id
             """
@@ -526,11 +540,13 @@ class Database:
             metadata[Database.REPO_URL_KEY] = row[Database.REPO_URL_KEY]
             metadata["id"] = row["id"]
 
-            # Add date fields back to metadata for compatibility
+            # Add special fields back to metadata for compatibility
             if row["date_obs"]:
                 metadata[self.DATE_OBS_KEY] = row["date_obs"]
             if row["date"]:
                 metadata[self.DATE_KEY] = row["date"]
+            if row["imagetyp"]:
+                metadata[self.IMAGETYP_KEY] = row["imagetyp"]
 
             results.append(metadata)
 
