@@ -77,7 +77,14 @@ def filter():
 
 
 @app.command()
-def master():
+def master(
+    kind: Annotated[
+        str | None,
+        typer.Argument(
+            help="Optional image type to filter by (e.g., BIAS, DARK, FLAT, LIGHT)",
+        ),
+    ] = None,
+):
     """List all precalculated master images (darks, biases, flats)."""
     with Starbash("info.master") as sb:
         # Get the master repo
@@ -88,16 +95,24 @@ def master():
             return
 
         # Search for images in the master repo only
-        images = sb.db.search_image({Database.REPO_URL_KEY: master_repo.url})
+        search_conditions = {Database.REPO_URL_KEY: master_repo.url}
+        if kind:
+            search_conditions[Database.IMAGETYP_KEY] = kind
+
+        images = sb.db.search_image(search_conditions)
 
         if not images:
+            kind_msg = f" of type '{kind}'" if kind else ""
             console.print(
-                f"[yellow]No master images found in {master_repo.url}[/yellow]"
+                f"[yellow]No master images{kind_msg} found in {master_repo.url}[/yellow]"
             )
             return
 
         # Create table to display results
-        table = Table(title=f"Master Images ({len(images)} total)")
+        title = f"Master Images ({len(images)} total)"
+        if kind:
+            title = f"Master {kind} Images ({len(images)} total)"
+        table = Table(title=title)
         table.add_column("Date", style=TABLE_COLUMN_STYLE, no_wrap=True)
         table.add_column("Type", style=TABLE_COLUMN_STYLE, no_wrap=True)
         table.add_column("Filename", style=TABLE_VALUE_STYLE, no_wrap=False)

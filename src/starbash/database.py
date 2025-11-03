@@ -352,6 +352,7 @@ class Database:
                        - 'date_start': Filter images with DATE-OBS >= this date
                        - 'date_end': Filter images with DATE-OBS <= this date
                        - 'repo_url': Filter images by repository URL
+                       - 'IMAGETYP': Filter images by image type (uses indexed column)
 
         Returns:
             List of matching image records with relative path, repo_id, and repo_url
@@ -361,8 +362,9 @@ class Database:
         date_start = conditions_copy.pop("date_start", None)
         date_end = conditions_copy.pop("date_end", None)
         repo_url = conditions_copy.pop(Database.REPO_URL_KEY, None)
+        imagetyp = conditions_copy.pop(Database.IMAGETYP_KEY, None)
 
-        # Build SQL query with WHERE clauses for date filtering
+        # Build SQL query with WHERE clauses for indexed column filtering
         where_clauses = []
         params = []
 
@@ -377,6 +379,10 @@ class Database:
         if repo_url:
             where_clauses.append("r.url = ?")
             params.append(repo_url)
+
+        if imagetyp:
+            where_clauses.append("i.imagetyp = ?")
+            params.append(imagetyp)
 
         # Build the query with JOIN to repos table
         query = f"""

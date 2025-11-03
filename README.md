@@ -91,7 +91,7 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 - `sb info target` - List targets (filtered based on the current selection)
 - `sb info telescope` - List instruments (filtered based on the current selection)
 - `sb info filter` - List all filters found in current selection
-- `sb info master` - List all precalculated master images (darks, biases, flats)
+- `sb info master [KIND]` - List all precalculated master images (darks, biases, flats). Optional KIND argument to filter by image type (e.g., BIAS, DARK, FLAT)
 
 ## Not yet supported commands
 
