@@ -14,7 +14,7 @@ flat = ["flat", "flats"]
 bias = ["bias", "biases"]
 
 # file suffixes
-fit = ["fits", "fit"]
+fits = ["fits", "fit"]
 
 # filter names
 SiiOiii = ["SiiOiii", "SII-OIII", "S2-O3"]

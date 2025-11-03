@@ -1,0 +1,58 @@
+class Aliases:
+    def __init__(self, alias_dict: dict[str, list[str]]):
+        """Initialize the Aliases object with a dictionary mapping keys to their alias lists.
+
+        The alias_dict structure follows the TOML format:
+        - Keys are reference names used in code (e.g., "dark", "flat", "bias", "fits", "SiiOiii", "HaOiii")
+        - Values are lists of aliases where the FIRST item is the canonical/preferred name
+        - The dictionary key may or may not match the canonical name
+
+        Example from TOML:
+            [aliases]
+            dark = ["dark", "darks"]           # key "dark" -> canonical "dark"
+            flat = ["flat", "flats"]           # key "flat" -> canonical "flat"
+            SiiOiii = ["SiiOiii", "SII-OIII", "S2-O3"]  # key "SiiOiii" -> canonical "SiiOiii"
+        """
+        self.alias_dict = alias_dict
+        self.reverse_dict = {}
+
+        # Build reverse lookup: any alias variant maps to canonical name
+        for _key, aliases in alias_dict.items():
+            if not aliases:
+                continue
+            # The first item in the list is ALWAYS the canonical/preferred form
+            canonical = aliases[0]
+            for alias in aliases:
+                # Map each alias (case-insensitive) to the canonical form (first in list)
+                self.reverse_dict[alias.lower()] = canonical
+
+    def get(self, name: str) -> list[str] | None:
+        """Get the list of aliases for a given key name.
+
+        Args:
+            name: The key name to look up (as used in code/TOML)
+
+        Returns:
+            List of all aliases for this key, or None if not found.
+            The first item in the returned list is the canonical form.
+        """
+        return self.alias_dict.get(name)
+
+    def normalize(self, name: str) -> str | None:
+        """Normalize a name to its canonical form using aliases.
+
+        This performs case-insensitive matching to find the canonical form.
+        The canonical form is the first item in the alias list from the TOML.
+
+        Args:
+            name: The name to normalize (e.g., "darks", "FLAT", "HA-OIII")
+
+        Returns:
+            The canonical/preferred form (e.g., "dark", "flat", "HaOiii"), or None if not found
+
+        Examples:
+            normalize("darks") -> "dark"
+            normalize("FLAT") -> "flat"
+            normalize("HA-OIII") -> "HaOiii"
+        """
+        return self.reverse_dict.get(name.lower(), None)

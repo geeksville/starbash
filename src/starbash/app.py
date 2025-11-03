@@ -1,3 +1,4 @@
+import cmd
 import logging
 from importlib import resources
 import os
@@ -138,12 +139,29 @@ class Starbash:
         logging.info("Starbash starting...")
 
         # Load app defaults and initialize the repository manager
+        self._init_repos()
+        self._init_analytics(cmd)
+        self._init_aliases()
+
+        logging.info(
+            f"Repo manager initialized with {len(self.repo_manager.repos)} repos."
+        )
+        # self.repo_manager.dump()
+
+        self._db = None  # Lazy initialization - only create when accessed
+
+        # Initialize selection state (stored in user config repo)
+        self.selection = Selection(self.user_repo)
+
+    def _init_repos(self) -> None:
+        """Initialize all repositories managed by the RepoManager."""
         self.repo_manager = RepoManager()
         self.repo_manager.add_repo("pkg://defaults")
 
         # Add user prefs as a repo
         self.user_repo = self.repo_manager.add_repo("file://" + str(create_user()))
 
+    def _init_analytics(self, cmd: str) -> None:
         self.analytics = NopAnalytics()
         if self.user_repo.get("analytics.enabled", True):
             include_user = self.user_repo.get("analytics.include_user", False)
@@ -157,19 +175,8 @@ class Starbash:
             self.analytics = analytics_start_transaction(name="App session", op=cmd)
             self.analytics.__enter__()
 
-        logging.info(
-            f"Repo manager initialized with {len(self.repo_manager.repos)} repos."
-        )
-        # self.repo_manager.dump()
-
-        self._db = None  # Lazy initialization - only create when accessed
-        self.session_query = None  # None means search all sessions
-
-        # Initialize selection state (stored in user config repo)
-        self.selection = Selection(self.user_repo)
-
-        # FIXME, call reindex somewhere and also index whenever new repos are added
-        # self.reindex_repos()
+    def _init_aliases(self) -> None:
+        self.aliases = Aliases
 
     @property
     def db(self) -> Database:
