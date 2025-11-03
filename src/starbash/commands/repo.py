@@ -134,7 +134,6 @@ def add(
             # we don't yet always write default config files at roots of repos, but it would be easy to add here
             # r.write_config()
             sb.user_repo.write_config()
-            # FIXME, we also need to index the newly added repo!!!
 
 
 def repo_url_to_repo(sb: Starbash, repo_url: str | None) -> Repo | None:
