@@ -10,3 +10,5 @@ sb repo add ./images/from_asiair
 sb repo add ./images/from_seestar
 sb repo add ./images/from_astroboy
 sb repo add --master ./images/masters
+sb info
+

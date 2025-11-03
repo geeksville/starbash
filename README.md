@@ -1,4 +1,4 @@
-# Starbash
+# [Starbash](https://github.com/geeksville/starbash)
 
 <img src="https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/img/icon.png" alt="Starbash: Astrophotography workflows simplified" width="30%" align="right" style="margin-bottom: 20px;">
 
