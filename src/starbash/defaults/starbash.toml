@@ -17,7 +17,7 @@ bias = ["bias", "biases"]
 fits = ["fits", "fit"]
 
 # filter names
-SiiOiii = ["SiiOiii"]
+SiiOiii = ["SiiOiii", "S2O3"]
 HaOiii = ["HaOiii", "HaO3"]
 
 None = ["None"]
