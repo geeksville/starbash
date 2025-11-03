@@ -1,9 +1,20 @@
+import string
+
+
+_translator = str.maketrans("", "", string.punctuation + string.whitespace)
+
+
 def pre_normalize(name: str) -> str:
-    """Pre-normalize a name by removing spaces, hyphens, and underscores, and converting to lowercase.
+    """Pre-normalize a name by removing all whitespace and punctuation, and converting to lowercase.
 
     Args:
-        name: The name to pre-normalize."""
-    return name.lower().replace(" ", "").replace("-", "").replace("_", "")
+        name: The name to pre-normalize.
+
+    Returns:
+        Normalized string with only alphanumeric characters in lowercase.
+    """
+    # Create translation table that removes all punctuation and whitespace
+    return name.lower().translate(_translator)
 
 
 class Aliases:
