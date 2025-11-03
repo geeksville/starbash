@@ -466,6 +466,7 @@ class TestToolRun:
             capture_output=True,
             text=True,
             cwd="/tmp",
+            timeout=None,
         )
 
     @patch("starbash.tool.subprocess.run")

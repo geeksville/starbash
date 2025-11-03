@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, NamedTuple
 from datetime import datetime, timedelta
 import json
 from typing import TypeAlias
@@ -11,6 +11,20 @@ from .paths import get_user_data_dir
 
 SessionRow: TypeAlias = dict[str, Any]
 ImageRow: TypeAlias = dict[str, Any]
+
+
+class SearchCondition(NamedTuple):
+    """A search condition for database queries.
+
+    Args:
+        column_name: The column name to filter on (e.g., 'i.date_obs', 'r.url')
+        comparison_op: The comparison operator (e.g., '=', '>=', '<=', 'LIKE')
+        value: The value to compare against
+    """
+
+    column_name: str
+    comparison_op: str
+    value: Any
 
 
 def get_column_name(k: str) -> str:
@@ -343,46 +357,32 @@ class Database:
             return result[0]
         return cursor.lastrowid if cursor.lastrowid is not None else 0
 
-    def search_image(self, conditions: dict[str, Any]) -> list[SessionRow]:
+    def search_image(self, conditions: list[SearchCondition]) -> list[SessionRow]:
         """Search for images matching the given conditions.
 
         Args:
-            conditions: Dictionary of metadata key-value pairs to match.
-                       Special keys:
-                       - 'date_start': Filter images with DATE-OBS >= this date
-                       - 'date_end': Filter images with DATE-OBS <= this date
-                       - 'repo_url': Filter images by repository URL
-                       - 'IMAGETYP': Filter images by image type (uses indexed column)
+            conditions: List of SearchCondition tuples, each containing:
+                       - column_name: The column to filter on (e.g., 'i.date_obs', 'r.url', 'i.imagetyp')
+                       - comparison_op: The comparison operator (e.g., '=', '>=', '<=')
+                       - value: The value to compare against
 
         Returns:
             List of matching image records with relative path, repo_id, and repo_url
-        """
-        # Extract special filter keys (make a copy to avoid modifying caller's dict)
-        conditions_copy = dict(conditions)
-        date_start = conditions_copy.pop("date_start", None)
-        date_end = conditions_copy.pop("date_end", None)
-        repo_url = conditions_copy.pop(Database.REPO_URL_KEY, None)
-        imagetyp = conditions_copy.pop(Database.IMAGETYP_KEY, None)
 
-        # Build SQL query with WHERE clauses for indexed column filtering
+        Example:
+            conditions = [
+                SearchCondition('r.url', '=', 'file:///path/to/repo'),
+                SearchCondition('i.imagetyp', '=', 'BIAS'),
+                SearchCondition('i.date_obs', '>=', '2025-01-01'),
+            ]
+        """
+        # Build SQL query with WHERE clauses from conditions
         where_clauses = []
         params = []
 
-        if date_start:
-            where_clauses.append("i.date_obs >= ?")
-            params.append(date_start)
-
-        if date_end:
-            where_clauses.append("i.date_obs <= ?")
-            params.append(date_end)
-
-        if repo_url:
-            where_clauses.append("r.url = ?")
-            params.append(repo_url)
-
-        if imagetyp:
-            where_clauses.append("i.imagetyp = ?")
-            params.append(imagetyp)
+        for condition in conditions:
+            where_clauses.append(f"{condition.column_name} {condition.comparison_op} ?")
+            params.append(condition.value)
 
         # Build the query with JOIN to repos table
         query = f"""
@@ -413,11 +413,7 @@ class Database:
             if row["imagetyp"]:
                 metadata[self.IMAGETYP_KEY] = row["imagetyp"]
 
-            # Check if remaining conditions match (those stored in JSON metadata)
-            match = all(metadata.get(k) == v for k, v in conditions_copy.items())
-
-            if match:
-                results.append(metadata)
+            results.append(metadata)
 
         return results
 

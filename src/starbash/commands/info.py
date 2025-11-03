@@ -95,9 +95,11 @@ def master(
             return
 
         # Search for images in the master repo only
-        search_conditions = {Database.REPO_URL_KEY: master_repo.url}
+        from starbash.database import SearchCondition
+
+        search_conditions = [SearchCondition("r.url", "=", master_repo.url)]
         if kind:
-            search_conditions[Database.IMAGETYP_KEY] = kind
+            search_conditions.append(SearchCondition("i.imagetyp", "=", kind))
 
         images = sb.db.search_image(search_conditions)
 

@@ -390,8 +390,14 @@ class Starbash:
         """
         Get the reference ImageRow for a session with absolute path.
         """
+        from starbash.database import SearchCondition
+
         images = self.db.search_image(
-            {Database.ID_KEY: session[get_column_name(Database.IMAGE_DOC_KEY)]}
+            [
+                SearchCondition(
+                    "i.id", "=", session[get_column_name(Database.IMAGE_DOC_KEY)]
+                )
+            ]
         )
         assert (
             len(images) == 1
@@ -416,20 +422,45 @@ class Starbash:
         Raises:
             ValueError: If session_id is not found in the database
         """
-        # Query images that match ALL session criteria including date range
-        conditions = {
-            Database.FILTER_KEY: session[get_column_name(Database.FILTER_KEY)],
-            Database.IMAGETYP_KEY: session[get_column_name(Database.IMAGETYP_KEY)],
-            Database.OBJECT_KEY: session[get_column_name(Database.OBJECT_KEY)],
-            Database.TELESCOP_KEY: session[get_column_name(Database.TELESCOP_KEY)],
-            "date_start": session[get_column_name(Database.START_KEY)],
-            "date_end": session[get_column_name(Database.END_KEY)],
-        }
+        from starbash.database import SearchCondition
 
-        # Single query with all conditions
+        # Query images that match ALL session criteria including date range
+        # Note: We need to search JSON metadata for FILTER, IMAGETYP, OBJECT, TELESCOP
+        # since they're not indexed columns in the images table
+        conditions = [
+            SearchCondition(
+                "i.date_obs", ">=", session[get_column_name(Database.START_KEY)]
+            ),
+            SearchCondition(
+                "i.date_obs", "<=", session[get_column_name(Database.END_KEY)]
+            ),
+        ]
+
+        # Single query with indexed date conditions
         images = self.db.search_image(conditions)
+
+        # Filter by metadata fields (FILTER, OBJECT, TELESCOP) stored in JSON
+        # IMAGETYP is indexed, but we still need to filter by other fields
+        filtered_images = []
+        for img in images:
+            if (
+                img.get(Database.FILTER_KEY)
+                == session[get_column_name(Database.FILTER_KEY)]
+                and img.get(Database.IMAGETYP_KEY)
+                == session[get_column_name(Database.IMAGETYP_KEY)]
+                and img.get(Database.OBJECT_KEY)
+                == session[get_column_name(Database.OBJECT_KEY)]
+                and img.get(Database.TELESCOP_KEY)
+                == session[get_column_name(Database.TELESCOP_KEY)]
+            ):
+                filtered_images.append(img)
+
         # Reconstruct absolute paths for all images
-        return [self._reconstruct_image_path(img) for img in images] if images else []
+        return (
+            [self._reconstruct_image_path(img) for img in filtered_images]
+            if filtered_images
+            else []
+        )
 
     def remove_repo_ref(self, url: str) -> None:
         """
