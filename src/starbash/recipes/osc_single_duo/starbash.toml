@@ -23,7 +23,7 @@ disabled = true # FIXME, we don't yet have auto selection based on filter types
 auto.for-filter = ["HaOiii"]
 auto.for-camera = ["OSC"]
 
-tool = "siril"
+tool.name = "siril"
 when = "session-light" # run once per session-config
 output = "FIXME"
 
@@ -45,7 +45,7 @@ temporaries = ["FIXME"]
 
 disabled = true # FIXME, we don't yet have auto selection based on filter types
 
-tool = "python"
+tool.name = "python"
 when = "session-stack" # run once after all session/session-config processing was done
 
 script-file = "script.py"

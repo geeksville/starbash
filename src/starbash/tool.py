@@ -161,12 +161,20 @@ def strip_comments(text: str) -> str:
     return "\n".join(lines)
 
 
-def tool_run(cmd: str, cwd: str, commands: str | None = None) -> None:
+def tool_run(
+    cmd: str, cwd: str, commands: str | None = None, timeout: float | None = None
+) -> None:
     """Executes an external tool with an optional script of commands in a given working directory."""
 
     logger.debug(f"Running {cmd} in {cwd}: stdin={commands}")
     result = subprocess.run(
-        cmd, input=commands, shell=True, capture_output=True, text=True, cwd=cwd
+        cmd,
+        input=commands,
+        shell=True,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+        timeout=timeout,
     )
 
     if result.stderr:
@@ -199,6 +207,12 @@ class Tool:
 
         # default script file name
         self.default_script_file = None
+        self.set_defaults()
+
+    def set_defaults(self):
+        # default timeout in seconds, if you need to run a tool longer than this, you should change
+        # it before calling run()
+        self.timeout = 10.0
 
     def run_in_temp_dir(self, commands: str, context: dict = {}) -> None:
         """Run commands inside this tool (with cwd pointing to a temp directory)"""
@@ -268,7 +282,7 @@ class SirilTool(Tool):
         # It seems like the -d command may also be required when siril is in a flatpak
         cmd = f"{siril_path} -d {temp_dir} -s -"
 
-        tool_run(cmd, temp_dir, script_content)
+        tool_run(cmd, temp_dir, script_content, timeout=self.timeout)
 
 
 class GraxpertTool(Tool):
@@ -283,7 +297,7 @@ class GraxpertTool(Tool):
         # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
         cmd = f"graxpert {commands}"
 
-        tool_run(cmd, cwd)
+        tool_run(cmd, cwd, timeout=self.timeout)
 
 
 class PythonTool(Tool):

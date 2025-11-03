@@ -16,7 +16,8 @@ disabled = true # FIXME, debugging later stuff
 # For any camera
 auto.for-camera = []
 
-tool = "siril"
+tool.name = "siril"
+
 # input.source = "session" # or auto? prefer ones in session otherwise find by in masters
 input.type = "flat" # look in _session_ directories, but look only for flat files
 

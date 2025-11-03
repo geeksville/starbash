@@ -787,17 +787,29 @@ class Starbash:
 
         logging.info(f"Running stage: {stage_desc}")
 
-        tool_name = stage.get("tool")
-        if not tool_name:
+        tool_dict = stage.get("tool")
+        if not tool_dict:
             raise ValueError(
                 f"Stage '{stage.get('name')}' is missing a 'tool' definition."
             )
-        tool: Tool | None = tools.get(tool_name)
+        tool_name = tool_dict.get("name")
+        if not tool_name:
+            raise ValueError(
+                f"Stage '{stage.get('name')}' is missing a 'tool.name' definition."
+            )
+        tool = tools.get(tool_name)
         if not tool:
             raise ValueError(
                 f"Tool '{tool_name}' for stage '{stage.get('name')}' not found."
             )
         logging.debug(f"  Using tool: {tool_name}")
+        tool.set_defaults()
+
+        # Allow stage to override tool timeout if specified
+        tool_timeout = tool_dict.get("timeout")
+        if tool_timeout is not None:
+            tool.timeout = float(tool_timeout)
+            logging.debug(f"Using tool timeout: {tool.timeout} seconds")
 
         script_filename = stage.get("script-file", tool.default_script_file)
         if script_filename:

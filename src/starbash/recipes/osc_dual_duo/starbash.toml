@@ -30,7 +30,8 @@ auto.for-filter = ["SiiOiii"]
 # auto.for-filter = ["HaOiii"]
 auto.for-camera = ["OSC"]
 
-tool = "siril"
+tool.name = "siril"
+
 when = "session-light" # run once per session-config
 output = "FIXME"
 
@@ -74,7 +75,8 @@ description = "Stack OSC dual duo filter data, with separate Ha, Oiii and Sii ch
 context.target = "M 27" # FIXME
 context.targets = "/workspaces/starbash/images/processed" # FIXME, do something smarter
 
-tool = "python"
+tool.name = "python"
+
 when = "session-stack" # run once after all session/session-config processing was done
 
 # if not specified starbash.py used

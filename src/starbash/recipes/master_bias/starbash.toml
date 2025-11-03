@@ -16,7 +16,8 @@ disabled = false # FIXME, debugging later stuff
 # For any camera
 auto.for-camera = []
 
-tool = "siril"
+tool.name = "siril"
+tool.timeout = 15.0 # allow up to 15 seconds before we timeout and kill tool
 
 # or auto?
 # find the most recent raw fits for the current instrument (as of the time of session start)
