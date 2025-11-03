@@ -9,4 +9,4 @@ sb user email "kevinh@geeksville.com"
 sb repo add ./images/from_asiair
 sb repo add ./images/from_seestar
 sb repo add ./images/from_astroboy
-sb repo add --master /tmp/repo/master
+sb repo add --master ./images/masters

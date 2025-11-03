@@ -11,13 +11,15 @@
 * [x] make the siril prep rule work
 * [x] make master repo add work
 * [x] make "session_to_master()" work - given a single session it will write masters/instrument/typ/foo-date-temp-bias.fits
-* [ ] clean up database abstraction and add repo table
+* [x] clean up database abstraction and add repo table
+* [ ] when a new master is generated add it to the images table
 * [ ] make 'regen all masters' work
 * [ ] store master info in the root toml file for masters
 * [ ] make flat rule work
-* [ ] when reindexing/adding masters, put them in the session db as some sort of special entry
+* [x] when reindexing/adding masters, put them in the session db as some sort of special entry
 * [ ] make auto process work again for dual-duo single session workflows
 * [ ] make siril prep smarter about best sets, include report in toml file, show options on log
+* [ ] I bet that masters are probably being included in the session images, don't include them when passing image files to tasks.
 * [ ] probably: instead of a list of repos we should keep repos in memory in a tree structure - which would allow walking up the tree to inherit/override entries.
 * [ ] add exposure length as another common element for a session
 * [ ] validate resolution and binning when looking for darks etc...
@@ -44,7 +46,7 @@
 * [ ] record # of repos, # of images, # of sessions, in analytics - to measure db sufficiency
 * [x] does repo glob even matter if we just throw everything in the db based on fits metadata?  do an experiment.  YES it does, use DB based on FITS for all operations (instead of globs)
 * [x] Add a db starbash.Database class, populated from repos.  Regen as needed.
-* [ ] change the info commands to use the current selection query (and include comparison to all in the output)
+* [x] change the info commands to use the current selection query (and include comparison to all in the output)
 * [ ] Possibly store the DB queries as the description for the sesssion inputs?
 * [ ] consider two different 'users' one who just wants to use the DB/repo stuff (doesn't need the auto processing) - for that user just let them do queries and build a 'process' directory for siril.  And the other user who wants our slick smart scripts to also do at least pre-processing.  In initial release just support the the query opts
 * [ ] add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)

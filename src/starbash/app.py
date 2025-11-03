@@ -267,9 +267,9 @@ class Starbash:
 
         """
         # Get reference image to access CCD-TEMP and DATE-OBS
-        ref_image = self.get_session_image(ref_session)
-        ref_temp = ref_image.get("CCD-TEMP", None)
-        ref_date_str = ref_image.get(Database.DATE_OBS_KEY)
+        metadata: dict = ref_session.get("metadata", {})
+        ref_temp = metadata.get("CCD-TEMP", None)
+        ref_date_str = metadata.get(Database.DATE_OBS_KEY)
 
         # Parse reference date for time delta calculations
         ref_date = None
@@ -302,7 +302,7 @@ class Starbash:
 
             # Get candidate image metadata to access CCD-TEMP and DATE-OBS
             try:
-                candidate_image = self.get_session_image(candidate)
+                candidate_image = candidate.get("metadata", {})
 
                 # Score by CCD-TEMP difference (most important)
                 # Lower temperature difference = better score
