@@ -1,3 +1,11 @@
+def pre_normalize(name: str) -> str:
+    """Pre-normalize a name by removing spaces, hyphens, and underscores, and converting to lowercase.
+
+    Args:
+        name: The name to pre-normalize."""
+    return name.lower().replace(" ", "").replace("-", "").replace("_", "")
+
+
 class Aliases:
     def __init__(self, alias_dict: dict[str, list[str]]):
         """Initialize the Aliases object with a dictionary mapping keys to their alias lists.
@@ -24,7 +32,8 @@ class Aliases:
             canonical = aliases[0]
             for alias in aliases:
                 # Map each alias (case-insensitive) to the canonical form (first in list)
-                self.reverse_dict[alias.lower()] = canonical
+                # Also remove spaces, hypens and underscores when matching for normalization
+                self.reverse_dict[pre_normalize(alias)] = canonical
 
     def get(self, name: str) -> list[str] | None:
         """Get the list of aliases for a given key name.
@@ -55,4 +64,4 @@ class Aliases:
             normalize("FLAT") -> "flat"
             normalize("HA-OIII") -> "HaOiii"
         """
-        return self.reverse_dict.get(name.lower(), None)
+        return self.reverse_dict.get(pre_normalize(name), None)

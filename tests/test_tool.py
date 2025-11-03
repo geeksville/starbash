@@ -14,8 +14,6 @@ from starbash.tool import (
     make_safe_globals,
     strip_comments,
     tool_run,
-    siril_run,
-    graxpert_run,
     Tool,
     PythonTool,
     SirilTool,
@@ -531,45 +529,6 @@ class TestToolRun:
         assert "Tool command successful" in caplog.text
 
 
-class TestSirilRun:
-    """Tests for siril_run function."""
-
-    def test_siril_run_with_empty_script(self):
-        """Test that siril_run can execute Siril with empty script."""
-
-        # Skip test if Siril is not available
-        siril_commands = ["org.siril.Siril", "siril-cli", "siril"]
-        siril_available = any(shutil.which(cmd) for cmd in siril_commands)
-        if not siril_available:
-            pytest.skip("Siril not available on this system")
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Just run with empty script to verify Siril executes
-            siril_run(temp_dir, "", [])
-
-
-class TestGraxpertRun:
-    """Tests for graxpert_run function."""
-
-    def test_graxpert_run_with_help(self):
-        """Test that graxpert_run can execute GraXpert."""
-
-        # Skip test if GraXpert is not available
-        if not shutil.which("graxpert"):
-            pytest.skip("GraXpert not available on this system")
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Just run --help to verify GraXpert executes
-            # Note: --help may exit with non-zero in some versions
-            try:
-                graxpert_run(temp_dir, "--help")
-            except RuntimeError as e:
-                # Allow --help to fail (argparse behavior varies)
-                # Just verify the tool was found
-                if "not found" in str(e).lower():
-                    pytest.fail("GraXpert command not found")
-
-
 class TestSirilToolRun:
     """Tests for SirilTool.run method."""
 
@@ -592,6 +551,7 @@ class TestSirilToolRun:
 class TestGraxpertToolRun:
     """Tests for GraxpertTool.run method."""
 
+    @pytest.mark.slow
     def test_graxpert_tool_run_with_help(self):
         """Test that GraxpertTool.run can execute GraXpert."""
 

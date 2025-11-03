@@ -191,55 +191,6 @@ def executable_path(commands: list[str], name: str) -> str:
     raise FileNotFoundError(f"{name} not found, you probably need to install it.")
 
 
-def siril_run(temp_dir: str, commands: str, input_files: list[str] = []) -> None:
-    """Executes Siril with a script of commands in a given working directory."""
-
-    # siril_path = "/home/kevinh/packages/Siril-1.4.0~beta3-x86_64.AppImage"
-    # Possible siril commands, with preferred option first
-    siril_commands = ["org.siril.Siril", "siril-cli", "siril"]
-    siril_path = executable_path(siril_commands, "Siril")
-    if siril_path == "org.siril.Siril":
-        # The executable is inside a flatpak, so run the lighter/faster/no-gui required exe
-        # from inside the flatpak
-        siril_path = "flatpak run --command=siril-cli org.siril.Siril"
-
-    # Create symbolic links for all input files in the temp directory
-    for f in input_files:
-        os.symlink(
-            os.path.abspath(str(f)), os.path.join(temp_dir, os.path.basename(str(f)))
-        )
-
-    # We dedent here because the commands are often indented multiline strings
-    script_content = textwrap.dedent(
-        f"""
-        requires 1.4.0-beta3
-        {textwrap.dedent(strip_comments(commands))}
-        """
-    )
-
-    logger.info(
-        f"Running Siril in {temp_dir}, ({len(input_files)} input files) cmds:\n{script_content}"
-    )
-
-    # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
-    # It seems like the -d command may also be required when siril is in a flatpak
-    cmd = f"{siril_path} -d {temp_dir} -s -"
-
-    tool_run(cmd, temp_dir, script_content)
-
-
-def graxpert_run(cwd: str, arguments: str) -> None:
-    """Executes Graxpert with the specified command line arguments"""
-
-    graxpert_commands = ["graxpert"]
-    graxpert_path = executable_path(graxpert_commands, "Graxpert")
-
-    # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
-    cmd = f"{graxpert_path} {arguments}"
-
-    tool_run(cmd, cwd)
-
-
 class Tool:
     """A tool for stage execution"""
 
@@ -275,6 +226,7 @@ class SirilTool(Tool):
         super().__init__("siril")
 
     def run(self, cwd: str, commands: str, context: dict = {}) -> None:
+        """Executes Siril with a script of commands in a given working directory."""
 
         # Iteratively expand the command string to handle nested placeholders.
         # The loop continues until the string no longer changes.
@@ -282,7 +234,41 @@ class SirilTool(Tool):
 
         input_files = context.get("input_files", [])
 
-        siril_run(cwd, expanded, input_files)
+        temp_dir = cwd
+
+        # siril_path = "/home/kevinh/packages/Siril-1.4.0~beta3-x86_64.AppImage"
+        # Possible siril commands, with preferred option first
+        siril_commands = ["org.siril.Siril", "siril-cli", "siril"]
+        siril_path = executable_path(siril_commands, "Siril")
+        if siril_path == "org.siril.Siril":
+            # The executable is inside a flatpak, so run the lighter/faster/no-gui required exe
+            # from inside the flatpak
+            siril_path = "flatpak run --command=siril-cli org.siril.Siril"
+
+        # Create symbolic links for all input files in the temp directory
+        for f in input_files:
+            os.symlink(
+                os.path.abspath(str(f)),
+                os.path.join(temp_dir, os.path.basename(str(f))),
+            )
+
+        # We dedent here because the commands are often indented multiline strings
+        script_content = textwrap.dedent(
+            f"""
+            requires 1.4.0-beta3
+            {textwrap.dedent(strip_comments(expanded))}
+            """
+        )
+
+        logger.info(
+            f"Running Siril in {temp_dir}, ({len(input_files)} input files) cmds:\n{script_content}"
+        )
+
+        # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
+        # It seems like the -d command may also be required when siril is in a flatpak
+        cmd = f"{siril_path} -d {temp_dir} -s -"
+
+        tool_run(cmd, temp_dir, script_content)
 
 
 class GraxpertTool(Tool):
@@ -292,7 +278,12 @@ class GraxpertTool(Tool):
         super().__init__("graxpert")
 
     def run(self, cwd: str, commands: str, context: dict = {}) -> None:
-        graxpert_run(cwd, commands)
+        """Executes Graxpert with the specified command line arguments"""
+
+        # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
+        cmd = f"graxpert {commands}"
+
+        tool_run(cmd, cwd)
 
 
 class PythonTool(Tool):

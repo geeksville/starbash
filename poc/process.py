@@ -101,15 +101,6 @@ def siril_run(cwd: str, commands: str) -> None:
     tool_run(cmd, cwd, script_content)
 
 
-def graxpert_run(cwd: str, arguments: str) -> None:
-    """Executes Graxpert with the specified command line arguments"""
-
-    # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
-    cmd = f"graxpert {arguments}"
-
-    tool_run(cmd, cwd)
-
-
 def siril_run_in_temp_dir(input_files: list[str], commands: str) -> None:
     # Create a temporary directory for processing
     temp_dir = tempfile.mkdtemp(prefix="siril_")

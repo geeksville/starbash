@@ -20,6 +20,7 @@ import copy
 
 import starbash
 from starbash import console, _is_test_env, to_shortdate
+from starbash.aliases import Aliases
 from starbash.database import Database, SessionRow, ImageRow, get_column_name
 from repo import Repo, repo_suffix
 from starbash.toml import toml_from_template
@@ -176,7 +177,9 @@ class Starbash:
             self.analytics.__enter__()
 
     def _init_aliases(self) -> None:
-        self.aliases = Aliases
+        alias_dict = self.repo_manager.get("aliases", {})
+        assert isinstance(alias_dict, dict), "Aliases config must be a dictionary"
+        self.aliases = Aliases(alias_dict)
 
     @property
     def db(self) -> Database:

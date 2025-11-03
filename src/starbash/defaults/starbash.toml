@@ -17,8 +17,25 @@ bias = ["bias", "biases"]
 fits = ["fits", "fit"]
 
 # filter names
-SiiOiii = ["SiiOiii", "SII-OIII", "S2-O3"]
-HaOiii = ["HaOiii", "HA-OIII", "Halpha-O3"]
+SiiOiii = ["SiiOiii"]
+HaOiii = ["HaOiii", "HaO3"]
+
+None = ["None"]
+
+# Passes SII 672.4nm and H-Beta 486.1nm lines
+# Capturing of the two main emission wavebands in the deep red and blue at the same time
+#
+# The ALP-T dual band 3.5nm SII&Hb filter is a dual narrowband filter, which lets the deep
+# red Sulfur-II 672.4nm and the blue Hydrogen-Beta 486.1nm lines through and is primarily
+# engineered for color cameras to assist astrophotographers taking deep sky images with
+# superior SNR(Signal to Noise Ratio). With an FWHM halfbandwidth designed at 3.5nm and
+# achieving an optical density (OD) of 4.5 on unwanted wavelengths, it works strongly in
+# blocking light pollution, moonlight, and airglow, leding to enhanced contrast in nebulae
+# images by effectively passing the SII and H-beta emission lines signal only.
+#
+# http://www.antliafilter.com/pd.jsp?fromColId=2&id=160#_pp=2_671
+SiiHb = ["SiiHb", "S2Hb"]
+
 
 # FIXME, somewhere here list default patterns which can be used to identify NINA, ASIAIR, SEESTAR
 # raw repo layouts
