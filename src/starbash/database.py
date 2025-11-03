@@ -69,6 +69,7 @@ class Database:
     OBJECT_KEY = "OBJECT"
     TELESCOP_KEY = "TELESCOP"
     ID_KEY = "id"  # for finding any row by its ID
+    REPO_URL_KEY = "repo_url"
 
     SESSIONS_TABLE = "sessions"
     IMAGES_TABLE = "images"
@@ -349,7 +350,7 @@ class Database:
         conditions_copy = dict(conditions)
         date_start = conditions_copy.pop("date_start", None)
         date_end = conditions_copy.pop("date_end", None)
-        repo_url = conditions_copy.pop("repo_url", None)
+        repo_url = conditions_copy.pop(Database.REPO_URL_KEY, None)
 
         # Build SQL query with WHERE clauses for date filtering
         where_clauses = []
@@ -385,7 +386,7 @@ class Database:
             # Store the relative path, repo_id, and repo_url for caller
             metadata["path"] = row["path"]
             metadata["repo_id"] = row["repo_id"]
-            metadata["repo_url"] = row["repo_url"]
+            metadata[Database.REPO_URL_KEY] = row[Database.REPO_URL_KEY]
             metadata["id"] = row["id"]
 
             # Add date fields back to metadata for compatibility
@@ -494,7 +495,7 @@ class Database:
         metadata = json.loads(row["metadata"])
         metadata["path"] = row["path"]
         metadata["repo_id"] = row["repo_id"]
-        metadata["repo_url"] = row["repo_url"]
+        metadata[Database.REPO_URL_KEY] = row[Database.REPO_URL_KEY]
         metadata["id"] = row["id"]
 
         # Add date fields back to metadata for compatibility
@@ -522,7 +523,7 @@ class Database:
             # Return relative path, repo_id, and repo_url for caller
             metadata["path"] = row["path"]
             metadata["repo_id"] = row["repo_id"]
-            metadata["repo_url"] = row["repo_url"]
+            metadata[Database.REPO_URL_KEY] = row[Database.REPO_URL_KEY]
             metadata["id"] = row["id"]
 
             # Add date fields back to metadata for compatibility

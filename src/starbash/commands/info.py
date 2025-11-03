@@ -88,7 +88,7 @@ def master():
             return
 
         # Search for images in the master repo only
-        images = sb.db.search_image({"repo_url": master_repo.url})
+        images = sb.db.search_image({Database.REPO_URL_KEY: master_repo.url})
 
         if not images:
             console.print(

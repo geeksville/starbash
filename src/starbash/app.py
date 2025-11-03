@@ -375,7 +375,7 @@ class Starbash:
         Returns:
             Modified image record with 'path' as absolute path
         """
-        repo_url = image.get("repo_url")
+        repo_url = image.get(Database.REPO_URL_KEY)
         relative_path = image.get("path")
 
         if repo_url and relative_path:
