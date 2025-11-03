@@ -14,7 +14,7 @@
 * [x] clean up database abstraction and add repo table
 * [ ] when a new master is generated add it to the images table
 * [ ] make 'regen all masters' work
-* [ ] store master info in the root toml file for masters
+* [ ] eventually store master info in the root toml file for masters
 * [ ] make flat rule work
 * [x] when reindexing/adding masters, put them in the session db as some sort of special entry
 * [ ] make auto process work again for dual-duo single session workflows
@@ -42,7 +42,7 @@
 * [ ] add automated session looping (multiday)
 * [ ] pass stage outputs via the context?
 * [ ] generalize the various session selectors to make them just come from an array of column names (should allow removing the select telescope, select foo variants)
-* [ ] add the concept of filter aliases
+* [x] add the concept of filter aliases
 * [ ] record # of repos, # of images, # of sessions, in analytics - to measure db sufficiency
 * [x] does repo glob even matter if we just throw everything in the db based on fits metadata?  do an experiment.  YES it does, use DB based on FITS for all operations (instead of globs)
 * [x] Add a db starbash.Database class, populated from repos.  Regen as needed.
