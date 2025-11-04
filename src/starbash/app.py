@@ -727,7 +727,7 @@ class Starbash:
 
         # Update the context with runtime values.
         runtime_context = {
-            "masters": "/workspaces/starbash/images/masters",  # FIXME find this the correct way
+            # "masters": "/workspaces/starbash/images/masters",  # FIXME find this the correct way
         }
         self.context.update(runtime_context)
 
@@ -738,6 +738,7 @@ class Starbash:
         * imagetyp - the imagetyp of the session
         * session - the current session row (joined with a typical image) (can be used to
         find things like telescope, temperature ...)
+        * session_config - a short human readable description of the session - suitable for logs or filenames
         """
         # it is okay to give them the actual session row, because we're never using it again
         self.context["session"] = session
@@ -749,6 +750,16 @@ class Starbash:
         imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
         if imagetyp:
             self.context["imagetyp"] = imagetyp
+
+            # add a short human readable description of the session - suitable for logs or in filenames
+            session_config = f"{imagetyp}"
+
+            metadata = session.get("metadata", {})
+            filter = metadata.get(Database.FILTER_KEY)
+            if (imagetyp == "flat" or imagetyp == "light") and filter:
+                # we only care about filters in these cases
+                session_config += f"_{filter}"
+            self.context["session_config"] = session_config
 
         date = session.get(get_column_name(Database.START_KEY))
         if date:

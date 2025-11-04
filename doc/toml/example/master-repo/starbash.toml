@@ -10,4 +10,4 @@
 [repo]
 kind = "master"
 
-relative = "{instrument}/{date}/{imagetyp}/{sessionconfig}.fits"
+relative = "{instrument}/{date}/{imagetyp}/{session_config}.fits"

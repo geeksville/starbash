@@ -115,7 +115,7 @@ def add(
                     overrides={
                         "REPO_TYPE": repo_type,
                         "REPO_PATH": str(p),
-                        "DEFAULT_RELATIVE": "{instrument}/{date}/{imagetyp}/master_{imagetyp}.fit",
+                        "DEFAULT_RELATIVE": "{instrument}/{date}/{imagetyp}/master_{session_config}.fit",
                     },
                 )
             else:

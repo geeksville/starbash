@@ -13,7 +13,7 @@
 * [x] make "session_to_master()" work - given a single session it will write masters/instrument/typ/foo-date-temp-bias.fits
 * [x] clean up database abstraction and add repo table
 * [x] auto provide bias frame to flat generation
-* [ ] make flat generation properly use sessionconfig for filter name
+* [ ] make flat generation properly use session_config for filter name
 * [ ] when a new master is generated add it to the images table
 * [ ] make 'regen all masters' work
 * [ ] eventually store master info in the root toml file for masters
