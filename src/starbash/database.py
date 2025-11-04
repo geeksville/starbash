@@ -423,10 +423,7 @@ class Database:
         """Search for sessions matching the given conditions.
 
         Args:
-            conditions: Dictionary of session key-value pairs to match, or None for all.
-                       Special keys:
-                       - 'date_start': Filter sessions starting on or after this date
-                       - 'date_end': Filter sessions starting on or before this date
+            where_tuple
 
         Returns:
             List of matching session records with metadata from the reference image

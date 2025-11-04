@@ -18,6 +18,7 @@
 * [ ] make 'regen all masters' work
 * [ ] eventually store master info in the root toml file for masters
 * [ ] gracefully handle UnrecognizedAliasError and ask user if they want to add it...
+* [ ] make score_candidates() highly prefer frames that are in the past
 * [x] make flat rule work
 * [ ] use normalized names when searching for filters or master or light frames
 * [x] when reindexing/adding masters, put them in the session db as some sort of special entry

@@ -294,12 +294,39 @@ class Starbash:
                 get_column_name(Database.FILTER_KEY)
             ]
 
+        # Search for candidate sessions
+        candidates = self.db.search_session(where_tuple(conditions))
+
+        return self.score_candidates(candidates, ref_session)
+
+    def score_candidates(
+        self, candidates: list[dict[str, Any]], ref_session: SessionRow
+    ) -> list[SessionRow]:
+        """Given a list of images or sessions, try to rank that list by desirability.
+
+        Return a list of possible images/sessions which would be acceptable.  The more desirable
+        matches are first in the list.  Possibly in the future I might have a 'score' and reason
+        given for each ranking.
+
+        The following critera MUST match to be acceptable:
+        * matches requested imagetyp.
+        * same filter as reference session (in the case want_type==FLAT only)
+        * same telescope as reference session
+
+        Quality is determined by (most important first):
+        * temperature of CCD-TEMP is closer to the reference session
+        * smaller DATE-OBS delta to the reference session
+
+        Eventually the code will check the following for 'nice to have' (but not now):
+        * TBD
+
+        Possibly eventually this code could be moved into recipes.
+
+        """
+
         metadata: dict = ref_session.get("metadata", {})
         ref_temp = metadata.get("CCD-TEMP", None)
         ref_date_str = metadata.get(Database.DATE_OBS_KEY)
-
-        # Search for candidate sessions
-        candidates = self.db.search_session(where_tuple(conditions))
 
         # Now score and sort the candidates
         scored_candidates = []
@@ -348,10 +375,10 @@ class Starbash:
                 )
                 continue
 
-        # Sort by score (highest first) and return just the sessions
+        # Sort by score (highest first)
         scored_candidates.sort(key=lambda x: x[0], reverse=True)
 
-        return [candidate for score, candidate in scored_candidates]
+        return [candidate for _, candidate in scored_candidates]
 
     def search_session(self) -> list[SessionRow]:
         """Search for sessions, optionally filtered by the current selection."""
@@ -777,6 +804,10 @@ class Starbash:
                 logging.warning(
                     f"Multiple ({len(masters)}) master frames of type '{master_type}' found, using first. FIXME."
                 )
+
+            # Try to rank the images by desirability
+            masters = self.score_candidates(masters, session)
+
             self._add_image_abspath(masters[0])  # make sure abspath is populated
             selected_master = masters[0]["abspath"]
             logging.info(f"For master '{master_type}', using: {selected_master}")
