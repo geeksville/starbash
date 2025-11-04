@@ -87,9 +87,10 @@
             "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
             "justMyCode": false,
             "args": [
-                "--debug",
                 "repo",
-                "reindex"
+                "reindex",
+                "--force",
+                "file:///workspaces/starbash/images/from_astroboy"
             ]
         },
         {

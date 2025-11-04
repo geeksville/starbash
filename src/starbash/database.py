@@ -182,9 +182,9 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 start TEXT NOT NULL,
                 end TEXT NOT NULL,
-                filter TEXT COLLATE NOCASE NOT NULL,
+                filter TEXT COLLATE NOCASE,
                 imagetyp TEXT COLLATE NOCASE NOT NULL,
-                object TEXT NOT NULL,
+                object TEXT,
                 telescop TEXT NOT NULL,
                 num_images INTEGER NOT NULL,
                 exptime_total REAL NOT NULL,
@@ -590,7 +590,6 @@ class Database:
         filter = to_find.get(Database.FILTER_KEY)
         assert filter
         target = to_find.get(Database.OBJECT_KEY)
-        assert target
         telescop = to_find.get(Database.TELESCOP_KEY)
 
         # Convert the provided ISO8601 date string to a datetime, then
@@ -664,13 +663,13 @@ class Database:
                 (
                     new[Database.START_KEY],
                     new[Database.END_KEY],
-                    new[Database.FILTER_KEY],
+                    new.get(Database.FILTER_KEY),
                     new[Database.IMAGETYP_KEY],
-                    new[Database.OBJECT_KEY],
-                    new[Database.TELESCOP_KEY],
+                    new.get(Database.OBJECT_KEY),
+                    new.get(Database.TELESCOP_KEY),
                     new[Database.NUM_IMAGES_KEY],
                     new[Database.EXPTIME_TOTAL_KEY],
-                    new.get(Database.IMAGE_DOC_KEY),
+                    new[Database.IMAGE_DOC_KEY],
                 ),
             )
 

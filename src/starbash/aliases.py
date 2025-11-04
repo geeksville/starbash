@@ -85,3 +85,9 @@ class Aliases:
         if not result:
             raise UnrecognizedAliasError(f"'{name}' not found in aliases.")
         return result
+
+    def equals(self, name1: str, name2: str) -> bool:
+        """Check if two names are equivalent based on aliases."""
+        norm1 = self.normalize(name1.strip())
+        norm2 = self.normalize(name2.strip())
+        return norm1 == norm2

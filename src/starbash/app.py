@@ -124,14 +124,6 @@ def copy_images_to_dir(images: list[ImageRow], output_dir: Path) -> None:
         console.print(f"  [red]Errors: {error_count} files[/red]")
 
 
-def imagetyp_equals(imagetyp1: str, imagetyp2: str) -> bool:
-    """Imagetyps (BIAS, Dark, FLAT, flats) have a number of slightly different convetions.
-    Do a sloppy equality check.
-
-    Eventually handle non english variants by using the repos aliases table."""
-    return imagetyp1.strip().lower() == imagetyp2.strip().lower()
-
-
 class Starbash:
     """The main Starbash application class."""
 
@@ -603,6 +595,11 @@ class Starbash:
                     headers["path"] = str(relative_path)
                     image_doc_id = self.db.upsert_image(headers, repo.url)
 
+                    # debug_target = "masters-raw/2025-09-09/DARK"
+                    # if str(relative_path).startswith(debug_target):
+                    #    logging.error("Debugging %s...", f)
+                    #    found = False
+
                     if not found:
                         # Update the session infos, but ONLY on first file scan
                         # (otherwise invariants will get messed up)
@@ -611,7 +608,7 @@ class Starbash:
         except Exception as e:
             logging.warning("Failed to read FITS header for %s: %s", f, e)
 
-    def reindex_repo(self, repo: Repo, force: bool = False):
+    def reindex_repo(self, repo: Repo, force: bool = False, subdir: str | None = None):
         """Reindex all repositories managed by the RepoManager."""
 
         # make sure this new repo is listed in the repos table
@@ -621,6 +618,10 @@ class Starbash:
 
         if path and repo.is_scheme("file") and repo.kind != "recipe":
             logging.debug("Reindexing %s...", repo.url)
+
+            if subdir:
+                path = path / subdir
+                # used to debug
 
             # Find all FITS files under this repo path
             for f in track(
@@ -734,7 +735,7 @@ class Starbash:
                             raise ValueError(
                                 f"Task for step '{step_name}' missing required input.type"
                             )
-                        if imagetyp_equals(input_type, imagetyp):
+                        if self.aliases.equals(input_type, imagetyp):
                             logging.debug(
                                 f"Running {step_name} task for imagetyp '{imagetyp}'"
                             )
