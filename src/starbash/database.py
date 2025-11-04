@@ -587,10 +587,6 @@ class Database:
         assert date
         image_type = to_find.get(Database.IMAGETYP_KEY)
         assert image_type
-        filter = to_find.get(Database.FILTER_KEY)
-        assert filter
-        target = to_find.get(Database.OBJECT_KEY)
-        telescop = to_find.get(Database.TELESCOP_KEY)
 
         # Convert the provided ISO8601 date string to a datetime, then
         # search for sessions with the same filter whose start time is
@@ -602,17 +598,61 @@ class Database:
 
         # Since session 'start' is stored as ISO8601 strings, lexicographic
         # comparison aligns with chronological ordering for a uniform format.
+
+        # Build WHERE clause handling NULL values properly
+        # In SQL, you cannot use = with NULL, must use IS NULL
+        # If a field is not in to_find, we don't filter on it at all
+        where_clauses = []
+        params = []
+
+        # Handle imagetyp (required)
+        where_clauses.append("imagetyp = ?")
+        params.append(image_type)
+
+        # Handle filter (optional - only filter if present in to_find)
+        if Database.FILTER_KEY in to_find:
+            filter = to_find.get(Database.FILTER_KEY)  # filter can be None
+            if filter is None:
+                where_clauses.append("filter IS NULL")
+            else:
+                where_clauses.append("filter = ?")
+                params.append(filter)
+
+        # Handle object/target (optional - only filter if present in to_find)
+        if Database.OBJECT_KEY in to_find:
+            target = to_find.get(Database.OBJECT_KEY)
+            if target is None:
+                where_clauses.append("object IS NULL")
+            else:
+                where_clauses.append("object = ?")
+                params.append(target)
+
+        # Handle telescop (optional - only filter if present in to_find)
+        if Database.TELESCOP_KEY in to_find:
+            telescop = to_find.get(Database.TELESCOP_KEY)
+            if telescop is None:
+                where_clauses.append("telescop IS NULL")
+            else:
+                where_clauses.append("telescop = ?")
+                params.append(telescop)
+
+        # Time window
+        where_clauses.append("start >= ?")
+        where_clauses.append("start <= ?")
+        params.extend([start_min, start_max])
+
+        where_clause = " AND ".join(where_clauses)
+
         cursor = self._db.cursor()
         cursor.execute(
             f"""
             SELECT id, start, end, filter, imagetyp, object, telescop,
                    num_images, exptime_total, image_doc_id
             FROM {self.SESSIONS_TABLE}
-            WHERE filter = ? AND imagetyp = ? AND object = ? AND telescop = ?
-              AND start >= ? AND start <= ?
+            WHERE {where_clause}
             LIMIT 1
         """,
-            (filter, image_type, target, telescop, start_min, start_max),
+            params,
         )
 
         row = cursor.fetchone()
