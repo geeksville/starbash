@@ -620,7 +620,7 @@ class TestGetSessionImages:
             # Get images for this session
             images = app.get_session_images(session_id)
             assert len(images) == 1
-            assert images[0]["path"] == "/path/to/image.fit"
+            assert images[0]["abspath"] == "/path/to/image.fit"
 
     def test_get_session_images_invalid_session(
         self, setup_test_environment, mock_analytics

@@ -83,7 +83,7 @@ def copy_images_to_dir(images: list[ImageRow], output_dir: Path) -> None:
 
     for image in images:
         # Get the source path from the image metadata
-        source_path = Path(image.get("path", ""))
+        source_path = Path(image.get("abspath", ""))
 
         if not source_path.exists():
             console.print(f"[red]Warning: Source file not found: {source_path}[/red]")
@@ -366,14 +366,14 @@ class Starbash:
         conditions = self.selection.get_query_conditions()
         return self.db.search_session(conditions)
 
-    def _reconstruct_image_path(self, image: ImageRow) -> ImageRow:
+    def _add_image_abspath(self, image: ImageRow) -> ImageRow:
         """Reconstruct absolute path from image row containing repo_url and relative path.
 
         Args:
             image: Image record with 'repo_url' and 'path' (relative) fields
 
         Returns:
-            Modified image record with 'path' as absolute path
+            Modified image record with 'abspath' as absolute path
         """
         repo_url = image.get(Database.REPO_URL_KEY)
         relative_path = image.get("path")
@@ -382,7 +382,7 @@ class Starbash:
             repo = self.repo_manager.get_repo_by_url(repo_url)
             if repo:
                 absolute_path = repo.resolve_path(relative_path)
-                image["path"] = str(absolute_path)
+                image["abspath"] = str(absolute_path)
 
         return image
 
@@ -402,7 +402,7 @@ class Starbash:
         assert (
             len(images) == 1
         ), f"Expected exactly one reference for session, found {len(images)}"
-        return self._reconstruct_image_path(images[0])
+        return self._add_image_abspath(images[0])
 
     def get_master_images(
         self, imagetyp: str | None = None, reference_session: SessionRow | None = None
@@ -498,7 +498,7 @@ class Starbash:
 
         # Reconstruct absolute paths for all images
         return (
-            [self._reconstruct_image_path(img) for img in filtered_images]
+            [self._add_image_abspath(img) for img in filtered_images]
             if filtered_images
             else []
         )
@@ -728,20 +728,12 @@ class Starbash:
 
     def add_session_to_context(self, session: SessionRow) -> None:
         """adds to context from the indicated session:
-        * input_files - all of the files mentioned in the session
         * instrument - for the session
         * date - the localtimezone date of the session
         * imagetyp - the imagetyp of the session
         * session - the current session row (joined with a typical image) (can be used to
         find things like telescope, temperature ...)
         """
-        # Get images for this session
-        images = self.get_session_images(session)
-        logging.debug(f"Adding {len(images)} files as context.input_files")
-        self.context["input_files"] = [
-            img["path"] for img in images
-        ]  # Pass in the file list via the context dict
-
         # it is okay to give them the actual session row, because we're never using it again
         self.context["session"] = session
 
@@ -756,6 +748,34 @@ class Starbash:
         date = session.get(get_column_name(Database.START_KEY))
         if date:
             self.context["date"] = to_shortdate(date)
+
+    def add_input_masters(self, stage: dict) -> None:
+        """based on input.masters add the correct master frames as context.master.<type> filepaths"""
+        session = self.context.get("session")
+        assert session is not None, "context.session should have been already set"
+
+        input_config = stage.get("input", {})
+        master_types: list[str] = input_config.get("masters", [])
+        for master_type in master_types:
+            masters = self.get_master_images(
+                imagetyp=master_type, reference_session=session
+            )
+            if not masters:
+                raise RuntimeError(
+                    f"No master frames of type '{master_type}' found for stage '{stage.get('name')}'"
+                )
+
+            context_master = self.context.setdefault("master", {})
+
+            if len(masters) > 1:
+                logging.warning(
+                    f"Multiple ({len(masters)}) master frames of type '{master_type}' found, using first. FIXME."
+                )
+            self._add_image_abspath(masters[0])  # make sure abspath is populated
+            selected_master = masters[0]["abspath"]
+            logging.info(f"For master '{master_type}', using: {selected_master}")
+
+            context_master[master_type] = selected_master
 
     def add_input_files(self, stage: dict) -> None:
         """adds to context.input_files based on the stage input config"""
@@ -779,12 +799,17 @@ class Starbash:
                     input_files  # Pass in the file list via the context dict
                 )
             elif source == "repo":
-                # We expect that higher level code has already added the correct input files
-                # to the context
-                if not "input_files" in self.context:
-                    raise RuntimeError(
-                        "Input config specifies 'repo' but no 'input_files' found in context"
-                    )
+                # Get images for this session (by pulling from repo)
+                session = self.context.get("session")
+                assert (
+                    session is not None
+                ), "context.session should have been already set"
+
+                images = self.get_session_images(session)
+                logging.info(f"Using {len(images)} files as input_files")
+                self.context["input_files"] = [
+                    img["abspath"] for img in images
+                ]  # Pass in the file list via the context dict
             else:
                 raise ValueError(
                     f"Stage '{stage.get('name')}' has invalid 'input' source: {source}"
@@ -925,6 +950,7 @@ class Starbash:
         stage_context = stage.get("context", {})
         self.context.update(stage_context)
         self.add_input_files(stage)
+        self.add_input_masters(stage)
         self.add_output_path(stage)
 
         # if the output path already exists and is newer than all input files, skip processing

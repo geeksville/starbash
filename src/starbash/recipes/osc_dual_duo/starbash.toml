@@ -79,8 +79,7 @@ tool.name = "python"
 
 when = "session.stack" # run once after all session/session.config processing was done
 
-input.master.bias = true
-input.master.flat = true
+input.masters = ["bias", "flat"]
 
 # if not specified starbash.py used
 # script-file = "script.py"

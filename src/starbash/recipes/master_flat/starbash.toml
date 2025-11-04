@@ -29,7 +29,7 @@ input.required = true # Is at least one input file required?  If true, we will s
 
 # We require a master bias frame for this recipe.  By the time our recipe is invoked
 # context.master.bias will have been set to a full path to a master bias frame
-input.master.bias = true
+input.masters = ["bias"]
 
 when = "setup.master.flat" # run when master biases are regenerated
 
@@ -51,8 +51,8 @@ script = '''
     # Calibrate the flat frames using master bias
     calibrate flat -bias={master["bias"]}
 
-    # Stack the pre-processed (calibrated) flat frames (writes to flat_stacked.fit)
-    stack pp_flat rej 3 3 -norm=mul -out=flat_stacked
+    # Stack the pre-processed (calibrated) flat frames
+    stack pp_flat rej 3 3 -norm=mul -out={output["base_path"]}
     '''
 
 temporaries = ["flat", "pp_flat"]

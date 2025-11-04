@@ -18,6 +18,7 @@
 * [ ] make 'regen all masters' work
 * [ ] eventually store master info in the root toml file for masters
 * [ ] make flat rule work
+* [ ] use normalized names when searching for filters or master or light frames
 * [x] when reindexing/adding masters, put them in the session db as some sort of special entry
 * [ ] make auto process work again for dual-duo single session workflows
 * [ ] make siril prep smarter about best sets, include report in toml file, show options on log

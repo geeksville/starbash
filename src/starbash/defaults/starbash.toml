@@ -12,6 +12,7 @@ kind = "preferences"
 dark = ["dark", "darks"]
 flat = ["flat", "flats"]
 bias = ["bias", "biases"]
+light = ["light", "lights"]
 
 # file suffixes
 fits = ["fits", "fit"]
