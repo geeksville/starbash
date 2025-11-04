@@ -1,5 +1,5 @@
 import pytest
-from starbash.aliases import Aliases
+from starbash.aliases import Aliases, UnrecognizedAliasError
 
 
 @pytest.fixture
@@ -69,7 +69,9 @@ class TestAliasesGet:
     def test_get_case_sensitive_key(self, aliases):
         """Test that get() is case-sensitive for keys."""
         result = aliases.get("DARK")
-        assert result is None  # Key lookup is case-sensitive
+        assert (
+            result is None
+        )  # Key lookup is case-sensitive (but normalize is case-insensitive)
 
 
 class TestAliasesNormalize:
@@ -111,9 +113,15 @@ class TestAliasesNormalize:
         assert aliases.normalize("FITS") == "fits"
 
     def test_normalize_nonexistent(self, aliases):
-        """Test normalizing a non-existent alias returns None."""
-        assert aliases.normalize("nonexistent") is None
-        assert aliases.normalize("unknown") is None
+        """Test normalizing a non-existent alias raises UnrecognizedAliasError."""
+        with pytest.raises(
+            UnrecognizedAliasError, match="'nonexistent' not found in aliases"
+        ):
+            aliases.normalize("nonexistent")
+        with pytest.raises(
+            UnrecognizedAliasError, match="'unknown' not found in aliases"
+        ):
+            aliases.normalize("unknown")
 
     def test_normalize_returns_canonical(self, aliases):
         """Test that normalize always returns the first item (canonical form)."""
@@ -176,7 +184,11 @@ class TestAliasesEdgeCases:
         # The key "code_name" is not in the alias list
         assert aliases.normalize("canonical_form") == "canonical_form"
         assert aliases.normalize("variant1") == "canonical_form"
-        assert aliases.normalize("code_name") is None  # Key itself is not an alias
+        # Key itself is not an alias and should raise
+        with pytest.raises(
+            UnrecognizedAliasError, match="'code_name' not found in aliases"
+        ):
+            aliases.normalize("code_name")
 
 
 class TestAliasesIntegration:

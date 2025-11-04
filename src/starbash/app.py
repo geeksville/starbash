@@ -281,17 +281,6 @@ class Starbash:
 
         """
         # Get reference image to access CCD-TEMP and DATE-OBS
-        metadata: dict = ref_session.get("metadata", {})
-        ref_temp = metadata.get("CCD-TEMP", None)
-        ref_date_str = metadata.get(Database.DATE_OBS_KEY)
-
-        # Parse reference date for time delta calculations
-        ref_date = None
-        if ref_date_str:
-            try:
-                ref_date = datetime.fromisoformat(ref_date_str)
-            except (ValueError, TypeError):
-                logging.warning(f"Malformed session ref date: {ref_date_str}")
 
         # Build search conditions - MUST match criteria
         conditions = {
@@ -304,6 +293,10 @@ class Starbash:
             conditions[Database.FILTER_KEY] = ref_session[
                 get_column_name(Database.FILTER_KEY)
             ]
+
+        metadata: dict = ref_session.get("metadata", {})
+        ref_temp = metadata.get("CCD-TEMP", None)
+        ref_date_str = metadata.get(Database.DATE_OBS_KEY)
 
         # Search for candidate sessions
         candidates = self.db.search_session(where_tuple(conditions))
@@ -332,23 +325,19 @@ class Starbash:
                             # If we can't parse temps, give a neutral score
                             score += 0
 
-                # Score by date/time proximity (secondary importance)
-                if ref_date is not None:
-                    candidate_date_str = candidate_image.get(Database.DATE_OBS_KEY)
-                    if candidate_date_str:
-                        try:
-                            candidate_date = datetime.fromisoformat(candidate_date_str)
-                            time_delta = abs(
-                                (ref_date - candidate_date).total_seconds()
-                            )
-                            # Closer in time = better score
-                            # Same day ≈ 100, 7 days ≈ 37, 30 days ≈ 9
-                            # Using 7-day half-life
-                            score += 100 * (2.718 ** (-time_delta / (7 * 86400)))
-                        except (ValueError, TypeError):
-                            logging.warning(
-                                f"Could not parse candidate date: {candidate_date_str}"
-                            )
+                # Parse reference date for time delta calculations
+                candidate_date_str = candidate_image.get(Database.DATE_OBS_KEY)
+                if ref_date_str and candidate_date_str:
+                    try:
+                        ref_date = datetime.fromisoformat(ref_date_str)
+                        candidate_date = datetime.fromisoformat(candidate_date_str)
+                        time_delta = abs((ref_date - candidate_date).total_seconds())
+                        # Closer in time = better score
+                        # Same day ≈ 100, 7 days ≈ 37, 30 days ≈ 9
+                        # Using 7-day half-life
+                        score += 100 * (2.718 ** (-time_delta / (7 * 86400)))
+                    except (ValueError, TypeError):
+                        logging.warning(f"Malformed date - ignoring entry")
 
                 scored_candidates.append((score, candidate))
 
