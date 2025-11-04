@@ -15,6 +15,8 @@
 * [x] auto provide bias frame to flat generation
 * [x] make flat generation properly use session_config for filter name
 * [x] when a new master is generated add it to the images table
+* [ ] require all images of a session to have the same exposure length see 2025-09-09 - it incorrectly only has one image in the session!
+* [ ] fix dark frame generation
 * [ ] make 'regen all masters' work
 * [ ] eventually store master info in the root toml file for masters
 * [ ] gracefully handle UnrecognizedAliasError and ask user if they want to add it...
