@@ -651,7 +651,7 @@ class Starbash:
                 f"invalid stage definition: a stage is missing the required 'priority' key"
             ) from e
 
-        logging.info(
+        logging.debug(
             f"Found {len(sorted_pipeline)} pipeline steps to run in order of priority."
         )
         return sorted_pipeline
@@ -696,53 +696,60 @@ class Starbash:
         """
         sessions = self.search_session()
         for session in sessions:
-            imagetyp = session[get_column_name(Database.IMAGETYP_KEY)]
-            logging.debug(
-                f"Processing session ID {session[get_column_name(Database.ID_KEY)]} with imagetyp '{imagetyp}'"
-            )
+            try:
+                imagetyp = session[get_column_name(Database.IMAGETYP_KEY)]
+                logging.debug(
+                    f"Processing session ID {session[get_column_name(Database.ID_KEY)]} with imagetyp '{imagetyp}'"
+                )
 
-            sorted_pipeline = self._get_stages("master-stages")
+                sorted_pipeline = self._get_stages("master-stages")
 
-            # 4. Iterate through the sorted pipeline and execute the associated tasks.
-            # FIXME unify the master vs normal step running code
-            for step in sorted_pipeline:
-                step_name = step.get("name")
-                if not step_name:
-                    raise ValueError("Invalid pipeline step found: missing 'name' key.")
-
-                # 3. Get all available task definitions (the `[[stage]]` tables with tool, script, when).
-                task_definitions = self.repo_manager.merged.getall("stage")
-                all_tasks = list(itertools.chain.from_iterable(task_definitions))
-
-                # Find all tasks that should run during this step
-                tasks_to_run = [
-                    task for task in all_tasks if task.get("when") == step_name
-                ]
-
-                for task in tasks_to_run:
-                    input_config = task.get("input", {})
-                    input_type = input_config.get("type")
-                    if not input_type:
+                # 4. Iterate through the sorted pipeline and execute the associated tasks.
+                # FIXME unify the master vs normal step running code
+                for step in sorted_pipeline:
+                    step_name = step.get("name")
+                    if not step_name:
                         raise ValueError(
-                            f"Task for step '{step_name}' missing required input.type"
-                        )
-                    if imagetyp_equals(input_type, imagetyp):
-                        logging.info(
-                            f"  Running {step_name} task for imagetyp '{imagetyp}'"
+                            "Invalid pipeline step found: missing 'name' key."
                         )
 
-                        # Create a default process dir in /tmp, though more advanced 'session' based workflows will
-                        # probably override this and place it somewhere persistent.
-                        with tempfile.TemporaryDirectory(
-                            prefix="session_tmp_"
-                        ) as temp_dir:
-                            logging.debug(
-                                f"Created temporary session directory: {temp_dir}"
+                    # 3. Get all available task definitions (the `[[stage]]` tables with tool, script, when).
+                    task_definitions = self.repo_manager.merged.getall("stage")
+                    all_tasks = list(itertools.chain.from_iterable(task_definitions))
+
+                    # Find all tasks that should run during this step
+                    tasks_to_run = [
+                        task for task in all_tasks if task.get("when") == step_name
+                    ]
+
+                    for task in tasks_to_run:
+                        input_config = task.get("input", {})
+                        input_type = input_config.get("type")
+                        if not input_type:
+                            raise ValueError(
+                                f"Task for step '{step_name}' missing required input.type"
                             )
-                            self.init_context()
-                            self.context["process_dir"] = temp_dir
-                            self.add_session_to_context(session)
-                            self.run_stage(task)
+                        if imagetyp_equals(input_type, imagetyp):
+                            logging.debug(
+                                f"Running {step_name} task for imagetyp '{imagetyp}'"
+                            )
+
+                            # Create a default process dir in /tmp, though more advanced 'session' based workflows will
+                            # probably override this and place it somewhere persistent.
+                            with tempfile.TemporaryDirectory(
+                                prefix="session_tmp_"
+                            ) as temp_dir:
+                                logging.debug(
+                                    f"Created temporary session directory: {temp_dir}"
+                                )
+                                self.init_context()
+                                self.context["process_dir"] = temp_dir
+                                self.add_session_to_context(session)
+                                self.run_stage(task)
+            except RuntimeError as e:
+                logging.error(
+                    f"Skipping session {session[get_column_name(Database.ID_KEY)]}: {e}"
+                )
 
     def init_context(self) -> None:
         """Do common session init"""
@@ -810,7 +817,7 @@ class Starbash:
             context_master = self.context.setdefault("master", {})
 
             if len(masters) > 1:
-                logging.warning(
+                logging.debug(
                     f"Multiple ({len(masters)}) master frames of type '{master_type}' found, using first. FIXME."
                 )
 
@@ -826,10 +833,10 @@ class Starbash:
     def add_input_files(self, stage: dict) -> None:
         """adds to context.input_files based on the stage input config"""
         input_config = stage.get("input")
-        input_required = False
+        input_required = 0
         if input_config:
             # if there is an "input" dict, we assume input.required is true if unset
-            input_required = input_config.get("required", True)
+            input_required = input_config.get("required", 0)
             source = input_config.get("source")
             if source is None:
                 raise ValueError(
@@ -852,7 +859,7 @@ class Starbash:
                 ), "context.session should have been already set"
 
                 images = self.get_session_images(session)
-                logging.info(f"Using {len(images)} files as input_files")
+                logging.debug(f"Using {len(images)} files as input_files")
                 self.context["input_files"] = [
                     img["abspath"] for img in images
                 ]  # Pass in the file list via the context dict
@@ -867,8 +874,8 @@ class Starbash:
             if "input_files" in self.context:
                 del self.context["input_files"]
 
-        if input_required and not "input_files" in self.context:
-            raise RuntimeError("No input files found for stage")
+        if input_required and len(self.context.get("input_files", [])) < input_required:
+            raise RuntimeError(f"Stage requires at least {input_required} input files")
 
     def add_output_path(self, stage: dict) -> None:
         """Adds output path information to context based on the stage output config.
