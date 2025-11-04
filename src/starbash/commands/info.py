@@ -95,9 +95,7 @@ def master(
 
         if not images:
             kind_msg = f" of type '{kind}'" if kind else ""
-            console.print(
-                f"[yellow]No master images{kind_msg} found in {master_repo.url}[/yellow]"
-            )
+            console.print(f"[yellow]No master images{kind_msg} found.[/yellow]")
             return
 
         # Create table to display results
