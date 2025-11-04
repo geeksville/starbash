@@ -559,24 +559,63 @@ class Starbash:
         # Write the updated config
         self.user_repo.write_config()
 
+    def add_image_to_db(self, repo: Repo, f: Path, force: bool = False) -> None:
+        """Read FITS header from file and add/update image entry in the database."""
+
+        path = repo.get_path()
+        if not path:
+            raise ValueError(f"Repo path not found for {repo}")
+
+        whitelist = None
+        config = self.repo_manager.merged.get("config")
+        if config:
+            whitelist = config.get("fits-whitelist", None)
+
+        try:
+            # Convert absolute path to relative path within repo
+            relative_path = f.relative_to(path)
+
+            found = self.db.get_image(repo.url, str(relative_path))
+            if not found or force:
+                # Read and log the primary header (HDU 0)
+                with fits.open(str(f), memmap=False) as hdul:
+                    # convert headers to dict
+                    hdu0: Any = hdul[0]
+                    header = hdu0.header
+                    if type(header).__name__ == "Unknown":
+                        raise ValueError("FITS header has Unknown type: %s", f)
+
+                    items = header.items()
+                    headers = {}
+                    for key, value in items:
+                        if (not whitelist) or (key in whitelist):
+                            headers[key] = value
+                    logging.debug("Headers for %s: %s", f, headers)
+                    # Store relative path in database
+                    headers["path"] = str(relative_path)
+                    image_doc_id = self.db.upsert_image(headers, repo.url)
+
+                    if not found:
+                        # Update the session infos, but ONLY on first file scan
+                        # (otherwise invariants will get messed up)
+                        self._add_session(str(f), image_doc_id, header)
+
+        except Exception as e:
+            logging.warning("Failed to read FITS header for %s: %s", f, e)
+
     def reindex_repo(self, repo: Repo, force: bool = False):
         """Reindex all repositories managed by the RepoManager."""
 
         # make sure this new repo is listed in the repos table
         self.repo_db_update()  # not really ideal, a more optimal version would just add the new repo
 
+        path = repo.get_path()
+        if not path:
+            raise ValueError(f"Repo path not found for {repo}")
+
         # FIXME, add a method to get just the repos that contain images
         if repo.is_scheme("file") and repo.kind != "recipe":
             logging.debug("Reindexing %s...", repo.url)
-
-            whitelist = None
-            config = self.repo_manager.merged.get("config")
-            if config:
-                whitelist = config.get("fits-whitelist", None)
-
-            path = repo.get_path()
-            if not path:
-                raise ValueError(f"Repo path not found for {repo}")
 
             # Find all FITS files under this repo path
             for f in track(
@@ -584,37 +623,7 @@ class Starbash:
                 description=f"Indexing {repo.url}...",
             ):
                 # progress.console.print(f"Indexing {f}...")
-                try:
-                    # Convert absolute path to relative path within repo
-                    relative_path = f.relative_to(path)
-
-                    found = self.db.get_image(repo.url, str(relative_path))
-                    if not found or force:
-                        # Read and log the primary header (HDU 0)
-                        with fits.open(str(f), memmap=False) as hdul:
-                            # convert headers to dict
-                            hdu0: Any = hdul[0]
-                            header = hdu0.header
-                            if type(header).__name__ == "Unknown":
-                                raise ValueError("FITS header has Unknown type: %s", f)
-
-                            items = header.items()
-                            headers = {}
-                            for key, value in items:
-                                if (not whitelist) or (key in whitelist):
-                                    headers[key] = value
-                            logging.debug("Headers for %s: %s", f, headers)
-                            # Store relative path in database
-                            headers["path"] = str(relative_path)
-                            image_doc_id = self.db.upsert_image(headers, repo.url)
-
-                            if not found:
-                                # Update the session infos, but ONLY on first file scan
-                                # (otherwise invariants will get messed up)
-                                self._add_session(str(f), image_doc_id, header)
-
-                except Exception as e:
-                    logging.warning("Failed to read FITS header for %s: %s", f, e)
+                self.add_image_to_db(repo, f, force=force)
 
     def reindex_repos(self, force: bool = False):
         """Reindex all repositories managed by the RepoManager."""
@@ -869,6 +878,7 @@ class Starbash:
         - context.output.base_path - full path without file extension
         - context.output.suffix - file extension (e.g., .fits or .fit.gz)
         - context.output.full_path - complete output file path
+        - context.output.repo - the destination Repo (if applicable)
         """
         output_config = stage.get("output")
         if not output_config:
@@ -923,8 +933,8 @@ class Starbash:
                 "base_path": base_path,
                 # "suffix": full_path.suffix, not needed I think
                 "full_path": full_path,
+                "repo": dest_repo,
             }
-
         else:
             raise ValueError(
                 f"Unsupported output destination type: {dest}. Only 'repo' is currently supported."
@@ -1010,3 +1020,5 @@ class Starbash:
 
             if not output_path or not os.path.exists(output_path):
                 raise RuntimeError(f"Expected output file not found: {output_path}")
+            else:
+                self.add_image_to_db(output_info["repo"], Path(output_path), force=True)
