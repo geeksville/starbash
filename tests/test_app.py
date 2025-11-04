@@ -508,9 +508,6 @@ class TestAddSession:
             sessions = app.db.search_session()
             assert sessions
             assert len(sessions) == 1
-            assert sessions[0][Database.FILTER_KEY] == "unspecified"
-            assert sessions[0][Database.OBJECT_KEY] == "unspecified"
-            assert sessions[0][Database.TELESCOP_KEY] == "unspecified"
             assert sessions[0][Database.EXPTIME_TOTAL_KEY] == 0
 
 

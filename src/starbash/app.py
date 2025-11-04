@@ -230,7 +230,6 @@ class Starbash:
 
     def _add_session(self, f: str, image_doc_id: int, header: dict) -> None:
         """We just added a new image, create or update its session entry as needed."""
-        filter = header.get(Database.FILTER_KEY, "unspecified")
         image_type = header.get(Database.IMAGETYP_KEY)
         date = header.get(Database.DATE_OBS_KEY)
         if not date or not image_type:
@@ -240,18 +239,28 @@ class Starbash:
             )
         else:
             exptime = header.get(Database.EXPTIME_KEY, 0)
-            telescop = header.get(Database.TELESCOP_KEY, "unspecified")
+
             new = {
-                Database.FILTER_KEY: filter,
                 Database.START_KEY: date,
                 Database.END_KEY: date,  # FIXME not quite correct, should be longer by exptime
                 Database.IMAGE_DOC_KEY: image_doc_id,
                 Database.IMAGETYP_KEY: image_type,
                 Database.NUM_IMAGES_KEY: 1,
                 Database.EXPTIME_TOTAL_KEY: exptime,
-                Database.OBJECT_KEY: header.get(Database.OBJECT_KEY, "unspecified"),
-                Database.TELESCOP_KEY: telescop,
             }
+
+            filter = header.get(Database.FILTER_KEY)
+            if filter:
+                new[Database.FILTER_KEY] = filter
+
+            telescop = header.get(Database.TELESCOP_KEY)
+            if telescop:
+                new[Database.TELESCOP_KEY] = telescop
+
+            obj = header.get(Database.OBJECT_KEY)
+            if obj:
+                new[Database.OBJECT_KEY] = obj
+
             session = self.db.get_session(new)
             self.db.upsert_session(new, existing=session)
 
@@ -503,15 +512,14 @@ class Starbash:
         # Single query with indexed date conditions
         images = self.db.search_image(conditions)
 
-        # Filter by metadata fields (FILTER, OBJECT, TELESCOP) stored in JSON
-        # IMAGETYP is indexed, but we still need to filter by other fields
+        # We no lognger filter by target(object) because it might not be set anyways
         filtered_images = []
         for img in images:
             if (
                 img.get(Database.FILTER_KEY)
                 == session[get_column_name(Database.FILTER_KEY)]
-                and img.get(Database.OBJECT_KEY)
-                == session[get_column_name(Database.OBJECT_KEY)]
+                # and img.get(Database.OBJECT_KEY)
+                # == session[get_column_name(Database.OBJECT_KEY)]
                 and img.get(Database.TELESCOP_KEY)
                 == session[get_column_name(Database.TELESCOP_KEY)]
             ):
@@ -610,11 +618,8 @@ class Starbash:
         self.repo_db_update()  # not really ideal, a more optimal version would just add the new repo
 
         path = repo.get_path()
-        if not path:
-            raise ValueError(f"Repo path not found for {repo}")
 
-        # FIXME, add a method to get just the repos that contain images
-        if repo.is_scheme("file") and repo.kind != "recipe":
+        if path and repo.is_scheme("file") and repo.kind != "recipe":
             logging.debug("Reindexing %s...", repo.url)
 
             # Find all FITS files under this repo path

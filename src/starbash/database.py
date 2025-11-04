@@ -591,7 +591,7 @@ class Database:
         assert filter
         target = to_find.get(Database.OBJECT_KEY)
         assert target
-        telescop = to_find.get(Database.TELESCOP_KEY, "unspecified")
+        telescop = to_find.get(Database.TELESCOP_KEY)
 
         # Convert the provided ISO8601 date string to a datetime, then
         # search for sessions with the same filter whose start time is
@@ -667,7 +667,7 @@ class Database:
                     new[Database.FILTER_KEY],
                     new[Database.IMAGETYP_KEY],
                     new[Database.OBJECT_KEY],
-                    new.get(Database.TELESCOP_KEY, "unspecified"),
+                    new[Database.TELESCOP_KEY],
                     new[Database.NUM_IMAGES_KEY],
                     new[Database.EXPTIME_TOTAL_KEY],
                     new.get(Database.IMAGE_DOC_KEY),

@@ -64,7 +64,7 @@
             ]
         },
         {
-            "name": "Python Debugger: starbash repo",
+            "name": "Python Debugger: starbash repo add",
             "type": "debugpy",
             "request": "launch",
             "module": "starbash.main",
@@ -76,6 +76,20 @@
                 "repo",
                 "add",
                 "./images/from_astroboy"
+            ]
+        },
+        {
+            "name": "Python Debugger: starbash repo reindex",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "starbash.main",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
+            "justMyCode": false,
+            "args": [
+                "--debug",
+                "repo",
+                "reindex"
             ]
         },
         {
