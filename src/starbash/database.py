@@ -182,7 +182,7 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 start TEXT NOT NULL,
                 end TEXT NOT NULL,
-                filter TEXT NOT NULL,
+                filter TEXT COLLATE NOCASE NOT NULL,
                 imagetyp TEXT COLLATE NOCASE NOT NULL,
                 object TEXT NOT NULL,
                 telescop TEXT NOT NULL,
