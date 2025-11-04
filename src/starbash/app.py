@@ -422,8 +422,8 @@ class Starbash:
         * The telescope must match
         * The image resolutions and binnings must match
         * The filter must match (for FLAT frames only)
-        * Preferably the master would be either before or slightly after (<24 hrs) the reference session start time
-        * Preferably the master should be the closest in date to the reference session start time
+        * Preferably the master date_obs would be either before or slightly after (<24 hrs) the reference session start time
+        * Preferably the master date_obs should be the closest in date to the reference session start time
         * The camera temperature should be as close as possible to the reference session camera temperature
         """
         master_repo = self.repo_manager.get_repo_by_kind("master")

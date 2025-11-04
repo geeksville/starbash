@@ -1,4 +1,4 @@
-# HDU 0 in images/masters/Ascar_V_80mm_reducer/2025-09-01/BIAS/master_BIAS.fit:
+# HDU 0 in images/masters/Ascar_V_80mm_reducer/2025-09-01/FLAT/master_FLAT.fit:
 SIMPLE  =                    T / file does conform to FITS standard             
 BITPIX  =                  -32 / number of bits per data pixel                  
 NAXIS   =                    2 / number of data axes                            
@@ -11,22 +11,22 @@ BZERO   =                   0. / Offset data range to that of unsigned short
 BSCALE  =                   1. / Default scaling factor                         
 MIPS-FLO=                   0. / Lower visualization cutoff                     
 PROGRAM = 'Siril 1.4.0-beta4'  / Software that created this HDU                 
-DATE    = '2025-11-03T09:23:36' / UTC date that FITS file was created           
-DATE-OBS= '2025-09-01T07:33:49.683000' / YYYY-MM-DDThh:mm:ss observation start, 
-IMAGETYP= 'BIAS    '           / Type of image                                  
+DATE    = '2025-11-04T02:16:35' / UTC date that FITS file was created           
+DATE-OBS= '2025-09-01T07:34:49.301000' / YYYY-MM-DDThh:mm:ss observation start, 
+IMAGETYP= 'FLAT    '           / Type of image                                  
 ROWORDER= 'TOP-DOWN'           / Order of the rows in image array               
-EXPTIME =                0.001 / [s]  Exposure time duration                    
+EXPTIME =              0.04982 / [s]  Exposure time duration                    
 TELESCOP= 'Ascar V 80mm reducer' / Telescope used to acquire this image         
-FILTER  = 'Dark    '           / Active filter name                             
+FILTER  = 'None    '           / Active filter name                             
 FOCALLEN=                 384. / [mm]  Focal length                             
-CENTALT =     72.0594444444444 / [deg] Altitude of telescope                    
-CENTAZ  =     254.000555555556 / [deg] Azimuth of telescope                     
+CENTALT =     71.8680555555555 / [deg] Altitude of telescope                    
+CENTAZ  =     254.320833333333 / [deg] Azimuth of telescope                     
 XBINNING=                    1 / Camera binning mode                            
 YBINNING=                    1 / Camera binning mode                            
 XPIXSZ  =                 3.76 / [um] Pixel X axis size                         
 YPIXSZ  =                 3.76 / [um] Pixel Y axis size                         
 INSTRUME= 'ASI Camera (1) (ASCOM)' / Instrument name                            
-CCD-TEMP=                 10.7 / [degC] CCD temperature                         
+CCD-TEMP=                  6.8 / [degC] CCD temperature                         
 SET-TEMP=                 -10. / [degC] CCD temperature setpoint                
 GAIN    =                  100 / Sensor gain                                    
 OFFSET  =                   50 / Sensor gain offset                             
@@ -39,23 +39,23 @@ FOCPOS  =                 2706 / [step] Focuser position
 FOCUSSZ =                    0 / [um] Focuser step size                         
 FOCTEMP =                 20.5 / [degC] Focuser temperature                     
 STACKCNT=                   10 / Stack frames                                   
-LIVETIME=                 0.01 / [s] Exposure time after deadtime correction    
-EXPSTART=     2460919.81515837 / [JD] Exposure start time (standard Julian date)
-EXPEND  =     2460919.81532789 / [JD] Exposure end time (standard Julian date)  
+LIVETIME=               0.4982 / [s] Exposure time after deadtime correction    
+EXPSTART=     2460919.81584839 / [JD] Exposure start time (standard Julian date)
+EXPEND  =     2460919.81602236 / [JD] Exposure end time (standard Julian date)  
 OBJECT  = 'M 31    '           / Name of the object of interest                 
-AIRMASS =     1.05092854690741 / Airmass at frame center (Gueymard 1993)        
+AIRMASS =     1.05206957690328 / Airmass at frame center (Gueymard 1993)        
 SITELAT =     37.5208333333333 / [deg] Observation site latitude                
 SITELONG=    -122.308888888889 / [deg] Observation site longitude               
 SITEELEV=                   0. / [m] Observation site elevation                 
 OBJCTRA = '00 42 44'           / [H M S] Image center Right Ascension           
 OBJCTDEC= '+41 16 07'          / [D M S] Image center Declination               
-RA      =     311.422391820267 / [deg] Image center Right Ascension             
-DEC     =     30.7049786234401 / [deg] Image center Declination                 
+RA      =     311.422279823487 / [deg] Image center Right Ascension             
+DEC     =     30.7049648944704 / [deg] Image center Declination                 
 HISTORY mean stacking with winsorized sigma clipping rejection (low=3.000 high=3
-HISTORY .000), unnormalized input, unnormalized output, no image weighting, filt
-HISTORY er all                                                                  
-DATE-LOC= '2025-09-01T00:33:49.683' / Time of observation (local)               
-DATE-AVG= '2025-09-01T07:33:50.040' / Averaged midpoint time (UTC)              
+HISTORY .000), multiplicative normalized input, unnormalized output, no image we
+HISTORY ighting, filter all                                                     
+DATE-LOC= '2025-09-01T00:34:49.301' / Time of observation (local)               
+DATE-AVG= '2025-09-01T07:34:49.668' / Averaged midpoint time (UTC)              
 CAMERAID= 'ASCOM.ASICamera2.Camera' / Imaging instrument identifier             
 FOCRATIO=                  4.8 / Focal ratio                                    
 PIERSIDE= 'East'               / Telescope pointing state                       

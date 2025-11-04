@@ -12,12 +12,12 @@
 * [x] make master repo add work
 * [x] make "session_to_master()" work - given a single session it will write masters/instrument/typ/foo-date-temp-bias.fits
 * [x] clean up database abstraction and add repo table
-* [ ] auto provide bias frame to flat generation
+* [x] auto provide bias frame to flat generation
 * [ ] make flat generation properly use sessionconfig for filter name
 * [ ] when a new master is generated add it to the images table
 * [ ] make 'regen all masters' work
 * [ ] eventually store master info in the root toml file for masters
-* [ ] make flat rule work
+* [x] make flat rule work
 * [ ] use normalized names when searching for filters or master or light frames
 * [x] when reindexing/adding masters, put them in the session db as some sort of special entry
 * [ ] make auto process work again for dual-duo single session workflows
