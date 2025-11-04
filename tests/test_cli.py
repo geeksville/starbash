@@ -62,6 +62,7 @@ def test_session_command_with_data(setup_test_environment, tmp_path):
             Database.FILTER_KEY: "Ha",
             Database.IMAGETYP_KEY: "Light",
             Database.OBJECT_KEY: "M31",
+            Database.TELESCOP_KEY: "Test Telescope",
             Database.NUM_IMAGES_KEY: 10,
             Database.EXPTIME_TOTAL_KEY: 600.0,
             Database.IMAGE_DOC_KEY: 1,
