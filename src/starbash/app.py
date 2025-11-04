@@ -72,7 +72,11 @@ def create_user() -> Path:
 
 
 def copy_images_to_dir(images: list[ImageRow], output_dir: Path) -> None:
-    """Copy images to the specified output directory (using symbolic links if possible)."""
+    """Copy images to the specified output directory (using symbolic links if possible).
+
+    This function requires that "abspath" already be populated in each ImageRow.  Normally
+    the caller does this by calling Starbash._add_image_abspath() on the image.
+    """
 
     # Export images
     console.print(f"[cyan]Exporting {len(images)} images to {output_dir}...[/cyan]")
@@ -375,14 +379,15 @@ class Starbash:
         Returns:
             Modified image record with 'abspath' as absolute path
         """
-        repo_url = image.get(Database.REPO_URL_KEY)
-        relative_path = image.get("path")
+        if not image.get("abspath"):
+            repo_url = image.get(Database.REPO_URL_KEY)
+            relative_path = image.get("path")
 
-        if repo_url and relative_path:
-            repo = self.repo_manager.get_repo_by_url(repo_url)
-            if repo:
-                absolute_path = repo.resolve_path(relative_path)
-                image["abspath"] = str(absolute_path)
+            if repo_url and relative_path:
+                repo = self.repo_manager.get_repo_by_url(repo_url)
+                if repo:
+                    absolute_path = repo.resolve_path(relative_path)
+                    image["abspath"] = str(absolute_path)
 
         return image
 

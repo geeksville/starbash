@@ -99,8 +99,8 @@ class TestCopyImagesToDir:
 
         # Create image metadata
         images = [
-            {"path": str(file1)},
-            {"path": str(file2)},
+            {"abspath": str(file1)},
+            {"abspath": str(file2)},
         ]
 
         # Call the function
@@ -139,7 +139,7 @@ class TestCopyImagesToDir:
         mock_symlink.side_effect = OSError("Symlink not supported")
 
         # Create image metadata
-        images = [{"path": str(file1)}]
+        images = [{"abspath": str(file1)}]
 
         # Call the function
         copy_images_to_dir(images, output_dir)
@@ -162,7 +162,7 @@ class TestCopyImagesToDir:
         output_dir.mkdir()
 
         # Create image metadata with non-existent file
-        images = [{"path": "/nonexistent/file.fit"}]
+        images = [{"abspath": "/nonexistent/file.fit"}]
 
         # Call the function
         copy_images_to_dir(images, output_dir)
@@ -187,7 +187,7 @@ class TestCopyImagesToDir:
         existing.write_text("existing data")
 
         # Create image metadata
-        images = [{"path": str(file1)}]
+        images = [{"abspath": str(file1)}]
 
         # Call the function
         copy_images_to_dir(images, output_dir)
@@ -221,7 +221,7 @@ class TestCopyImagesToDir:
         mock_copy.side_effect = PermissionError("Permission denied")
 
         # Create image metadata
-        images = [{"path": str(file1)}]
+        images = [{"abspath": str(file1)}]
 
         # Call the function
         copy_images_to_dir(images, output_dir)
@@ -249,9 +249,9 @@ class TestCopyImagesToDir:
 
         # Create image metadata with one good, one existing, one missing
         images = [
-            {"path": str(file1)},
-            {"path": str(file2)},
-            {"path": "/nonexistent/file.fit"},
+            {"abspath": str(file1)},
+            {"abspath": str(file2)},
+            {"abspath": "/nonexistent/file.fit"},
         ]
 
         # Call the function
