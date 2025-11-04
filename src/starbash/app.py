@@ -749,6 +749,7 @@ class Starbash:
 
         imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
         if imagetyp:
+            imagetyp = self.aliases.normalize(imagetyp)
             self.context["imagetyp"] = imagetyp
 
             # add a short human readable description of the session - suitable for logs or in filenames

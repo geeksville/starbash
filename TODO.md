@@ -17,6 +17,7 @@
 * [ ] when a new master is generated add it to the images table
 * [ ] make 'regen all masters' work
 * [ ] eventually store master info in the root toml file for masters
+* [ ] gracefully handle UnrecognizedAliasError and ask user if they want to add it...
 * [x] make flat rule work
 * [ ] use normalized names when searching for filters or master or light frames
 * [x] when reindexing/adding masters, put them in the session db as some sort of special entry

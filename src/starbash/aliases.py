@@ -17,6 +17,12 @@ def pre_normalize(name: str) -> str:
     return name.lower().translate(_translator)
 
 
+class UnrecognizedAliasError(ValueError):
+    """Exception raised when an unrecognized alias is encountered during normalization."""
+
+    pass
+
+
 class Aliases:
     def __init__(self, alias_dict: dict[str, list[str]]):
         """Initialize the Aliases object with a dictionary mapping keys to their alias lists.
@@ -58,7 +64,7 @@ class Aliases:
         """
         return self.alias_dict.get(name)
 
-    def normalize(self, name: str) -> str | None:
+    def normalize(self, name: str) -> str:
         """Normalize a name to its canonical form using aliases.
 
         This performs case-insensitive matching to find the canonical form.
@@ -75,4 +81,7 @@ class Aliases:
             normalize("FLAT") -> "flat"
             normalize("HA-OIII") -> "HaOiii"
         """
-        return self.reverse_dict.get(pre_normalize(name), None)
+        result = self.reverse_dict.get(pre_normalize(name))
+        if not result:
+            raise UnrecognizedAliasError(f"'{name}' not found in aliases.")
+        return result
