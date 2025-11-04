@@ -76,32 +76,22 @@ def filter():
         dump_column(sb, "Filter", Database.FILTER_KEY)
 
 
+kind_arg = typer.Argument(
+    help="Optional image type to filter by (e.g., BIAS, DARK, FLAT, LIGHT)",
+)
+
+
 @app.command()
 def master(
     kind: Annotated[
         str | None,
-        typer.Argument(
-            help="Optional image type to filter by (e.g., BIAS, DARK, FLAT, LIGHT)",
-        ),
+        kind_arg,
     ] = None,
 ):
     """List all precalculated master images (darks, biases, flats)."""
     with Starbash("info.master") as sb:
         # Get the master repo
-        master_repo = sb.repo_manager.get_repo_by_kind("master")
-
-        if master_repo is None:
-            console.print("[yellow]No master repository found.[/yellow]")
-            return
-
-        # Search for images in the master repo only
-        from starbash.database import SearchCondition
-
-        search_conditions = [SearchCondition("r.url", "=", master_repo.url)]
-        if kind:
-            search_conditions.append(SearchCondition("i.imagetyp", "=", kind))
-
-        images = sb.db.search_image(search_conditions)
+        images = sb.get_master_images(kind)
 
         if not images:
             kind_msg = f" of type '{kind}'" if kind else ""
@@ -144,6 +134,17 @@ def master(
             table.add_row(date, kind, filename)
 
         console.print(table)
+
+
+@app.command(hidden=True)
+def masters(
+    kind: Annotated[
+        str | None,
+        kind_arg,
+    ] = None,
+):
+    """Alias for 'info master' command."""
+    master(kind)
 
 
 @app.callback(invoke_without_command=True)

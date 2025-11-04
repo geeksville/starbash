@@ -139,7 +139,7 @@ class Database:
                 path TEXT NOT NULL,
                 date_obs TEXT,
                 date TEXT,
-                imagetyp TEXT,
+                imagetyp TEXT COLLATE NOCASE,
                 metadata TEXT NOT NULL,
                 FOREIGN KEY (repo_id) REFERENCES {self.REPOS_TABLE}(id),
                 UNIQUE(repo_id, path)
@@ -183,7 +183,7 @@ class Database:
                 start TEXT NOT NULL,
                 end TEXT NOT NULL,
                 filter TEXT NOT NULL,
-                imagetyp TEXT NOT NULL,
+                imagetyp TEXT COLLATE NOCASE NOT NULL,
                 object TEXT NOT NULL,
                 telescop TEXT NOT NULL,
                 num_images INTEGER NOT NULL,
@@ -357,7 +357,7 @@ class Database:
             return result[0]
         return cursor.lastrowid if cursor.lastrowid is not None else 0
 
-    def search_image(self, conditions: list[SearchCondition]) -> list[SessionRow]:
+    def search_image(self, conditions: list[SearchCondition]) -> list[ImageRow]:
         """Search for images matching the given conditions.
 
         Args:

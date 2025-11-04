@@ -404,6 +404,39 @@ class Starbash:
         ), f"Expected exactly one reference for session, found {len(images)}"
         return self._reconstruct_image_path(images[0])
 
+    def get_master_images(
+        self, imagetyp: str | None = None, reference_session: SessionRow | None = None
+    ) -> list[ImageRow]:
+        """Return a list of the specified master imagetyp (bias, flat etc...)
+        (or any type if not specified).
+
+        The first image will be the 'best' remaining entries progressively worse matches.
+
+        (the following is not yet implemented)
+        If reference_session is provided it will be used to refine the search as follows:
+        * The telescope must match
+        * The image resolutions and binnings must match
+        * The filter must match (for FLAT frames only)
+        * Preferably the master would be either before or slightly after (<24 hrs) the reference session start time
+        * Preferably the master should be the closest in date to the reference session start time
+        * The camera temperature should be as close as possible to the reference session camera temperature
+        """
+        master_repo = self.repo_manager.get_repo_by_kind("master")
+
+        if master_repo is None:
+            logging.warning("No master repo configured - skipping master frame load.")
+            return []
+
+        # Search for images in the master repo only
+        from starbash.database import SearchCondition
+
+        search_conditions = [SearchCondition("r.url", "=", master_repo.url)]
+        if imagetyp:
+            search_conditions.append(SearchCondition("i.imagetyp", "=", imagetyp))
+
+        images = self.db.search_image(search_conditions)
+        return images
+
     def get_session_images(self, session: SessionRow) -> list[ImageRow]:
         """
         Get all images belonging to a specific session.
