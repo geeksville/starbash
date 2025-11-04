@@ -10,7 +10,7 @@ author.email = "FIXMESiril?"
 [[stage]]
 
 description = "Generate master bias"
-disabled = false # FIXME, debugging later stuff
+# disabled = false # turn on to skip
 
 # Restrict processing of this stage to only if detected hardware was found for this session
 # For any camera
@@ -60,9 +60,9 @@ output.type = "master" # write output to the special masters repo
 
 script = '''
     # Convert Bias Frames to .fit files
-    link bias -out={process_dir}
+    link frames -out={process_dir}
     cd {process_dir}
 
-    # Stack Bias Frames to bias_stacked.fit
-    stack bias rej 3 3 -nonorm -out={output["base_path"]}
+    # Stack frames
+    stack frames rej 3 3 -nonorm -out={output["base_path"]}
     '''

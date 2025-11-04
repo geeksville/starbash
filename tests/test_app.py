@@ -977,7 +977,7 @@ class TestProcessing:
                 "script": "pass",
                 "input": {
                     "path": str(tmp_path / "*.txt"),
-                    "required": True,
+                    "required": 1,
                 },
             }
 
@@ -1000,7 +1000,7 @@ class TestProcessing:
                 "script": "pass",
                 "input": {
                     "path": "/nonexistent/*.fit",
-                    "required": True,
+                    "required": 1,
                 },
             }
 
@@ -1020,7 +1020,7 @@ class TestProcessing:
                 "script": "pass",
                 "input": {
                     "path": "/nonexistent/*.fit",
-                    "required": False,
+                    "required": 0,
                 },
             }
 

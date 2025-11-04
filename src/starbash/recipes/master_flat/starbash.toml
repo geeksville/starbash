@@ -25,7 +25,7 @@ input.type = "flat" # look in all raw repos, but look only for flat files
 
 # Look for files in input repos, finding them by using the "relative" tag they contain
 input.source = "repo"
-input.required = 2 # siril needs at least 2 frames to stac
+input.required = 2 # siril needs at least 2 frames to stack
 
 # We require a master bias frame for this recipe.  By the time our recipe is invoked
 # context.master.bias will have been set to a full path to a master bias frame
@@ -37,11 +37,9 @@ when = "setup.master.flat" # run when master biases are regenerated
 output.dest = "repo" # write to a particular repo
 output.type = "master" # write output to the special masters repo
 
-
 # FIXME for early development we have support for simple absolute file paths with globs
 #input.source = "path"
 #input.path = "/workspaces/starbash/images/from_astroboy/M 27/2025-09-16/FLAT/*.fit*"
-input.required = 2 # siril needs at least 2 frames to stac
 
 script = '''
     # Create a sequence from the raw flat frames

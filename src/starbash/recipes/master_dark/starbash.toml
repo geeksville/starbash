@@ -1,0 +1,35 @@
+
+[repo]
+kind = "recipe"
+
+
+[recipe]
+author.name = "FIXMESiril?"
+author.email = "FIXMESiril?"
+
+[[stage]]
+
+description = "Generate master dark"
+
+tool.name = "siril"
+
+input.type = "dark"
+
+# Look for files in input repos, finding them by using the "relative" tag they contain
+input.source = "repo"
+input.required = 2 # siril needs at least 2 frames to stack
+
+when = "setup.master.dark" # run when master darks are regenerated
+
+# Based on the following definitions in the stage toml file...
+output.dest = "repo" # write to a particular repo
+output.type = "master" # write output to the special masters repo
+
+script = '''
+    # Convert bias/dark Frames to .fit files
+    link frames -out={process_dir}
+    cd {process_dir}
+
+    # Stack frames
+    stack frames rej 3 3 -nonorm -out={output["base_path"]}
+    '''
