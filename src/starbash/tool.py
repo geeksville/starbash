@@ -178,7 +178,7 @@ def tool_run(
     )
 
     if result.stderr:
-        logger.warning(f"Tool error message:\n{result.stderr.strip()}")
+        logger.warning(f"Tool warning message:\n{result.stderr.strip()}")
 
     if result.returncode != 0:
         # If we got an error, print the entire tool stdout as a warning

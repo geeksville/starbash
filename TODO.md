@@ -18,10 +18,13 @@
 * [x] make default repo paths work
 * [x] make repo remove clean the db
 * [x] require all images of a session to have the same exposure length see 2025-09-09 - it incorrectly only has one image in the session!
+* [ ] make auto process work again for dual-duo single session workflows
+* [ ] make master dark/bias gen for asiair work
 * [ ] include temperature in bias filenames.
 * [ ] make process running smarter about printing messages as they occur
 * [x] fix dark frame generation
-* [ ] make 'regen all masters' work
+* [x] make 'regen all masters' work
+* [ ] normalize imagetyp before inserting them into session or images tables
 * [ ] eventually store master info in the root toml file for masters
 * [ ] gracefully handle UnrecognizedAliasError and ask user if they want to add it...
 * [ ] make score_candidates() highly prefer frames that are in the past
@@ -29,7 +32,6 @@
 * [x] make flat rule work
 * [ ] use normalized names when searching for filters or master or light frames
 * [x] when reindexing/adding masters, put them in the session db as some sort of special entry
-* [ ] make auto process work again for dual-duo single session workflows
 * [ ] make siril prep smarter about best sets, include report in toml file, show options on log
 * [ ] I bet that masters are probably being included in the session images, don't include them when passing image files to tasks.
 * [ ] probably: instead of a list of repos we should keep repos in memory in a tree structure - which would allow walking up the tree to inherit/override entries.
@@ -45,9 +47,9 @@
 * [ ] select default output should show summary info for current target & telescope.
 * [ ] make masters list work
 * [ ] track image quality on a per frame basis
-* [ ] use db find master bias frames
+* [x] use db find master bias frames
 * [ ] use db to find flat frames
-* [ ] use db to find light frames
+* [x] use db to find light frames
 * [x] add top level catch asking users to report bugs
 * [x] add crash and usage analytics - sentry.io?
 * [ ] add automated session config looping (Sii, Oiii etc...)
