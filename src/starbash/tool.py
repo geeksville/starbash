@@ -214,11 +214,13 @@ def tool_run(
         target=read_stream,
         args=(process.stdout, logger.debug, "tool-stdout"),
         daemon=True,
+        name="tool-stdout-reader",
     )
     stderr_thread = threading.Thread(
         target=read_stream,
         args=(process.stderr, logger.warning, "tool-stderr"),
         daemon=True,
+        name="tool-stderr-reader",
     )
 
     stdout_thread.start()
