@@ -3,6 +3,7 @@ import shutil
 import textwrap
 import tempfile
 import subprocess
+import select
 import re
 
 import logging
@@ -164,31 +165,84 @@ def strip_comments(text: str) -> str:
 def tool_run(
     cmd: str, cwd: str, commands: str | None = None, timeout: float | None = None
 ) -> None:
-    """Executes an external tool with an optional script of commands in a given working directory."""
+    """Executes an external tool with an optional script of commands in a given working directory.
+
+    Streams stdout and stderr in real-time to the logger, allowing you to see subprocess output
+    as it happens rather than waiting for completion.
+    """
 
     logger.debug(f"Running {cmd} in {cwd}: stdin={commands}")
-    result = subprocess.run(
+
+    # Start the process with pipes for streaming
+    process = subprocess.Popen(
         cmd,
-        input=commands,
+        stdin=subprocess.PIPE if commands else None,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         shell=True,
-        capture_output=True,
         text=True,
         cwd=cwd,
-        timeout=timeout,
     )
 
-    if result.stderr:
-        logger.warning(f"Tool warning message:\n{result.stderr.strip()}")
+    # Send commands to stdin if provided
+    if commands and process.stdin:
+        try:
+            process.stdin.write(commands)
+            process.stdin.close()
+        except BrokenPipeError:
+            # Process may have terminated early
+            pass
 
-    if result.returncode != 0:
-        # If we got an error, print the entire tool stdout as a warning
-        logger.warning(f"Tool output:\n{result.stdout.strip()}")
-        raise RuntimeError(f"Tool failed with exit code {result.returncode}")
-    else:
-        logger.debug("Tool command successful.")
+    # Stream output line by line in real-time
+    assert process.stdout
+    assert process.stderr
 
-    if result.stdout:
-        logger.debug(f"Tool output:\n{result.stdout.strip()}")
+    try:
+        streams = {
+            process.stdout.fileno(): (process.stdout, logger.debug, "stdout"),
+            process.stderr.fileno(): (process.stderr, logger.warning, "stderr"),
+        }
+
+        while streams:
+            # Wait for data on any stream (with timeout for periodic checking)
+            ready, _, _ = select.select(list(streams.keys()), [], [], 0.1)
+
+            for fd in ready:
+                stream, log_func, stream_name = streams[fd]
+                line = stream.readline()
+
+                if line:
+                    # Strip trailing newline and log immediately
+                    line = line.rstrip("\n")
+                    log_func(f"[{stream_name}] {line}")
+                else:
+                    # EOF reached on this stream
+                    del streams[fd]
+
+            # Check if process has terminated
+            if process.poll() is not None and not streams:
+                break
+
+        # Wait for process to complete with timeout
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+            raise RuntimeError(f"Tool timed out after {timeout} seconds")
+
+        returncode = process.returncode
+
+        if returncode != 0:
+            raise RuntimeError(f"Tool failed with exit code {returncode}")
+        else:
+            logger.debug("Tool command successful.")
+    finally:
+        # Ensure streams are properly closed
+        if process.stdout:
+            process.stdout.close()
+        if process.stderr:
+            process.stderr.close()
 
 
 def executable_path(commands: list[str], name: str) -> str:

@@ -452,50 +452,120 @@ class TestToolsDict:
 class TestToolRun:
     """Tests for tool_run function."""
 
-    @patch("starbash.tool.subprocess.run")
-    def test_tool_run_success(self, mock_run):
+    @patch("starbash.tool.subprocess.Popen")
+    def test_tool_run_success(self, mock_popen):
         """Test successful tool execution."""
-        mock_run.return_value = MagicMock(returncode=0, stdout="output", stderr="")
+        # Mock process with stdout/stderr that can be read
+        mock_process = MagicMock()
+        mock_process.returncode = 0
+        mock_process.poll.return_value = 0
+        mock_process.wait.return_value = None
+
+        # Create mock file objects for stdout/stderr
+        mock_stdout = MagicMock()
+        mock_stdout.fileno.return_value = 1
+        mock_stdout.readline.side_effect = ["output\n", ""]  # One line then EOF
+
+        mock_stderr = MagicMock()
+        mock_stderr.fileno.return_value = 2
+        mock_stderr.readline.return_value = ""  # EOF immediately
+
+        mock_process.stdout = mock_stdout
+        mock_process.stderr = mock_stderr
+        mock_process.stdin = MagicMock()
+
+        mock_popen.return_value = mock_process
 
         tool_run("test_command", "/tmp", "input commands")
 
-        mock_run.assert_called_once_with(
-            "test_command",
-            input="input commands",
-            shell=True,
-            capture_output=True,
-            text=True,
-            cwd="/tmp",
-            timeout=None,
-        )
+        mock_popen.assert_called_once()
+        assert mock_process.stdin.write.called
+        assert mock_process.stdin.close.called
 
-    @patch("starbash.tool.subprocess.run")
-    def test_tool_run_with_stderr_warning(self, mock_run, caplog):
+    @patch("starbash.tool.subprocess.Popen")
+    @patch("starbash.tool.select.select")
+    def test_tool_run_with_stderr_warning(self, mock_select, mock_popen, caplog):
         """Test that stderr output is logged as warning."""
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="output", stderr="warning message"
-        )
+        mock_process = MagicMock()
+        mock_process.returncode = 0
+        mock_process.poll.side_effect = [None, None, 0]  # Not done, not done, then done
+
+        mock_stdout = MagicMock()
+        mock_stdout.fileno.return_value = 1
+        mock_stdout.readline.return_value = ""  # Always EOF for stdout
+
+        mock_stderr = MagicMock()
+        mock_stderr.fileno.return_value = 2
+        mock_stderr.readline.side_effect = ["warning message\n", ""]
+
+        mock_process.stdout = mock_stdout
+        mock_process.stderr = mock_stderr
+        mock_popen.return_value = mock_process
+
+        # Mock select to return stderr first, both streams next, then nothing
+        mock_select.side_effect = [
+            ([2], [], []),  # stderr ready with message
+            ([1, 2], [], []),  # Both ready for EOF
+            ([], [], []),  # No more streams (shouldn't reach here)
+        ]
 
         tool_run("test_command", "/tmp")
 
         assert "warning message" in caplog.text
 
-    @patch("starbash.tool.subprocess.run")
-    def test_tool_run_failure_raises_error(self, mock_run):
+    @patch("starbash.tool.subprocess.Popen")
+    def test_tool_run_failure_raises_error(self, mock_popen):
         """Test that non-zero return code raises RuntimeError."""
-        mock_run.return_value = MagicMock(
-            returncode=1, stdout="error output", stderr="error message"
-        )
+        mock_process = MagicMock()
+        mock_process.returncode = 1
+        mock_process.poll.return_value = 1
+
+        mock_stdout = MagicMock()
+        mock_stdout.fileno.return_value = 1
+        mock_stdout.readline.return_value = ""
+
+        mock_stderr = MagicMock()
+        mock_stderr.fileno.return_value = 2
+        mock_stderr.readline.return_value = ""
+
+        mock_process.stdout = mock_stdout
+        mock_process.stderr = mock_stderr
+        mock_popen.return_value = mock_process
 
         with pytest.raises(RuntimeError, match="Tool failed with exit code 1"):
             tool_run("failing_command", "/tmp")
 
-    @patch("starbash.tool.subprocess.run")
-    def test_tool_run_failure_logs_output(self, mock_run, caplog):
+    @patch("starbash.tool.subprocess.Popen")
+    @patch("starbash.tool.select.select")
+    def test_tool_run_failure_logs_output(self, mock_select, mock_popen, caplog):
         """Test that failure logs both stdout and stderr."""
-        mock_run.return_value = MagicMock(
-            returncode=1, stdout="error output", stderr="error message"
-        )
+        import logging
+
+        caplog.set_level(logging.DEBUG)  # Need DEBUG level to see stdout messages
+
+        mock_process = MagicMock()
+        mock_process.returncode = 1
+        mock_process.poll.side_effect = [None, None, None, 1]  # Not done x3, then done
+
+        mock_stdout = MagicMock()
+        mock_stdout.fileno.return_value = 1
+        mock_stdout.readline.side_effect = ["error output\n", ""]
+
+        mock_stderr = MagicMock()
+        mock_stderr.fileno.return_value = 2
+        mock_stderr.readline.side_effect = ["error message\n", ""]
+
+        mock_process.stdout = mock_stdout
+        mock_process.stderr = mock_stderr
+        mock_popen.return_value = mock_process
+
+        # Mock select to return both streams
+        mock_select.side_effect = [
+            ([1], [], []),  # stdout ready with message
+            ([2], [], []),  # stderr ready with message
+            ([1, 2], [], []),  # Both ready for EOF
+            ([], [], []),  # No more data (shouldn't reach)
+        ]
 
         with pytest.raises(RuntimeError):
             tool_run("failing_command", "/tmp")
@@ -503,31 +573,67 @@ class TestToolRun:
         assert "error output" in caplog.text
         assert "error message" in caplog.text
 
-    @patch("starbash.tool.subprocess.run")
-    def test_tool_run_without_input_commands(self, mock_run):
+    @patch("starbash.tool.subprocess.Popen")
+    def test_tool_run_without_input_commands(self, mock_popen):
         """Test tool_run with no input commands (stdin)."""
-        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        mock_process = MagicMock()
+        mock_process.returncode = 0
+        mock_process.poll.return_value = 0
+
+        mock_stdout = MagicMock()
+        mock_stdout.fileno.return_value = 1
+        mock_stdout.readline.return_value = ""
+
+        mock_stderr = MagicMock()
+        mock_stderr.fileno.return_value = 2
+        mock_stderr.readline.return_value = ""
+
+        mock_process.stdout = mock_stdout
+        mock_process.stderr = mock_stderr
+        mock_popen.return_value = mock_process
 
         tool_run("test_command", "/tmp", commands=None)
 
-        # Verify called with None for input
-        assert mock_run.call_args[1]["input"] is None
+        # Verify stdin was None
+        call_kwargs = mock_popen.call_args[1]
+        assert call_kwargs["stdin"] is None
 
-    @patch("starbash.tool.subprocess.run")
-    def test_tool_run_logs_stdout_on_success(self, mock_run, caplog):
+    @patch("starbash.tool.subprocess.Popen")
+    @patch("starbash.tool.select.select")
+    def test_tool_run_logs_stdout_on_success(self, mock_select, mock_popen, caplog):
         """Test that stdout is logged on successful run."""
         import logging
 
         caplog.set_level(logging.DEBUG)
 
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="successful output", stderr=""
-        )
+        mock_process = MagicMock()
+        mock_process.returncode = 0
+        mock_process.poll.side_effect = [None, None, 0]  # Not done, not done, then done
+
+        mock_stdout = MagicMock()
+        mock_stdout.fileno.return_value = 1
+        mock_stdout.readline.side_effect = ["successful output\n", ""]
+
+        mock_stderr = MagicMock()
+        mock_stderr.fileno.return_value = 2
+        mock_stderr.readline.return_value = ""  # Always EOF for stderr
+
+        mock_process.stdout = mock_stdout
+        mock_process.stderr = mock_stderr
+        mock_popen.return_value = mock_process
+
+        # Mock select to return stdout
+        mock_select.side_effect = [
+            ([1], [], []),  # stdout ready with message
+            ([1, 2], [], []),  # Both ready for EOF
+            ([], [], []),  # No more data (shouldn't reach)
+        ]
 
         tool_run("test_command", "/tmp")
 
         # Check debug logs
         assert "Tool command successful" in caplog.text
+        assert "successful output" in caplog.text
 
 
 class TestSirilToolRun:

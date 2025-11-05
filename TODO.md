@@ -21,7 +21,7 @@
 * [ ] make auto process work again for dual-duo single session workflows
 * [ ] make master dark/bias gen for asiair work
 * [ ] include temperature in bias filenames.
-* [ ] make process running smarter about printing messages as they occur
+* [x] make process running smarter about printing messages as they occur
 * [x] fix dark frame generation
 * [x] make 'regen all masters' work
 * [ ] normalize imagetyp before inserting them into session or images tables
