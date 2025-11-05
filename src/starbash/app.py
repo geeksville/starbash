@@ -241,6 +241,7 @@ class Starbash:
                 get_column_name(Database.IMAGETYP_KEY): image_type,
                 get_column_name(Database.NUM_IMAGES_KEY): 1,
                 get_column_name(Database.EXPTIME_TOTAL_KEY): exptime,
+                get_column_name(Database.EXPTIME_KEY): exptime,
             }
 
             filter = header.get(Database.FILTER_KEY)
@@ -580,13 +581,16 @@ class Starbash:
 
             found = self.db.get_image(repo.url, str(relative_path))
 
-            debug_target = "masters-raw/2025-09-09/DARK"
-            if str(relative_path).startswith(debug_target):
-                logging.error("Debugging %s...", f)
-                found = False
-            else:
-                found = True  # skip processing
-                force = False
+            # for debugging sometimes we want to limit scanning to a single directory or file
+            # debug_target = "masters-raw/2025-09-09/DARK"
+            debug_target = None
+            if debug_target:
+                if str(relative_path).startswith(debug_target):
+                    logging.error("Debugging %s...", f)
+                    found = False
+                else:
+                    found = True  # skip processing
+                    force = False
 
             if not found or force:
                 # Read and log the primary header (HDU 0)

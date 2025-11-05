@@ -82,6 +82,7 @@ class Database:
     IMAGETYP_KEY = "IMAGETYP"
     OBJECT_KEY = "OBJECT"
     TELESCOP_KEY = "TELESCOP"
+    EXPTIME_KEY = "EXPTIME"
     ID_KEY = "id"  # for finding any row by its ID
     REPO_URL_KEY = "repo_url"
 
@@ -188,6 +189,7 @@ class Database:
                 telescop TEXT NOT NULL,
                 num_images INTEGER NOT NULL,
                 exptime_total REAL NOT NULL,
+                exptime REAL NOT NULL,
                 image_doc_id INTEGER,
                 FOREIGN KEY (image_doc_id) REFERENCES {self.IMAGES_TABLE}(id)
             )
@@ -198,7 +200,7 @@ class Database:
         cursor.execute(
             f"""
             CREATE INDEX IF NOT EXISTS idx_sessions_lookup
-            ON {self.SESSIONS_TABLE}(filter, imagetyp, object, telescop, start, end)
+            ON {self.SESSIONS_TABLE}(filter, imagetyp, object, telescop, exptime, start, end)
         """
         )
 
@@ -440,7 +442,7 @@ class Database:
         # Build the query with JOIN to images table to get reference image metadata
         query = f"""
             SELECT s.id, s.start, s.end, s.filter, s.imagetyp, s.object, s.telescop,
-                   s.num_images, s.exptime_total, s.image_doc_id, i.metadata
+                   s.num_images, s.exptime_total, s.exptime, s.image_doc_id, i.metadata
             FROM {self.SESSIONS_TABLE} s
             LEFT JOIN {self.IMAGES_TABLE} i ON s.image_doc_id = i.id
             {where_clause}
@@ -570,7 +572,7 @@ class Database:
         cursor.execute(
             f"""
             SELECT id, start, end, filter, imagetyp, object, telescop,
-                   num_images, exptime_total, image_doc_id
+                   num_images, exptime_total, exptime, image_doc_id
             FROM {self.SESSIONS_TABLE}
             WHERE id = ?
         """,
@@ -645,6 +647,16 @@ class Database:
                 where_clauses.append("telescop = ?")
                 params.append(telescop)
 
+        # Handle exptime (optional - only filter if present in to_find)
+        exptime_key = get_column_name(Database.EXPTIME_KEY)
+        if exptime_key in to_find:
+            exptime = to_find.get(exptime_key)
+            if exptime is None:
+                where_clauses.append("exptime IS NULL")
+            else:
+                where_clauses.append("exptime = ?")
+                params.append(exptime)
+
         # Time window
         where_clauses.append("start >= ?")
         where_clauses.append("start <= ?")
@@ -656,7 +668,7 @@ class Database:
         cursor.execute(
             f"""
             SELECT id, start, end, filter, imagetyp, object, telescop,
-                   num_images, exptime_total, image_doc_id
+                   num_images, exptime_total, exptime, image_doc_id
             FROM {self.SESSIONS_TABLE}
             WHERE {where_clause}
             LIMIT 1
@@ -712,8 +724,8 @@ class Database:
             cursor.execute(
                 f"""
                 INSERT INTO {self.SESSIONS_TABLE}
-                (start, end, filter, imagetyp, object, telescop, num_images, exptime_total, image_doc_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (start, end, filter, imagetyp, object, telescop, num_images, exptime_total, exptime, image_doc_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     new[get_column_name(Database.START_KEY)],
@@ -724,6 +736,7 @@ class Database:
                     new.get(get_column_name(Database.TELESCOP_KEY)),
                     new[get_column_name(Database.NUM_IMAGES_KEY)],
                     new[get_column_name(Database.EXPTIME_TOTAL_KEY)],
+                    new[get_column_name(Database.EXPTIME_KEY)],
                     new[get_column_name(Database.IMAGE_DOC_KEY)],
                 ),
             )

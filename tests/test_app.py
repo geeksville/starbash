@@ -8,7 +8,7 @@ import pytest
 import typer
 
 from starbash.app import Starbash, create_user, setup_logging, copy_images_to_dir
-from starbash.database import Database
+from starbash.database import Database, get_column_name
 from starbash.selection import Selection
 from starbash import paths
 
@@ -450,11 +450,11 @@ class TestAddSession:
         with Starbash() as app:
             header = {
                 Database.DATE_OBS_KEY: "2023-10-15T20:30:00",
-                Database.IMAGETYP_KEY: "Light",
-                Database.FILTER_KEY: "Ha",
+                get_column_name(Database.IMAGETYP_KEY): "Light",
+                get_column_name(Database.FILTER_KEY): "Ha",
                 Database.EXPTIME_KEY: 60.0,
-                Database.OBJECT_KEY: "M31",
-                Database.TELESCOP_KEY: "Test Telescope",
+                get_column_name(Database.OBJECT_KEY): "M31",
+                get_column_name(Database.TELESCOP_KEY): "Test Telescope",
             }
             app._add_session(1, header)
 
@@ -470,8 +470,8 @@ class TestAddSession:
         """Test adding a session with missing DATE-OBS logs warning."""
         with Starbash() as app:
             header = {
-                Database.IMAGETYP_KEY: "Light",
-                Database.FILTER_KEY: "Ha",
+                get_column_name(Database.IMAGETYP_KEY): "Light",
+                get_column_name(Database.FILTER_KEY): "Ha",
             }
             app._add_session(1, header)
 
@@ -488,7 +488,7 @@ class TestAddSession:
         with Starbash() as app:
             header = {
                 Database.DATE_OBS_KEY: "2023-10-15T20:30:00",
-                Database.FILTER_KEY: "Ha",
+                get_column_name(Database.FILTER_KEY): "Ha",
             }
             app._add_session(1, header)
 
@@ -500,7 +500,7 @@ class TestAddSession:
         with Starbash() as app:
             header = {
                 Database.DATE_OBS_KEY: "2023-10-15T20:30:00",
-                Database.IMAGETYP_KEY: "Light",
+                get_column_name(Database.IMAGETYP_KEY): "Light",
                 # Missing FILTER, OBJECT, TELESCOP, EXPTIME
             }
             app._add_session(1, header)
@@ -522,15 +522,16 @@ class TestSearchSession:
             # Add some sessions
             for i in range(3):
                 session = {
-                    Database.START_KEY: f"2023-10-1{i}T20:00:00",
-                    Database.END_KEY: f"2023-10-1{i}T22:00:00",
-                    Database.FILTER_KEY: "Ha",
-                    Database.IMAGETYP_KEY: "Light",
-                    Database.OBJECT_KEY: f"Target{i}",
-                    Database.TELESCOP_KEY: "Test",
-                    Database.NUM_IMAGES_KEY: 10,
-                    Database.EXPTIME_TOTAL_KEY: 600.0,
-                    Database.IMAGE_DOC_KEY: i,
+                    get_column_name(Database.START_KEY): f"2023-10-1{i}T20:00:00",
+                    get_column_name(Database.END_KEY): f"2023-10-1{i}T22:00:00",
+                    get_column_name(Database.FILTER_KEY): "Ha",
+                    get_column_name(Database.IMAGETYP_KEY): "Light",
+                    get_column_name(Database.OBJECT_KEY): f"Target{i}",
+                    get_column_name(Database.TELESCOP_KEY): "Test",
+                    get_column_name(Database.NUM_IMAGES_KEY): 10,
+                    get_column_name(Database.EXPTIME_TOTAL_KEY): 600.0,
+                    get_column_name(Database.EXPTIME_KEY): 120.0,
+                    get_column_name(Database.IMAGE_DOC_KEY): i,
                 }
                 app.db.upsert_session(session)
 
@@ -543,26 +544,28 @@ class TestSearchSession:
         with Starbash() as app:
             # Add sessions
             session1 = {
-                Database.START_KEY: "2023-10-15T20:00:00",
-                Database.END_KEY: "2023-10-15T22:00:00",
-                Database.FILTER_KEY: "Ha",
-                Database.IMAGETYP_KEY: "Light",
-                Database.OBJECT_KEY: "M31",
-                Database.TELESCOP_KEY: "Test",
-                Database.NUM_IMAGES_KEY: 10,
-                Database.EXPTIME_TOTAL_KEY: 600.0,
-                Database.IMAGE_DOC_KEY: 1,
+                get_column_name(Database.START_KEY): "2023-10-15T20:00:00",
+                get_column_name(Database.END_KEY): "2023-10-15T22:00:00",
+                get_column_name(Database.FILTER_KEY): "Ha",
+                get_column_name(Database.IMAGETYP_KEY): "Light",
+                get_column_name(Database.OBJECT_KEY): "M31",
+                get_column_name(Database.TELESCOP_KEY): "Test",
+                get_column_name(Database.NUM_IMAGES_KEY): 10,
+                get_column_name(Database.EXPTIME_TOTAL_KEY): 600.0,
+                get_column_name(Database.EXPTIME_KEY): 120.0,
+                get_column_name(Database.IMAGE_DOC_KEY): 1,
             }
             session2 = {
-                Database.START_KEY: "2023-10-16T20:00:00",
-                Database.END_KEY: "2023-10-16T22:00:00",
-                Database.FILTER_KEY: "OIII",
-                Database.IMAGETYP_KEY: "Light",
-                Database.OBJECT_KEY: "M42",
-                Database.TELESCOP_KEY: "Test",
-                Database.NUM_IMAGES_KEY: 5,
-                Database.EXPTIME_TOTAL_KEY: 300.0,
-                Database.IMAGE_DOC_KEY: 2,
+                get_column_name(Database.START_KEY): "2023-10-16T20:00:00",
+                get_column_name(Database.END_KEY): "2023-10-16T22:00:00",
+                get_column_name(Database.FILTER_KEY): "OIII",
+                get_column_name(Database.IMAGETYP_KEY): "Light",
+                get_column_name(Database.OBJECT_KEY): "M42",
+                get_column_name(Database.TELESCOP_KEY): "Test",
+                get_column_name(Database.NUM_IMAGES_KEY): 5,
+                get_column_name(Database.EXPTIME_TOTAL_KEY): 300.0,
+                get_column_name(Database.EXPTIME_KEY): 120.0,
+                get_column_name(Database.IMAGE_DOC_KEY): 2,
             }
             app.db.upsert_session(session1)
             app.db.upsert_session(session2)
@@ -587,24 +590,25 @@ class TestGetSessionImages:
             image = {
                 "path": "image.fit",  # Relative path
                 Database.DATE_OBS_KEY: "2023-10-15T20:30:00",
-                Database.FILTER_KEY: "Ha",
-                Database.IMAGETYP_KEY: "Light",
-                Database.OBJECT_KEY: "M31",
-                Database.TELESCOP_KEY: "Test",
+                get_column_name(Database.FILTER_KEY): "Ha",
+                get_column_name(Database.IMAGETYP_KEY): "Light",
+                get_column_name(Database.OBJECT_KEY): "M31",
+                get_column_name(Database.TELESCOP_KEY): "Test",
             }
             app.db.upsert_image(image, "file:///path/to")
 
             # Add a session
             session = {
-                Database.START_KEY: "2023-10-15T20:00:00",
-                Database.END_KEY: "2023-10-15T22:00:00",
-                Database.FILTER_KEY: "Ha",
-                Database.IMAGETYP_KEY: "Light",
-                Database.OBJECT_KEY: "M31",
-                Database.TELESCOP_KEY: "Test",
-                Database.NUM_IMAGES_KEY: 1,
-                Database.EXPTIME_TOTAL_KEY: 60.0,
-                Database.IMAGE_DOC_KEY: 1,
+                get_column_name(Database.START_KEY): "2023-10-15T20:00:00",
+                get_column_name(Database.END_KEY): "2023-10-15T22:00:00",
+                get_column_name(Database.FILTER_KEY): "Ha",
+                get_column_name(Database.IMAGETYP_KEY): "Light",
+                get_column_name(Database.OBJECT_KEY): "M31",
+                get_column_name(Database.TELESCOP_KEY): "Test",
+                get_column_name(Database.NUM_IMAGES_KEY): 1,
+                get_column_name(Database.EXPTIME_TOTAL_KEY): 60.0,
+                get_column_name(Database.EXPTIME_KEY): 120.0,
+                get_column_name(Database.IMAGE_DOC_KEY): 1,
             }
             app.db.upsert_session(session)
 
@@ -632,15 +636,16 @@ class TestGetSessionImages:
         with Starbash() as app:
             # Add a session without any images
             session = {
-                Database.START_KEY: "2023-10-15T20:00:00",
-                Database.END_KEY: "2023-10-15T22:00:00",
-                Database.FILTER_KEY: "Ha",
-                Database.IMAGETYP_KEY: "Light",
-                Database.OBJECT_KEY: "M31",
-                Database.TELESCOP_KEY: "Test",
-                Database.NUM_IMAGES_KEY: 0,
-                Database.EXPTIME_TOTAL_KEY: 0.0,
-                Database.IMAGE_DOC_KEY: 1,
+                get_column_name(Database.START_KEY): "2023-10-15T20:00:00",
+                get_column_name(Database.END_KEY): "2023-10-15T22:00:00",
+                get_column_name(Database.FILTER_KEY): "Ha",
+                get_column_name(Database.IMAGETYP_KEY): "Light",
+                get_column_name(Database.OBJECT_KEY): "M31",
+                get_column_name(Database.TELESCOP_KEY): "Test",
+                get_column_name(Database.NUM_IMAGES_KEY): 0,
+                get_column_name(Database.EXPTIME_TOTAL_KEY): 0.0,
+                get_column_name(Database.EXPTIME_KEY): 120.0,
+                get_column_name(Database.IMAGE_DOC_KEY): 1,
             }
             app.db.upsert_session(session)
 

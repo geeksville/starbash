@@ -5,7 +5,7 @@ from typer.testing import CliRunner
 import pytest
 
 from starbash.main import app
-from starbash.database import Database
+from starbash.database import Database, get_column_name
 from starbash import paths
 
 runner = CliRunner(env={"NO_COLOR": "1"})
@@ -38,48 +38,52 @@ def populated_database(setup_test_environment):
         # Add some test sessions with varied data
         sessions = [
             {
-                Database.FILTER_KEY: "Ha",
-                Database.START_KEY: "2024-01-01T20:00:00",
-                Database.END_KEY: "2024-01-01T22:00:00",
-                Database.IMAGE_DOC_KEY: 1,
-                Database.IMAGETYP_KEY: "Light",
-                Database.NUM_IMAGES_KEY: 10,
-                Database.EXPTIME_TOTAL_KEY: 1200.0,  # 20 minutes
-                Database.OBJECT_KEY: "M31",
-                Database.TELESCOP_KEY: "ZWO ASI533MC Pro",
+                get_column_name(Database.FILTER_KEY): "Ha",
+                get_column_name(Database.START_KEY): "2024-01-01T20:00:00",
+                get_column_name(Database.END_KEY): "2024-01-01T22:00:00",
+                get_column_name(Database.IMAGE_DOC_KEY): 1,
+                get_column_name(Database.IMAGETYP_KEY): "Light",
+                get_column_name(Database.NUM_IMAGES_KEY): 10,
+                get_column_name(Database.EXPTIME_TOTAL_KEY): 1200.0,  # 20 minutes
+                get_column_name(Database.EXPTIME_KEY): 120.0,
+                get_column_name(Database.OBJECT_KEY): "M31",
+                get_column_name(Database.TELESCOP_KEY): "ZWO ASI533MC Pro",
             },
             {
-                Database.FILTER_KEY: "OIII",
-                Database.START_KEY: "2024-01-02T20:00:00",
-                Database.END_KEY: "2024-01-02T23:00:00",
-                Database.IMAGE_DOC_KEY: 2,
-                Database.IMAGETYP_KEY: "Light",
-                Database.NUM_IMAGES_KEY: 15,
-                Database.EXPTIME_TOTAL_KEY: 2700.0,  # 45 minutes
-                Database.OBJECT_KEY: "M31",
-                Database.TELESCOP_KEY: "ZWO ASI533MC Pro",
+                get_column_name(Database.FILTER_KEY): "OIII",
+                get_column_name(Database.START_KEY): "2024-01-02T20:00:00",
+                get_column_name(Database.END_KEY): "2024-01-02T23:00:00",
+                get_column_name(Database.IMAGE_DOC_KEY): 2,
+                get_column_name(Database.IMAGETYP_KEY): "Light",
+                get_column_name(Database.NUM_IMAGES_KEY): 15,
+                get_column_name(Database.EXPTIME_TOTAL_KEY): 2700.0,  # 45 minutes
+                get_column_name(Database.EXPTIME_KEY): 120.0,
+                get_column_name(Database.OBJECT_KEY): "M31",
+                get_column_name(Database.TELESCOP_KEY): "ZWO ASI533MC Pro",
             },
             {
-                Database.FILTER_KEY: "Ha",
-                Database.START_KEY: "2024-01-03T19:00:00",
-                Database.END_KEY: "2024-01-03T21:30:00",
-                Database.IMAGE_DOC_KEY: 3,
-                Database.IMAGETYP_KEY: "Light",
-                Database.NUM_IMAGES_KEY: 20,
-                Database.EXPTIME_TOTAL_KEY: 3600.0,  # 60 minutes
-                Database.OBJECT_KEY: "NGC 7635",
-                Database.TELESCOP_KEY: "Seestar S50",
+                get_column_name(Database.FILTER_KEY): "Ha",
+                get_column_name(Database.START_KEY): "2024-01-03T19:00:00",
+                get_column_name(Database.END_KEY): "2024-01-03T21:30:00",
+                get_column_name(Database.IMAGE_DOC_KEY): 3,
+                get_column_name(Database.IMAGETYP_KEY): "Light",
+                get_column_name(Database.NUM_IMAGES_KEY): 20,
+                get_column_name(Database.EXPTIME_TOTAL_KEY): 3600.0,  # 60 minutes
+                get_column_name(Database.EXPTIME_KEY): 120.0,
+                get_column_name(Database.OBJECT_KEY): "NGC 7635",
+                get_column_name(Database.TELESCOP_KEY): "Seestar S50",
             },
             {
-                Database.FILTER_KEY: "RGB",
-                Database.START_KEY: "2024-01-04T20:00:00",
-                Database.END_KEY: "2024-01-04T22:00:00",
-                Database.IMAGE_DOC_KEY: 4,
-                Database.IMAGETYP_KEY: "Light",
-                Database.NUM_IMAGES_KEY: 30,
-                Database.EXPTIME_TOTAL_KEY: 1800.0,  # 30 minutes
-                Database.OBJECT_KEY: "M42",
-                Database.TELESCOP_KEY: "Seestar S50",
+                get_column_name(Database.FILTER_KEY): "RGB",
+                get_column_name(Database.START_KEY): "2024-01-04T20:00:00",
+                get_column_name(Database.END_KEY): "2024-01-04T22:00:00",
+                get_column_name(Database.IMAGE_DOC_KEY): 4,
+                get_column_name(Database.IMAGETYP_KEY): "Light",
+                get_column_name(Database.NUM_IMAGES_KEY): 30,
+                get_column_name(Database.EXPTIME_TOTAL_KEY): 1800.0,  # 30 minutes
+                get_column_name(Database.EXPTIME_KEY): 120.0,
+                get_column_name(Database.OBJECT_KEY): "M42",
+                get_column_name(Database.TELESCOP_KEY): "Seestar S50",
             },
         ]
 

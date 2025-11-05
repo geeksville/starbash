@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from starbash.database import Database
+from starbash.database import Database, get_column_name
 
 
 def test_database_images_table(tmp_path: Path):
@@ -87,15 +87,16 @@ def test_remove_repo_with_sessions(tmp_path: Path):
 
         # Create a session referencing this image
         session_rec = {
-            Database.START_KEY: "2025-01-01T20:00:00",
-            Database.END_KEY: "2025-01-01T21:00:00",
-            Database.FILTER_KEY: "Ha",
-            Database.IMAGETYP_KEY: "Light Frame",
-            Database.OBJECT_KEY: "M42",
-            Database.TELESCOP_KEY: "test-scope",
-            Database.NUM_IMAGES_KEY: 1,
-            Database.EXPTIME_TOTAL_KEY: 120.0,
-            Database.IMAGE_DOC_KEY: image_id,
+            get_column_name(Database.START_KEY): "2025-01-01T20:00:00",
+            get_column_name(Database.END_KEY): "2025-01-01T21:00:00",
+            get_column_name(Database.FILTER_KEY): "Ha",
+            get_column_name(Database.IMAGETYP_KEY): "Light Frame",
+            get_column_name(Database.OBJECT_KEY): "M42",
+            get_column_name(Database.TELESCOP_KEY): "test-scope",
+            get_column_name(Database.NUM_IMAGES_KEY): 1,
+            get_column_name(Database.EXPTIME_TOTAL_KEY): 120.0,
+            get_column_name(Database.EXPTIME_KEY): 120.0,
+            get_column_name(Database.IMAGE_DOC_KEY): image_id,
         }
         db.upsert_session(session_rec)
 
@@ -180,28 +181,30 @@ def test_remove_repo_with_multiple_sessions(tmp_path: Path):
 
         # Create sessions referencing each image
         session1_rec = {
-            Database.START_KEY: "2025-01-01T20:00:00",
-            Database.END_KEY: "2025-01-01T21:00:00",
-            Database.FILTER_KEY: "Ha",
-            Database.IMAGETYP_KEY: "Light Frame",
-            Database.OBJECT_KEY: "M42",
-            Database.TELESCOP_KEY: "test-scope",
-            Database.NUM_IMAGES_KEY: 1,
-            Database.EXPTIME_TOTAL_KEY: 120.0,
-            Database.IMAGE_DOC_KEY: image1_id,
+            get_column_name(Database.START_KEY): "2025-01-01T20:00:00",
+            get_column_name(Database.END_KEY): "2025-01-01T21:00:00",
+            get_column_name(Database.FILTER_KEY): "Ha",
+            get_column_name(Database.IMAGETYP_KEY): "Light Frame",
+            get_column_name(Database.OBJECT_KEY): "M42",
+            get_column_name(Database.TELESCOP_KEY): "test-scope",
+            get_column_name(Database.NUM_IMAGES_KEY): 1,
+            get_column_name(Database.EXPTIME_TOTAL_KEY): 120.0,
+            get_column_name(Database.EXPTIME_KEY): 120.0,
+            get_column_name(Database.IMAGE_DOC_KEY): image1_id,
         }
         db.upsert_session(session1_rec)
 
         session2_rec = {
-            Database.START_KEY: "2025-01-02T20:00:00",
-            Database.END_KEY: "2025-01-02T21:00:00",
-            Database.FILTER_KEY: "OIII",
-            Database.IMAGETYP_KEY: "Light Frame",
-            Database.OBJECT_KEY: "M42",
-            Database.TELESCOP_KEY: "test-scope",
-            Database.NUM_IMAGES_KEY: 1,
-            Database.EXPTIME_TOTAL_KEY: 120.0,
-            Database.IMAGE_DOC_KEY: image2_id,
+            get_column_name(Database.START_KEY): "2025-01-02T20:00:00",
+            get_column_name(Database.END_KEY): "2025-01-02T21:00:00",
+            get_column_name(Database.FILTER_KEY): "OIII",
+            get_column_name(Database.IMAGETYP_KEY): "Light Frame",
+            get_column_name(Database.OBJECT_KEY): "M42",
+            get_column_name(Database.TELESCOP_KEY): "test-scope",
+            get_column_name(Database.NUM_IMAGES_KEY): 1,
+            get_column_name(Database.EXPTIME_TOTAL_KEY): 120.0,
+            get_column_name(Database.EXPTIME_KEY): 120.0,
+            get_column_name(Database.IMAGE_DOC_KEY): image2_id,
         }
         db.upsert_session(session2_rec)
 

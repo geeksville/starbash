@@ -5,7 +5,7 @@ from typer.testing import CliRunner
 import pytest
 
 from starbash.main import app
-from starbash.database import Database
+from starbash.database import Database, get_column_name
 from starbash import paths
 
 # Rich formatting is automatically disabled when PYTEST_CURRENT_TEST is set
@@ -57,15 +57,16 @@ def test_session_command_with_data(setup_test_environment, tmp_path):
     data_dir = setup_test_environment["data_dir"]
     with Database(base_dir=data_dir) as db:
         session = {
-            Database.START_KEY: "2023-10-15T20:30:00",
-            Database.END_KEY: "2023-10-15T22:30:00",
-            Database.FILTER_KEY: "Ha",
-            Database.IMAGETYP_KEY: "Light",
-            Database.OBJECT_KEY: "M31",
-            Database.TELESCOP_KEY: "Test Telescope",
-            Database.NUM_IMAGES_KEY: 10,
-            Database.EXPTIME_TOTAL_KEY: 600.0,
-            Database.IMAGE_DOC_KEY: 1,
+            get_column_name(Database.START_KEY): "2023-10-15T20:30:00",
+            get_column_name(Database.END_KEY): "2023-10-15T22:30:00",
+            get_column_name(Database.FILTER_KEY): "Ha",
+            get_column_name(Database.IMAGETYP_KEY): "Light",
+            get_column_name(Database.OBJECT_KEY): "M31",
+            get_column_name(Database.TELESCOP_KEY): "Test Telescope",
+            get_column_name(Database.NUM_IMAGES_KEY): 10,
+            get_column_name(Database.EXPTIME_TOTAL_KEY): 600.0,
+            get_column_name(Database.EXPTIME_KEY): 120.0,
+            get_column_name(Database.IMAGE_DOC_KEY): 1,
         }
         db.upsert_session(session)
 
