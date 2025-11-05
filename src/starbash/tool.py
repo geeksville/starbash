@@ -274,9 +274,10 @@ class SirilTool(Tool):
             """
         )
 
-        logger.info(
+        logger.debug(
             f"Running Siril in {temp_dir}, ({len(input_files)} input files) cmds:\n{script_content}"
         )
+        logger.info(f"Running Siril ({len(input_files)} input files)")
 
         # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
         # It seems like the -d command may also be required when siril is in a flatpak

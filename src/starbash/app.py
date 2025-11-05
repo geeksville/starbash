@@ -809,6 +809,11 @@ class Starbash:
             if (imagetyp == "flat" or imagetyp == "light") and filter:
                 # we only care about filters in these cases
                 session_config += f"_{filter}"
+            if imagetyp == "dark":
+                exptime = session.get(get_column_name(Database.EXPTIME_KEY))
+                if exptime:
+                    session_config += f"_{int(float(exptime))}s"
+
             self.context["session_config"] = session_config
 
         date = session.get(get_column_name(Database.START_KEY))

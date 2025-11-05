@@ -17,13 +17,15 @@
 * [x] when a new master is generated add it to the images table
 * [x] make default repo paths work
 * [x] make repo remove clean the db
-* [ ] require all images of a session to have the same exposure length see 2025-09-09 - it incorrectly only has one image in the session!
+* [x] require all images of a session to have the same exposure length see 2025-09-09 - it incorrectly only has one image in the session!
+* [ ] include temperature in bias filenames.
 * [ ] make process running smarter about printing messages as they occur
-* [ ] fix dark frame generation
+* [x] fix dark frame generation
 * [ ] make 'regen all masters' work
 * [ ] eventually store master info in the root toml file for masters
 * [ ] gracefully handle UnrecognizedAliasError and ask user if they want to add it...
 * [ ] make score_candidates() highly prefer frames that are in the past
+* [ ] make and intergration test that uses a few real files
 * [x] make flat rule work
 * [ ] use normalized names when searching for filters or master or light frames
 * [x] when reindexing/adding masters, put them in the session db as some sort of special entry
