@@ -18,6 +18,7 @@
 * [x] make default repo paths work
 * [x] make repo remove clean the db
 * [x] require all images of a session to have the same exposure length see 2025-09-09 - it incorrectly only has one image in the session!
+* [x] normalize session target names on insert, so that "sb select target m31" can work
 * [ ] make auto process work again for dual-duo single session workflows
 * [ ] make master dark/bias gen for asiair work
 * [ ] include temperature in bias filenames.
@@ -35,7 +36,7 @@
 * [ ] make siril prep smarter about best sets, include report in toml file, show options on log
 * [ ] I bet that masters are probably being included in the session images, don't include them when passing image files to tasks.
 * [ ] probably: instead of a list of repos we should keep repos in memory in a tree structure - which would allow walking up the tree to inherit/override entries.
-* [ ] add exposure length as another common element for a session
+* [x] add exposure length as another common element for a session
 * [ ] validate resolution and binning when looking for darks etc...
 * [ ] auto select workflows by filter name
 * [ ] make auto process work again for dual-duo _multi_ session workflows
@@ -54,6 +55,7 @@
 * [x] add crash and usage analytics - sentry.io?
 * [ ] add automated session config looping (Sii, Oiii etc...)
 * [ ] add automated session looping (multiday)
+* [ ] unify the script execution code between sessions and masters
 * [ ] pass stage outputs via the context?
 * [ ] generalize the various session selectors to make them just come from an array of column names (should allow removing the select telescope, select foo variants)
 * [x] add the concept of filter aliases

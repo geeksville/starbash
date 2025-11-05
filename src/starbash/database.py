@@ -8,6 +8,7 @@ import json
 from typing import TypeAlias
 
 from .paths import get_user_data_dir
+from .aliases import normalize_target_name
 
 SessionRow: TypeAlias = dict[str, Any]
 ImageRow: TypeAlias = dict[str, Any]
@@ -619,8 +620,8 @@ class Database:
 
         # Handle filter (optional - only filter if present in to_find)
         filter_key = get_column_name(Database.FILTER_KEY)
-        if filter_key in to_find:
-            filter = to_find.get(filter_key)  # filter can be None
+        filter = to_find.get(filter_key)  # filter can be the string "None"
+        if filter:
             if filter is None:
                 where_clauses.append("filter IS NULL")
             else:
@@ -629,8 +630,9 @@ class Database:
 
         # Handle object/target (optional - only filter if present in to_find)
         object_key = get_column_name(Database.OBJECT_KEY)
-        if object_key in to_find:
-            target = to_find.get(object_key)
+        target = to_find.get(object_key)
+        if target:
+            target = normalize_target_name(target)
             if target is None:
                 where_clauses.append("object IS NULL")
             else:
@@ -639,8 +641,8 @@ class Database:
 
         # Handle telescop (optional - only filter if present in to_find)
         telescop_key = get_column_name(Database.TELESCOP_KEY)
-        if telescop_key in to_find:
-            telescop = to_find.get(telescop_key)
+        telescop = to_find.get(telescop_key)
+        if telescop:
             if telescop is None:
                 where_clauses.append("telescop IS NULL")
             else:
@@ -732,7 +734,9 @@ class Database:
                     new[get_column_name(Database.END_KEY)],
                     new.get(get_column_name(Database.FILTER_KEY)),
                     new[get_column_name(Database.IMAGETYP_KEY)],
-                    new.get(get_column_name(Database.OBJECT_KEY)),
+                    normalize_target_name(
+                        new.get(get_column_name(Database.OBJECT_KEY))
+                    ),
                     new.get(get_column_name(Database.TELESCOP_KEY)),
                     new[get_column_name(Database.NUM_IMAGES_KEY)],
                     new[get_column_name(Database.EXPTIME_TOTAL_KEY)],

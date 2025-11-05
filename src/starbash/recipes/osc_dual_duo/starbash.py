@@ -4,6 +4,7 @@
 import os
 from glob import glob
 from starbash.tool import tools
+from starbash.aliases import normalize_target_name
 
 siril = tools["siril"]
 
@@ -16,11 +17,6 @@ def perhaps_delete_temps(temps: list[str]) -> None:
         for t in temps:
             for path in glob(f"{context['process_dir']}/{t}_*"):
                 os.remove(path)
-
-
-def normalize_target_name(name: str) -> str:
-    """Converts a target name to an any filesystem-safe format by removing spaces"""
-    return name.replace(" ", "").upper()
 
 
 def make_stacked(sessionconfig: str, variant: str, output_file: str):

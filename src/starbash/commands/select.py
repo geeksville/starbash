@@ -253,6 +253,11 @@ def list_sessions(
                 telescope = get_key(Database.TELESCOP_KEY)
                 telescopes.add(telescope)
 
+                # Show the non normalized target name
+                long_name = sess["metadata"].get("OBJECT")
+                if long_name:
+                    object = long_name
+
                 # Format total exposure time as integer seconds
                 exptime_raw = get_key(Database.EXPTIME_TOTAL_KEY)
                 try:

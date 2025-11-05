@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional, TYPE_CHECKING
 from repo import Repo
+from starbash.aliases import normalize_target_name
 
 
 def where_tuple(conditions: dict[str, Any] | None) -> tuple[str, list[Any]]:
@@ -256,7 +257,11 @@ class Selection:
         if self.targets:
             # For now, just use the first target
             # TODO: Support multiple targets in queries
-            conditions["OBJECT"] = self.targets[0] if len(self.targets) == 1 else None
+            conditions["OBJECT"] = (
+                normalize_target_name(self.targets[0])
+                if len(self.targets) == 1
+                else None
+            )
 
         if self.filters:
             # For now, just use the first filter

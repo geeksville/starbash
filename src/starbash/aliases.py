@@ -4,6 +4,13 @@ import string
 _translator = str.maketrans("", "", string.punctuation + string.whitespace)
 
 
+def normalize_target_name(name: str | None) -> str | None:
+    """Converts a target name to an any filesystem-safe format by removing spaces"""
+    if name is None:
+        return None
+    return name.replace(" ", "").lower()
+
+
 def pre_normalize(name: str) -> str:
     """Pre-normalize a name by removing all whitespace and punctuation, and converting to lowercase.
 

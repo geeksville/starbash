@@ -199,8 +199,8 @@ def tool_run(
 
     try:
         streams = {
-            process.stdout.fileno(): (process.stdout, logger.debug, "stdout"),
-            process.stderr.fileno(): (process.stderr, logger.warning, "stderr"),
+            process.stdout.fileno(): (process.stdout, logger.debug, "tool-stdout"),
+            process.stderr.fileno(): (process.stderr, logger.warning, "tool-stderr"),
         }
 
         while streams:
