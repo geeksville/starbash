@@ -700,36 +700,6 @@ class Starbash:
         )
         return sorted_pipeline
 
-    def run_all_stages(self):
-        """On the currently active session, run all processing stages
-
-        New design, not yet implemented:
-        * find all recipes
-        * for each target in the current selection:
-        *   select ONE recipe for processing that target (check recipe.auto.require.* conditions)
-        *   create a processing output directory (for high value final files)
-        *   create a temporary processing directory (for intermediate files - shared by all stages)
-        *   init session context (it will be shared for all following steps)
-        *   iterate over all light frame sessions in the current selection
-        *     for each session:
-        *       update context input and output files
-        *       run session.light stages
-        *   after all sessions are processed, run final.stack stages (using the shared context and temp dir)
-
-        """
-        logging.info("--- Running all stages ---")
-
-        # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
-        sorted_pipeline = self._get_stages("stages")
-
-        self.init_context()
-        # 4. Iterate through the sorted pipeline and execute the associated tasks.
-        for step in sorted_pipeline:
-            step_name = step.get("name")
-            if not step_name:
-                raise ValueError("Invalid pipeline step found: missing 'name' key.")
-            self.run_pipeline_step(step_name)
-
     def run_pipeline_step(self, step_name: str):
         logging.info(f"--- Running pipeline step: '{step_name}' ---")
 
@@ -824,6 +794,36 @@ class Starbash:
 
         # No matching recipe found
         return None
+
+    def run_all_stages(self):
+        """On the currently active session, run all processing stages
+
+        New design, not yet implemented:
+        * find all recipes
+        * for each target in the current selection:
+        *   select ONE recipe for processing that target (check recipe.auto.require.* conditions)
+        *   create a processing output directory (for high value final files)
+        *   create a temporary processing directory (for intermediate files - shared by all stages)
+        *   init session context (it will be shared for all following steps)
+        *   iterate over all light frame sessions in the current selection
+        *     for each session:
+        *       update context input and output files
+        *       run session.light stages
+        *   after all sessions are processed, run final.stack stages (using the shared context and temp dir)
+
+        """
+        logging.info("--- Running all stages ---")
+
+        # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
+        sorted_pipeline = self._get_stages("stages")
+
+        self.init_context()
+        # 4. Iterate through the sorted pipeline and execute the associated tasks.
+        for step in sorted_pipeline:
+            step_name = step.get("name")
+            if not step_name:
+                raise ValueError("Invalid pipeline step found: missing 'name' key.")
+            self.run_pipeline_step(step_name)
 
     def run_master_stages(self):
         """Generate any missing master frames
