@@ -15,7 +15,10 @@
 * [x] auto provide bias frame to flat generation
 * [x] make flat generation properly use session_config for filter name
 * [x] when a new master is generated add it to the images table
+* [ ] make default repo paths work
+* [x] make repo remove clean the db
 * [ ] require all images of a session to have the same exposure length see 2025-09-09 - it incorrectly only has one image in the session!
+* [ ] make process running smarter about printing messages as they occur
 * [ ] fix dark frame generation
 * [ ] make 'regen all masters' work
 * [ ] eventually store master info in the root toml file for masters

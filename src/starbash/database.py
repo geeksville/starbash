@@ -209,38 +209,44 @@ class Database:
         """Remove a repo record by URL.
 
         This will cascade delete all images belonging to this repo, and all sessions
-        that reference those images.
+        that reference those images via image_doc_id.
+
+        The relationship is: repos -> images (via repo_id) -> sessions (via image_doc_id).
+        Sessions have an image_doc_id field that points to a representative image.
+        We delete sessions whose representative image belongs to the repo being deleted.
 
         Args:
             url: The repository URL (e.g., 'file:///path/to/repo')
         """
         cursor = self._db.cursor()
 
-        # First get the repo_id
-        repo_id = self.get_repo_id(url)
-        if repo_id is None:
-            return  # Repo doesn't exist, nothing to delete
-
-        # Delete sessions that reference images from this repo
-        # This deletes sessions where image_doc_id points to any image in this repo
+        # Use a 3-way join to find and delete sessions that reference images from this repo
+        # repo_url -> repo_id -> images.id -> sessions.image_doc_id
         cursor.execute(
             f"""
             DELETE FROM {self.SESSIONS_TABLE}
-            WHERE image_doc_id IN (
-                SELECT id FROM {self.IMAGES_TABLE} WHERE repo_id = ?
+            WHERE id IN (
+                SELECT s.id
+                FROM {self.SESSIONS_TABLE} s
+                INNER JOIN {self.IMAGES_TABLE} i ON s.image_doc_id = i.id
+                INNER JOIN {self.REPOS_TABLE} r ON i.repo_id = r.id
+                WHERE r.url = ?
             )
             """,
-            (repo_id,),
+            (url,),
         )
 
-        # Delete all images from this repo
+        # Delete all images from this repo (using repo_id from URL)
         cursor.execute(
-            f"DELETE FROM {self.IMAGES_TABLE} WHERE repo_id = ?",
-            (repo_id,),
+            f"""
+            DELETE FROM {self.IMAGES_TABLE}
+            WHERE repo_id = (SELECT id FROM {self.REPOS_TABLE} WHERE url = ?)
+            """,
+            (url,),
         )
 
         # Finally delete the repo itself
-        cursor.execute(f"DELETE FROM {self.REPOS_TABLE} WHERE id = ?", (repo_id,))
+        cursor.execute(f"DELETE FROM {self.REPOS_TABLE} WHERE url = ?", (url,))
 
         self._db.commit()
 

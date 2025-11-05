@@ -550,6 +550,7 @@ class Starbash:
             # Match by converting to file:// URL format if needed
             if ref_dir == url or f"file://{ref_dir}" == url:
                 repo_refs.remove(ref)
+
                 found = True
                 break
 
