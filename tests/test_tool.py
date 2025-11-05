@@ -461,14 +461,12 @@ class TestToolRun:
         mock_process.poll.return_value = 0
         mock_process.wait.return_value = None
 
-        # Create mock file objects for stdout/stderr
+        # Create mock file objects that are iterable (for threading approach)
         mock_stdout = MagicMock()
-        mock_stdout.fileno.return_value = 1
-        mock_stdout.readline.side_effect = ["output\n", ""]  # One line then EOF
+        mock_stdout.__iter__.return_value = iter(["output\n"])
 
         mock_stderr = MagicMock()
-        mock_stderr.fileno.return_value = 2
-        mock_stderr.readline.return_value = ""  # EOF immediately
+        mock_stderr.__iter__.return_value = iter([])  # No stderr output
 
         mock_process.stdout = mock_stdout
         mock_process.stderr = mock_stderr
@@ -483,31 +481,22 @@ class TestToolRun:
         assert mock_process.stdin.close.called
 
     @patch("starbash.tool.subprocess.Popen")
-    @patch("starbash.tool.select.select")
-    def test_tool_run_with_stderr_warning(self, mock_select, mock_popen, caplog):
+    def test_tool_run_with_stderr_warning(self, mock_popen, caplog):
         """Test that stderr output is logged as warning."""
         mock_process = MagicMock()
         mock_process.returncode = 0
-        mock_process.poll.side_effect = [None, None, 0]  # Not done, not done, then done
+        mock_process.poll.return_value = 0
 
+        # Create iterable mock streams
         mock_stdout = MagicMock()
-        mock_stdout.fileno.return_value = 1
-        mock_stdout.readline.return_value = ""  # Always EOF for stdout
+        mock_stdout.__iter__.return_value = iter([])  # No stdout output
 
         mock_stderr = MagicMock()
-        mock_stderr.fileno.return_value = 2
-        mock_stderr.readline.side_effect = ["warning message\n", ""]
+        mock_stderr.__iter__.return_value = iter(["warning message\n"])
 
         mock_process.stdout = mock_stdout
         mock_process.stderr = mock_stderr
         mock_popen.return_value = mock_process
-
-        # Mock select to return stderr first, both streams next, then nothing
-        mock_select.side_effect = [
-            ([2], [], []),  # stderr ready with message
-            ([1, 2], [], []),  # Both ready for EOF
-            ([], [], []),  # No more streams (shouldn't reach here)
-        ]
 
         tool_run("test_command", "/tmp")
 
@@ -520,13 +509,12 @@ class TestToolRun:
         mock_process.returncode = 1
         mock_process.poll.return_value = 1
 
+        # Create iterable mock streams
         mock_stdout = MagicMock()
-        mock_stdout.fileno.return_value = 1
-        mock_stdout.readline.return_value = ""
+        mock_stdout.__iter__.return_value = iter([])
 
         mock_stderr = MagicMock()
-        mock_stderr.fileno.return_value = 2
-        mock_stderr.readline.return_value = ""
+        mock_stderr.__iter__.return_value = iter([])
 
         mock_process.stdout = mock_stdout
         mock_process.stderr = mock_stderr
@@ -536,8 +524,7 @@ class TestToolRun:
             tool_run("failing_command", "/tmp")
 
     @patch("starbash.tool.subprocess.Popen")
-    @patch("starbash.tool.select.select")
-    def test_tool_run_failure_logs_output(self, mock_select, mock_popen, caplog):
+    def test_tool_run_failure_logs_output(self, mock_popen, caplog):
         """Test that failure logs both stdout and stderr."""
         import logging
 
@@ -545,27 +532,18 @@ class TestToolRun:
 
         mock_process = MagicMock()
         mock_process.returncode = 1
-        mock_process.poll.side_effect = [None, None, None, 1]  # Not done x3, then done
+        mock_process.poll.return_value = 1
 
+        # Create iterable mock streams
         mock_stdout = MagicMock()
-        mock_stdout.fileno.return_value = 1
-        mock_stdout.readline.side_effect = ["error output\n", ""]
+        mock_stdout.__iter__.return_value = iter(["error output\n"])
 
         mock_stderr = MagicMock()
-        mock_stderr.fileno.return_value = 2
-        mock_stderr.readline.side_effect = ["error message\n", ""]
+        mock_stderr.__iter__.return_value = iter(["error message\n"])
 
         mock_process.stdout = mock_stdout
         mock_process.stderr = mock_stderr
         mock_popen.return_value = mock_process
-
-        # Mock select to return both streams
-        mock_select.side_effect = [
-            ([1], [], []),  # stdout ready with message
-            ([2], [], []),  # stderr ready with message
-            ([1, 2], [], []),  # Both ready for EOF
-            ([], [], []),  # No more data (shouldn't reach)
-        ]
 
         with pytest.raises(RuntimeError):
             tool_run("failing_command", "/tmp")
@@ -580,13 +558,12 @@ class TestToolRun:
         mock_process.returncode = 0
         mock_process.poll.return_value = 0
 
+        # Create iterable mock streams
         mock_stdout = MagicMock()
-        mock_stdout.fileno.return_value = 1
-        mock_stdout.readline.return_value = ""
+        mock_stdout.__iter__.return_value = iter([])
 
         mock_stderr = MagicMock()
-        mock_stderr.fileno.return_value = 2
-        mock_stderr.readline.return_value = ""
+        mock_stderr.__iter__.return_value = iter([])
 
         mock_process.stdout = mock_stdout
         mock_process.stderr = mock_stderr
@@ -599,8 +576,7 @@ class TestToolRun:
         assert call_kwargs["stdin"] is None
 
     @patch("starbash.tool.subprocess.Popen")
-    @patch("starbash.tool.select.select")
-    def test_tool_run_logs_stdout_on_success(self, mock_select, mock_popen, caplog):
+    def test_tool_run_logs_stdout_on_success(self, mock_popen, caplog):
         """Test that stdout is logged on successful run."""
         import logging
 
@@ -608,26 +584,18 @@ class TestToolRun:
 
         mock_process = MagicMock()
         mock_process.returncode = 0
-        mock_process.poll.side_effect = [None, None, 0]  # Not done, not done, then done
+        mock_process.poll.return_value = 0
 
+        # Create iterable mock streams
         mock_stdout = MagicMock()
-        mock_stdout.fileno.return_value = 1
-        mock_stdout.readline.side_effect = ["successful output\n", ""]
+        mock_stdout.__iter__.return_value = iter(["successful output\n"])
 
         mock_stderr = MagicMock()
-        mock_stderr.fileno.return_value = 2
-        mock_stderr.readline.return_value = ""  # Always EOF for stderr
+        mock_stderr.__iter__.return_value = iter([])
 
         mock_process.stdout = mock_stdout
         mock_process.stderr = mock_stderr
         mock_popen.return_value = mock_process
-
-        # Mock select to return stdout
-        mock_select.side_effect = [
-            ([1], [], []),  # stdout ready with message
-            ([1, 2], [], []),  # Both ready for EOF
-            ([], [], []),  # No more data (shouldn't reach)
-        ]
 
         tool_run("test_command", "/tmp")
 

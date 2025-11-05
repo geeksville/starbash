@@ -3,11 +3,10 @@ import shutil
 import textwrap
 import tempfile
 import subprocess
-import select
 import re
-
+import threading
+import queue
 import logging
-
 import RestrictedPython
 
 logger = logging.getLogger(__name__)
@@ -194,33 +193,71 @@ def tool_run(
             pass
 
     # Stream output line by line in real-time
+    # Use threading for cross-platform compatibility (select doesn't work on Windows with pipes)
+
     assert process.stdout
     assert process.stderr
 
+    output_queue: queue.Queue = queue.Queue()
+
+    def read_stream(stream, log_func, stream_name):
+        """Read from stream and put lines in queue."""
+        try:
+            for line in stream:
+                line = line.rstrip("\n")
+                output_queue.put((log_func, stream_name, line))
+        finally:
+            output_queue.put((None, stream_name, None))  # Signal EOF
+
+    # Start threads to read stdout and stderr
+    stdout_thread = threading.Thread(
+        target=read_stream,
+        args=(process.stdout, logger.debug, "tool-stdout"),
+        daemon=True,
+    )
+    stderr_thread = threading.Thread(
+        target=read_stream,
+        args=(process.stderr, logger.warning, "tool-stderr"),
+        daemon=True,
+    )
+
+    stdout_thread.start()
+    stderr_thread.start()
+
+    # Track which streams have finished
+    streams_finished = 0
+
     try:
-        streams = {
-            process.stdout.fileno(): (process.stdout, logger.debug, "tool-stdout"),
-            process.stderr.fileno(): (process.stderr, logger.warning, "tool-stderr"),
-        }
+        # Process output from queue until both streams are done
+        while streams_finished < 2:
+            try:
+                # Use timeout to periodically check if process has terminated
+                log_func, stream_name, line = output_queue.get(timeout=0.1)
 
-        while streams:
-            # Wait for data on any stream (with timeout for periodic checking)
-            ready, _, _ = select.select(list(streams.keys()), [], [], 0.1)
-
-            for fd in ready:
-                stream, log_func, stream_name = streams[fd]
-                line = stream.readline()
-
-                if line:
-                    # Strip trailing newline and log immediately
-                    line = line.rstrip("\n")
-                    log_func(f"[{stream_name}] {line}")
+                if log_func is None:
+                    # EOF signal
+                    streams_finished += 1
                 else:
-                    # EOF reached on this stream
-                    del streams[fd]
+                    # Log the line
+                    log_func(f"[{stream_name}] {line}")
 
-            # Check if process has terminated
-            if process.poll() is not None and not streams:
+            except queue.Empty:
+                # No output available, check if process terminated
+                if process.poll() is not None:
+                    # Process finished, wait a bit more for remaining output
+                    break
+
+        # Wait for threads to finish (they should be done or very close)
+        stdout_thread.join(timeout=1.0)
+        stderr_thread.join(timeout=1.0)
+
+        # Drain any remaining items in queue
+        while not output_queue.empty():
+            try:
+                log_func, stream_name, line = output_queue.get_nowait()
+                if log_func is not None:
+                    log_func(f"[{stream_name}] {line}")
+            except queue.Empty:
                 break
 
         # Wait for process to complete with timeout
