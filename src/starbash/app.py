@@ -220,38 +220,40 @@ class Starbash:
         self.close()
         return handled
 
-    def _add_session(self, f: str, image_doc_id: int, header: dict) -> None:
+    def _add_session(self, image_doc_id: int, header: dict) -> None:
         """We just added a new image, create or update its session entry as needed."""
         image_type = header.get(Database.IMAGETYP_KEY)
         date = header.get(Database.DATE_OBS_KEY)
         if not date or not image_type:
             logging.warning(
-                "Image %s missing either DATE-OBS or IMAGETYP FITS header, skipping...",
-                f,
+                "Image '%s' missing either DATE-OBS or IMAGETYP FITS header, skipping...",
+                header.get("path", "unspecified"),
             )
         else:
             exptime = header.get(Database.EXPTIME_KEY, 0)
 
             new = {
-                Database.START_KEY: date,
-                Database.END_KEY: date,  # FIXME not quite correct, should be longer by exptime
-                Database.IMAGE_DOC_KEY: image_doc_id,
-                Database.IMAGETYP_KEY: image_type,
-                Database.NUM_IMAGES_KEY: 1,
-                Database.EXPTIME_TOTAL_KEY: exptime,
+                get_column_name(Database.START_KEY): date,
+                get_column_name(
+                    Database.END_KEY
+                ): date,  # FIXME not quite correct, should be longer by exptime
+                get_column_name(Database.IMAGE_DOC_KEY): image_doc_id,
+                get_column_name(Database.IMAGETYP_KEY): image_type,
+                get_column_name(Database.NUM_IMAGES_KEY): 1,
+                get_column_name(Database.EXPTIME_TOTAL_KEY): exptime,
             }
 
             filter = header.get(Database.FILTER_KEY)
             if filter:
-                new[Database.FILTER_KEY] = filter
+                new[get_column_name(Database.FILTER_KEY)] = filter
 
             telescop = header.get(Database.TELESCOP_KEY)
             if telescop:
-                new[Database.TELESCOP_KEY] = telescop
+                new[get_column_name(Database.TELESCOP_KEY)] = telescop
 
             obj = header.get(Database.OBJECT_KEY)
             if obj:
-                new[Database.OBJECT_KEY] = obj
+                new[get_column_name(Database.OBJECT_KEY)] = obj
 
             session = self.db.get_session(new)
             self.db.upsert_session(new, existing=session)
@@ -577,6 +579,15 @@ class Starbash:
             relative_path = f.relative_to(path)
 
             found = self.db.get_image(repo.url, str(relative_path))
+
+            debug_target = "masters-raw/2025-09-09/DARK"
+            if str(relative_path).startswith(debug_target):
+                logging.error("Debugging %s...", f)
+                found = False
+            else:
+                found = True  # skip processing
+                force = False
+
             if not found or force:
                 # Read and log the primary header (HDU 0)
                 with fits.open(str(f), memmap=False) as hdul:
@@ -596,15 +607,10 @@ class Starbash:
                     headers["path"] = str(relative_path)
                     image_doc_id = self.db.upsert_image(headers, repo.url)
 
-                    # debug_target = "masters-raw/2025-09-09/DARK"
-                    # if str(relative_path).startswith(debug_target):
-                    #    logging.error("Debugging %s...", f)
-                    #    found = False
-
                     if not found:
                         # Update the session infos, but ONLY on first file scan
                         # (otherwise invariants will get messed up)
-                        self._add_session(str(f), image_doc_id, header)
+                        self._add_session(image_doc_id, header)
 
         except Exception as e:
             logging.warning("Failed to read FITS header for %s: %s", f, e)

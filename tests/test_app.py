@@ -456,7 +456,7 @@ class TestAddSession:
                 Database.OBJECT_KEY: "M31",
                 Database.TELESCOP_KEY: "Test Telescope",
             }
-            app._add_session("/path/to/image.fit", 1, header)
+            app._add_session(1, header)
 
             # Verify session was added to database
             sessions = app.db.search_session()
@@ -473,7 +473,7 @@ class TestAddSession:
                 Database.IMAGETYP_KEY: "Light",
                 Database.FILTER_KEY: "Ha",
             }
-            app._add_session("/path/to/image.fit", 1, header)
+            app._add_session(1, header)
 
             # Should log warning and not add session
             assert "missing either DATE-OBS or IMAGETYP" in caplog.text
@@ -490,7 +490,7 @@ class TestAddSession:
                 Database.DATE_OBS_KEY: "2023-10-15T20:30:00",
                 Database.FILTER_KEY: "Ha",
             }
-            app._add_session("/path/to/image.fit", 1, header)
+            app._add_session(1, header)
 
             # Should log warning
             assert "missing either DATE-OBS or IMAGETYP" in caplog.text
@@ -503,7 +503,7 @@ class TestAddSession:
                 Database.IMAGETYP_KEY: "Light",
                 # Missing FILTER, OBJECT, TELESCOP, EXPTIME
             }
-            app._add_session("/path/to/image.fit", 1, header)
+            app._add_session(1, header)
 
             sessions = app.db.search_session()
             assert sessions

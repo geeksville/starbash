@@ -589,9 +589,9 @@ class Database:
         Searches for sessions with the same filter, image type, target, and telescope
         whose start time is within +/- 8 hours of the provided date.
         """
-        date = to_find.get(Database.START_KEY)
+        date = to_find.get(get_column_name(Database.START_KEY))
         assert date
-        image_type = to_find.get(Database.IMAGETYP_KEY)
+        image_type = to_find.get(get_column_name(Database.IMAGETYP_KEY))
         assert image_type
 
         # Convert the provided ISO8601 date string to a datetime, then
@@ -616,8 +616,9 @@ class Database:
         params.append(image_type)
 
         # Handle filter (optional - only filter if present in to_find)
-        if Database.FILTER_KEY in to_find:
-            filter = to_find.get(Database.FILTER_KEY)  # filter can be None
+        filter_key = get_column_name(Database.FILTER_KEY)
+        if filter_key in to_find:
+            filter = to_find.get(filter_key)  # filter can be None
             if filter is None:
                 where_clauses.append("filter IS NULL")
             else:
@@ -625,8 +626,9 @@ class Database:
                 params.append(filter)
 
         # Handle object/target (optional - only filter if present in to_find)
-        if Database.OBJECT_KEY in to_find:
-            target = to_find.get(Database.OBJECT_KEY)
+        object_key = get_column_name(Database.OBJECT_KEY)
+        if object_key in to_find:
+            target = to_find.get(object_key)
             if target is None:
                 where_clauses.append("object IS NULL")
             else:
@@ -634,8 +636,9 @@ class Database:
                 params.append(target)
 
         # Handle telescop (optional - only filter if present in to_find)
-        if Database.TELESCOP_KEY in to_find:
-            telescop = to_find.get(Database.TELESCOP_KEY)
+        telescop_key = get_column_name(Database.TELESCOP_KEY)
+        if telescop_key in to_find:
+            telescop = to_find.get(telescop_key)
             if telescop is None:
                 where_clauses.append("telescop IS NULL")
             else:
@@ -675,14 +678,20 @@ class Database:
 
         if existing:
             # Update existing session with new data
-            updated_start = min(new[Database.START_KEY], existing[Database.START_KEY])
-            updated_end = max(new[Database.END_KEY], existing[Database.END_KEY])
-            updated_num_images = existing.get(Database.NUM_IMAGES_KEY, 0) + new.get(
-                Database.NUM_IMAGES_KEY, 0
+            updated_start = min(
+                new[get_column_name(Database.START_KEY)],
+                existing[get_column_name(Database.START_KEY)],
             )
+            updated_end = max(
+                new[get_column_name(Database.END_KEY)],
+                existing[get_column_name(Database.END_KEY)],
+            )
+            updated_num_images = existing.get(
+                get_column_name(Database.NUM_IMAGES_KEY), 0
+            ) + new.get(get_column_name(Database.NUM_IMAGES_KEY), 0)
             updated_exptime_total = existing.get(
-                Database.EXPTIME_TOTAL_KEY, 0
-            ) + new.get(Database.EXPTIME_TOTAL_KEY, 0)
+                get_column_name(Database.EXPTIME_TOTAL_KEY), 0
+            ) + new.get(get_column_name(Database.EXPTIME_TOTAL_KEY), 0)
 
             cursor.execute(
                 f"""
@@ -707,15 +716,15 @@ class Database:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
-                    new[Database.START_KEY],
-                    new[Database.END_KEY],
-                    new.get(Database.FILTER_KEY),
-                    new[Database.IMAGETYP_KEY],
-                    new.get(Database.OBJECT_KEY),
-                    new.get(Database.TELESCOP_KEY),
-                    new[Database.NUM_IMAGES_KEY],
-                    new[Database.EXPTIME_TOTAL_KEY],
-                    new[Database.IMAGE_DOC_KEY],
+                    new[get_column_name(Database.START_KEY)],
+                    new[get_column_name(Database.END_KEY)],
+                    new.get(get_column_name(Database.FILTER_KEY)),
+                    new[get_column_name(Database.IMAGETYP_KEY)],
+                    new.get(get_column_name(Database.OBJECT_KEY)),
+                    new.get(get_column_name(Database.TELESCOP_KEY)),
+                    new[get_column_name(Database.NUM_IMAGES_KEY)],
+                    new[get_column_name(Database.EXPTIME_TOTAL_KEY)],
+                    new[get_column_name(Database.IMAGE_DOC_KEY)],
                 ),
             )
 
