@@ -68,7 +68,7 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 
 ### Repository Management
 - `sb repo list [--verbose]` - List installed repos (use `-v` for details)
-- `sb repo add [--master] <filepath|URL>` - Add a repository, optionally specifying the type
+- `sb repo add [--master] [filepath|URL]` - Add a repository, optionally specifying the type
 - `sb repo remove <REPOURL>` - Remove the indicated repo from the repo list
 - `sb repo reindex [--force] <REPOURL>` - Reindex the specified repo (or all repos if none specified)
 

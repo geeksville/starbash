@@ -1,0 +1,10 @@
+# This is a processed repository for (Starbash)[{PROJECT_URL}].
+#
+# This file marks the root directory of a set of generated/processed starbash output files.
+#
+# You generally don't need to edit this file directly - it was auto generated when you ran
+# "sb repo add --processed {REPO_PATH}".
+#
+
+[repo]
+kind = "processed"

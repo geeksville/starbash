@@ -7,6 +7,7 @@ import starbash
 from repo import repo_suffix, Repo
 from starbash.app import Starbash
 from starbash import console, log_filter_level
+from starbash.paths import get_user_documents_dir
 from starbash.toml import toml_from_template
 
 app = typer.Typer(invoke_without_command=True)
@@ -87,9 +88,14 @@ def main(
 
 @app.command()
 def add(
-    path: str,
+    path: Annotated[str | None, typer.Argument(help="Path to the respository")] = None,
     master: bool = typer.Option(
         False, "--master", help="Mark this new repository for master files."
+    ),
+    processed: bool = typer.Option(
+        False,
+        "--processed",
+        help="Mark this new repository for processed output files.",
     ),
 ):
     """
@@ -98,6 +104,17 @@ def add(
     repo_type = None
     if master:
         repo_type = "master"
+    elif processed:
+        repo_type = "processed"
+
+    if path is None:
+        if repo_type is not None:
+            # if we know the repo type we can auto create a default path
+            path = str(get_user_documents_dir() / "repos" / repo_type)
+        else:
+            console.print("[red]Error: path is required for input repositories[/red]")
+            raise typer.Exit(1)
+
     with Starbash("repo.add") as sb:
         p = Path(path)
 
