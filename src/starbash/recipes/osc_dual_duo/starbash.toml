@@ -25,7 +25,7 @@ auto.require.camera = ["OSC"]
 min="0.1.0"
 max="4.5.8"
 
-[[stage]]
+[recipe.stage.light]
 
 description = "Extract OSC dual duo filter Ha, Oiii and Sii channels"
 # disabled = true # FIXME, debugging later stuff
@@ -40,9 +40,9 @@ input.masters = ["bias", "flat"]
 # Note: they should not have filename extensions (see strip_extension in the old process.py)
 # context.bias = '/workspaces/starbash/images/masters/biases/2025-09-09_stacked.fits'
 
-context.sessionid = "2025-09-16" # FIXME, generate this by looping over all sessions (from outside this file)
-context.sessionconfig = "SiiOiii" # FIXME generate this by looping over all session configs
-context.light_base = "light_s{sessionid}_c{sessionconfig}"
+# context.sessionid = "2025-09-16" # FIXME, generate this by looping over all sessions (from outside this file)
+# context.sessionconfig = "SiiOiii" # FIXME generate this by looping over all session configs
+# context.light_base = "light_s{sessionid}_c{sessionconfig}"
 
 # FIXME until auto light finding is in
 # input.source = "path"
@@ -65,7 +65,7 @@ script = '''
 
 temporaries = ["FIXME"]
 
-[[stage]]
+[recipe.stage.stack]
 
 disabled = false # not yet ready to test
 
@@ -83,7 +83,7 @@ description = "Stack OSC dual duo filter data, with separate Ha, Oiii and Sii ch
 
 tool.name = "python"
 
-when = "session.stack" # run once after all session/session.config processing was done
+when = "final.stack" # run once after all session/session.config processing was done
 
 # Based on the following definitions in the stage toml file...
 # FIXME, we should inherit this - most recipes shouldn't have to declare it

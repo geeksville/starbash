@@ -674,7 +674,22 @@ class Starbash:
         return sorted_pipeline
 
     def run_all_stages(self):
-        """On the currently active session, run all processing stages"""
+        """On the currently active session, run all processing stages
+
+        New design, not yet implemented:
+        * find all recipes
+        * for each target in the current selection:
+        *   select ONE recipe for processing that target (check recipe.auto.require.* conditions)
+        *   create a processing output directory (for high value final files)
+        *   create a temporary processing directory (for intermediate files - shared by all stages)
+        *   init session context (it will be shared for all following steps)
+        *   iterate over all light frame sessions in the current selection
+        *     for each session:
+        *       update context input and output files
+        *       run session.light stages
+        *   after all sessions are processed, run final.stack stages (using the shared context and temp dir)
+
+        """
         logging.info("--- Running all stages ---")
 
         # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
@@ -700,6 +715,21 @@ class Starbash:
         for task in tasks_to_run:
             self.run_stage(task)
 
+    def get_recipe_for_session(
+        self, session: SessionRow, stage_name: str
+    ) -> Repo | None:
+        """Try to find a recipe that can be used to process the given session for the given stage name
+        (master-dark, master-bias, light, stack, etc...)
+
+        * if a recipe doesn't have a matching recipe.stage.<stage_name> it is not considered
+        * As part of this checking we will look at recipe.auto.require.* conditions to see if the recipe
+        is suitable for this session.
+
+        Currently we return just one Repo but eventually we should support multiple matching recipes
+        and make the user pick (by throwing an exception?).
+        """
+        pass
+
     def run_master_stages(self):
         """Generate any missing master frames
 
@@ -711,6 +741,7 @@ class Starbash:
         *    add_input_to_context() add the input files to the context (from the session)
         *    run_stage(task) to generate the new master frame
         """
+        sorted_pipeline = self._get_stages("master-stages")
         sessions = self.search_session()
         for session in track(sessions, description="Generating masters..."):
             try:
@@ -718,8 +749,6 @@ class Starbash:
                 logging.debug(
                     f"Processing session ID {session[get_column_name(Database.ID_KEY)]} with imagetyp '{imagetyp}'"
                 )
-
-                sorted_pipeline = self._get_stages("master-stages")
 
                 # 4. Iterate through the sorted pipeline and execute the associated tasks.
                 # FIXME unify the master vs normal step running code
@@ -730,16 +759,12 @@ class Starbash:
                             "Invalid pipeline step found: missing 'name' key."
                         )
 
-                    # 3. Get all available task definitions (the `[[stage]]` tables with tool, script, when).
-                    task_definitions = self.repo_manager.merged.getall("stage")
-                    all_tasks = list(itertools.chain.from_iterable(task_definitions))
+                    task = None
+                    recipe = self.get_recipe_for_session(session, step_name)
+                    if recipe:
+                        task = recipe.get("recipe.stage." + step_name)
 
-                    # Find all tasks that should run during this step
-                    tasks_to_run = [
-                        task for task in all_tasks if task.get("when") == step_name
-                    ]
-
-                    for task in tasks_to_run:
+                    if task:
                         input_config = task.get("input", {})
                         input_type = input_config.get("type")
                         if not input_type:

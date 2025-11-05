@@ -7,7 +7,7 @@ kind = "recipe"
 author.name = "FIXMESiril?"
 author.email = "FIXMESiril?"
 
-[[stage]]
+[recipe.stage.master-bias]
 
 description = "Generate master bias"
 # disabled = false # turn on to skip
@@ -26,14 +26,12 @@ input.type = "bias" # look in all raw repos, but look only for bias files
 
 # Look for files in input repos, finding them by using the "relative" tag they contain
 input.source = "repo"
-input.required = 2 # siril needs at least 2 frames to stack
+input.required = 2    # siril needs at least 2 frames to stack
 # old school paths also work (but are not recommended)
 # input.path = ".../from_astroboy/masters-raw/2025-09-09/BIAS/*.fit*"
 
-when = "setup.master.bias" # run when master biases are regenerated
-
 # Based on the following definitions in the stage toml file...
-output.dest = "repo" # write to a particular repo
+output.dest = "repo"   # write to a particular repo
 output.type = "master" # write output to the special masters repo
 
 # the following fields will be auto populated in the context before entry:
