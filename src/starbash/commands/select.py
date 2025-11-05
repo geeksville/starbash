@@ -71,7 +71,7 @@ def complete_column(incomplete: str, column_name: str):
         c = get_column(sb, column_name)
 
         for item, count in c.items():
-            if item.startswith(incomplete):
+            if item.lower().startswith(incomplete.lower()):
                 yield (item, f"{count} sessions")
 
 
@@ -254,9 +254,11 @@ def list_sessions(
                 telescopes.add(telescope)
 
                 # Show the non normalized target name
-                long_name = sess["metadata"].get("OBJECT")
-                if long_name:
-                    object = long_name
+                metadata = sess.get("metadata")
+                if metadata:
+                    long_name = metadata.get("OBJECT")
+                    if long_name:
+                        object = long_name
 
                 # Format total exposure time as integer seconds
                 exptime_raw = get_key(Database.EXPTIME_TOTAL_KEY)

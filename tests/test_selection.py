@@ -470,7 +470,8 @@ class TestSelectionGetQueryConditions:
         selection.targets = ["M31"]
         where_clause, params = selection.get_query_conditions()
         assert "OBJECT = ?" in where_clause
-        assert "M31" in params
+        # Target names are normalized to lowercase
+        assert "m31" in params
 
     def test_get_query_conditions_with_multiple_targets(self, selection):
         """Test query conditions with multiple targets (uses first)."""
@@ -551,7 +552,8 @@ class TestSelectionGetQueryConditions:
         assert "TELESCOP = ?" in where_clause
         assert "2023-01-01" in params
         assert "2023-12-31" in params
-        assert "M31" in params
+        # Target names are normalized to lowercase
+        assert "m31" in params
         assert "Ha" in params
         assert "Vespera" in params
 

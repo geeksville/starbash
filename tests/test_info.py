@@ -151,10 +151,10 @@ def test_info_target_command_with_data(populated_database):
 
     output = result.stdout
 
-    # Should show the targets we added
-    assert "M31" in output
-    assert "NGC 7635" in output
-    assert "M42" in output
+    # Should show the targets we added (normalized to lowercase)
+    assert "m31" in output
+    assert "ngc7635" in output or "ngc 7635" in output
+    assert "m42" in output
 
     # Should show session counts
     assert "sessions" in output.lower()
@@ -273,7 +273,7 @@ def test_dump_column_with_multiple_same_values(populated_database):
     assert result.exit_code == 0
 
     output = result.stdout
-    assert "M31" in output
+    assert "m31" in output  # Target names are normalized to lowercase
 
     # Should show count of sessions for each target
     # The exact format may vary, but there should be numbers

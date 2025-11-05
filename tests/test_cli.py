@@ -56,6 +56,24 @@ def test_session_command_with_data(setup_test_environment, tmp_path):
     # Create a database and add some session data
     data_dir = setup_test_environment["data_dir"]
     with Database(base_dir=data_dir) as db:
+        # First create a repo
+        repo_url = "file:///tmp/test_repo"
+        db.upsert_repo(repo_url)
+
+        # Create an image that will be the reference for the session
+        image_rec = {
+            "path": "test_image.fits",
+            "DATE-OBS": "2023-10-15T20:30:00",
+            "DATE": "2023-10-15",
+            "IMAGETYP": "Light",
+            "FILTER": "Ha",
+            "OBJECT": "M31",
+            "TELESCOP": "Test Telescope",
+            "EXPTIME": 120.0,
+        }
+        image_id = db.upsert_image(image_rec, repo_url)
+
+        # Now create the session with reference to the image
         session = {
             get_column_name(Database.START_KEY): "2023-10-15T20:30:00",
             get_column_name(Database.END_KEY): "2023-10-15T22:30:00",
@@ -66,7 +84,7 @@ def test_session_command_with_data(setup_test_environment, tmp_path):
             get_column_name(Database.NUM_IMAGES_KEY): 10,
             get_column_name(Database.EXPTIME_TOTAL_KEY): 600.0,
             get_column_name(Database.EXPTIME_KEY): 120.0,
-            get_column_name(Database.IMAGE_DOC_KEY): 1,
+            get_column_name(Database.IMAGE_DOC_KEY): image_id,
         }
         db.upsert_session(session)
 
