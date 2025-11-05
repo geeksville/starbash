@@ -11,5 +11,7 @@ sb user email "kevinh@geeksville.com"
 sb repo add ./images/from_astroboy
 sb repo add --master
 sb repo add --processed
+sb select target ngc281
 sb info
+sb select list
 

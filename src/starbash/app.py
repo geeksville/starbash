@@ -712,7 +712,7 @@ class Starbash:
         *    run_stage(task) to generate the new master frame
         """
         sessions = self.search_session()
-        for session in sessions:
+        for session in track(sessions, description="Generating masters..."):
             try:
                 imagetyp = session[get_column_name(Database.IMAGETYP_KEY)]
                 logging.debug(

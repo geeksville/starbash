@@ -23,6 +23,8 @@ HaOiii = ["HaOiii", "HaO3"]
 
 None = ["None"]
 
+camera_osc = ["OSC", "ZWO ASI2600MC Duo"]
+
 # Passes SII 672.4nm and H-Beta 486.1nm lines
 # Capturing of the two main emission wavebands in the deep red and blue at the same time
 #

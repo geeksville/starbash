@@ -2,20 +2,9 @@
 [repo]
 kind = "recipe"
 
-# all sb.toml files can optionally contain a version section.  if version of the running starbash app is out of bounds a warning message will be printed
-# to the user and the file will be ignored for future processing.
-[recipe.require.version]
-min="0.1.0"
-max="4.5.8"
-
 [recipe]
 author.name = "Kevin Hester"
 author.email = "kevinh@geeksville.com"
-
-[[stage]]
-
-description = "Extract OSC dual duo filter Ha, Oiii and Sii channels"
-disabled = true # FIXME, debugging later stuff
 
 # FIXME-somehow-specify-what-filternames are used to auto detect this recipe can be used?
 # figure out how to support dual duo vs single duo.  Perhaps: the FIRST recipe that matches an auto rule
@@ -25,27 +14,39 @@ disabled = true # FIXME, debugging later stuff
 # non OSC people use names like LRGB or SHO
 
 # for dual duo if we see Sii assume they also have HaOiii
-auto.for-filter = ["SiiOiii"]
+auto.require.filter = ["SiiOiii"]
 # for single duo look for this
-# auto.for-filter = ["HaOiii"]
-auto.for-camera = ["OSC"]
+# auto.require.filter = ["HaOiii"]
+auto.require.camera = ["OSC"]
+
+# all sb.toml files can optionally contain a version section.  if version of the running starbash app is out of bounds a warning message will be printed
+# to the user and the file will be ignored for future processing.
+[recipe.require.version]
+min="0.1.0"
+max="4.5.8"
+
+[[stage]]
+
+description = "Extract OSC dual duo filter Ha, Oiii and Sii channels"
+# disabled = true # FIXME, debugging later stuff
 
 tool.name = "siril"
 
 when = "session.light" # run once per session.config
-output = "FIXME"
+
+input.masters = ["bias", "flat"]
 
 # FIXME, bias and flat should have been added to context by two previous stages.  But for now hardwire
 # Note: they should not have filename extensions (see strip_extension in the old process.py)
-context.bias = '/workspaces/starbash/images/masters/biases/2025-09-09_stacked.fits'
+# context.bias = '/workspaces/starbash/images/masters/biases/2025-09-09_stacked.fits'
 
 context.sessionid = "2025-09-16" # FIXME, generate this by looping over all sessions (from outside this file)
 context.sessionconfig = "SiiOiii" # FIXME generate this by looping over all session configs
 context.light_base = "light_s{sessionid}_c{sessionconfig}"
 
 # FIXME until auto light finding is in
-input.source = "path"
-input.path = "/workspaces/starbash/images/from_astroboy/M 27/2025-09-16/LIGHT/*.fit*"
+# input.source = "path"
+# input.path = "/workspaces/starbash/images/from_astroboy/M 27/2025-09-16/LIGHT/*.fit*"
 
 script = '''
     # Create a sequence from the raw light frames, seq file goes to process_dir
@@ -66,20 +67,28 @@ temporaries = ["FIXME"]
 
 [[stage]]
 
+disabled = false # not yet ready to test
+
+# FIXME this stage should only be considered if the previous stage in this same array
+# was run.  It must be run inside the same tempdir (so that files from previous stage are available)
+
 # FIXME, eventually we could make it optional to even have a starbash.toml.  If we find an
 # starbash.py we could introspect it for a starbash_config dict.  And look inside that for description
 # "stage", "when" or whatever?
 
 description = "Stack OSC dual duo filter data, with separate Ha, Oiii and Sii channels"
 
-context.target = "M 27" # FIXME
-context.targets = "/workspaces/starbash/images/processed" # FIXME, do something smarter
+# context.target = "M 27" # FIXME
+# context.targets = "/workspaces/starbash/images/processed" # FIXME, do something smarter
 
 tool.name = "python"
 
 when = "session.stack" # run once after all session/session.config processing was done
 
-input.masters = ["bias", "flat"]
+# Based on the following definitions in the stage toml file...
+# FIXME, we should inherit this - most recipes shouldn't have to declare it
+output.dest = "repo" # write to a particular repo
+output.type = "processed" # write output to the special masters repo
 
 # if not specified starbash.py used
 # script-file = "script.py"
