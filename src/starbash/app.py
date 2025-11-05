@@ -124,6 +124,33 @@ def copy_images_to_dir(images: list[ImageRow], output_dir: Path) -> None:
         console.print(f"  [red]Errors: {error_count} files[/red]")
 
 
+class ProcessingContext(tempfile.TemporaryDirectory):
+    """For processing a set of sessions for a particular target.
+
+    Keeps a shared temporary directory for intermediate files.  We expose the path to that
+    directory in context["process_dir"].
+    """
+
+    def __init__(self, starbash: "Starbash"):
+        super().__init__(prefix="sbprocessing_")
+        self.sb = starbash
+        logging.debug(f"Created processing context at {self.name}")
+
+        self.sb.init_context()
+        self.sb.context["process_dir"] = self.name
+
+    def __enter__(self) -> "ProcessingContext":
+        return super().__enter__()
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        logging.debug(f"Cleaning up processing context at {self.name}")
+
+        # unregister our process dir
+        self.sb.context.pop("process_dir", None)
+
+        super().__exit__(exc_type, exc_value, traceback)
+
+
 class Starbash:
     """The main Starbash application class."""
 
@@ -812,46 +839,26 @@ class Starbash:
         sorted_pipeline = self._get_stages("master-stages")
         sessions = self.search_session()
         for session in track(sessions, description="Generating masters..."):
-            try:
-                imagetyp = session[get_column_name(Database.IMAGETYP_KEY)]
-                logging.debug(
-                    f"Processing session ID {session[get_column_name(Database.ID_KEY)]} with imagetyp '{imagetyp}'"
-                )
+            # 4. Iterate through the sorted pipeline and execute the associated tasks.
+            # FIXME unify the master vs normal step running code
+            for step in sorted_pipeline:
+                task = None
+                recipe = self.get_recipe_for_session(session, step)
+                if recipe:
+                    task = recipe.get("recipe.stage." + step["name"])
 
-                # 4. Iterate through the sorted pipeline and execute the associated tasks.
-                # FIXME unify the master vs normal step running code
-                for step in sorted_pipeline:
-                    task = None
-                    recipe = self.get_recipe_for_session(session, step)
-                    if recipe:
-                        task = recipe.get("recipe.stage." + step["name"])
+                if task:
+                    input_config = task.get("input", {})
+                    input_type = input_config.get("type")
+                    if not input_type:
+                        raise ValueError(f"Task for step missing required input.type")
 
-                    if task:
-                        input_config = task.get("input", {})
-                        input_type = input_config.get("type")
-                        if not input_type:
-                            raise ValueError(
-                                f"Task for step missing required input.type"
-                            )
-                        if self.aliases.equals(input_type, imagetyp):
-                            logging.debug(f"Running task for imagetyp '{imagetyp}'")
-
-                            # Create a default process dir in /tmp, though more advanced 'session' based workflows will
-                            # probably override this and place it somewhere persistent.
-                            with tempfile.TemporaryDirectory(
-                                prefix="session_tmp_"
-                            ) as temp_dir:
-                                logging.debug(
-                                    f"Created temporary session directory: {temp_dir}"
-                                )
-                                self.init_context()
-                                self.context["process_dir"] = temp_dir
-                                self.add_session_to_context(session)
-                                self.run_stage(task)
-            except RuntimeError as e:
-                logging.error(
-                    f"Skipping session {session[get_column_name(Database.ID_KEY)]}: {e}"
-                )
+                    # Create a default process dir in /tmp.
+                    # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
+                    # dirs for particular targets?
+                    with ProcessingContext(self) as temp_dir:
+                        self.set_session_in_context(session)
+                        self.run_stage(task)
 
     def init_context(self) -> None:
         """Do common session init"""
@@ -865,8 +872,10 @@ class Starbash:
         }
         self.context.update(runtime_context)
 
-    def add_session_to_context(self, session: SessionRow) -> None:
+    def set_session_in_context(self, session: SessionRow) -> None:
         """adds to context from the indicated session:
+
+        Sets the following context variables based on the provided session:
         * instrument - for the session
         * date - the localtimezone date of the session
         * imagetyp - the imagetyp of the session

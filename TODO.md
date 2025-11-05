@@ -30,6 +30,8 @@
 * [ ] gracefully handle UnrecognizedAliasError and ask user if they want to add it...
 * [ ] make score_candidates() highly prefer frames that are in the past
 * [ ] make and intergration test that uses a few real files
+* [ ] catch the exception for missing siril/graxpert and print user instructions
+* [ ] always regen masters after adding a repo
 * [x] make flat rule work
 * [ ] use normalized names when searching for filters or master or light frames
 * [x] when reindexing/adding masters, put them in the session db as some sort of special entry
