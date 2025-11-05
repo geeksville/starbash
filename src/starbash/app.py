@@ -22,7 +22,7 @@ import starbash
 from starbash import console, _is_test_env, to_shortdate
 from starbash.aliases import Aliases
 from starbash.database import Database, SessionRow, ImageRow, get_column_name
-from repo import Repo, repo_suffix
+from repo import Repo, repo, repo_suffix
 from starbash.toml import toml_from_template
 from starbash.tool import Tool, expand_context, expand_context_unsafe
 from repo import RepoManager
@@ -716,19 +716,87 @@ class Starbash:
             self.run_stage(task)
 
     def get_recipe_for_session(
-        self, session: SessionRow, stage_name: str
+        self, session: SessionRow, step: dict[str, Any]
     ) -> Repo | None:
-        """Try to find a recipe that can be used to process the given session for the given stage name
+        """Try to find a recipe that can be used to process the given session for the given step name
         (master-dark, master-bias, light, stack, etc...)
 
-        * if a recipe doesn't have a matching recipe.stage.<stage_name> it is not considered
+        * if a recipe doesn't have a matching recipe.stage.<step_name> it is not considered
         * As part of this checking we will look at recipe.auto.require.* conditions to see if the recipe
         is suitable for this session.
+        * the imagetyp of this session matches step.input
 
         Currently we return just one Repo but eventually we should support multiple matching recipes
         and make the user pick (by throwing an exception?).
         """
-        pass
+        # Get all recipe repos - FIXME add a getall(kind) to RepoManager
+        recipe_repos = [r for r in self.repo_manager.repos if r.kind() == "recipe"]
+
+        step_name = step.get("name")
+        if not step_name:
+            raise ValueError("Invalid pipeline step found: missing 'name' key.")
+
+        input_name = step.get("input")
+        if not input_name:
+            raise ValueError("Invalid pipeline step found: missing 'input' key.")
+
+        imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
+
+        if not imagetyp or input_name != self.aliases.normalize(imagetyp):
+            logging.debug(
+                f"Session imagetyp '{imagetyp}' does not match step input '{input_name}', skipping"
+            )
+            return None
+
+        # Get session metadata for checking requirements
+        session_metadata = session.get("metadata", {})
+
+        for repo in recipe_repos:
+            # Check if this recipe has the requested stage
+            stage_config = repo.get(f"recipe.stage.{step_name}")
+            if not stage_config:
+                logging.debug(
+                    f"Recipe {repo.url} does not have stage '{step_name}', skipping"
+                )
+                continue
+
+            # Check auto.require conditions if they exist
+
+            # If requirements are specified, check if session matches
+            required_filters = repo.get("auto.require.filter", [])
+            if required_filters:
+                session_filter = self.aliases.normalize(
+                    session_metadata.get(Database.FILTER_KEY)
+                )
+
+                # Session must have a filter that matches one of the required filters
+                if not session_filter or session_filter not in required_filters:
+                    logging.debug(
+                        f"Recipe {repo.url} requires filters {required_filters}, "
+                        f"session has '{session_filter}', skipping"
+                    )
+                    continue
+
+            required_cameras = repo.get("auto.require.camera", [])
+            if required_cameras:
+                session_camera = self.aliases.normalize(
+                    session_metadata.get("INSTRUME")
+                )  # Camera identifier
+
+                # Session must have a camera that matches one of the required cameras
+                if not session_camera or session_camera not in required_cameras:
+                    logging.debug(
+                        f"Recipe {repo.url} requires cameras {required_cameras}, "
+                        f"session has '{session_camera}', skipping"
+                    )
+                    continue
+
+            # This recipe matches!
+            logging.info(f"Selected recipe {repo.url} for stage '{step_name}' ")
+            return repo
+
+        # No matching recipe found
+        return None
 
     def run_master_stages(self):
         """Generate any missing master frames
@@ -753,28 +821,20 @@ class Starbash:
                 # 4. Iterate through the sorted pipeline and execute the associated tasks.
                 # FIXME unify the master vs normal step running code
                 for step in sorted_pipeline:
-                    step_name = step.get("name")
-                    if not step_name:
-                        raise ValueError(
-                            "Invalid pipeline step found: missing 'name' key."
-                        )
-
                     task = None
-                    recipe = self.get_recipe_for_session(session, step_name)
+                    recipe = self.get_recipe_for_session(session, step)
                     if recipe:
-                        task = recipe.get("recipe.stage." + step_name)
+                        task = recipe.get("recipe.stage." + step["name"])
 
                     if task:
                         input_config = task.get("input", {})
                         input_type = input_config.get("type")
                         if not input_type:
                             raise ValueError(
-                                f"Task for step '{step_name}' missing required input.type"
+                                f"Task for step missing required input.type"
                             )
                         if self.aliases.equals(input_type, imagetyp):
-                            logging.debug(
-                                f"Running {step_name} task for imagetyp '{imagetyp}'"
-                            )
+                            logging.debug(f"Running task for imagetyp '{imagetyp}'")
 
                             # Create a default process dir in /tmp, though more advanced 'session' based workflows will
                             # probably override this and place it somewhere persistent.
@@ -1025,7 +1085,7 @@ class Starbash:
             raise ValueError(
                 f"Tool '{tool_name}' for stage '{stage.get('name')}' not found."
             )
-        logging.debug(f"  Using tool: {tool_name}")
+        logging.debug(f"Using tool: {tool_name}")
         tool.set_defaults()
 
         # Allow stage to override tool timeout if specified

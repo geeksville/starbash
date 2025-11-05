@@ -34,26 +34,28 @@ dir = "osc_single_duo"
 [[master-stages]]
 name = "master-bias" # generate master bias frames
 priority = 10
+input = "bias" # only used for frames of this type
 
 [[master-stages]]
 name = "master-dark" # generate master dark frames
 priority = 10
+input = "dark"
 
 [[master-stages]]
 name = "master-flat" # generate master flat frames
 priority = 20
+input = "flat"
 
 #
 # session specific processing stages, not currently used, for now I just do this list from code
 #
-#[[stages]]
-#name = "session.config" # for flat processing, master generation etc
-#priority = 10
 
-#[[stages]]
-#name = "session.light" # generate light frames from lights and with reference to flats/bias
-#priority = 20
+[[stages]]
+name = "light" # generate light frames from lights and with reference to flats/bias
+priority = 20
+input = "light" # only used for frames of this type
 
-#[[stages]]
-#name = "session.stack" # stack frames
-#priority = 30
+[[stages]]
+name = "stack" # stack frames
+priority = 30
+input = "light" # only used for frames of this type
