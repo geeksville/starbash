@@ -34,7 +34,7 @@ dir = "osc_single_duo"
 [[master-stages]]
 name = "master-bias" # generate master bias frames
 priority = 10
-input = "bias" # only used for frames of this type
+input = "bias"       # only used for frames of this type
 
 [[master-stages]]
 name = "master-dark" # generate master dark frames
@@ -47,15 +47,15 @@ priority = 20
 input = "flat"
 
 #
-# session specific processing stages, not currently used, for now I just do this list from code
-#
+# session specific processing stages
+# FIXME - we are not using this yet, for now we just hardcode in app.py
 
-[[stages]]
-name = "light" # generate light frames from lights and with reference to flats/bias
-priority = 20
-input = "light" # only used for frames of this type
+#[[stages]]
+#name = "light" # generate light frames from lights and with reference to flats/bias
+#priority = 20
+#input = "light" # only used for frames of this type
 
-[[stages]]
-name = "stack" # stack frames
-priority = 30
-input = "light" # only used for frames of this type
+#[[stages]]
+#name = "stack" # stack frames
+#priority = 30
+# FIXME - what does "input" mean in this context?  we really just want to run after all of the previous stages
