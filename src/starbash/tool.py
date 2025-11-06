@@ -167,11 +167,7 @@ def strip_comments(text: str) -> str:
 def tool_run(
     cmd: str, cwd: str, commands: str | None = None, timeout: float | None = None
 ) -> None:
-    """Executes an external tool with an optional script of commands in a given working directory.
-
-    Streams stdout and stderr in real-time to the logger, allowing you to see subprocess output
-    as it happens rather than waiting for completion.
-    """
+    """Executes an external tool with an optional script of commands in a given working directory."""
 
     logger.debug(f"Running {cmd} in {cwd}: stdin={commands}")
 
@@ -186,88 +182,28 @@ def tool_run(
         cwd=cwd,
     )
 
-    # Send commands to stdin if provided
-    if commands and process.stdin:
-        try:
-            process.stdin.write(commands)
-            process.stdin.close()
-        except BrokenPipeError:
-            # Process may have terminated early
-            pass
-
-    # Stream output line by line in real-time
-    # Use threading for cross-platform compatibility (select doesn't work on Windows with pipes)
-
-    assert process.stdout
-    assert process.stderr
-
-    def read_stream(
-        in_stream: TextIO,
-        logger: Callable | None,
-        out_list: list[str],
-        stream_name: str,
-    ):
-        """Read from stream and add it to a list."""
-        try:
-            for line in in_stream:
-                line = line.rstrip("\n")
-                out_list.append(line)
-                if logger:
-                    logger(f"[{stream_name}] {line}")
-        except ValueError as e:
-            pass  # this is raised when the stream is closed - ignore
-        except Exception as e:
-            analytics_exception(e)
-
-    # Start threads to read stdout and stderr
-    stdout_lines: list[str] = []
-    stdout_thread = threading.Thread(
-        target=read_stream,
-        args=(process.stdout, logger.debug, stdout_lines, "tool-stdout"),
-        daemon=True,
-        name="tool-stdout-reader",
-    )
-    stderr_lines: list[str] = []
-    stderr_thread = threading.Thread(
-        target=read_stream,
-        args=(process.stderr, logger.warning, stderr_lines, "tool-stderr"),
-        daemon=True,
-        name="tool-stderr-reader",
-    )
-
-    stdout_thread.start()
-    stderr_thread.start()
-
+    # Wait for process to complete with timeout
     try:
-        # Process output from queue until both streams are done
+        stdout_lines, stderr_lines = process.communicate(
+            input=commands, timeout=timeout
+        )
+    except subprocess.TimeoutExpired:
+        process.kill()
+        stdout_lines, stderr_lines = process.communicate()
+        raise RuntimeError(f"Tool timed out after {timeout} seconds")
 
-        # Wait for process to complete with timeout
-        try:
-            process.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
-            raise RuntimeError(f"Tool timed out after {timeout} seconds")
+    returncode = process.returncode
 
-        returncode = process.returncode
+    if stderr_lines:
+        logger.warning(f"[tool-warnings] {stderr_lines}")
 
-        if returncode != 0:
-            # log stdout with warn priority because the tool failed
-            for line in stdout_lines:
-                logger.warning(f"[tool] {line}")
-            raise RuntimeError(f"Tool failed with exit code {returncode}")
-        else:
-            logger.debug("Tool command successful.")
-    finally:
-        # Ensure streams are properly closed
-        if process.stdout and not process.stdout.closed:
-            process.stdout.close()
-        if process.stderr and not process.stderr.closed:
-            process.stderr.close()
-
-        # The threads should exit once the streams are closed
-        stdout_thread.join()
-        stderr_thread.join()
+    if returncode != 0:
+        # log stdout with warn priority because the tool failed
+        logger.warning(f"[tool] {stdout_lines}")
+        raise RuntimeError(f"Tool failed with exit code {returncode}")
+    else:
+        logger.debug(f"[tool] {stdout_lines}")
+        logger.debug("Tool command successful.")
 
 
 def executable_path(commands: list[str], name: str) -> str:
@@ -291,7 +227,9 @@ class Tool:
     def set_defaults(self):
         # default timeout in seconds, if you need to run a tool longer than this, you should change
         # it before calling run()
-        self.timeout = 10.0
+        self.timeout = (
+            60.0  # 1 minutes - just to make sure we eventually stop all tools
+        )
 
     def run(self, commands: str, context: dict = {}, cwd: str | None = None) -> None:
         """Run commands inside this tool

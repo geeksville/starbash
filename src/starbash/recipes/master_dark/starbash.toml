@@ -12,7 +12,6 @@ author.email = "FIXMESiril?"
 description = "Generate master dark"
 
 tool.name = "siril"
-tool.timeout = 30
 
 input.type = "dark"
 

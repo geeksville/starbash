@@ -27,7 +27,7 @@ from starbash.toml import toml_from_template
 from starbash.tool import Tool, expand_context, expand_context_unsafe
 from repo import RepoManager
 from starbash.tool import tools
-from starbash.paths import get_user_config_dir, get_user_data_dir
+from starbash.paths import get_user_config_dir, get_user_data_dir, get_user_cache_dir
 from starbash.selection import Selection, where_tuple
 from starbash.analytics import (
     NopAnalytics,
@@ -132,7 +132,8 @@ class ProcessingContext(tempfile.TemporaryDirectory):
     """
 
     def __init__(self, starbash: "Starbash"):
-        super().__init__(prefix="sbprocessing_")
+        cache_dir = get_user_cache_dir()
+        super().__init__(prefix="sbprocessing_", dir=cache_dir)
         self.sb = starbash
         logging.debug(f"Created processing context at {self.name}")
 

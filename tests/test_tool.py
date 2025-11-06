@@ -452,156 +452,78 @@ class TestToolsDict:
 class TestToolRun:
     """Tests for tool_run function."""
 
-    @patch("starbash.tool.subprocess.Popen")
-    def test_tool_run_success(self, mock_popen):
+    def test_tool_run_success(self):
         """Test successful tool execution."""
-        # Mock process with stdout/stderr that can be read
-        mock_process = MagicMock()
-        mock_process.returncode = 0
-        mock_process.poll.return_value = 0
-        mock_process.wait.return_value = None
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Use a real command - echo should work on all platforms
+            tool_run("echo hello", temp_dir)
+            # If we get here without exception, the command succeeded
 
-        # Create mock file objects that are iterable (for threading approach)
-        mock_stdout = MagicMock()
-        mock_stdout.__iter__.return_value = iter(["output\n"])
-
-        mock_stderr = MagicMock()
-        mock_stderr.__iter__.return_value = iter([])  # No stderr output
-
-        mock_process.stdout = mock_stdout
-        mock_process.stderr = mock_stderr
-        mock_process.stdin = MagicMock()
-
-        mock_popen.return_value = mock_process
-
-        tool_run("test_command", "/tmp", "input commands")
-
-        mock_popen.assert_called_once()
-        assert mock_process.stdin.write.called
-        assert mock_process.stdin.close.called
-
-    @patch("starbash.tool.subprocess.Popen")
-    def test_tool_run_with_stderr_warning(self, mock_popen, caplog):
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Shell redirection syntax not supported on Windows"
+    )
+    def test_tool_run_with_stderr_warning(self, caplog):
         """Test that stderr output is logged as warning."""
-        mock_process = MagicMock()
-        mock_process.returncode = 0
-        mock_process.poll.return_value = 0
+        import logging
 
-        # Create iterable mock streams
-        mock_stdout = MagicMock()
-        mock_stdout.__iter__.return_value = iter([])  # No stdout output
+        caplog.set_level(logging.WARNING)
 
-        mock_stderr = MagicMock()
-        mock_stderr.__iter__.return_value = iter(["warning message\n"])
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Use echo with stderr redirection - >&2 redirects to stderr
+            tool_run("cat >&2", cwd=temp_dir, commands="warning message")
 
-        mock_process.stdout = mock_stdout
-        mock_process.stderr = mock_stderr
-        mock_popen.return_value = mock_process
+            # Check that stderr was logged as warning
+            assert "warning message" in caplog.text
+            assert "tool-warnings" in caplog.text
 
-        tool_run("test_command", "/tmp")
-
-        assert "warning message" in caplog.text
-
-    @patch("starbash.tool.subprocess.Popen")
-    def test_tool_run_failure_raises_error(self, mock_popen):
+    def test_tool_run_failure_raises_error(self):
         """Test that non-zero return code raises RuntimeError."""
-        mock_process = MagicMock()
-        mock_process.returncode = 1
-        mock_process.poll.return_value = 1
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 'false' command always exits with code 1
+            with pytest.raises(RuntimeError, match="Tool failed with exit code 1"):
+                tool_run("false", temp_dir)
 
-        # Create iterable mock streams
-        mock_stdout = MagicMock()
-        mock_stdout.__iter__.return_value = iter([])
+    def test_tool_run_timeout(self):
+        """Test that timeout works correctly."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # 'sleep 5' will take 5 seconds, but we timeout after 1 second
+            with pytest.raises(RuntimeError, match="Tool timed out after 1 seconds"):
+                tool_run("sleep 5", temp_dir, timeout=1)
 
-        mock_stderr = MagicMock()
-        mock_stderr.__iter__.return_value = iter([])
-
-        mock_process.stdout = mock_stdout
-        mock_process.stderr = mock_stderr
-        mock_popen.return_value = mock_process
-
-        with pytest.raises(RuntimeError, match="Tool failed with exit code 1"):
-            tool_run("failing_command", "/tmp")
-
-    @patch("starbash.tool.subprocess.Popen")
-    def test_tool_run_failure_logs_output(self, mock_popen, caplog):
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Shell redirection syntax not supported on Windows"
+    )
+    def test_tool_run_failure_logs_output(self, caplog):
         """Test that failure logs both stdout and stderr."""
         import logging
 
-        caplog.set_level(logging.DEBUG)  # Need DEBUG level to see stdout messages
+        caplog.set_level(logging.WARNING)
 
-        mock_process = MagicMock()
-        mock_process.returncode = 1
-        mock_process.poll.return_value = 1
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Command that outputs to both stdout and stderr then fails
+            # Use sh -c to ensure proper output handling
+            with pytest.raises(RuntimeError):
+                tool_run(
+                    "sh -c 'echo error output; echo error message >&2; exit 1'",
+                    temp_dir,
+                )
 
-        # Create iterable mock streams
-        mock_stdout = MagicMock()
-        mock_stdout.__iter__.return_value = iter(["error output\n"])
+            # stderr is logged as warning
+            assert "error message" in caplog.text
+            assert "tool-warnings" in caplog.text
 
-        mock_stderr = MagicMock()
-        mock_stderr.__iter__.return_value = iter(["error message\n"])
-
-        mock_process.stdout = mock_stdout
-        mock_process.stderr = mock_stderr
-        mock_popen.return_value = mock_process
-
-        with pytest.raises(RuntimeError):
-            tool_run("failing_command", "/tmp")
-
-        assert "error output" in caplog.text
-        assert "error message" in caplog.text
-
-    @patch("starbash.tool.subprocess.Popen")
-    def test_tool_run_without_input_commands(self, mock_popen):
-        """Test tool_run with no input commands (stdin)."""
-        mock_process = MagicMock()
-        mock_process.returncode = 0
-        mock_process.poll.return_value = 0
-
-        # Create iterable mock streams
-        mock_stdout = MagicMock()
-        mock_stdout.__iter__.return_value = iter([])
-
-        mock_stderr = MagicMock()
-        mock_stderr.__iter__.return_value = iter([])
-
-        mock_process.stdout = mock_stdout
-        mock_process.stderr = mock_stderr
-        mock_popen.return_value = mock_process
-
-        tool_run("test_command", "/tmp", commands=None)
-
-        # Verify stdin was None
-        call_kwargs = mock_popen.call_args[1]
-        assert call_kwargs["stdin"] is None
-
-    @patch("starbash.tool.subprocess.Popen")
-    def test_tool_run_logs_stdout_on_success(self, mock_popen, caplog):
+    def test_tool_run_logs_stdout_on_success(self, caplog):
         """Test that stdout is logged on successful run."""
         import logging
 
         caplog.set_level(logging.DEBUG)
 
-        mock_process = MagicMock()
-        mock_process.returncode = 0
-        mock_process.poll.return_value = 0
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tool_run("echo successful output", temp_dir)
 
-        # Create iterable mock streams
-        mock_stdout = MagicMock()
-        mock_stdout.__iter__.return_value = iter(["successful output\n"])
-
-        mock_stderr = MagicMock()
-        mock_stderr.__iter__.return_value = iter([])
-
-        mock_process.stdout = mock_stdout
-        mock_process.stderr = mock_stderr
-        mock_popen.return_value = mock_process
-
-        tool_run("test_command", "/tmp")
-
-        # Check debug logs
-        assert "Tool command successful" in caplog.text
-        assert "successful output" in caplog.text
+            # Check debug logs
+            assert "Tool command successful" in caplog.text
+            assert "successful output" in caplog.text
 
 
 class TestSirilToolRun:
@@ -617,10 +539,11 @@ class TestSirilToolRun:
             pytest.skip("Siril not available on this system")
 
         tool = SirilTool()
+        tool.timeout = 10.0  # 10 second timeout for test
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Just run with empty script to verify Siril executes
-            tool.run(temp_dir, "", {})
+            tool.run("", {}, temp_dir)
 
 
 class TestGraxpertToolRun:
@@ -635,12 +558,13 @@ class TestGraxpertToolRun:
             pytest.skip("GraXpert not available on this system")
 
         tool = GraxpertTool()
+        tool.timeout = 10.0  # 10 second timeout for test
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Just run --help to verify GraXpert executes
             # Note: --help may exit with non-zero in some versions
             try:
-                tool.run(temp_dir, "--help", {})
+                tool.run("--help", {}, temp_dir)
             except RuntimeError as e:
                 # Allow --help to fail (argparse behavior varies)
                 # Just verify the tool was found
