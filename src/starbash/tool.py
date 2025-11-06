@@ -8,6 +8,9 @@ import threading
 import queue
 import logging
 import RestrictedPython
+from typing import TextIO, Callable
+
+from starbash.analytics import analytics_exception
 
 logger = logging.getLogger(__name__)
 
@@ -198,27 +201,36 @@ def tool_run(
     assert process.stdout
     assert process.stderr
 
-    output_queue: queue.Queue = queue.Queue()
-
-    def read_stream(stream, log_func, stream_name):
-        """Read from stream and put lines in queue."""
+    def read_stream(
+        in_stream: TextIO,
+        logger: Callable | None,
+        out_list: list[str],
+        stream_name: str,
+    ):
+        """Read from stream and add it to a list."""
         try:
-            for line in stream:
+            for line in in_stream:
                 line = line.rstrip("\n")
-                output_queue.put((log_func, stream_name, line))
-        finally:
-            output_queue.put((None, stream_name, None))  # Signal EOF
+                out_list.append(line)
+                if logger:
+                    logger(f"[{stream_name}] {line}")
+        except ValueError as e:
+            pass  # this is raised when the stream is closed - ignore
+        except Exception as e:
+            analytics_exception(e)
 
     # Start threads to read stdout and stderr
+    stdout_lines: list[str] = []
     stdout_thread = threading.Thread(
         target=read_stream,
-        args=(process.stdout, logger.debug, "tool-stdout"),
+        args=(process.stdout, logger.debug, stdout_lines, "tool-stdout"),
         daemon=True,
         name="tool-stdout-reader",
     )
+    stderr_lines: list[str] = []
     stderr_thread = threading.Thread(
         target=read_stream,
-        args=(process.stderr, logger.warning, "tool-stderr"),
+        args=(process.stderr, logger.warning, stderr_lines, "tool-stderr"),
         daemon=True,
         name="tool-stderr-reader",
     )
@@ -226,41 +238,8 @@ def tool_run(
     stdout_thread.start()
     stderr_thread.start()
 
-    # Track which streams have finished
-    streams_finished = 0
-
     try:
         # Process output from queue until both streams are done
-        while streams_finished < 2:
-            try:
-                # Use timeout to periodically check if process has terminated
-                log_func, stream_name, line = output_queue.get(timeout=0.1)
-
-                if log_func is None:
-                    # EOF signal
-                    streams_finished += 1
-                else:
-                    # Log the line
-                    log_func(f"[{stream_name}] {line}")
-
-            except queue.Empty:
-                # No output available, check if process terminated
-                if process.poll() is not None:
-                    # Process finished, wait a bit more for remaining output
-                    break
-
-        # Wait for threads to finish (they should be done or very close)
-        stdout_thread.join(timeout=1.0)
-        stderr_thread.join(timeout=1.0)
-
-        # Drain any remaining items in queue
-        while not output_queue.empty():
-            try:
-                log_func, stream_name, line = output_queue.get_nowait()
-                if log_func is not None:
-                    log_func(f"[{stream_name}] {line}")
-            except queue.Empty:
-                break
 
         # Wait for process to complete with timeout
         try:
@@ -273,15 +252,22 @@ def tool_run(
         returncode = process.returncode
 
         if returncode != 0:
+            # log stdout with warn priority because the tool failed
+            for line in stdout_lines:
+                logger.warning(f"[tool] {line}")
             raise RuntimeError(f"Tool failed with exit code {returncode}")
         else:
             logger.debug("Tool command successful.")
     finally:
         # Ensure streams are properly closed
-        if process.stdout:
+        if process.stdout and not process.stdout.closed:
             process.stdout.close()
-        if process.stderr:
+        if process.stderr and not process.stderr.closed:
             process.stderr.close()
+
+        # The threads should exit once the streams are closed
+        stdout_thread.join()
+        stderr_thread.join()
 
 
 def executable_path(commands: list[str], name: str) -> str:

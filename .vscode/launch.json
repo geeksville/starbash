@@ -50,6 +50,20 @@
             ]
         },
         {
+            "name": "Python Debugger: starbash process auto",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "starbash.main",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
+            "justMyCode": false,
+            "args": [
+                "--debug",
+                "process",
+                "auto"
+            ]
+        },
+        {
             "name": "Python Debugger: starbash process masters",
             "type": "debugpy",
             "request": "launch",

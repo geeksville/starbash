@@ -43,17 +43,10 @@ input.type = "light" # look in all raw repos, but look only for light files
 # Auto find suitable masters of the following type
 input.masters = ["bias", "flat"]
 
-# FIXME, bias and flat should have been added to context by two previous stages.  But for now hardwire
-# Note: they should not have filename extensions (see strip_extension in the old process.py)
-# context.bias = '/workspaces/starbash/images/masters/biases/2025-09-09_stacked.fits'
+# the base name for our light files
+context.light_base = '''light_s{session["id"]}'''
 
-# context.sessionid = "2025-09-16" # FIXME, generate this by looping over all sessions (from outside this file)
-# context.sessionconfig = "SiiOiii" # FIXME generate this by looping over all session configs
-# context.light_base = "light_s{sessionid}_c{sessionconfig}"
 
-# FIXME until auto light finding is in
-# input.source = "path"
-# input.path = "/workspaces/starbash/images/from_astroboy/M 27/2025-09-16/LIGHT/*.fit*"
 
 script = '''
     # Create a sequence from the raw light frames, seq file goes to process_dir
@@ -61,7 +54,7 @@ script = '''
     cd {process_dir}
 
     # Calibrate the light frames using master bias and flat
-    calibrate {light_base} -bias={bias} -flat=flat -cfa -equalize_cfa
+    calibrate {light_base} -bias={master["bias"]} -flat={master["flat"]} -cfa -equalize_cfa
 
     # Remove background gradient on a per-frame basis (generates bkg_pp_light.seq)
     seqsubsky pp_{light_base} 1
@@ -70,7 +63,7 @@ script = '''
     seqextract_HaOIII bkg_pp_{light_base} -resample=ha
     '''
 
-temporaries = ["FIXME"]
+# temporaries = ["FIXME"]
 
 [recipe.stage.stack]
 

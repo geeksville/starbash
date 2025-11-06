@@ -818,31 +818,56 @@ class Starbash:
         pipeline = self._get_stages("stages")
         sessions = self.search_session()
 
+        lights_step = pipeline[
+            0
+        ]  # FIXME super nasty - we assume the array is exactly these two elements
+        stack_step = pipeline[1]
+
         # FIXME add a loop over multiple different targets in current selection (via session.object)
-        for session in track(sessions, description="Processing target..."):
+
+        with ProcessingContext(self):
             # target specific processing here
 
-            with ProcessingContext(self):
-                recipe = None
-                for step in pipeline:
-                    task = None
+            # we only want sessions with light frames
+            sessions = [
+                s
+                for s in sessions
+                if self.aliases.normalize(s.get(get_column_name(Database.IMAGETYP_KEY)))
+                == "light"
+            ]
 
+            # we find our recipe while processing our first light frame session
+            recipe = None
+
+            # process all light frames
+            step = lights_step
+            for session in track(sessions, description="Processing lights..."):
+                if not recipe:
+                    # for the time being: The first step in the pipeline MUST be "light"
+                    recipe = self.get_recipe_for_session(session, step)
                     if not recipe:
-                        # for the time being: The first step in the pipeline MUST be "light"
-                        recipe = self.get_recipe_for_session(session, step)
-                        if not recipe:
-                            continue  # No recipe found for this target/session
+                        continue  # No recipe found for this target/session
 
                     # find the task for this step
+                    task = None
                     if recipe:
                         task = recipe.get("recipe.stage." + step["name"])
 
                     if task:
                         # Create a default process dir in /tmp.
-                        # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
-                        # dirs for particular targets?
                         self.set_session_in_context(session)
                         self.run_stage(task)
+
+            # after all light frames are processed, do the stacking
+            step = stack_step
+            if recipe:
+                task = recipe.get("recipe.stage." + step["name"])
+
+                if task:
+                    # Create a default process dir in /tmp.
+                    # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
+                    # dirs for particular targets?
+                    self.run_stage(task)
 
     def run_master_stages(self):
         """Generate any missing master frames
@@ -1080,6 +1105,18 @@ class Starbash:
                 f"Unsupported output destination type: {dest}. Only 'repo' is currently supported."
             )
 
+    def expand_to_context(self, to_add: dict[str, Any]):
+        """Expands any string values in to_add using the current context and updates the context.
+
+        This allows scripts to add new context variables - with general python expressions inside
+        """
+        for key, value in to_add.items():
+            if isinstance(value, str):
+                expanded_value = expand_context_unsafe(value, self.context)
+                self.context[key] = expanded_value
+            else:
+                self.context[key] = value
+
     def run_stage(self, stage: dict) -> None:
         """
         Executes a single processing stage.
@@ -1135,7 +1172,7 @@ class Starbash:
         # This allows recipe TOML to define their own default variables.
         # (apply all of the changes to context that the task demands)
         stage_context = stage.get("context", {})
-        self.context.update(stage_context)
+        self.expand_to_context(stage_context)
         self.add_input_files(stage)
         self.add_input_masters(stage)
         self.add_output_path(stage)
