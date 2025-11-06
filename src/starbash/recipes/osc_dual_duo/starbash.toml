@@ -34,6 +34,13 @@ tool.name = "siril"
 
 when = "session.light" # run once per session.config
 
+# Auto find input light frames for the current session
+# Look for files in input repos, finding them by using the "relative" tag they contain
+input.source = "repo"
+input.required = 2    # siril needs at least 2 frames to stack
+input.type = "light" # look in all raw repos, but look only for light files
+
+# Auto find suitable masters of the following type
 input.masters = ["bias", "flat"]
 
 # FIXME, bias and flat should have been added to context by two previous stages.  But for now hardwire
@@ -80,6 +87,8 @@ description = "Stack OSC dual duo filter data, with separate Ha, Oiii and Sii ch
 
 # context.target = "M 27" # FIXME
 # context.targets = "/workspaces/starbash/images/processed" # FIXME, do something smarter
+
+input.source = "recipe" # we will use output files from previous stages in this same recipe as our input
 
 tool.name = "python"
 

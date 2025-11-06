@@ -737,13 +737,16 @@ class Starbash:
         if not input_name:
             raise ValueError("Invalid pipeline step found: missing 'input' key.")
 
-        imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
+        # if input type is recipe we don't check for filetype match - because we'll just use files already in
+        # the tempdir
+        if input_name != "recipe":
+            imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
 
-        if not imagetyp or input_name != self.aliases.normalize(imagetyp):
-            logging.debug(
-                f"Session imagetyp '{imagetyp}' does not match step input '{input_name}', skipping"
-            )
-            return None
+            if not imagetyp or input_name != self.aliases.normalize(imagetyp):
+                logging.debug(
+                    f"Session imagetyp '{imagetyp}' does not match step input '{input_name}', skipping"
+                )
+                return None
 
         # Get session metadata for checking requirements
         session_metadata = session.get("metadata", {})
@@ -799,12 +802,11 @@ class Starbash:
         """On the currently active session, run all processing stages
 
         New design, not yet implemented:
-        * find all recipes
         * for each target in the current selection:
         *   select ONE recipe for processing that target (check recipe.auto.require.* conditions)
-        *   create a processing output directory (for high value final files)
+        *   init session context (it will be shared for all following steps) - via ProcessingContext
         *   create a temporary processing directory (for intermediate files - shared by all stages)
-        *   init session context (it will be shared for all following steps)
+        *   create a processed output directory (for high value final files) - via run_stage()
         *   iterate over all light frame sessions in the current selection
         *     for each session:
         *       update context input and output files
@@ -812,18 +814,35 @@ class Starbash:
         *   after all sessions are processed, run final.stack stages (using the shared context and temp dir)
 
         """
-        logging.info("--- Running all stages ---")
+        # Not ready to use this yet
+        pipeline = self._get_stages("stages")
+        sessions = self.search_session()
 
-        # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
-        sorted_pipeline = self._get_stages("stages")
+        # FIXME add a loop over multiple different targets in current selection (via session.object)
+        for session in track(sessions, description="Processing target..."):
+            # target specific processing here
 
-        self.init_context()
-        # 4. Iterate through the sorted pipeline and execute the associated tasks.
-        for step in sorted_pipeline:
-            step_name = step.get("name")
-            if not step_name:
-                raise ValueError("Invalid pipeline step found: missing 'name' key.")
-            self.run_pipeline_step(step_name)
+            with ProcessingContext(self):
+                recipe = None
+                for step in pipeline:
+                    task = None
+
+                    if not recipe:
+                        # for the time being: The first step in the pipeline MUST be "light"
+                        recipe = self.get_recipe_for_session(session, step)
+                        if not recipe:
+                            continue  # No recipe found for this target/session
+
+                    # find the task for this step
+                    if recipe:
+                        task = recipe.get("recipe.stage." + step["name"])
+
+                    if task:
+                        # Create a default process dir in /tmp.
+                        # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
+                        # dirs for particular targets?
+                        self.set_session_in_context(session)
+                        self.run_stage(task)
 
     def run_master_stages(self):
         """Generate any missing master frames
@@ -848,15 +867,10 @@ class Starbash:
                     task = recipe.get("recipe.stage." + step["name"])
 
                 if task:
-                    input_config = task.get("input", {})
-                    input_type = input_config.get("type")
-                    if not input_type:
-                        raise ValueError(f"Task for step missing required input.type")
-
                     # Create a default process dir in /tmp.
                     # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
                     # dirs for particular targets?
-                    with ProcessingContext(self) as temp_dir:
+                    with ProcessingContext(self):
                         self.set_session_in_context(session)
                         self.run_stage(task)
 
@@ -996,6 +1010,9 @@ class Starbash:
     def add_output_path(self, stage: dict) -> None:
         """Adds output path information to context based on the stage output config.
 
+        If the output dest is 'repo', it finds the appropriate repository and constructs
+        the full output path based on the repository's base path and relative path expression.
+
         Sets the following context variables:
         - context.output.root_path - base path of the destination repo
         - context.output.base_path - full path without file extension
@@ -1134,7 +1151,13 @@ class Starbash:
                 )
                 return
 
-        tool.run_in_temp_dir(script, context=self.context)
+        # We normally run tools in a temp dir, but if input.source is recipe we assume we want to
+        # run in the shared processing directory.  Because prior stages output files are waiting for us there.
+        cwd = None
+        if stage.get("input", {}).get("source") == "recipe":
+            cwd = self.context.get("process_dir")
+
+        tool.run(script, context=self.context, cwd=cwd)
 
         # verify context.output was created if it was specified
         output_info: dict | None = self.context.get("output")

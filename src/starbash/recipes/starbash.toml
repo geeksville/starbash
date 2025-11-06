@@ -21,13 +21,6 @@ dir = "osc_dual_duo"
 [[repo-ref]]
 dir = "osc_single_duo"
 
-# processing stages, currently all declared here, but possibly in the future they could be added by user/other toml files
-
-# Not included in standard list - for now we run manually
-#[[stages]]
-#name = "setup-masters" # for flat processing, master generation etc
-#priority = 5
-
 #
 # master specific stages
 #
@@ -50,12 +43,12 @@ input = "flat"
 # session specific processing stages
 # FIXME - we are not using this yet, for now we just hardcode in app.py
 
-#[[stages]]
-#name = "light" # generate light frames from lights and with reference to flats/bias
-#priority = 20
-#input = "light" # only used for frames of this type
+[[stages]]
+name = "light" # generate light frames from lights and with reference to flats/bias
+priority = 20
+input = "light" # only used for frames of this type
 
-#[[stages]]
-#name = "stack" # stack frames
-#priority = 30
-# FIXME - what does "input" mean in this context?  we really just want to run after all of the previous stages
+[[stages]]
+name = "stack" # stack frames
+priority = 30
+input = "recipe" # use output from previous stages in the same recipe

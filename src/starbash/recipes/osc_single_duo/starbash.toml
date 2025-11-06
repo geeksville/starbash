@@ -25,7 +25,7 @@ auto.for-camera = ["OSC"]
 
 tool.name = "siril"
 when = "session.light" # run once per session.config
-output = "FIXME"
+# output = "FIXME"
 
 script = '''
     # Create a sequence from the raw light frames, seq file goes to process_dir

@@ -48,7 +48,8 @@
 * [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [x] include instrument name in session list (for seestar,asiair,etc)
 * [ ] select default output should show summary info for current target & telescope.
-* [ ] make masters list work
+* [ ] sort the masters list display
+* [ ] fix auto generation of processed directory paths
 * [ ] track image quality on a per frame basis
 * [x] use db find master bias frames
 * [ ] use db to find flat frames

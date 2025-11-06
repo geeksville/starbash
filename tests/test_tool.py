@@ -279,8 +279,8 @@ class TestToolBaseClass:
         with pytest.raises(NotImplementedError):
             tool.run("/tmp", "commands")
 
-    def test_run_in_temp_dir_creates_temp_directory(self):
-        """Test that run_in_temp_dir creates and cleans up temp directory."""
+    def test_run_creates_temp_directory(self):
+        """Test that run creates and cleans up temp directory."""
 
         class TestTool(Tool):
             def __init__(self):
@@ -296,7 +296,7 @@ class TestToolBaseClass:
                 assert cwd.startswith(tempfile.gettempdir())
 
         tool = TestTool()
-        tool.run_in_temp_dir("test commands", {"key": "value"})
+        tool.run("test commands", {"key": "value"})
 
         # Verify temp_dir was added to context
         assert tool.received_context is not None

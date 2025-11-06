@@ -56,7 +56,7 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
             """
 
         context["input_files"] = frames
-        siril.run_in_temp_dir(commands, context=context)
+        siril.run(commands, context=context)
 
     perhaps_delete_temps([merged_seq_base, f"r_{merged_seq_base}"])
 

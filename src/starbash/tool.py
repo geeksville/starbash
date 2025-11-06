@@ -307,21 +307,29 @@ class Tool:
         # it before calling run()
         self.timeout = 10.0
 
-    def run_in_temp_dir(self, commands: str, context: dict = {}) -> None:
-        """Run commands inside this tool (with cwd pointing to a temp directory)"""
-        # Create a temporary directory for processing
-        temp_dir = tempfile.mkdtemp(prefix=self.name)
+    def run(self, commands: str, context: dict = {}, cwd: str | None = None) -> None:
+        """Run commands inside this tool
 
-        context["temp_dir"] = (
-            temp_dir  # pass our directory path in for the tool's usage
-        )
+        If cwd is provided, use that as the working directory otherwise a temp directory is used as cwd.
+        """
+        temp_dir = None
+
+        if not cwd:
+            # Create a temporary directory for processing
+            cwd = temp_dir = tempfile.mkdtemp(prefix=self.name)
+
+            context["temp_dir"] = (
+                temp_dir  # pass our directory path in for the tool's usage
+            )
 
         try:
-            self.run(temp_dir, commands, context=context)
+            self._run(cwd, commands, context=context)
         finally:
-            shutil.rmtree(temp_dir)
+            if temp_dir:
+                shutil.rmtree(temp_dir)
+                context.pop("temp_dir", None)
 
-    def run(self, cwd: str, commands: str, context: dict = {}) -> None:
+    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         """Run commands inside this tool (with cwd pointing to the specified directory)"""
         raise NotImplementedError()
 
@@ -332,7 +340,7 @@ class SirilTool(Tool):
     def __init__(self) -> None:
         super().__init__("siril")
 
-    def run(self, cwd: str, commands: str, context: dict = {}) -> None:
+    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         """Executes Siril with a script of commands in a given working directory."""
 
         # Iteratively expand the command string to handle nested placeholders.
@@ -385,7 +393,7 @@ class GraxpertTool(Tool):
     def __init__(self) -> None:
         super().__init__("graxpert")
 
-    def run(self, cwd: str, commands: str, context: dict = {}) -> None:
+    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         """Executes Graxpert with the specified command line arguments"""
 
         # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
@@ -403,7 +411,7 @@ class PythonTool(Tool):
         # default script file override
         self.default_script_file = "starbash.py"
 
-    def run(self, cwd: str, commands: str, context: dict = {}) -> None:
+    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         original_cwd = os.getcwd()
         try:
             os.chdir(cwd)  # cd to where this script expects to run
