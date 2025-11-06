@@ -274,10 +274,10 @@ class TestToolBaseClass:
         assert tool.default_script_file is None
 
     def test_run_not_implemented(self):
-        """Test that run() raises NotImplementedError."""
+        """Test that _run() raises NotImplementedError."""
         tool = Tool("test")
         with pytest.raises(NotImplementedError):
-            tool.run("/tmp", "commands")
+            tool.run("commands", {}, "/tmp")
 
     def test_run_creates_temp_directory(self):
         """Test that run creates and cleans up temp directory."""
@@ -286,21 +286,28 @@ class TestToolBaseClass:
             def __init__(self):
                 super().__init__("test")
                 self.received_cwd = None
-                self.received_context = None
+                self.received_context_copy = None
 
-            def run(self, cwd: str, commands: str, context: dict = {}) -> None:
+            def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
                 self.received_cwd = cwd
-                self.received_context = context
+                # Make a copy of context to verify temp_dir was present during execution
+                self.received_context_copy = dict(context)
                 # Verify temp directory exists during execution
                 assert os.path.isdir(cwd)
                 assert cwd.startswith(tempfile.gettempdir())
+                # Verify temp_dir is in context during execution
+                assert "temp_dir" in context
+                assert context["temp_dir"] == cwd
 
         tool = TestTool()
-        tool.run("test commands", {"key": "value"})
+        context = {"key": "value"}
+        tool.run("test commands", context)
 
-        # Verify temp_dir was added to context
-        assert tool.received_context is not None
-        assert "temp_dir" in tool.received_context
+        # Verify temp_dir was present during execution
+        assert tool.received_context_copy is not None
+        assert "temp_dir" in tool.received_context_copy
+        # Verify temp_dir was removed after execution
+        assert "temp_dir" not in context
         # Verify temp directory was cleaned up
         assert tool.received_cwd is not None
         assert not os.path.exists(tool.received_cwd)
@@ -328,7 +335,7 @@ class TestPythonTool:
         code = "context['result'].append(42)"
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            tool.run(temp_dir, code, context)
+            tool.run(code, context, temp_dir)
             assert context["result"] == [42]
 
     def test_python_tool_has_access_to_context(self):
@@ -339,7 +346,7 @@ class TestPythonTool:
         code = "context['output'].append(context['input'] * 2)"
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            tool.run(temp_dir, code, context)
+            tool.run(code, context, temp_dir)
             assert context["output"] == [20]
 
     def test_python_tool_syntax_error_raises(self):
@@ -350,7 +357,7 @@ class TestPythonTool:
 
         with tempfile.TemporaryDirectory() as temp_dir:
             with pytest.raises(SyntaxError) as exc_info:
-                tool.run(temp_dir, code, {})
+                tool.run(code, {}, temp_dir)
             # RestrictedPython provides detailed syntax error messages
             assert "SyntaxError" in str(exc_info.value)
 
@@ -362,7 +369,7 @@ class TestPythonTool:
 
         with tempfile.TemporaryDirectory() as temp_dir:
             with pytest.raises(ValueError) as exc_info:
-                tool.run(temp_dir, code, {})
+                tool.run(code, {}, temp_dir)
             # The error is wrapped, so we get the generic message
             assert "Error during python script execution" in str(exc_info.value)
 
@@ -375,7 +382,7 @@ class TestPythonTool:
         code = "import os; context['cwd_during_run'].append(os.getcwd())"
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            tool.run(temp_dir, code, context)
+            tool.run(code, context, temp_dir)
             # Verify cwd was changed during execution. Use realpath to
             # resolve macOS /private vs /var symlink differences.
             assert os.path.realpath(context["cwd_during_run"][0]) == os.path.realpath(
@@ -393,7 +400,7 @@ class TestPythonTool:
 
         with tempfile.TemporaryDirectory() as temp_dir:
             with pytest.raises(ValueError):  # Exceptions are wrapped in ValueError
-                tool.run(temp_dir, code, {})
+                tool.run(code, {}, temp_dir)
             # Verify cwd was restored after error
             assert os.getcwd() == original_cwd
 

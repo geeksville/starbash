@@ -865,7 +865,7 @@ class Starbash:
                 task = recipe.get("recipe.stage." + step["name"])
 
                 if task:
-                    # Create a default process dir in /tmp.
+                    #
                     # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
                     # dirs for particular targets?
                     self.run_stage(task)
