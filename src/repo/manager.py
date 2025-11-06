@@ -126,15 +126,6 @@ class RepoManager:
 
     def _add_merged(self, repo: Repo) -> None:
         for key, value in repo.config.items():
-            # if the toml object is an AoT type, monkey patch each element in the array instead
-            if isinstance(value, AoT):
-                for v in value:
-                    setattr(v, "source", repo)
-                else:
-                    # We monkey patch source into any object that came from a repo, so that users can
-                    # find the source repo (for attribution, URL relative resolution, whatever...)
-                    setattr(value, "source", repo)
-
             self.merged.add(key, value)
 
     def __str__(self):

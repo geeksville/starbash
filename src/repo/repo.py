@@ -31,6 +31,36 @@ class Repo:
         self.manager = manager
         self.url = url
         self.config = self._load_config()
+        self._monkey_patch()
+
+    def _monkey_patch(self, o: Any | None = None) -> None:
+        """Add a 'source' back-ptr to all child items in the config.
+
+        so that users can find the source repo (for attribution, URL relative resolution, whatever...)
+        """
+        # base case - start us recursing
+        if o is None:
+            self._monkey_patch(self.config)
+            return
+
+        # We monkey patch source into any object that came from a repo,
+        try:
+            setattr(o, "source", self)
+
+            # Recursively patch dict-like objects
+            if isinstance(o, dict):
+                for value in o.values():
+                    self._monkey_patch(value)
+            # Recursively patch list-like objects (including AoT)
+            elif hasattr(o, "__iter__") and not isinstance(o, (str, bytes)):
+                try:
+                    for item in o:
+                        self._monkey_patch(item)
+                except TypeError:
+                    # Not actually iterable, skip
+                    pass
+        except AttributeError as e:
+            pass  # simple types like int, str, float, etc. can't have attributes set on them
 
     def __str__(self) -> str:
         """Return a concise one-line description of this repo.
@@ -230,12 +260,7 @@ class Repo:
             A dictionary containing the parsed configuration.
         """
         try:
-            if self.is_scheme("file"):
-                config_content = self._read_file(repo_suffix)
-            elif self.is_scheme("pkg"):
-                config_content = self._read_resource(repo_suffix)
-            else:
-                raise ValueError(f"Unsupported URL scheme for repo: {self.url}")
+            config_content = self.read(repo_suffix)
             logging.debug(f"Loading repo config from {repo_suffix}")
             return tomlkit.parse(config_content)
         except FileNotFoundError:
@@ -243,6 +268,23 @@ class Repo:
                 f"No {repo_suffix} found"
             )  # we currently make it optional to have the config file at root
             return tomlkit.TOMLDocument()  # empty placeholder
+
+    def read(self, filepath: str) -> str:
+        """
+        Read a filepath relative to the base of this repo. Return the contents in a string.
+
+        Args:
+            filepath: The path to the file, relative to the repository root.
+
+        Returns:
+            The content of the file as a string.
+        """
+        if self.is_scheme("file"):
+            return self._read_file(filepath)
+        elif self.is_scheme("pkg"):
+            return self._read_resource(filepath)
+        else:
+            raise ValueError(f"Unsupported URL scheme for repo: {self.url}")
 
     def get(self, key: str, default: Any | None = None) -> Any | None:
         """

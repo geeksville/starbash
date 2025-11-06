@@ -1019,6 +1019,10 @@ class Starbash:
                 self.context["input_files"] = [
                     img["abspath"] for img in images
                 ]  # Pass in the file list via the context dict
+            elif source == "recipe":
+                # The input files are already in the tempdir from the recipe processing
+                # therefore we don't need to do anything here
+                pass
             else:
                 raise ValueError(
                     f"Stage '{stage.get('name')}' has invalid 'input' source: {source}"

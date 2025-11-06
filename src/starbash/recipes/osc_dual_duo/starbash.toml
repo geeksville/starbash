@@ -32,8 +32,6 @@ description = "Extract OSC dual duo filter Ha, Oiii and Sii channels"
 
 tool.name = "siril"
 
-when = "session.light" # run once per session.config
-
 # Auto find input light frames for the current session
 # Look for files in input repos, finding them by using the "relative" tag they contain
 input.source = "repo"
@@ -67,8 +65,6 @@ script = '''
 
 [recipe.stage.stack]
 
-disabled = false # not yet ready to test
-
 # FIXME this stage should only be considered if the previous stage in this same array
 # was run.  It must be run inside the same tempdir (so that files from previous stage are available)
 
@@ -84,8 +80,6 @@ description = "Stack OSC dual duo filter data, with separate Ha, Oiii and Sii ch
 input.source = "recipe" # we will use output files from previous stages in this same recipe as our input
 
 tool.name = "python"
-
-when = "final.stack" # run once after all session/session.config processing was done
 
 # Based on the following definitions in the stage toml file...
 # FIXME, we should inherit this - most recipes shouldn't have to declare it
