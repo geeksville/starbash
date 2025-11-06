@@ -21,7 +21,7 @@
 * [x] normalize session target names on insert, so that "sb select target m31" can work
 * [ ] test missing siril/graxpert and helpful user message
 * [ ] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
-* [ ] fix "Registering and stacking 0 frames for SiiOiii/Ha"
+* [x] fix "Registering and stacking 0 frames for SiiOiii/Ha"
 * [ ] make master dark/bias gen for asiair work
 * [ ] include temperature in bias filenames.
 * [x] make process running smarter about printing messages as they occur

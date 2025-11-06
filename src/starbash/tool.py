@@ -11,7 +11,6 @@ import RestrictedPython
 from typing import TextIO, Callable
 from rich.traceback import Traceback
 from starbash.exception import UserHandledError
-from starbash import console
 
 from starbash.analytics import analytics_exception
 
@@ -22,6 +21,8 @@ class ToolError(UserHandledError):
     """Exception raised when a tool fails to execute properly."""
 
     def ask_user_handled(self) -> bool:
+        from starbash import console  # Lazy import to avoid circular dependency
+
         console.print(f"Tool failed [bold red]{self}[/bold red]")
         return True
 
@@ -221,6 +222,8 @@ class MissingToolError(UserHandledError):
     """Exception raised when a required tool is not found."""
 
     def ask_user_handled(self) -> bool:
+        from starbash import console  # Lazy import to avoid circular dependency
+
         console.print("[bold red]Missing Tool Error[/bold red]")
         console.print("FIXME, tell user how to install it...")
         return True
@@ -358,6 +361,8 @@ class PythonScriptError(UserHandledError):
         Returns:
             True if the error was handled, False otherwise.
         """
+        from starbash import console  # Lazy import to avoid circular dependency
+
         console.print(
             """[bold red]Python Script Error[/bold red] please contact the script author and
             give them this information.

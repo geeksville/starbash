@@ -19,7 +19,6 @@ import rich.console
 import copy
 
 import starbash
-from starbash import console, _is_test_env, to_shortdate
 from starbash.aliases import Aliases
 from starbash.database import Database, SessionRow, ImageRow, get_column_name
 from repo import Repo, repo, repo_suffix
@@ -45,6 +44,8 @@ def setup_logging(stderr: bool = False):
     """
     Configures basic logging.
     """
+    from starbash import _is_test_env  # Lazy import to avoid circular dependency
+
     console = rich.console.Console(stderr=stderr)
     handlers = (
         [RichHandler(console=console, rich_tracebacks=True)] if not _is_test_env else []
@@ -78,6 +79,7 @@ def copy_images_to_dir(images: list[ImageRow], output_dir: Path) -> None:
     This function requires that "abspath" already be populated in each ImageRow.  Normally
     the caller does this by calling Starbash._add_image_abspath() on the image.
     """
+    from starbash import console  # Lazy import to avoid circular dependency
 
     # Export images
     console.print(f"[cyan]Exporting {len(images)} images to {output_dir}...[/cyan]")
@@ -966,6 +968,10 @@ class Starbash:
 
         date = session.get(get_column_name(Database.START_KEY))
         if date:
+            from starbash import (
+                to_shortdate,
+            )  # Lazy import to avoid circular dependency
+
             self.context["date"] = to_shortdate(date)
 
     def add_input_masters(self, stage: dict) -> None:

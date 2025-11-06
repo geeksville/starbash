@@ -1,9 +1,7 @@
 import string
 from textwrap import dedent
 
-from starbash.app import get_user_config_path
 from starbash.exception import UserHandledError
-from starbash import console
 
 _translator = str.maketrans("", "", string.punctuation + string.whitespace)
 
@@ -36,6 +34,11 @@ class UnrecognizedAliasError(UserHandledError):
         self.alias = alias
 
     def ask_user_handled(self) -> bool:
+        from starbash import console  # Lazy import to avoid circular dependency
+        from starbash.app import (
+            get_user_config_path,
+        )  # Lazy import to avoid circular dependency
+
         console.print(
             dedent(
                 f"""[red]Error:[/red] To process this session you need to add a missing alias
