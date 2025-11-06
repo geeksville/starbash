@@ -20,6 +20,7 @@
 * [x] require all images of a session to have the same exposure length see 2025-09-09 - it incorrectly only has one image in the session!
 * [x] normalize session target names on insert, so that "sb select target m31" can work
 * [ ] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
+* [ ] fix "Registering and stacking 0 frames for SiiOiii/Ha"
 * [ ] make master dark/bias gen for asiair work
 * [ ] include temperature in bias filenames.
 * [x] make process running smarter about printing messages as they occur

@@ -277,7 +277,7 @@ class SirilTool(Tool):
 
         # siril_path = "/home/kevinh/packages/Siril-1.4.0~beta3-x86_64.AppImage"
         # Possible siril commands, with preferred option first
-        siril_commands = ["org.siril.Siril", "siril-cli", "siril"]
+        siril_commands = ["siril-cli", "siril", "org.siril.Siril"]
         siril_path = executable_path(siril_commands, "Siril")
         if siril_path == "org.siril.Siril":
             # The executable is inside a flatpak, so run the lighter/faster/no-gui required exe

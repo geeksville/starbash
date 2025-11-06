@@ -35,13 +35,14 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
         logger.info(f"Using existing stacked file: {stacked_output_path}")
     else:
         # Merge all frames (from multiple sessions and configs) use those for stacking
-        frames = glob(
-            f"{context["process_dir"]}/{variant}_bkg_pp_light_s*_c{sessionconfig}_*.fit*"
-        )
+        frames = glob(f"{context["process_dir"]}/{variant}_bkg_pp_light_s*.fit*")
 
         logger.info(
             f"Registering and stacking {len(frames)} frames for {sessionconfig}/{variant} -> {stacked_output_path}"
         )
+        assert (
+            len(frames) > 1
+        ), f"Need at least two frames for {sessionconfig}/{variant}"
 
         # Siril commands for registration and stacking. We run this in process_dir.
         commands = f"""

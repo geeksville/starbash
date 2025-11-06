@@ -540,7 +540,7 @@ class TestSirilToolRun:
         """Test that SirilTool.run can execute Siril with empty script."""
 
         # Skip test if Siril is not available
-        siril_commands = ["org.siril.Siril", "siril-cli", "siril"]
+        siril_commands = ["siril-cli", "siril", "org.siril.Siril"]
         siril_available = any(shutil.which(cmd) for cmd in siril_commands)
         if not siril_available:
             pytest.skip("Siril not available on this system")

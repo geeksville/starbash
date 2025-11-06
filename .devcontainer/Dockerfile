@@ -45,6 +45,13 @@ RUN flatpak install --user -y flathub org.siril.Siril
 # Let siril see /tmp
 RUN flatpak --user override --filesystem=/tmp org.siril.Siril
 
+# install siril aappimage
+RUN apt-get install -y --no-install-recommends libfuse2t64
+RUN cd /home/${USERNAME}/.local/bin \
+        && wget https://free-astro.org/download/Siril-1.4.0\~beta4-x86_64.AppImage \
+        && mv Siril-1.4.0\~beta4-x86_64.AppImage siril \
+        && chmod +x siril
+
 # Install homebrew (vhs command-line movie maker)
 RUN sudo apt-get install build-essential curl git -y
 RUN NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
