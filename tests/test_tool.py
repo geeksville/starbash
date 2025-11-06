@@ -15,7 +15,9 @@ from starbash.tool import (
     strip_comments,
     tool_run,
     Tool,
+    ToolError,
     PythonTool,
+    PythonScriptError,
     SirilTool,
     GraxpertTool,
     tools,
@@ -350,25 +352,25 @@ class TestPythonTool:
             assert context["output"] == [20]
 
     def test_python_tool_syntax_error_raises(self):
-        """Test that syntax errors are re-raised directly."""
+        """Test that syntax errors are raised properly."""
         tool = PythonTool()
 
         code = "if True"  # Invalid syntax
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            with pytest.raises(SyntaxError) as exc_info:
+            with pytest.raises(PythonScriptError) as exc_info:
                 tool.run(code, {}, temp_dir)
             # RestrictedPython provides detailed syntax error messages
-            assert "SyntaxError" in str(exc_info.value)
+            assert "Syntax error in python script" in str(exc_info.value)
 
     def test_python_tool_runtime_error_raises(self):
-        """Test that runtime errors are wrapped in ValueError."""
+        """Test that runtime errors are wrapped in PythonScriptError."""
         tool = PythonTool()
 
         code = "raise ValueError('test error')"
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            with pytest.raises(ValueError) as exc_info:
+            with pytest.raises(PythonScriptError) as exc_info:
                 tool.run(code, {}, temp_dir)
             # The error is wrapped, so we get the generic message
             assert "Error during python script execution" in str(exc_info.value)
@@ -484,10 +486,10 @@ class TestToolRun:
             assert "tool-warnings" in caplog.text
 
     def test_tool_run_failure_raises_error(self):
-        """Test that non-zero return code raises RuntimeError."""
+        """Test that non-zero return code raises ToolError."""
         with tempfile.TemporaryDirectory() as temp_dir:
             # 'false' command always exits with code 1
-            with pytest.raises(RuntimeError, match="Tool failed with exit code 1"):
+            with pytest.raises(ToolError, match="failed with exit code 1"):
                 tool_run("false", temp_dir)
 
     def test_tool_run_timeout(self):
@@ -509,7 +511,7 @@ class TestToolRun:
         with tempfile.TemporaryDirectory() as temp_dir:
             # Command that outputs to both stdout and stderr then fails
             # Use sh -c to ensure proper output handling
-            with pytest.raises(RuntimeError):
+            with pytest.raises(ToolError):
                 tool_run(
                     "sh -c 'echo error output; echo error message >&2; exit 1'",
                     temp_dir,

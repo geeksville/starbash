@@ -24,6 +24,7 @@ outdated = "^0.2.2"
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.4.2,<9.0.0"
 pytest-cov = "^6.0.0"
+pytest-xdist = "^3.8.0"
 
 [tool.poetry.scripts]
 starbash = "starbash.main:app"
@@ -31,7 +32,8 @@ sb = "starbash.main:app"       # std alias for convenience
 
 [tool.pytest.ini_options]
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
-addopts = "-m 'not slow'"
+# -n auto enables parallel test execution plugin
+addopts = "-m 'not slow' -n auto"
 
 [tool.coverage.run]
 source = ["src"]
