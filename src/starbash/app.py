@@ -144,21 +144,24 @@ class ProcessingContext(tempfile.TemporaryDirectory):
     def __enter__(self) -> "ProcessingContext":
         return super().__enter__()
 
-    def __exit__(self, exc_type, exc_value, traceback) -> bool:
+    def __exit__(self, exc_type, exc_value, traceback) -> bool:  # type: ignore
         """Returns true if exceptions were handled"""
         logging.debug(f"Cleaning up processing context at {self.name}")
 
         # unregister our process dir
         self.sb.context.pop("process_dir", None)
 
+        handled = False
         if exc_type and issubclass(exc_type, UserHandledError):
             if exc_value.ask_user_handled():
                 logging.debug("UserHandledError was handled.")
                 exc_type = None
                 exc_value = None
                 traceback = None
+                handled = True
 
         super().__exit__(exc_type, exc_value, traceback)
+        return handled
 
 
 class Starbash:
