@@ -1,5 +1,6 @@
 import string
 
+from starbash.exception import UserHandledError
 
 _translator = str.maketrans("", "", string.punctuation + string.whitespace)
 
@@ -24,7 +25,7 @@ def pre_normalize(name: str) -> str:
     return name.lower().translate(_translator)
 
 
-class UnrecognizedAliasError(ValueError):
+class UnrecognizedAliasError(UserHandledError):
     """Exception raised when an unrecognized alias is encountered during normalization."""
 
     pass

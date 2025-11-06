@@ -114,9 +114,6 @@ def auto(
         else:
             console.print("[yellow]Auto-processing all selected sessions...[/yellow]")
 
-        console.print(
-            "[red]Still in development - see https://github.com/geeksville/starbash[/red]"
-        )
         sb.run_all_stages()
 
 
@@ -134,9 +131,6 @@ def masters():
     with Starbash("process.masters") as sb:
         console.print(
             "[yellow]Generating master frames from current selection...[/yellow]"
-        )
-        console.print(
-            "[red]Still in development - see https://github.com/geeksville/starbash[/red]"
         )
         sb.run_master_stages()
 

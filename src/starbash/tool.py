@@ -9,10 +9,21 @@ import queue
 import logging
 import RestrictedPython
 from typing import TextIO, Callable
+from rich.traceback import Traceback
+from starbash.exception import UserHandledError
+from starbash import console
 
 from starbash.analytics import analytics_exception
 
 logger = logging.getLogger(__name__)
+
+
+class ToolError(UserHandledError):
+    """Exception raised when a tool fails to execute properly."""
+
+    def ask_user_handled(self) -> bool:
+        console.print(f"Tool failed [bold red]{self}[/bold red]")
+        return True
 
 
 class _SafeFormatter(dict):
@@ -200,10 +211,19 @@ def tool_run(
     if returncode != 0:
         # log stdout with warn priority because the tool failed
         logger.warning(f"[tool] {stdout_lines}")
-        raise RuntimeError(f"Tool failed with exit code {returncode}")
+        raise ToolError(f"{cmd} failed with exit code {returncode}")
     else:
         logger.debug(f"[tool] {stdout_lines}")
         logger.debug("Tool command successful.")
+
+
+class MissingToolError(UserHandledError):
+    """Exception raised when a required tool is not found."""
+
+    def ask_user_handled(self) -> bool:
+        console.print("[bold red]Missing Tool Error[/bold red]")
+        console.print("FIXME, tell user how to install it...")
+        return True
 
 
 def executable_path(commands: list[str], name: str) -> str:
@@ -211,7 +231,7 @@ def executable_path(commands: list[str], name: str) -> str:
     for cmd in commands:
         if shutil.which(cmd):
             return cmd
-    raise FileNotFoundError(f"{name} not found, you probably need to install it.")
+    raise MissingToolError(f"{name} not found, you probably need to install it.")
 
 
 class Tool:
@@ -286,10 +306,14 @@ class SirilTool(Tool):
 
         # Create symbolic links for all input files in the temp directory
         for f in input_files:
-            os.symlink(
-                os.path.abspath(str(f)),
-                os.path.join(temp_dir, os.path.basename(str(f))),
-            )
+            dest_file = os.path.join(temp_dir, os.path.basename(str(f)))
+
+            # if a script is re-run we might already have the input file symlinks
+            if not os.path.exists(dest_file):
+                os.symlink(
+                    os.path.abspath(str(f)),
+                    dest_file,
+                )
 
         # We dedent here because the commands are often indented multiline strings
         script_content = textwrap.dedent(
@@ -326,6 +350,36 @@ class GraxpertTool(Tool):
         tool_run(cmd, cwd, timeout=self.timeout)
 
 
+class PythonScriptError(UserHandledError):
+    """Exception raised when an error occurs during Python script execution."""
+
+    def ask_user_handled(self) -> bool:
+        """Prompt the user with a friendly message about the error.
+        Returns:
+            True if the error was handled, False otherwise.
+        """
+        console.print(
+            """[bold red]Python Script Error[/bold red] please contact the script author and
+            give them this information.
+
+            Processing for the current file will be skipped..."""
+        )
+
+        # Show the traceback with Rich formatting
+        if self.__cause__:
+            traceback = Traceback.from_exception(
+                type(self.__cause__),
+                self.__cause__,
+                self.__cause__.__traceback__,
+                show_locals=True,
+            )
+            console.print(traceback)
+        else:
+            console.print(f"[yellow]{str(self)}[/yellow]")
+
+        return True
+
+
 class PythonTool(Tool):
     """Expose Python as a tool"""
 
@@ -350,9 +404,9 @@ class PythonTool(Tool):
                 globals = {"context": context}
                 exec(byte_code, make_safe_globals(globals), execution_locals)
             except SyntaxError as e:
-                raise  # Just rethrow - no need to rewrap
+                raise PythonScriptError(f"Syntax error in python script") from e
             except Exception as e:
-                raise ValueError(f"Error during python script execution") from e
+                raise PythonScriptError(f"Error during python script execution") from e
         finally:
             os.chdir(original_cwd)
 

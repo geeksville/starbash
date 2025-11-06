@@ -75,7 +75,7 @@ def make_renormalize():
     sii_base = "results_00003"
 
     # Define final output paths. The 'results' directory is a symlink in the work dir.
-    results_dir = f"{context["targets"]}/{normalize_target_name(context["target"])}"
+    results_dir = context["output"]["base_path"]
     os.makedirs(results_dir, exist_ok=True)
 
     ha_final_path = f"{results_dir}/stacked_Ha.fits"
@@ -120,7 +120,7 @@ def make_renormalize():
             save "{sii_final_path}"
             """
 
-    siril.run(context["process_dir"], commands, context=context)
+    siril.run(commands, context=context, cwd=context["process_dir"])
     logger.info(f"Saved final renormalized images to {results_dir}")
 
 

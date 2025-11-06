@@ -36,6 +36,7 @@ from starbash.analytics import (
     analytics_shutdown,
     analytics_start_transaction,
 )
+from starbash.exception import UserHandledError
 
 # Type aliases for better documentation
 
@@ -143,11 +144,19 @@ class ProcessingContext(tempfile.TemporaryDirectory):
     def __enter__(self) -> "ProcessingContext":
         return super().__enter__()
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(self, exc_type, exc_value, traceback) -> bool:
+        """Returns true if exceptions were handled"""
         logging.debug(f"Cleaning up processing context at {self.name}")
 
         # unregister our process dir
         self.sb.context.pop("process_dir", None)
+
+        if exc_type and issubclass(exc_type, UserHandledError):
+            if exc_value.ask_user_handled():
+                logging.debug("UserHandledError was handled.")
+                exc_type = None
+                exc_value = None
+                traceback = None
 
         super().__exit__(exc_type, exc_value, traceback)
 
@@ -830,12 +839,14 @@ class Starbash:
             # target specific processing here
 
             # we only want sessions with light frames
-            sessions = [
-                s
-                for s in sessions
-                if self.aliases.normalize(s.get(get_column_name(Database.IMAGETYP_KEY)))
-                == "light"
-            ]
+            filtered_sessions: list[SessionRow] = []
+            for s in sessions:
+                imagetyp_val = s.get(get_column_name(Database.IMAGETYP_KEY))
+                if imagetyp_val is None:
+                    continue
+                if self.aliases.normalize(str(imagetyp_val)) == "light":
+                    filtered_sessions.append(s)
+            sessions = filtered_sessions
 
             # we find our recipe while processing our first light frame session
             recipe = None
