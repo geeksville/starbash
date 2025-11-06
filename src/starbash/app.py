@@ -20,6 +20,7 @@ import copy
 
 import starbash
 from starbash.aliases import Aliases
+from starbash.check_version import check_version
 from starbash.database import Database, SessionRow, ImageRow, get_column_name
 from repo import Repo, repo, repo_suffix
 from starbash.toml import toml_from_template
@@ -187,6 +188,7 @@ class Starbash:
         """
         setup_logging(stderr=stderr_logging)
         logging.info("Starbash starting...")
+        check_version()
 
         # Load app defaults and initialize the repository manager
         self._init_repos()

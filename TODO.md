@@ -19,6 +19,8 @@
 * [x] make repo remove clean the db
 * [x] require all images of a session to have the same exposure length see 2025-09-09 - it incorrectly only has one image in the session!
 * [x] normalize session target names on insert, so that "sb select target m31" can work
+* [ ] iterate over targets and properly name output dir
+* [ ] generate .toml in output processed dir
 * [ ] test missing siril/graxpert and helpful user message
 * [ ] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
 * [x] fix "Registering and stacking 0 frames for SiiOiii/Ha"
@@ -59,9 +61,10 @@
 * [x] add top level catch asking users to report bugs
 * [x] add crash and usage analytics - sentry.io?
 * [ ] add automated session config looping (Sii, Oiii etc...)
-* [ ] add automated session looping (multiday)
+* [x] add automated session looping (multiday)
 * [ ] unify the script execution code between sessions and masters
-* [ ] pass stage outputs via the context?
+* [x] pass stage outputs via the context?
+* [ ] install bandit security tests https://bandit.readthedocs.io/en/latest/integrations.html
 * [ ] generalize the various session selectors to make them just come from an array of column names (should allow removing the select telescope, select foo variants)
 * [x] add the concept of filter aliases
 * [ ] record # of repos, # of images, # of sessions, in analytics - to measure db sufficiency
