@@ -89,7 +89,7 @@
                 "--debug",
                 "repo",
                 "add",
-                "./images/from_astroboy"
+                "./images/from_asiair"
             ]
         },
         {

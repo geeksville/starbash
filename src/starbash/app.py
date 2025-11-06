@@ -166,6 +166,17 @@ class ProcessingContext(tempfile.TemporaryDirectory):
         return handled
 
 
+class NotEnoughFilesError(RuntimeError):
+    """Exception raised when not enough input files are provided for a processing stage."""
+
+    def __init__(self, message: str, files: list[str]):
+        super().__init__(message)
+        self.files = files
+
+    def __str__(self) -> str:
+        return super().__str__() + f" (files: {self.files})"
+
+
 class Starbash:
     """The main Starbash application class."""
 
@@ -648,7 +659,16 @@ class Starbash:
                     for key, value in items:
                         if (not whitelist) or (key in whitelist):
                             headers[key] = value
+
+                    # Some device software (old Asiair versions) fails to populate TELESCOP, in that case fall back to
+                    # CREATOR (see doc/fits/malformedasimaster.txt for an example)
+                    if Database.TELESCOP_KEY not in headers:
+                        creator = headers.get("CREATOR")
+                        if creator:
+                            headers[Database.TELESCOP_KEY] = creator
+
                     logging.debug("Headers for %s: %s", f, headers)
+
                     # Store relative path in database
                     headers["path"] = str(relative_path)
                     image_doc_id = self.db.upsert_image(headers, repo.url)
@@ -656,7 +676,7 @@ class Starbash:
                     if not found:
                         # Update the session infos, but ONLY on first file scan
                         # (otherwise invariants will get messed up)
-                        self._add_session(image_doc_id, header)
+                        self._add_session(image_doc_id, headers)
 
         except Exception as e:
             logging.warning("Failed to read FITS header for %s: %s", f, e)
@@ -1054,8 +1074,12 @@ class Starbash:
             if "input_files" in self.context:
                 del self.context["input_files"]
 
-        if input_required and len(self.context.get("input_files", [])) < input_required:
-            raise RuntimeError(f"Stage requires at least {input_required} input files")
+        input_files: list[str] = self.context.get("input_files", [])
+        if input_required:
+            if len(input_files) < input_required:
+                raise NotEnoughFilesError(
+                    f"Stage requires at least {input_required} input files", input_files
+                )
 
     def add_output_path(self, stage: dict) -> None:
         """Adds output path information to context based on the stage output config.
@@ -1198,28 +1222,46 @@ class Starbash:
         # (apply all of the changes to context that the task demands)
         stage_context = stage.get("context", {})
         self.expand_to_context(stage_context)
-        self.add_input_files(stage)
-        self.add_input_masters(stage)
         self.add_output_path(stage)
 
-        # if the output path already exists and is newer than all input files, skip processing
-        output_info: dict | None = self.context.get("output")
-        if output_info:
-            output_path = output_info.get("full_path")
+        try:
+            self.add_input_files(stage)
+            self.add_input_masters(stage)
 
-            if output_path and os.path.exists(output_path):
-                logging.info(
-                    f"Output file already exists, skipping processing: {output_path}"
+            # if the output path already exists and is newer than all input files, skip processing
+            output_info: dict | None = self.context.get("output")
+            if output_info:
+                output_path = output_info.get("full_path")
+
+                if output_path and os.path.exists(output_path):
+                    logging.info(
+                        f"Output file already exists, skipping processing: {output_path}"
+                    )
+                    return
+
+            # We normally run tools in a temp dir, but if input.source is recipe we assume we want to
+            # run in the shared processing directory.  Because prior stages output files are waiting for us there.
+            cwd = None
+            if stage.get("input", {}).get("source") == "recipe":
+                cwd = self.context.get("process_dir")
+
+            tool.run(script, context=self.context, cwd=cwd)
+        except NotEnoughFilesError as e:
+            input_files = e.files
+            if len(input_files) != 1:
+                raise  # We only handle the single file case here
+
+            # Copy the single input file to the output path
+            output_path = self.context.get("output", []).get("full_path")
+            if output_path:
+                os.makedirs(os.path.dirname(output_path), exist_ok=True)
+                shutil.copy(input_files[0], output_path)
+                logging.warning(
+                    f"Copied single master from {input_files[0]} to {output_path}"
                 )
-                return
-
-        # We normally run tools in a temp dir, but if input.source is recipe we assume we want to
-        # run in the shared processing directory.  Because prior stages output files are waiting for us there.
-        cwd = None
-        if stage.get("input", {}).get("source") == "recipe":
-            cwd = self.context.get("process_dir")
-
-        tool.run(script, context=self.context, cwd=cwd)
+            else:
+                # no output path specified, re-raise
+                raise
 
         # verify context.output was created if it was specified
         output_info: dict | None = self.context.get("output")
