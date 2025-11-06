@@ -1,6 +1,9 @@
 import string
+from textwrap import dedent
 
+from starbash.app import get_user_config_path
 from starbash.exception import UserHandledError
+from starbash import console
 
 _translator = str.maketrans("", "", string.punctuation + string.whitespace)
 
@@ -28,7 +31,23 @@ def pre_normalize(name: str) -> str:
 class UnrecognizedAliasError(UserHandledError):
     """Exception raised when an unrecognized alias is encountered during normalization."""
 
-    pass
+    def __init__(self, message: str, alias: str):
+        super().__init__(message)
+        self.alias = alias
+
+    def ask_user_handled(self) -> bool:
+        console.print(
+            dedent(
+                f"""[red]Error:[/red] To process this session you need to add a missing alias
+                      for '{self.alias}'.
+
+                      For the time being that means editing {get_user_config_path() / "starbash.toml"}
+
+                      (FIXME - we'll eventually provide an interactive picker here...)
+                      """
+            )
+        )
+        return True
 
 
 class Aliases:
@@ -91,7 +110,7 @@ class Aliases:
         """
         result = self.reverse_dict.get(pre_normalize(name))
         if not result:
-            raise UnrecognizedAliasError(f"'{name}' not found in aliases.")
+            raise UnrecognizedAliasError(f"'{name}' not found in aliases.", name)
         return result
 
     def equals(self, name1: str, name2: str) -> bool:
