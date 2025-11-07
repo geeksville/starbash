@@ -26,7 +26,7 @@ def dump_column(sb: Starbash, human_name: str, column_name: str) -> None:
     sessions = sb.search_session()
 
     # Also do a complete unfiltered search so we can compare for the users
-    allsessions = sb.db.search_session(("", []))
+    allsessions = sb.db.search_session([])
 
     column_name = get_column_name(column_name)
     found = [session[column_name] for session in sessions if session[column_name]]
@@ -129,7 +129,9 @@ def master(
             if "T" in date:
                 date = date.split("T")[0]
 
-            kind = image.get(Database.IMAGETYP_KEY) or "Unknown"
+            kind = image.get(Database.IMAGETYP_KEY)
+            if kind:
+                kind = sb.aliases.normalize(kind)
             filename = image.get("path") or "Unknown"
 
             table.add_row(date, kind, filename)

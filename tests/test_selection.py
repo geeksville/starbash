@@ -460,80 +460,91 @@ class TestSelectionGetQueryConditions:
     """Tests for Selection.get_query_conditions method."""
 
     def test_get_query_conditions_empty_selection(self, selection):
-        """Test that get_query_conditions returns empty tuple for empty selection."""
-        where_clause, params = selection.get_query_conditions()
-        assert where_clause == ""
-        assert params == []
+        """Test that get_query_conditions returns empty list for empty selection."""
+        conditions = selection.get_query_conditions()
+        assert conditions == []
 
     def test_get_query_conditions_with_single_target(self, selection):
         """Test query conditions with a single target."""
         selection.targets = ["M31"]
-        where_clause, params = selection.get_query_conditions()
-        assert "OBJECT = ?" in where_clause
+        conditions = selection.get_query_conditions()
+        assert len(conditions) == 1
+        assert conditions[0].column_name == "OBJECT"
+        assert conditions[0].comparison_op == "="
         # Target names are normalized to lowercase
-        assert "m31" in params
+        assert conditions[0].value == "m31"
 
     def test_get_query_conditions_with_multiple_targets(self, selection):
         """Test query conditions with multiple targets (uses first)."""
         selection.targets = ["M31", "M42"]
-        where_clause, params = selection.get_query_conditions()
+        conditions = selection.get_query_conditions()
         # Currently returns empty for multiple targets
-        assert where_clause == ""
-        assert params == []
+        assert conditions == []
 
     def test_get_query_conditions_with_single_filter(self, selection):
         """Test query conditions with a single filter."""
         selection.filters = ["Ha"]
-        where_clause, params = selection.get_query_conditions()
-        assert "FILTER = ?" in where_clause
-        assert "Ha" in params
+        conditions = selection.get_query_conditions()
+        assert len(conditions) == 1
+        assert conditions[0].column_name == "FILTER"
+        assert conditions[0].comparison_op == "="
+        assert conditions[0].value == "Ha"
 
     def test_get_query_conditions_with_multiple_filters(self, selection):
         """Test query conditions with multiple filters (uses first)."""
         selection.filters = ["Ha", "OIII"]
-        where_clause, params = selection.get_query_conditions()
+        conditions = selection.get_query_conditions()
         # Currently returns empty for multiple filters
-        assert where_clause == ""
-        assert params == []
+        assert conditions == []
 
     def test_get_query_conditions_with_single_telescope(self, selection):
         """Test query conditions with a single telescope."""
         selection.telescopes = ["Vespera"]
-        where_clause, params = selection.get_query_conditions()
-        assert "TELESCOP = ?" in where_clause
-        assert "Vespera" in params
+        conditions = selection.get_query_conditions()
+        assert len(conditions) == 1
+        assert conditions[0].column_name == "TELESCOP"
+        assert conditions[0].comparison_op == "="
+        assert conditions[0].value == "Vespera"
 
     def test_get_query_conditions_with_multiple_telescopes(self, selection):
         """Test query conditions with multiple telescopes (uses first)."""
         selection.telescopes = ["Vespera", "EdgeHD 8"]
-        where_clause, params = selection.get_query_conditions()
+        conditions = selection.get_query_conditions()
         # Currently returns empty for multiple telescopes
-        assert where_clause == ""
-        assert params == []
+        assert conditions == []
 
     def test_get_query_conditions_with_date_start(self, selection):
         """Test query conditions with date_start."""
         selection.date_start = "2023-01-01"
-        where_clause, params = selection.get_query_conditions()
-        assert "start >= ?" in where_clause
-        assert "2023-01-01" in params
+        conditions = selection.get_query_conditions()
+        assert len(conditions) == 1
+        assert conditions[0].column_name == "start"
+        assert conditions[0].comparison_op == ">="
+        assert conditions[0].value == "2023-01-01"
 
     def test_get_query_conditions_with_date_end(self, selection):
         """Test query conditions with date_end."""
         selection.date_end = "2023-12-31"
-        where_clause, params = selection.get_query_conditions()
-        assert "start <= ?" in where_clause
-        assert "2023-12-31" in params
+        conditions = selection.get_query_conditions()
+        assert len(conditions) == 1
+        assert conditions[0].column_name == "start"
+        assert conditions[0].comparison_op == "<="
+        assert conditions[0].value == "2023-12-31"
 
     def test_get_query_conditions_with_date_range(self, selection):
         """Test query conditions with both date_start and date_end."""
         selection.date_start = "2023-01-01"
         selection.date_end = "2023-12-31"
-        where_clause, params = selection.get_query_conditions()
-        assert "start >= ?" in where_clause
-        assert "start <= ?" in where_clause
-        assert "2023-01-01" in params
-        assert "2023-12-31" in params
+        conditions = selection.get_query_conditions()
+        assert len(conditions) == 2
+        # First condition should be start >=
+        assert conditions[0].column_name == "start"
+        assert conditions[0].comparison_op == ">="
+        assert conditions[0].value == "2023-01-01"
+        # Second condition should be start <=
+        assert conditions[1].column_name == "start"
+        assert conditions[1].comparison_op == "<="
+        assert conditions[1].value == "2023-12-31"
 
     def test_get_query_conditions_with_all_criteria(self, selection):
         """Test query conditions with all criteria set."""
@@ -543,19 +554,28 @@ class TestSelectionGetQueryConditions:
         selection.date_start = "2023-01-01"
         selection.date_end = "2023-12-31"
 
-        where_clause, params = selection.get_query_conditions()
+        conditions = selection.get_query_conditions()
 
-        assert "start >= ?" in where_clause
-        assert "start <= ?" in where_clause
-        assert "OBJECT = ?" in where_clause
-        assert "FILTER = ?" in where_clause
-        assert "TELESCOP = ?" in where_clause
-        assert "2023-01-01" in params
-        assert "2023-12-31" in params
-        # Target names are normalized to lowercase
-        assert "m31" in params
-        assert "Ha" in params
-        assert "Vespera" in params
+        # Should have 5 conditions
+        assert len(conditions) == 5
+
+        # Extract by column name for easier testing
+        cond_by_col = {c.column_name: c for c in conditions}
+
+        # Note: date conditions are duplicated for start >= and <=, so we handle separately
+        date_conditions = [c for c in conditions if c.column_name == "start"]
+        assert len(date_conditions) == 2
+        assert any(
+            c.comparison_op == ">=" and c.value == "2023-01-01" for c in date_conditions
+        )
+        assert any(
+            c.comparison_op == "<=" and c.value == "2023-12-31" for c in date_conditions
+        )
+
+        # Check other conditions
+        assert cond_by_col["OBJECT"].value == "m31"  # normalized to lowercase
+        assert cond_by_col["FILTER"].value == "Ha"
+        assert cond_by_col["TELESCOP"].value == "Vespera"
 
 
 class TestSelectionSummary:

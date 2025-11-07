@@ -26,9 +26,17 @@ reinit: clear-cache clear-cache
     sb info
     sb select list --brief
 
-process:
+select-any:
     sb select any
+
+# handy way of splitting my old test sessions from new
+select-after:
+    sb select date after 2025-08-01
+
+select-test-target: select-any
     sb select target ngc281
+
+process: select-test-target
     sb --force process auto
 
 db-browse:

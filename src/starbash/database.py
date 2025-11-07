@@ -427,20 +427,29 @@ class Database:
         return results
 
     def search_session(
-        self, where_tuple: tuple[str, list[Any]] = ("", [])
+        self, conditions: list[SearchCondition] = []
     ) -> list[SessionRow]:
         """Search for sessions matching the given conditions.
 
         Args:
-            where_tuple
+            conditions: List of SearchCondition tuples for filtering sessions
 
         Returns:
             List of matching session records with metadata from the reference image
         """
-        # Build WHERE clause dynamically based on conditions
-        where_clause, params = where_tuple
+        # Build WHERE clause from SearchCondition list
+        where_clauses = []
+        params = []
+
+        for condition in conditions:
+            where_clauses.append(f"{condition.column_name} {condition.comparison_op} ?")
+            params.append(condition.value)
 
         # Build the query with JOIN to images table to get reference image metadata
+        where_clause = ""
+        if where_clauses:
+            where_clause = " WHERE " + " AND ".join(where_clauses)
+
         query = f"""
             SELECT s.id, s.start, s.end, s.filter, s.imagetyp, s.object, s.telescop,
                    s.num_images, s.exptime_total, s.exptime, s.image_doc_id, i.metadata

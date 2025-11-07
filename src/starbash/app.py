@@ -22,14 +22,20 @@ import copy
 import starbash
 from starbash.aliases import Aliases, normalize_target_name
 from starbash.check_version import check_version
-from starbash.database import Database, SessionRow, ImageRow, get_column_name
+from starbash.database import (
+    Database,
+    SessionRow,
+    ImageRow,
+    get_column_name,
+    SearchCondition,
+)
 from repo import Repo, repo, repo_suffix
 from starbash.toml import toml_from_template
 from starbash.tool import Tool, expand_context, expand_context_unsafe
 from repo import RepoManager
 from starbash.tool import tools
 from starbash.paths import get_user_config_dir, get_user_data_dir, get_user_cache_dir
-from starbash.selection import Selection, where_tuple
+from starbash.selection import Selection, build_search_conditions
 from starbash.analytics import (
     NopAnalytics,
     analytics_exception,
@@ -373,7 +379,7 @@ class Starbash:
             ]
 
         # Search for candidate sessions
-        candidates = self.db.search_session(where_tuple(conditions))
+        candidates = self.db.search_session(build_search_conditions(conditions))
 
         return self.score_candidates(candidates, ref_session)
 

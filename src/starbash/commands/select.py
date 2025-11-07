@@ -26,7 +26,7 @@ app = typer.Typer()
 def get_column(sb: Starbash, column_name: str) -> Counter:
 
     # Also do a complete unfiltered search so we can compare for the users
-    allsessions = sb.db.search_session(("", []))
+    allsessions = sb.db.search_session([])
 
     column_name = get_column_name(column_name)
     allfound = [session[column_name] for session in allsessions if session[column_name]]

@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import logging
 from typing import Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from starbash.database import SearchCondition
+
 from repo import Repo
 from starbash.aliases import normalize_target_name
 
 
-def where_tuple(conditions: dict[str, Any] | None) -> tuple[str, list[Any]]:
-    """Search for sessions matching the given conditions.
+def build_search_conditions(
+    conditions: dict[str, Any] | None,
+) -> list["SearchCondition"]:
+    """Build a list of SearchCondition objects from a conditions dictionary.
 
     Args:
         conditions: Dictionary of session key-value pairs to match, or None for all.
@@ -18,42 +24,33 @@ def where_tuple(conditions: dict[str, Any] | None) -> tuple[str, list[Any]]:
                     - 'date_end': Filter sessions starting on or before this date
 
     Returns:
-        Tuple of (WHERE clause string, list of parameters)
+        List of SearchCondition tuples for database queries
     """
+    # Import here to avoid circular dependency
+    from starbash.database import SearchCondition
+
     if conditions is None:
         conditions = {}
 
-    # Build WHERE clause dynamically based on conditions
-    where_clauses = []
-    params = []
+    search_conditions = []
 
     # Extract date range conditions
     date_start = conditions.get("date_start")
     date_end = conditions.get("date_end")
 
-    # Add date range filters to WHERE clause
+    # Add date range filters as SearchConditions
     if date_start:
-        where_clauses.append("start >= ?")
-        params.append(date_start)
+        search_conditions.append(SearchCondition("start", ">=", date_start))
 
     if date_end:
-        where_clauses.append("start <= ?")
-        params.append(date_end)
+        search_conditions.append(SearchCondition("start", "<=", date_end))
 
-    # Add standard conditions to WHERE clause
+    # Add standard conditions as SearchConditions
     for key, value in conditions.items():
         if key not in ("date_start", "date_end") and value is not None:
-            column_name = key
-            where_clauses.append(f"{column_name} = ?")
-            params.append(value)
+            search_conditions.append(SearchCondition(key, "=", value))
 
-    # Build the query
-    query = ""
-
-    if where_clauses:
-        query += " WHERE " + " AND ".join(where_clauses)
-
-    return (query, params)
+    return search_conditions
 
 
 class Selection:
@@ -242,11 +239,11 @@ class Selection:
             and not self.telescopes
         )
 
-    def get_query_conditions(self) -> tuple[str, list[Any]]:
+    def get_query_conditions(self) -> list["SearchCondition"]:
         """Build query conditions based on the current selection.
 
         Returns:
-            A tuple of SQL (WHERE clause string, list of parameters)
+            A list of SearchCondition objects for database queries
         """
         conditions = {}
 
@@ -281,7 +278,7 @@ class Selection:
         if self.date_end:
             conditions["date_end"] = self.date_end
 
-        return where_tuple(conditions)
+        return build_search_conditions(conditions)
 
     def summary(self) -> dict[str, Any]:
         """Get a summary of the current selection state.
