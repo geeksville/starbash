@@ -155,13 +155,20 @@ class ProcessingContext(tempfile.TemporaryDirectory):
         self.sb.context.pop("process_dir", None)
 
         handled = False
-        if exc_type and issubclass(exc_type, UserHandledError):
-            if exc_value.ask_user_handled():
-                logging.debug("UserHandledError was handled.")
-                exc_type = None
-                exc_value = None
-                traceback = None
-                handled = True
+        if exc_type:
+            if issubclass(exc_type, UserHandledError):
+                if exc_value.ask_user_handled():
+                    logging.debug("UserHandledError was handled.")
+                    handled = True
+                elif issubclass(exc_type, RuntimeError):
+                    # Print errors for runtimeerrors but keep processing other runs...
+                    logging.error(f"Skipping run due to: {exc_value}")
+                    handled = True
+
+        if handled:
+            exc_type = None
+            exc_value = None
+            traceback = None
 
         super().__exit__(exc_type, exc_value, traceback)
         return handled
