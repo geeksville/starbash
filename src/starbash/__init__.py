@@ -9,6 +9,9 @@ from rich.console import Console
 # Disable Rich formatting in test environments (pytest or NO_COLOR set)
 # This prevents ANSI escape codes and line wrapping in test output for more reliable test parsing.
 _is_test_env = "PYTEST_VERSION" in os.environ
+
+# Note: this console instance is probably never used - because the Starbash constructor slams in a new version into
+# this global.
 console = Console(
     force_terminal=False if _is_test_env else None,
     width=999999 if _is_test_env else None,  # Disable line wrapping in tests

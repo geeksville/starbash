@@ -199,7 +199,15 @@ class Starbash:
         Initializes the Starbash application by loading configurations
         and setting up the repository manager.
         """
-        console = rich.console.Console(stderr=stderr_logging)
+        from starbash import _is_test_env  # Lazy import to avoid circular dependency
+
+        # It is important to disable fancy colors and line wrapping if running under test - because
+        # those tests will be string parsing our output.
+        console = rich.console.Console(
+            force_terminal=False if _is_test_env else None,
+            width=999999 if _is_test_env else None,  # Disable line wrapping in tests
+            stderr=stderr_logging
+        )
 
         # We create one top-level progress context so that when various subtasks are created
         # the progress bars stack and don't mess up our logging.
