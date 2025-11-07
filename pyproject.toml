@@ -20,6 +20,7 @@ platformdirs = ">=4.5.0,<5.0.0"
 typer = "^0.20.0"
 sentry-sdk = "^2.42.1"
 outdated = "^0.2.2"
+Setuptools = "<81" # required because my 'outdated' tool is kinda old and won't work with newer
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.4.2,<9.0.0"

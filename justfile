@@ -38,3 +38,7 @@ make-movies:
     vhs doc/vhs/sample-session.tape
     # Not needed - for the time being we just use the gif in our repo
     # vhs publish doc/vhs/sample-session.gif
+
+bump-version newver:
+    poetry run pytest # test must pass
+    bin/new-version {{newver}}
