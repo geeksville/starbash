@@ -32,11 +32,17 @@ def main_callback(
             help="Enable debug logging output.",
         ),
     ] = False,
+    force: bool = typer.Option(
+        default=False,
+        help="Force reindexing/output file regeneration - even if unchanged.",
+    ),
 ):
     """Main callback for the Starbash application."""
     # Set the log level based on --debug flag
     if debug:
         starbash.log_filter_level = logging.DEBUG
+    if force:
+        starbash.force_regen = True
 
     if ctx.invoked_subcommand is None:
         if not get_user_config_path().exists():

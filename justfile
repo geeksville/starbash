@@ -25,7 +25,7 @@ reinit:
 process:
     sb select any
     sb select target ngc281
-    sb process auto
+    sb --force process auto
 
 db-browse:
     sqlitebrowser ~/.local/share/starbash/db.sqlite3

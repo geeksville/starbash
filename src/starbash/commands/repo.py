@@ -220,9 +220,6 @@ def reindex(
             autocompletion=complete_repo_by_url,
         ),
     ] = None,
-    force: bool = typer.Option(
-        default=False, help="Reread FITS headers, even if they are already indexed."
-    ),
 ):
     """
     Reindex a repository by number.
@@ -233,11 +230,11 @@ def reindex(
         repo_to_reindex = repo_url_to_repo(sb, repo_url)
 
         if repo_to_reindex is None:
-            sb.reindex_repos(force=force)
+            sb.reindex_repos()
         else:
             # Get the repo to reindex
             console.print(f"Reindexing repository: {repo_to_reindex.url}")
-            sb.reindex_repo(repo_to_reindex, force=force)
+            sb.reindex_repo(repo_to_reindex)
             console.print(
                 f"[green]Successfully reindexed repository {repo_to_reindex}[/green]"
             )

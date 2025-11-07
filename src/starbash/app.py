@@ -683,7 +683,7 @@ class Starbash:
         except Exception as e:
             logging.warning("Failed to read FITS header for %s: %s", f, e)
 
-    def reindex_repo(self, repo: Repo, force: bool = False, subdir: str | None = None):
+    def reindex_repo(self, repo: Repo, subdir: str | None = None):
         """Reindex all repositories managed by the RepoManager."""
 
         # make sure this new repo is listed in the repos table
@@ -704,14 +704,14 @@ class Starbash:
                 description=f"Indexing {repo.url}...",
             ):
                 # progress.console.print(f"Indexing {f}...")
-                self.add_image_to_db(repo, f, force=force)
+                self.add_image_to_db(repo, f, force=starbash.force_regen)
 
-    def reindex_repos(self, force: bool = False):
+    def reindex_repos(self):
         """Reindex all repositories managed by the RepoManager."""
         logging.debug("Reindexing all repositories...")
 
         for repo in track(self.repo_manager.repos, description="Reindexing repos..."):
-            self.reindex_repo(repo, force=force)
+            self.reindex_repo(repo)
 
     def _get_stages(self, name: str) -> list[dict[str, Any]]:
         """Get all pipeline stages defined in the merged configuration.
@@ -1246,7 +1246,7 @@ class Starbash:
 
             # if the output path already exists and is newer than all input files, skip processing
             output_info: dict | None = self.context.get("output")
-            if output_info:
+            if output_info and not starbash.force_regen:
                 output_path = output_info.get("full_path")
 
                 if output_path and os.path.exists(output_path):
