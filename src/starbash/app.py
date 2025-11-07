@@ -203,7 +203,7 @@ class Starbash:
 
         # We create one top-level progress context so that when various subtasks are created
         # the progress bars stack and don't mess up our logging.
-        self.progress = Progress(console=console)
+        self.progress = Progress(console=console, refresh_per_second=2)
         starbash.console = (
             self.progress.console  # Update the global console to use the progress version
         )
@@ -969,23 +969,28 @@ class Starbash:
         """Generate any missing master frames
 
         Steps:
+        * loop across all pipeline stages, first bias, then dark, then flat, etc...  Very important that bias is before flat.
         * set all_tasks to be all tasks for when == "setup.master.bias"
         * loop over all currently unfiltered sessions
-        * for each session loop across all_tasks
         * if task input.type == the imagetyp for this current session
         *    add_input_to_context() add the input files to the context (from the session)
         *    run_stage(task) to generate the new master frame
         """
         sorted_pipeline = self._get_stages("master-stages")
         sessions = self.search_session()
-        for session in track(sessions, description="Generating masters..."):
-            # 4. Iterate through the sorted pipeline and execute the associated tasks.
-            # FIXME unify the master vs normal step running code
-            for step in sorted_pipeline:
+
+        # we loop over pipeline steps in the
+        for step in sorted_pipeline:
+            step_name = step.get("name")
+            if not step_name:
+                raise ValueError("Invalid pipeline step found: missing 'name' key.")
+            for session in track(
+                sessions, description=f"Processing {step_name} for sessions..."
+            ):
                 task = None
                 recipe = self.get_recipe_for_session(session, step)
                 if recipe:
-                    task = recipe.get("recipe.stage." + step["name"])
+                    task = recipe.get("recipe.stage." + step_name)
 
                 if task:
                     # Create a default process dir in /tmp.
@@ -1205,6 +1210,9 @@ class Starbash:
 
             base_path = full_path.parent / full_path.stem
 
+            # create output directory if needed
+            os.makedirs(base_path.parent, exist_ok=True)
+
             # Set context variables as documented in the TOML
             self.context["output"] = {
                 # "root_path": repo_relative, not needed I think
@@ -1318,7 +1326,6 @@ class Starbash:
             # Copy the single input file to the output path
             output_path = self.context.get("output", []).get("full_path")
             if output_path:
-                os.makedirs(os.path.dirname(output_path), exist_ok=True)
                 shutil.copy(input_files[0], output_path)
                 logging.warning(
                     f"Copied single master from {input_files[0]} to {output_path}"

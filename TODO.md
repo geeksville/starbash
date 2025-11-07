@@ -22,6 +22,9 @@
 * [x] handle "RuntimeError: Tool timed out after 60.0 seconds" gracefully
 * [x] properly name target output dir
 * [x] "HaOiii_Ha" should not appear in session list - exclude processed repos from session queries. It is in the from_asiair repourl though!
+* [x] fix flat error msg when making masters
+* [x] require biases built before flats
+* [ ] master relative path should be based on unique camera ID - so that Ascar_V_80mm_flattener and Ascar_V_80mm_extender can share the same masters.
 * [ ] name the progess dirs so they can be semi-persistent
 * [ ] get a successful run on X
 * [x] don't let logging mess up progress display when making masters https://rich.readthedocs.io/en/latest/progress.html#print-log

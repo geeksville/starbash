@@ -10,10 +10,13 @@ clear-config:
     rm -f ~/.local/share/starbash/db.sqlite3
     rm -f ~/.config/starbash/starbash.toml
 
-reinit: clear-cache clear-cache
+clear-masters:
+    rm -rf ~/.local/share/starbash/masters
+
+reinit: clear-cache clear-config clear-masters
     #!/usr/bin/env zsh
     echo "Reiniting a developer config..."
-    rm -rf ~/Documents/starbash/repos/master
+
     sb --install-completion
     sb user name "Kevin Hester"
     sb user email "kevinh@geeksville.com"
@@ -22,7 +25,7 @@ reinit: clear-cache clear-cache
     sb repo add ./images/from_astroboy
     sb repo add --master
     sb repo add --processed ./images/processed
-    sb process masters
+    #sb process masters
     sb info
     sb select list --brief
 

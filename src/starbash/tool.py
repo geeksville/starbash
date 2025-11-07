@@ -20,10 +20,17 @@ logger = logging.getLogger(__name__)
 class ToolError(UserHandledError):
     """Exception raised when a tool fails to execute properly."""
 
+    def __init__(self, *args: object, command: str, arguments: str | None) -> None:
+        super().__init__(*args)
+        self.command = command
+        self.arguments = arguments
+
     def ask_user_handled(self) -> bool:
         from starbash import console  # Lazy import to avoid circular dependency
 
-        console.print(f"Tool failed [bold red]{self}[/bold red]")
+        console.print(
+            f"'{self.command}' failed while running [bold red]{self.arguments}[/bold red]"
+        )
         return True
 
 
@@ -212,7 +219,9 @@ def tool_run(
     if returncode != 0:
         # log stdout with warn priority because the tool failed
         logger.warning(f"[tool] {stdout_lines}")
-        raise ToolError(f"{cmd} failed with exit code {returncode}")
+        raise ToolError(
+            f"{cmd} failed with exit code {returncode}", command=cmd, arguments=commands
+        )
     else:
         logger.debug(f"[tool] {stdout_lines}")
         logger.debug("Tool command successful.")
