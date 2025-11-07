@@ -3,6 +3,7 @@ import logging
 from importlib import resources
 import os
 from pathlib import Path
+from sys import stderr
 import tempfile
 import typer
 import tomlkit
@@ -11,7 +12,7 @@ import glob
 from typing import Any
 from astropy.io import fits
 import itertools
-from rich.progress import track
+from rich.progress import track, Progress
 from rich.logging import RichHandler
 import shutil
 from datetime import datetime
@@ -41,13 +42,12 @@ from starbash.exception import UserHandledError
 # Type aliases for better documentation
 
 
-def setup_logging(stderr: bool = False):
+def setup_logging(console: rich.console.Console):
     """
     Configures basic logging.
     """
     from starbash import _is_test_env  # Lazy import to avoid circular dependency
 
-    console = rich.console.Console(stderr=stderr)
     handlers = (
         [RichHandler(console=console, rich_tracebacks=True)] if not _is_test_env else []
     )
@@ -186,7 +186,18 @@ class Starbash:
         Initializes the Starbash application by loading configurations
         and setting up the repository manager.
         """
-        setup_logging(stderr=stderr_logging)
+        console = rich.console.Console(stderr=stderr_logging)
+
+        # We create one top-level progress context so that when various subtasks are created
+        # the progress bars stack and don't mess up our logging.
+        self.progress = Progress(console=console)
+        starbash.console = (
+            self.progress.console  # Update the global console to use the progress version
+        )
+
+        self.progress.start()
+
+        setup_logging(starbash.console)
         logging.info("Starbash starting...")
         check_version()
 
@@ -257,6 +268,7 @@ class Starbash:
 
     # --- Lifecycle ---
     def close(self) -> None:
+        self.progress.stop()
         self.analytics.__exit__(None, None, None)
 
         analytics_shutdown()

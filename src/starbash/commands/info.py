@@ -6,7 +6,6 @@ from rich.table import Table
 from collections import Counter
 
 from starbash.app import Starbash
-from starbash import console
 from starbash.database import Database, get_column_name
 from starbash.paths import get_user_config_dir, get_user_data_dir
 from starbash.commands import format_duration, TABLE_COLUMN_STYLE, TABLE_VALUE_STYLE
@@ -52,6 +51,8 @@ def dump_column(sb: Starbash, human_name: str, column_name: str) -> None:
     for i, count in sorted_list:
         table.add_row(i, str(count))
 
+    from starbash import console
+
     console.print(table)
 
 
@@ -90,6 +91,8 @@ def master(
 ):
     """List all precalculated master images (darks, biases, flats)."""
     with Starbash("info.master") as sb:
+        from starbash import console
+
         # Get the master repo
         images = sb.get_master_images(kind)
 
@@ -151,6 +154,8 @@ def main_callback(ctx: typer.Context):
 
     This is the default command when no subcommand is specified.
     """
+    from starbash import console
+
     if ctx.invoked_subcommand is None:
         with Starbash("info") as sb:
             table = Table(title="Starbash Information")

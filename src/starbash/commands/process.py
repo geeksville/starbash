@@ -5,7 +5,6 @@ from pathlib import Path
 from typing_extensions import Annotated
 
 from starbash.app import Starbash, copy_images_to_dir
-from starbash import console
 from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
 
@@ -42,6 +41,8 @@ def siril(
     structure loaded and ready for processing.
     """
     with Starbash("process.siril") as sb:
+        from starbash import console
+
         console.print(
             f"[yellow]Processing session {session_num} for Siril in {destdir}...[/yellow]"
         )
@@ -109,6 +110,8 @@ def auto(
     The output will be saved according to the configured recipes.
     """
     with Starbash("process.auto") as sb:
+        from starbash import console
+
         if session_num is not None:
             console.print(f"[yellow]Auto-processing session {session_num}...[/yellow]")
         else:
@@ -129,6 +132,8 @@ def masters():
     and will be automatically used for future processing operations.
     """
     with Starbash("process.masters") as sb:
+        from starbash import console
+
         console.print(
             "[yellow]Generating master frames from current selection...[/yellow]"
         )
@@ -143,6 +148,8 @@ def main_callback(ctx: typer.Context):
     post-processing of astrophotography sessions.
     """
     if ctx.invoked_subcommand is None:
+        from starbash import console
+
         # No command provided, show help
         console.print(ctx.get_help())
         raise typer.Exit()

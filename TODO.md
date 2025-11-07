@@ -19,9 +19,13 @@
 * [x] make repo remove clean the db
 * [x] require all images of a session to have the same exposure length see 2025-09-09 - it incorrectly only has one image in the session!
 * [x] normalize session target names on insert, so that "sb select target m31" can work
-* [ ] iterate over targets and properly name output dir
-* [ ] don't let logging mess up progress display when making masters
+* [x] handle "RuntimeError: Tool timed out after 60.0 seconds" gracefully
+* [ ] properly name target output dir
+* [ ] name the progess dirs so they can be semi-persistent
+* [ ] get a successful run on X
+* [x] don't let logging mess up progress display when making masters https://rich.readthedocs.io/en/latest/progress.html#print-log
 * [ ] generate .toml in output processed dir
+* [ ] require masters dimensions match image dimensions for selection
 * [ ] test missing siril/graxpert and helpful user message
 * [ ] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
 * [x] fix "Registering and stacking 0 frames for SiiOiii/Ha"

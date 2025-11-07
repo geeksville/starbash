@@ -3,12 +3,16 @@
 default:
     just --list
 
-reinit:
-    #!/usr/bin/env zsh
-    echo "Reiniting a developer config..."
+clear-cache:
+    rm -rf ~/.cache/starbash
+
+clear-config:
     rm -f ~/.local/share/starbash/db.sqlite3
     rm -f ~/.config/starbash/starbash.toml
-    rm -rf ~/.cache/starbash
+
+reinit: clear-cache clear-cache
+    #!/usr/bin/env zsh
+    echo "Reiniting a developer config..."
     rm -rf ~/Documents/starbash/repos/master
     sb --install-completion
     sb user name "Kevin Hester"
