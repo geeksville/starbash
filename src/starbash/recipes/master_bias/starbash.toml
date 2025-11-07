@@ -34,6 +34,8 @@ input.required = 2    # siril needs at least 2 frames to stack
 output.dest = "repo"   # write to a particular repo
 output.type = "master" # write output to the special masters repo
 
+
+# context.target - the name of the target (m31 etc...) we are processing (if available)
 # the following fields will be auto populated in the context before entry:
 # context.output.base_path - the full filepath to write the output file to **excluding the suffix**
 # context.output.full_path - the full filepath to write the output file to (including suffix)

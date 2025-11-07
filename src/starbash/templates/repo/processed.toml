@@ -8,3 +8,5 @@
 
 [repo]
 kind = "processed"
+
+relative = "{date}/{target}"

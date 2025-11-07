@@ -4,7 +4,6 @@
 import os
 from glob import glob
 from starbash.tool import tools
-from starbash.aliases import normalize_target_name
 
 siril = tools["siril"]
 

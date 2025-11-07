@@ -81,6 +81,7 @@ def clear():
     with Starbash("selection.clear") as sb:
         sb.selection.clear()
         console.print("[green]Selection cleared - now selecting all sessions[/green]")
+        do_list_sessions(sb, brief=True)
 
 
 @app.command()

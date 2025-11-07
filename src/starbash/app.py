@@ -987,6 +987,7 @@ class Starbash:
         """adds to context from the indicated session:
 
         Sets the following context variables based on the provided session:
+        * target - the normalized target name of the session
         * instrument - for the session
         * date - the localtimezone date of the session
         * imagetyp - the imagetyp of the session
@@ -996,6 +997,10 @@ class Starbash:
         """
         # it is okay to give them the actual session row, because we're never using it again
         self.context["session"] = session
+
+        target = session.get(get_column_name(Database.OBJECT_KEY))
+        if target:
+            self.context["target"] = normalize_target_name(target)
 
         instrument = session.get(get_column_name(Database.TELESCOP_KEY))
         if instrument:
