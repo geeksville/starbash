@@ -320,8 +320,8 @@ def test_repo_reindex_command(setup_test_environment):
 # No longer slow - now that we run in a test env
 # @pytest.mark.slow
 def test_repo_reindex_with_force(setup_test_environment):
-    """Test 'starbash repo reindex --force' command - should not crash."""
-    result = runner.invoke(app, ["repo", "reindex", "--force"])
+    """Test 'starbash --force repo reindex ' command - should not crash."""
+    result = runner.invoke(app, ["--force", "repo", "reindex"])
     assert result.exit_code == 0
 
 

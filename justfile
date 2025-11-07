@@ -20,7 +20,7 @@ reinit:
     sb repo add --processed ./images/processed
     sb process masters
     sb info
-    sb select list
+    sb select list --brief
 
 process:
     sb select any

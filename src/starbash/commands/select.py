@@ -102,6 +102,7 @@ def target(
         sb.selection.targets = []
         sb.selection.add_target(target_name)
         console.print(f"[green]Selection limited to target: {target_name}[/green]")
+        do_list_sessions(sb, brief=True)
 
 
 @app.command()
@@ -125,6 +126,7 @@ def telescope(
         console.print(
             f"[green]Selection limited to telescope: {telescope_name}[/green]"
         )
+        do_list_sessions(sb, brief=True)
 
 
 def complete_name(incomplete: str, names: list[str]):
@@ -200,90 +202,89 @@ def date(
             )
             raise typer.Exit(1)
 
+        do_list_sessions(sb, brief=True)
 
-@app.command(name="list")
-def list_sessions(
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Show all sessions (normally Dark/Bias/Flat are hidden)",
-    )
-):
+
+def do_list_sessions(sb: Starbash, brief: bool = False):
     """List sessions (filtered based on the current selection)"""
 
-    with Starbash("selection.list") as sb:
-        sessions = sb.search_session()
-        if sessions and isinstance(sessions, list):
-            len_all = sb.db.len_table(Database.SESSIONS_TABLE)
-            table = Table(title=f"Sessions ({len(sessions)} selected out of {len_all})")
-            sb.analytics.set_data("session.num_selected", len(sessions))
-            sb.analytics.set_data("session.num_total", len_all)
+    sessions = sb.search_session()
+    if sessions and isinstance(sessions, list):
+        len_all = sb.db.len_table(Database.SESSIONS_TABLE)
+        table = Table(title=f"Sessions ({len(sessions)} selected out of {len_all})")
+        sb.analytics.set_data("session.num_selected", len(sessions))
+        sb.analytics.set_data("session.num_total", len_all)
 
-            table.add_column("#", style=TABLE_COLUMN_STYLE, no_wrap=True)
-            table.add_column("Date", style=TABLE_COLUMN_STYLE, no_wrap=True)
-            table.add_column("# images", style=TABLE_COLUMN_STYLE, no_wrap=True)
-            table.add_column("Time", style=TABLE_COLUMN_STYLE, no_wrap=True)
-            table.add_column("Type/Filter", style=TABLE_COLUMN_STYLE, no_wrap=True)
-            table.add_column("Telescope", style=TABLE_COLUMN_STYLE, no_wrap=True)
-            table.add_column(
-                "About", style=TABLE_COLUMN_STYLE, no_wrap=True
-            )  # type of frames, filter, target
+        table.add_column("#", style=TABLE_COLUMN_STYLE, no_wrap=True)
+        table.add_column("Date", style=TABLE_COLUMN_STYLE, no_wrap=True)
+        table.add_column("# images", style=TABLE_COLUMN_STYLE, no_wrap=True)
+        table.add_column("Time", style=TABLE_COLUMN_STYLE, no_wrap=True)
+        table.add_column("Type/Filter", style=TABLE_COLUMN_STYLE, no_wrap=True)
+        table.add_column("Telescope", style=TABLE_COLUMN_STYLE, no_wrap=True)
+        table.add_column(
+            "About", style=TABLE_COLUMN_STYLE, no_wrap=True
+        )  # type of frames, filter, target
 
-            total_images = 0
-            total_seconds = 0.0
-            filters = set()
-            image_types = set()
-            telescopes = set()
+        total_images = 0
+        total_seconds = 0.0
+        filters = set()
+        image_types = set()
+        telescopes = set()
 
-            def get_key(k: str, default: Any = "N/A") -> Any:
-                """Convert keynames to SQL legal column names"""
-                k = get_column_name(k)
-                return sess.get(k, default)
+        def get_key(k: str, default: Any = "N/A") -> Any:
+            """Convert keynames to SQL legal column names"""
+            k = get_column_name(k)
+            return sess.get(k, default)
 
-            for session_index, sess in enumerate(sessions):
-                date_iso = get_key(Database.START_KEY)
-                date = to_shortdate(date_iso)
+        brief_max_rows = 10
+        for session_index, sess in enumerate(sessions):
+            date_iso = get_key(Database.START_KEY)
+            date = to_shortdate(date_iso)
 
-                object = get_key(Database.OBJECT_KEY)
-                filter = get_key(Database.FILTER_KEY)
-                filters.add(filter)
-                image_type = get_key(Database.IMAGETYP_KEY)
-                image_types.add(image_type)
-                telescope = get_key(Database.TELESCOP_KEY)
-                telescopes.add(telescope)
+            object = get_key(Database.OBJECT_KEY)
+            filter = get_key(Database.FILTER_KEY)
+            filters.add(filter)
+            image_type = get_key(Database.IMAGETYP_KEY)
+            image_types.add(image_type)
+            telescope = get_key(Database.TELESCOP_KEY)
+            telescopes.add(telescope)
 
-                # Show the non normalized target name
-                metadata = sess.get("metadata")
-                if metadata:
-                    long_name = metadata.get("OBJECT")
-                    if long_name:
-                        object = long_name
+            # Show the non normalized target name
+            metadata = sess.get("metadata")
+            if metadata:
+                long_name = metadata.get("OBJECT")
+                if long_name:
+                    object = long_name
 
-                # Format total exposure time as integer seconds
-                exptime_raw = get_key(Database.EXPTIME_TOTAL_KEY)
-                try:
-                    exptime_float = float(exptime_raw)
-                    total_seconds += exptime_float
-                    total_secs = format_duration(int(exptime_float))
-                except (ValueError, TypeError):
-                    total_secs = exptime_raw
+            # Format total exposure time as integer seconds
+            exptime_raw = get_key(Database.EXPTIME_TOTAL_KEY)
+            try:
+                exptime_float = float(exptime_raw)
+                total_seconds += exptime_float
+                total_secs = format_duration(int(exptime_float))
+            except (ValueError, TypeError):
+                total_secs = exptime_raw
 
-                # Count images
-                try:
-                    num_images = int(get_key(Database.NUM_IMAGES_KEY, 0))
-                    total_images += num_images
-                except (ValueError, TypeError):
-                    num_images = get_key(Database.NUM_IMAGES_KEY)
+            # Count images
+            try:
+                num_images = int(get_key(Database.NUM_IMAGES_KEY, 0))
+                total_images += num_images
+            except (ValueError, TypeError):
+                num_images = get_key(Database.NUM_IMAGES_KEY)
 
-                type_str = image_type
-                if image_type.upper() == "LIGHT":
-                    image_type = filter
-                elif image_type.upper() == "FLAT":
-                    image_type = f"{image_type}/{filter}"
-                else:  # either bias or dark
-                    object = ""  # Don't show meaningless target
+            type_str = image_type
+            if image_type.upper() == "LIGHT":
+                image_type = filter
+            elif image_type.upper() == "FLAT":
+                image_type = f"{image_type}/{filter}"
+            else:  # either bias or dark
+                object = ""  # Don't show meaningless target
 
+            if brief and session_index == brief_max_rows:
+                table.add_row("...", "...", "...", "...", "...", "...", "...")
+            elif brief and session_index > brief_max_rows:
+                pass  # Show nothing
+            else:
                 table.add_row(
                     str(session_index + 1),
                     date,
@@ -294,27 +295,41 @@ def list_sessions(
                     object,
                 )
 
-            # Add totals row
-            if sessions:
-                table.add_row(
-                    "",
-                    "",
-                    f"[bold]{total_images}[/bold]",
-                    f"[bold]{format_duration(int(total_seconds))}[/bold]",
-                    "",
-                    "",
-                    "",
-                )
+        # Add totals row
+        if sessions:
+            table.add_row(
+                "",
+                "",
+                f"[bold]{total_images}[/bold]",
+                f"[bold]{format_duration(int(total_seconds))}[/bold]",
+                "",
+                "",
+                "",
+            )
 
-            console.print(table)
+        console.print(table)
 
-            # FIXME - move these analytics elsewhere so they can be reused when search_session()
-            # is used to generate processing lists.
-            sb.analytics.set_data("session.total_images", total_images)
-            sb.analytics.set_data("session.total_exposure_seconds", int(total_seconds))
-            sb.analytics.set_data("session.telescopes", telescopes)
-            sb.analytics.set_data("session.filters", filters)
-            sb.analytics.set_data("session.image_types", image_types)
+        # FIXME - move these analytics elsewhere so they can be reused when search_session()
+        # is used to generate processing lists.
+        sb.analytics.set_data("session.total_images", total_images)
+        sb.analytics.set_data("session.total_exposure_seconds", int(total_seconds))
+        sb.analytics.set_data("session.telescopes", telescopes)
+        sb.analytics.set_data("session.filters", filters)
+        sb.analytics.set_data("session.image_types", image_types)
+
+
+@app.command(name="list")
+def list_sessions(
+    brief: bool = typer.Option(
+        False,
+        "--brief",
+        help="If there are many sessions, show only a few.",
+    )
+):
+    """List sessions (filtered based on the current selection)"""
+
+    with Starbash("selection.list") as sb:
+        do_list_sessions(sb, brief=brief)
 
 
 def selection_by_number(
