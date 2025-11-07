@@ -81,7 +81,7 @@ def clear():
     with Starbash("selection.clear") as sb:
         sb.selection.clear()
         console.print("[green]Selection cleared - now selecting all sessions[/green]")
-        do_list_sessions(sb, brief=True)
+        do_list_sessions(sb, brief=not starbash.verbose_output)
 
 
 @app.command()
@@ -103,7 +103,7 @@ def target(
         sb.selection.targets = []
         sb.selection.add_target(target_name)
         console.print(f"[green]Selection limited to target: {target_name}[/green]")
-        do_list_sessions(sb, brief=True)
+        do_list_sessions(sb, brief=not starbash.verbose_output)
 
 
 @app.command()
@@ -127,7 +127,7 @@ def telescope(
         console.print(
             f"[green]Selection limited to telescope: {telescope_name}[/green]"
         )
-        do_list_sessions(sb, brief=True)
+        do_list_sessions(sb, brief=not starbash.verbose_output)
 
 
 def complete_name(incomplete: str, names: list[str]):
@@ -203,7 +203,7 @@ def date(
             )
             raise typer.Exit(1)
 
-        do_list_sessions(sb, brief=True)
+        do_list_sessions(sb, brief=not starbash.verbose_output)
 
 
 def do_list_sessions(sb: Starbash, brief: bool = False):

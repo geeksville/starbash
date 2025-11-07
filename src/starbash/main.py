@@ -36,6 +36,11 @@ def main_callback(
         default=False,
         help="Force reindexing/output file regeneration - even if unchanged.",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        help="When providing responses, include all entries.  Normally long responses are truncated.",
+    ),
 ):
     """Main callback for the Starbash application."""
     # Set the log level based on --debug flag
@@ -43,6 +48,8 @@ def main_callback(
         starbash.log_filter_level = logging.DEBUG
     if force:
         starbash.force_regen = True
+    if verbose:
+        starbash.verbose_output = True
 
     if ctx.invoked_subcommand is None:
         if not get_user_config_path().exists():

@@ -20,6 +20,9 @@ log_filter_level = logging.INFO
 # Global variable for forcing some file generation
 force_regen = False
 
+# Show extra command output
+verbose_output = False
+
 
 def to_shortdate(date_iso: str) -> str:
     """Convert ISO UTC datetime string to local short date string (YYYY-MM-DD).

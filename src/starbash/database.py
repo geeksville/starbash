@@ -435,7 +435,7 @@ class Database:
             conditions: List of SearchCondition tuples for filtering sessions
 
         Returns:
-            List of matching session records with metadata from the reference image
+            List of matching session records with metadata from the reference image and repo_url
         """
         # Build WHERE clause from SearchCondition list
         where_clauses = []
@@ -445,16 +445,17 @@ class Database:
             where_clauses.append(f"{condition.column_name} {condition.comparison_op} ?")
             params.append(condition.value)
 
-        # Build the query with JOIN to images table to get reference image metadata
+        # Build the query with JOIN to images and repos tables to get reference image metadata and repo_url
         where_clause = ""
         if where_clauses:
             where_clause = " WHERE " + " AND ".join(where_clauses)
 
         query = f"""
             SELECT s.id, s.start, s.end, s.filter, s.imagetyp, s.object, s.telescop,
-                   s.num_images, s.exptime_total, s.exptime, s.image_doc_id, i.metadata
+                   s.num_images, s.exptime_total, s.exptime, s.image_doc_id, i.metadata, r.url as repo_url
             FROM {self.SESSIONS_TABLE} s
             LEFT JOIN {self.IMAGES_TABLE} i ON s.image_doc_id = i.id
+            LEFT JOIN {self.REPOS_TABLE} r ON i.repo_id = r.id
             {where_clause}
         """
 

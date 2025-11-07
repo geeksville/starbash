@@ -468,6 +468,7 @@ class Starbash:
         """Search for sessions, optionally filtered by the current selection."""
         # Get query conditions from selection
         conditions = self.selection.get_query_conditions()
+        self.add_filter_not_masters(conditions)
         return self.db.search_session(conditions)
 
     def _add_image_abspath(self, image: ImageRow) -> ImageRow:
@@ -542,6 +543,15 @@ class Starbash:
         images = self.db.search_image(search_conditions)
         return images
 
+    def add_filter_not_masters(self, conditions: list[SearchCondition]) -> None:
+        """Add conditions to filter out master and processed repos from image searches."""
+        master_repo = self.repo_manager.get_repo_by_kind("master")
+        if master_repo is not None:
+            conditions.append(SearchCondition("r.url", "<>", master_repo.url))
+        processed_repo = self.repo_manager.get_repo_by_kind("processed")
+        if processed_repo is not None:
+            conditions.append(SearchCondition("r.url", "<>", processed_repo.url))
+
     def get_session_images(self, session: SessionRow) -> list[ImageRow]:
         """
         Get all images belonging to a specific session.
@@ -577,12 +587,12 @@ class Starbash:
             ),
         ]
 
-        # we never want to return 'master' images as part of the session image paths
+        # Note: not needed here, because we filter this earlier - when building the
+        # list of candidate sessions.
+        # we never want to return 'master' or 'processed' images as part of the session image paths
         # (because we will be passing these tool siril or whatever to generate masters or
         # some other downstream image)
-        master_repo = self.repo_manager.get_repo_by_kind("master")
-        if master_repo is not None:
-            conditions.append(SearchCondition("r.url", "<>", master_repo.url))
+        # self.add_filter_not_masters(conditions)
 
         # Single query with indexed date conditions
         images = self.db.search_image(conditions)

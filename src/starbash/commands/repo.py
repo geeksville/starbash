@@ -46,14 +46,9 @@ def complete_repo_by_url(incomplete: str):
 
 
 @app.command()
-def list(
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Show all repos including system repos"
-    ),
-):
+def list():
     """
     lists all repositories.
-    Use --verbose to show all repos including system/recipe repos.
     """
     with Starbash("repo.list") as sb:
         repos = sb.repo_manager.repos if verbose else sb.repo_manager.regular_repos
@@ -62,7 +57,7 @@ def list(
             # for unknown repos (probably because we haven't written a starbash.toml file to the root yet),
             # we call them "input" because users will be less confused by that
 
-            if verbose:
+            if starbash.verbose_output:
                 # No numbers for verbose mode (system repos can't be removed)
                 console.print(f"{ repo.url } (kind={ kind })")
             else:
