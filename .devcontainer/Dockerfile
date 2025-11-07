@@ -35,7 +35,7 @@ RUN pip install --user --no-cache-dir --break-system-packages pipx \
         && pipx install --pip-args=--no-cache-dir graxpert[cpuonly] \
         && pipx install --pip-args=--no-cache-dir poetry astropy
 
-# Install Siril (as non-root user)
+# Install Siril flat pack (for testing)
 # Note: this must be done here, if done in Dockerfile it doesn't work - this env var is a nasty hack to allow
 # flatpak inside of Dockerfile.
 # https://github.com/flatpak/flatpak/issues/5076
@@ -45,8 +45,8 @@ RUN flatpak install --user -y flathub org.siril.Siril
 # Let siril see /tmp
 RUN flatpak --user override --filesystem=/tmp org.siril.Siril
 
-# install siril aappimage
-RUN apt-get install -y --no-install-recommends libfuse2t64
+# install siril app image (we normally use this for development)
+RUN sudo apt-get install -y --no-install-recommends libfuse2t64
 RUN cd /home/${USERNAME}/.local/bin \
         && wget https://free-astro.org/download/Siril-1.4.0\~beta4-x86_64.AppImage \
         && mv Siril-1.4.0\~beta4-x86_64.AppImage siril \
