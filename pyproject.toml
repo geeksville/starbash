@@ -26,6 +26,7 @@ Setuptools = "<81" # required because my 'outdated' tool is kinda old and won't 
 pytest = ">=8.4.2,<9.0.0"
 pytest-cov = "^6.0.0"
 pytest-xdist = "^3.8.0"
+pre-commit = "^4.3.0"
 
 [tool.poetry.scripts]
 starbash = "starbash.main:app"

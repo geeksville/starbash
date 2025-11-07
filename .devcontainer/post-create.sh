@@ -16,6 +16,9 @@ poetry completions bash >> ~/.bash_completion
 mkdir -p ~/.zfunc
 poetry completions zsh > ~/.zfunc/_poetry
 
+# install git hooks
+poetry run pre-commit install
+
 # just completions
 just --completions zsh > ~/.zfunc/_just
 

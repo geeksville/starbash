@@ -1,0 +1,14 @@
+# Pre-commit hooks configuration
+# See https://pre-commit.com for more information
+
+repos:
+  # Run "just test" before pushing
+  - repo: local
+    hooks:
+      - id: run-tests
+        name: Run tests
+        entry: just test
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        verbose: true
