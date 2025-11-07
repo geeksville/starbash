@@ -835,32 +835,15 @@ class Starbash:
         # No matching recipe found
         return None
 
-    def run_all_stages(self):
-        """On the currently active session, run all processing stages
+    def process_target(self, sessions: list[SessionRow]) -> None:
+        """Do processing for a particular target (i.e. all sessions for a particular object)."""
 
-        New design, not yet implemented:
-        * for each target in the current selection:
-        *   select ONE recipe for processing that target (check recipe.auto.require.* conditions)
-        *   init session context (it will be shared for all following steps) - via ProcessingContext
-        *   create a temporary processing directory (for intermediate files - shared by all stages)
-        *   create a processed output directory (for high value final files) - via run_stage()
-        *   iterate over all light frame sessions in the current selection
-        *     for each session:
-        *       update context input and output files
-        *       run session.light stages
-        *   after all sessions are processed, run final.stack stages (using the shared context and temp dir)
-
-        """
-        # Not ready to use this yet
         pipeline = self._get_stages("stages")
-        sessions = self.search_session()
 
         lights_step = pipeline[
             0
         ]  # FIXME super nasty - we assume the array is exactly these two elements
         stack_step = pipeline[1]
-
-        # FIXME add a loop over multiple different targets in current selection (via session.object)
 
         with ProcessingContext(self):
             # target specific processing here
@@ -907,6 +890,26 @@ class Starbash:
                     # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
                     # dirs for particular targets?
                     self.run_stage(task)
+
+    def run_all_stages(self):
+        """On the currently active session, run all processing stages
+
+        New design, not yet implemented:
+        * for each target in the current selection:
+        *   select ONE recipe for processing that target (check recipe.auto.require.* conditions)
+        *   init session context (it will be shared for all following steps) - via ProcessingContext
+        *   create a temporary processing directory (for intermediate files - shared by all stages)
+        *   create a processed output directory (for high value final files) - via run_stage()
+        *   iterate over all light frame sessions in the current selection
+        *     for each session:
+        *       update context input and output files
+        *       run session.light stages
+        *   after all sessions are processed, run final.stack stages (using the shared context and temp dir)
+
+        """
+        sessions = self.search_session()
+        # FIXME add a loop over multiple different targets in current selection (via session.object)
+        self.process_target(sessions)
 
     def run_master_stages(self):
         """Generate any missing master frames
