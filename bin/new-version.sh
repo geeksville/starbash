@@ -93,4 +93,7 @@ echo "Pushing commit and tag to origin..."
 git push origin HEAD
 git push origin "$TAG"
 
+echo "Installing locally"
+poetry install
+
 echo "Done. Created and pushed tag $TAG."

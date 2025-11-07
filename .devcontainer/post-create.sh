@@ -15,6 +15,10 @@ poetry completions bash >> ~/.bash_completion
 # zsh completions - write to zsh function directory
 mkdir -p ~/.zfunc
 poetry completions zsh > ~/.zfunc/_poetry
+
+# not yet tested
+# just --completions zsh > ~/.zfunc/_just
+
 # for zsh completions: Add to fpath and enable completions if not already present
 if ! grep -q "fpath+=~/.zfunc" ~/.zshrc; then
     echo 'fpath+=~/.zfunc' >> ~/.zshrc

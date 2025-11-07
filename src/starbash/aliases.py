@@ -5,6 +5,13 @@ from starbash.exception import UserHandledError
 
 _translator = str.maketrans("", "", string.punctuation + string.whitespace)
 
+__all__ = [
+    "Aliases",
+    "UnrecognizedAliasError",
+    "normalize_target_name",
+    "pre_normalize",
+]
+
 
 def normalize_target_name(name: str | None) -> str | None:
     """Converts a target name to an any filesystem-safe format by removing spaces"""

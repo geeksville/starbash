@@ -20,6 +20,7 @@
 * [x] require all images of a session to have the same exposure length see 2025-09-09 - it incorrectly only has one image in the session!
 * [x] normalize session target names on insert, so that "sb select target m31" can work
 * [ ] iterate over targets and properly name output dir
+* [ ] don't let logging mess up progress display when making masters
 * [ ] generate .toml in output processed dir
 * [ ] test missing siril/graxpert and helpful user message
 * [ ] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()

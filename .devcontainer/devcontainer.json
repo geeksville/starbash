@@ -7,7 +7,10 @@
 	},
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
-		"ghcr.io/devcontainers/features/git:1": {}
+		// add git
+		"ghcr.io/devcontainers/features/git:1": {},
+		// use https://just.systems/ for developer scripts via https://github.com/guiyomh/features/tree/main/src/just
+		"ghcr.io/guiyomh/features/just:0": {}
 	},
 	// "forwardPorts": [5000]
 	"runArgs": [

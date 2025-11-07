@@ -19,7 +19,7 @@ import rich.console
 import copy
 
 import starbash
-from starbash.aliases import Aliases
+from starbash.aliases import Aliases, normalize_target_name
 from starbash.check_version import check_version
 from starbash.database import Database, SessionRow, ImageRow, get_column_name
 from repo import Repo, repo, repo_suffix
@@ -894,7 +894,6 @@ class Starbash:
     def run_all_stages(self):
         """On the currently active session, run all processing stages
 
-        New design, not yet implemented:
         * for each target in the current selection:
         *   select ONE recipe for processing that target (check recipe.auto.require.* conditions)
         *   init session context (it will be shared for all following steps) - via ProcessingContext
@@ -908,8 +907,20 @@ class Starbash:
 
         """
         sessions = self.search_session()
-        # FIXME add a loop over multiple different targets in current selection (via session.object)
-        self.process_target(sessions)
+        targets = {
+            normalize_target_name(s.get(get_column_name(Database.OBJECT_KEY)))
+            for s in sessions
+        }
+
+        for target in track(targets, description=f"Processing targets..."):
+            # select sessions for this target
+            target_sessions = [
+                s
+                for s in sessions
+                if normalize_target_name(s.get(get_column_name(Database.OBJECT_KEY)))
+                == target
+            ]
+            self.process_target(target_sessions)
 
     def run_master_stages(self):
         """Generate any missing master frames
