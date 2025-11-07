@@ -29,6 +29,13 @@ runner = CliRunner(env={"NO_COLOR": "1"})
 @pytest.fixture
 def setup_test_environment(tmp_path):
     """Setup a test environment with isolated config and data directories."""
+    import starbash
+
+    # Save original global state
+    original_verbose = starbash.verbose_output
+    original_force_regen = starbash.force_regen
+    original_log_level = starbash.log_filter_level
+
     # Create isolated directories for testing
     config_dir = tmp_path / "config"
     data_dir = tmp_path / "data"
@@ -42,6 +49,11 @@ def setup_test_environment(tmp_path):
 
     # Clean up: reset to None after test
     paths.set_test_directories(None, None)
+
+    # Restore original global state to prevent test pollution
+    starbash.verbose_output = original_verbose
+    starbash.force_regen = original_force_regen
+    starbash.log_filter_level = original_log_level
 
 
 def test_session_command_no_data(setup_test_environment):
