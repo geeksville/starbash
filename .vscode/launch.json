@@ -20,7 +20,7 @@
             ]
         },
         {
-            "name": "Python Debugger: starbash select",
+            "name": "Python Debugger: starbash select list",
             "type": "debugpy",
             "request": "launch",
             "module": "starbash.main",
@@ -31,6 +31,21 @@
                 "--debug",
                 "select",
                 "list"
+            ]
+        },
+        {
+            "name": "Python Debugger: starbash select any",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "starbash.main",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
+            "justMyCode": false,
+            "args": [
+                "--debug",
+                "--verbose",
+                "select",
+                "any"
             ]
         },
         {

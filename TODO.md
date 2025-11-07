@@ -21,7 +21,7 @@
 * [x] normalize session target names on insert, so that "sb select target m31" can work
 * [x] handle "RuntimeError: Tool timed out after 60.0 seconds" gracefully
 * [x] properly name target output dir
-* [ ] "HaOiii_Ha" should not appear in session list - exclude processed repos from session queries
+* [x] "HaOiii_Ha" should not appear in session list - exclude processed repos from session queries. It is in the from_asiair repourl though!
 * [ ] name the progess dirs so they can be semi-persistent
 * [ ] get a successful run on X
 * [x] don't let logging mess up progress display when making masters https://rich.readthedocs.io/en/latest/progress.html#print-log
@@ -66,7 +66,7 @@
 * [x] use db to find light frames
 * [x] add top level catch asking users to report bugs
 * [x] add crash and usage analytics - sentry.io?
-*  ] add automated session config looping (Sii, Oiii etc...)
+* [ ] add automated session config looping (Sii, Oiii etc...)
 * [x] add automated session looping (multiday)
 * [x] unify the script execution code between sessions and masters
 * [x] pass stage outputs via the context?

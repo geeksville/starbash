@@ -163,8 +163,8 @@ def test_repo_list_non_verbose(setup_test_environment):
 
 
 def test_repo_list_verbose(setup_test_environment):
-    """Test 'starbash repo list --verbose' shows all repos without numbers."""
-    result = runner.invoke(app, ["repo", "list", "--verbose"])
+    """Test 'starbash --verbose repo list' shows all repos without numbers."""
+    result = runner.invoke(app, ["--verbose", "repo", "list"])
     assert result.exit_code == 0
 
     output = result.stdout
@@ -192,39 +192,6 @@ def test_repo_list_verbose(setup_test_environment):
             assert stripped.startswith("pkg://") or stripped.startswith(
                 "file://"
             ), f"Verbose mode should not show numbers, but got: {stripped}"
-
-
-def test_repo_list_verbose_short_flag(setup_test_environment):
-    """Test 'starbash repo list -v' (short flag) shows all repos without numbers."""
-    result = runner.invoke(app, ["repo", "list", "-v"])
-    assert result.exit_code == 0
-
-    output = result.stdout
-
-    # Should show system repos (preferences or recipes)
-    assert (
-        "pkg://defaults" in output
-        or "(kind=preferences)" in output
-        or "(kind=recipe)" in output
-    )
-
-    # Should NOT have numbered format
-    # Filter out log lines to get actual repo lines
-    lines_with_repos = [
-        line
-        for line in output.split("\n")
-        if (
-            ("file://" in line or "pkg://" in line)
-            and not line.strip().startswith("INFO")
-            and not line.strip().startswith("DEBUG")
-        )
-    ]
-    for line in lines_with_repos:
-        stripped = line.strip()
-        if stripped:
-            assert stripped.startswith("pkg://") or stripped.startswith(
-                "file://"
-            ), f"Verbose mode with -v should not show numbers, but got: {stripped}"
 
 
 def test_repo_add_command(setup_test_environment, tmp_path):

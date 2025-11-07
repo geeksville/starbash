@@ -51,7 +51,11 @@ def list():
     lists all repositories.
     """
     with Starbash("repo.list") as sb:
-        repos = sb.repo_manager.repos if verbose else sb.repo_manager.regular_repos
+        repos = (
+            sb.repo_manager.repos
+            if starbash.verbose_output
+            else sb.repo_manager.regular_repos
+        )
         for i, repo in enumerate(repos):
             kind = repo.kind("input")
             # for unknown repos (probably because we haven't written a starbash.toml file to the root yet),

@@ -300,8 +300,9 @@ class Starbash:
         self.close()
         return handled
 
-    def _add_session(self, image_doc_id: int, header: dict) -> None:
+    def _add_session(self, header: dict) -> None:
         """We just added a new image, create or update its session entry as needed."""
+        image_doc_id: int = header[Database.ID_KEY]  # this key is required to exist
         image_type = header.get(Database.IMAGETYP_KEY)
         date = header.get(Database.DATE_OBS_KEY)
         if not date or not image_type:
@@ -653,7 +654,9 @@ class Starbash:
         # Write the updated config
         self.user_repo.write_config()
 
-    def add_image_to_db(self, repo: Repo, f: Path, force: bool = False) -> None:
+    def add_image(
+        self, repo: Repo, f: Path, force: bool = False
+    ) -> dict[str, Any] | None:
         """Read FITS header from file and add/update image entry in the database."""
 
         path = repo.get_path()
@@ -665,58 +668,63 @@ class Starbash:
         if config:
             whitelist = config.get("fits-whitelist", None)
 
-        try:
-            # Convert absolute path to relative path within repo
-            relative_path = f.relative_to(path)
+        # Convert absolute path to relative path within repo
+        relative_path = f.relative_to(path)
 
-            found = self.db.get_image(repo.url, str(relative_path))
+        found = self.db.get_image(repo.url, str(relative_path))
 
-            # for debugging sometimes we want to limit scanning to a single directory or file
-            # debug_target = "masters-raw/2025-09-09/DARK"
-            debug_target = None
-            if debug_target:
-                if str(relative_path).startswith(debug_target):
-                    logging.error("Debugging %s...", f)
-                    found = False
-                else:
-                    found = True  # skip processing
-                    force = False
+        # for debugging sometimes we want to limit scanning to a single directory or file
+        # debug_target = "masters-raw/2025-09-09/DARK"
+        debug_target = None
+        if debug_target:
+            if str(relative_path).startswith(debug_target):
+                logging.error("Debugging %s...", f)
+                found = False
+            else:
+                found = True  # skip processing
+                force = False
 
-            if not found or force:
-                # Read and log the primary header (HDU 0)
-                with fits.open(str(f), memmap=False) as hdul:
-                    # convert headers to dict
-                    hdu0: Any = hdul[0]
-                    header = hdu0.header
-                    if type(header).__name__ == "Unknown":
-                        raise ValueError("FITS header has Unknown type: %s", f)
+        if not found or force:
+            # Read and log the primary header (HDU 0)
+            with fits.open(str(f), memmap=False) as hdul:
+                # convert headers to dict
+                hdu0: Any = hdul[0]
+                header = hdu0.header
+                if type(header).__name__ == "Unknown":
+                    raise ValueError("FITS header has Unknown type: %s", f)
 
-                    items = header.items()
-                    headers = {}
-                    for key, value in items:
-                        if (not whitelist) or (key in whitelist):
-                            headers[key] = value
+                items = header.items()
+                headers = {}
+                for key, value in items:
+                    if (not whitelist) or (key in whitelist):
+                        headers[key] = value
 
-                    # Some device software (old Asiair versions) fails to populate TELESCOP, in that case fall back to
-                    # CREATOR (see doc/fits/malformedasimaster.txt for an example)
-                    if Database.TELESCOP_KEY not in headers:
-                        creator = headers.get("CREATOR")
-                        if creator:
-                            headers[Database.TELESCOP_KEY] = creator
+                # Some device software (old Asiair versions) fails to populate TELESCOP, in that case fall back to
+                # CREATOR (see doc/fits/malformedasimaster.txt for an example)
+                if Database.TELESCOP_KEY not in headers:
+                    creator = headers.get("CREATOR")
+                    if creator:
+                        headers[Database.TELESCOP_KEY] = creator
 
-                    logging.debug("Headers for %s: %s", f, headers)
+                logging.debug("Headers for %s: %s", f, headers)
 
-                    # Store relative path in database
-                    headers["path"] = str(relative_path)
-                    image_doc_id = self.db.upsert_image(headers, repo.url)
+                # Store relative path in database
+                headers["path"] = str(relative_path)
+                image_doc_id = self.db.upsert_image(headers, repo.url)
+                headers[Database.ID_KEY] = image_doc_id
 
-                    if not found:
-                        # Update the session infos, but ONLY on first file scan
-                        # (otherwise invariants will get messed up)
-                        self._add_session(image_doc_id, headers)
+                if not found:
+                    return headers
 
-        except Exception as e:
-            logging.warning("Failed to read FITS header for %s: %s", f, e)
+        return None
+
+    def add_image_and_session(self, repo: Repo, f: Path, force: bool = False) -> None:
+        """Read FITS header from file and add/update image entry in the database."""
+        headers = self.add_image(repo, f, force=force)
+        if headers:
+            # Update the session infos, but ONLY on first file scan
+            # (otherwise invariants will get messed up)
+            self._add_session(headers)
 
     def reindex_repo(self, repo: Repo, subdir: str | None = None):
         """Reindex all repositories managed by the RepoManager."""
@@ -739,7 +747,7 @@ class Starbash:
                 description=f"Indexing {repo.url}...",
             ):
                 # progress.console.print(f"Indexing {f}...")
-                self.add_image_to_db(repo, f, force=starbash.force_regen)
+                self.add_image_and_session(repo, f, force=starbash.force_regen)
 
     def reindex_repos(self):
         """Reindex all repositories managed by the RepoManager."""
@@ -1327,4 +1335,5 @@ class Starbash:
             if not output_path or not os.path.exists(output_path):
                 raise RuntimeError(f"Expected output file not found: {output_path}")
             else:
-                self.add_image_to_db(output_info["repo"], Path(output_path), force=True)
+                # add to image DB (ONLY! we don't also create a session)
+                self.add_image(output_info["repo"], Path(output_path), force=True)
