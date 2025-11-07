@@ -56,7 +56,7 @@ make-movies:
     # vhs publish doc/vhs/sample-session.gif
 
 bump-version newver: test
-    bin/new-version {{newver}}
+    bin/new-version.sh {{newver}}
 
 test:
     poetry run pytest # test must pass
