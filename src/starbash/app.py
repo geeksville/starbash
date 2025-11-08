@@ -15,7 +15,7 @@ from rich.logging import RichHandler
 import shutil
 from datetime import datetime
 import rich.console
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import starbash
 from starbash.aliases import Aliases, normalize_target_name
@@ -47,10 +47,38 @@ from starbash.exception import UserHandledError
 @dataclass
 class ProcessingResult:
     target: str  # normalized target name, or in the case of masters the camera or instrument id
-    sessions: list[SessionRow] = []  # the input sessions processed to make this result
+    sessions: list[SessionRow] = field(
+        default_factory=list
+    )  # the input sessions processed to make this result
     success: bool | None = None  # false if we had an error, None if skipped
     notes: str | None = None  # notes about what happened
     # FIXME, someday we will add information about masters/flats that were used?
+
+
+def update_processing_result(
+    result: ProcessingResult, e: Exception | None = None
+) -> None:
+    """Handle exceptions during processing and update the ProcessingResult accordingly."""
+
+    result.success = True  # assume success
+    if e:
+        result.success = False
+
+        if isinstance(e, UserHandledError):
+            if e.ask_user_handled():
+                logging.debug("UserHandledError was handled.")
+                result.notes = (
+                    "Aborted per configuration - see instructions above on how to fix."
+                )
+
+        elif isinstance(e, RuntimeError):
+            # Print errors for runtimeerrors but keep processing other runs...
+            logging.error(f"Skipping run due to: {e}")
+            result.notes = f"Aborted due to possible error in (alpha) code, please report a bug on our github..."
+        else:
+            # Unexpected exception - log it and re-raise
+            logging.exception("Unexpected error during processing:")
+            raise e
 
 
 def setup_logging(console: rich.console.Console):
@@ -158,31 +186,15 @@ class ProcessingContext(tempfile.TemporaryDirectory):
     def __enter__(self) -> "ProcessingContext":
         return super().__enter__()
 
-    def __exit__(self, exc_type, exc_value, traceback) -> bool:  # type: ignore
+    def __exit__(self, exc_type, exc_value, traceback):
         """Returns true if exceptions were handled"""
         logging.debug(f"Cleaning up processing context at {self.name}")
 
         # unregister our process dir
         self.sb.context.pop("process_dir", None)
 
-        handled = False
-        if exc_type:
-            if issubclass(exc_type, UserHandledError):
-                if exc_value.ask_user_handled():
-                    logging.debug("UserHandledError was handled.")
-                    handled = True
-            elif issubclass(exc_type, RuntimeError):
-                # Print errors for runtimeerrors but keep processing other runs...
-                logging.error(f"Skipping run due to: {exc_value}")
-                handled = True
-
-            if handled:
-                exc_type = None
-                exc_value = None
-                traceback = None
-
         super().__exit__(exc_type, exc_value, traceback)
-        return handled
+        # return handled
 
 
 class NotEnoughFilesError(RuntimeError):
@@ -891,7 +903,35 @@ class Starbash:
         # No matching recipe found
         return None
 
-    def process_target(self, sessions: list[SessionRow]) -> None:
+    def filter_sessions_with_lights(
+        self, sessions: list[SessionRow]
+    ) -> list[SessionRow]:
+        """Filter sessions to only those that contain light frames."""
+        filtered_sessions: list[SessionRow] = []
+        for s in sessions:
+            imagetyp_val = s.get(get_column_name(Database.IMAGETYP_KEY))
+            if imagetyp_val is None:
+                continue
+            if self.aliases.normalize(str(imagetyp_val)) == "light":
+                filtered_sessions.append(s)
+        return filtered_sessions
+
+    def filter_sessions_by_target(
+        self, sessions: list[SessionRow], target: str
+    ) -> list[SessionRow]:
+        """Filter sessions to only those that match the given target name."""
+        filtered_sessions: list[SessionRow] = []
+        for s in sessions:
+            obj_val = s.get(get_column_name(Database.OBJECT_KEY))
+            if obj_val is None:
+                continue
+            if normalize_target_name(str(obj_val)) == target:
+                filtered_sessions.append(s)
+        return filtered_sessions
+
+    def process_target(
+        self, target: str, sessions: list[SessionRow]
+    ) -> ProcessingResult:
         """Do processing for a particular target (i.e. all sessions for a particular object)."""
 
         pipeline = self._get_stages("stages")
@@ -900,70 +940,84 @@ class Starbash:
             0
         ]  # FIXME super nasty - we assume the array is exactly these two elements
         stack_step = pipeline[1]
+        task_exception: Exception | None = None
+
+        result = ProcessingResult(target=target, sessions=sessions)
 
         with ProcessingContext(self):
-            # target specific processing here
-
-            # we only want sessions with light frames
-            filtered_sessions: list[SessionRow] = []
-            for s in sessions:
-                imagetyp_val = s.get(get_column_name(Database.IMAGETYP_KEY))
-                if imagetyp_val is None:
-                    continue
-                if self.aliases.normalize(str(imagetyp_val)) == "light":
-                    filtered_sessions.append(s)
-            sessions = filtered_sessions
-
-            # we find our recipe while processing our first light frame session
-            recipe = None
-
-            # process all light frames
-            step = lights_step
-            lights_task = self.progress.add_task(
-                "Processing lights...", total=len(sessions)
-            )
             try:
-                for session in sessions:
-                    step_name = step["name"]
-                    if not recipe:
-                        # for the time being: The first step in the pipeline MUST be "light"
-                        recipe = self.get_recipe_for_session(session, step)
+                # target specific processing here
+
+                # we find our recipe while processing our first light frame session
+                recipe = None
+
+                # process all light frames
+                step = lights_step
+                lights_task = self.progress.add_task(
+                    "Processing lights...", total=len(sessions)
+                )
+                try:
+                    lights_processed = False  # for better reporting
+                    stack_processed = False
+
+                    for session in sessions:
+                        step_name = step["name"]
                         if not recipe:
-                            continue  # No recipe found for this target/session
+                            # for the time being: The first step in the pipeline MUST be "light"
+                            recipe = self.get_recipe_for_session(session, step)
+                            if not recipe:
+                                continue  # No recipe found for this target/session
 
-                        # find the task for this step
-                        task = None
-                        if recipe:
-                            task = recipe.get("recipe.stage." + step_name)
+                            # find the task for this step
+                            task = None
+                            if recipe:
+                                task = recipe.get("recipe.stage." + step_name)
 
-                        if task:
-                            # put all relevant session info into context
-                            self.set_session_in_context(session)
+                            if task:
+                                # put all relevant session info into context
+                                self.set_session_in_context(session)
 
-                            # The following operation might take a long time, so give the user some more info...
-                            self.progress.update(
-                                lights_task,
-                                description=f"Processing {step_name} {self.context['date']}...",
-                            )
-                            self.run_stage(task)
+                                # The following operation might take a long time, so give the user some more info...
+                                self.progress.update(
+                                    lights_task,
+                                    description=f"Processing {step_name} {self.context['date']}...",
+                                )
+                                self.run_stage(task)
+                                lights_processed = True
 
-                    # We made progress - call once per iteration ;-)
-                    self.progress.advance(lights_task)
-            finally:
-                self.progress.remove_task(lights_task)
+                        # We made progress - call once per iteration ;-)
+                        self.progress.advance(lights_task)
+                finally:
+                    self.progress.remove_task(lights_task)
 
-            # after all light frames are processed, do the stacking
-            step = stack_step
-            if recipe:
-                task = recipe.get("recipe.stage." + step["name"])
+                # after all light frames are processed, do the stacking
+                step = stack_step
+                if recipe:
+                    task = recipe.get("recipe.stage." + step["name"])
 
-                if task:
-                    #
-                    # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
-                    # dirs for particular targets?
-                    self.run_stage(task)
+                    if task:
+                        #
+                        # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
+                        # dirs for particular targets?
+                        self.run_stage(task)
+                        stack_processed = True
 
-    def run_all_stages(self):
+                # Success!  we processed all lights and did a stack (probably)
+                if not lights_processed:
+                    result.notes = (
+                        "Skipped, no suitable recipe found for light frames..."
+                    )
+                elif not stack_processed:
+                    result.notes = "Skipped, no suitable recipe found for stacking..."
+                else:
+                    update_processing_result(result)
+            except Exception as e:
+                task_exception = e
+                update_processing_result(result, task_exception)
+
+        return result
+
+    def run_all_stages(self) -> list[ProcessingResult]:
         """On the currently active session, run all processing stages
 
         * for each target in the current selection:
@@ -980,34 +1034,39 @@ class Starbash:
         """
         sessions = self.search_session()
         targets = {
-            normalize_target_name(s.get(get_column_name(Database.OBJECT_KEY)))
+            normalize_target_name(obj)
             for s in sessions
+            if (obj := s.get(get_column_name(Database.OBJECT_KEY))) is not None
         }
 
         target_task = self.progress.add_task(
             "Processing targets...", total=len(targets)
         )
+
+        results: list[ProcessingResult] = []
         try:
             for target in targets:
                 self.progress.update(
                     target_task, description=f"Processing target {target}..."
                 )
                 # select sessions for this target
-                target_sessions = [
-                    s
-                    for s in sessions
-                    if normalize_target_name(
-                        s.get(get_column_name(Database.OBJECT_KEY))
-                    )
-                    == target
-                ]
-                self.process_target(target_sessions)
+                target_sessions = self.filter_sessions_by_target(sessions, target)
+
+                # we only want sessions with light frames
+                target_sessions = self.filter_sessions_with_lights(target_sessions)
+
+                if target_sessions:
+                    result = self.process_target(target, target_sessions)
+                    results.append(result)
+
                 # We made progress - call once per iteration ;-)
                 self.progress.advance(target_task)
         finally:
             self.progress.remove_task(target_task)
 
-    def run_master_stages(self):
+        return results
+
+    def run_master_stages(self) -> list[ProcessingResult]:
         """Generate any missing master frames
 
         Steps:
@@ -1020,6 +1079,7 @@ class Starbash:
         """
         sorted_pipeline = self._get_stages("master-stages")
         sessions = self.search_session()
+        results: list[ProcessingResult] = []
 
         # we loop over pipeline steps in the
         for step in sorted_pipeline:
@@ -1034,13 +1094,27 @@ class Starbash:
                 if recipe:
                     task = recipe.get("recipe.stage." + step_name)
 
+                processing_exception: Exception | None = None
+                result = ProcessingResult(target=step_name, sessions=[session])
+
                 if task:
-                    # Create a default process dir in /tmp.
-                    # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
-                    # dirs for particular targets?
-                    with ProcessingContext(self):
-                        self.set_session_in_context(session)
-                        self.run_stage(task)
+                    try:
+                        # Create a default process dir in /tmp.
+                        # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
+                        # dirs for particular targets?
+                        with ProcessingContext(self):
+                            self.set_session_in_context(session)
+                            self.run_stage(task)
+                    except Exception as e:
+                        processing_exception = e
+
+                    # We did one processing run. add the results
+                    update_processing_result(result, processing_exception)
+
+                # if we skipped leave the result as skipped
+                results.append(result)
+
+        return results
 
     def init_context(self) -> None:
         """Do common session init"""

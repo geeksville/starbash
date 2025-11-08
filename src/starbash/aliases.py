@@ -1,5 +1,6 @@
 import string
 from textwrap import dedent
+from typing import overload
 
 from starbash.exception import UserHandledError
 
@@ -11,6 +12,14 @@ __all__ = [
     "normalize_target_name",
     "pre_normalize",
 ]
+
+
+@overload
+def normalize_target_name(name: str) -> str: ...
+
+
+@overload
+def normalize_target_name(name: None) -> None: ...
 
 
 def normalize_target_name(name: str | None) -> str | None:
