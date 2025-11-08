@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import Any, Optional, NamedTuple
+from typing import Any, Optional
 from datetime import datetime, timedelta
 import json
 from typing import TypeAlias
+from dataclasses import dataclass
 
 from .paths import get_user_data_dir
 from .aliases import normalize_target_name
@@ -14,7 +15,8 @@ SessionRow: TypeAlias = dict[str, Any]
 ImageRow: TypeAlias = dict[str, Any]
 
 
-class SearchCondition(NamedTuple):
+@dataclass(frozen=True)
+class SearchCondition:
     """A search condition for database queries.
 
     Args:
