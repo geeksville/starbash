@@ -28,7 +28,7 @@ class RepoManager:
         """
         Initializes the RepoManager by loading the application default repos.
         """
-        self.repos = []
+        self.repos: list[Repo] = []
 
         # We expose the app default preferences as a special root repo with a private URL
         # root_repo = Repo(self, "pkg://starbash-defaults", config=app_defaults)

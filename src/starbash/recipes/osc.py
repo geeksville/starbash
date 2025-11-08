@@ -3,7 +3,9 @@
 
 import os
 from glob import glob
+from typing import Any
 from starbash.tool import tools
+import logging
 
 siril = tools["siril"]
 

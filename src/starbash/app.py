@@ -818,6 +818,23 @@ class Starbash:
         for task in tasks_to_run:
             self.run_stage(task)
 
+    def get_recipes(self) -> list[Repo]:
+        """Get all recipe repos available, sorted by priority (lower number first).
+
+        Recipes without a priority are placed at the end of the list.
+        """
+        recipes = [r for r in self.repo_manager.repos if r.kind() == "recipe"]
+
+        # Sort recipes by priority (lower number first). If no priority specified,
+        # use float('inf') to push those to the end of the list.
+        def priority_key(r: Repo) -> float:
+            priority = r.get("recipe.priority")
+            return float(priority) if priority is not None else float("inf")
+
+        recipes.sort(key=priority_key)
+
+        return recipes
+
     def get_recipe_for_session(
         self, session: SessionRow, step: dict[str, Any]
     ) -> Repo | None:
@@ -833,7 +850,7 @@ class Starbash:
         and make the user pick (by throwing an exception?).
         """
         # Get all recipe repos - FIXME add a getall(kind) to RepoManager
-        recipe_repos = [r for r in self.repo_manager.repos if r.kind() == "recipe"]
+        recipe_repos = self.get_recipes()
 
         step_name = step.get("name")
         if not step_name:
