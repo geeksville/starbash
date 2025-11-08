@@ -8,6 +8,10 @@ from typing_extensions import Annotated
 from starbash.app import ProcessingResult, Starbash, copy_images_to_dir
 from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
+from starbash.commands.__init__ import (
+    TABLE_COLUMN_STYLE,
+    TABLE_HEADER_STYLE,
+)
 
 app = typer.Typer()
 
@@ -103,11 +107,11 @@ def print_results(
         console.print(f"[yellow]{title}: No results to display[/yellow]")
         return
 
-    table = Table(title=title, show_header=True, header_style="bold magenta")
-    table.add_column("Target", style="cyan", no_wrap=True)
-    table.add_column("Sessions", justify="right", style="blue")
-    table.add_column("Status", justify="center")
-    table.add_column("Notes", style="dim")
+    table = Table(title=title, show_header=True, header_style=TABLE_HEADER_STYLE)
+    table.add_column("Target", style=TABLE_COLUMN_STYLE, no_wrap=True)
+    table.add_column("Sessions", justify="right", style=TABLE_COLUMN_STYLE)
+    table.add_column("Status", justify="center", style=TABLE_COLUMN_STYLE)
+    table.add_column("Notes", style=TABLE_COLUMN_STYLE)
 
     for result in results:
         # Format status with color

@@ -15,6 +15,7 @@ from starbash.app import Starbash, copy_images_to_dir
 from starbash.database import Database, SessionRow, get_column_name
 from starbash import console
 from starbash.commands import (
+    TABLE_HEADER_STYLE,
     format_duration,
     TABLE_COLUMN_STYLE,
     TABLE_VALUE_STYLE,
@@ -212,7 +213,10 @@ def do_list_sessions(sb: Starbash, brief: bool = False):
     sessions = sb.search_session()
     if sessions and isinstance(sessions, list):
         len_all = sb.db.len_table(Database.SESSIONS_TABLE)
-        table = Table(title=f"Sessions ({len(sessions)} selected out of {len_all})")
+        table = Table(
+            title=f"Sessions ({len(sessions)} selected out of {len_all})",
+            header_style=TABLE_HEADER_STYLE,
+        )
         sb.analytics.set_data("session.num_selected", len(sessions))
         sb.analytics.set_data("session.num_total", len_all)
 
@@ -411,7 +415,9 @@ def show_selection(ctx: typer.Context):
             if summary["status"] == "all":
                 console.print(f"[yellow]{summary['message']}[/yellow]")
             else:
-                table = Table(title="Current Selection")
+                table = Table(
+                    title="Current Selection", header_style=TABLE_HEADER_STYLE
+                )
                 table.add_column("Criteria", style=TABLE_COLUMN_STYLE)
                 table.add_column("Value", style=TABLE_VALUE_STYLE)
 

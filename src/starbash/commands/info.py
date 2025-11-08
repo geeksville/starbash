@@ -8,7 +8,12 @@ from collections import Counter
 from starbash.app import Starbash
 from starbash.database import Database, get_column_name
 from starbash.paths import get_user_config_dir, get_user_data_dir
-from starbash.commands import format_duration, TABLE_COLUMN_STYLE, TABLE_VALUE_STYLE
+from starbash.commands import (
+    TABLE_HEADER_STYLE,
+    format_duration,
+    TABLE_COLUMN_STYLE,
+    TABLE_VALUE_STYLE,
+)
 
 app = typer.Typer()
 
@@ -41,7 +46,8 @@ def dump_column(sb: Starbash, human_name: str, column_name: str) -> None:
 
     # Create and display table
     table = Table(
-        title=f"{plural(human_name)} ({len(found_counts)} / {len(all_counts)} selected)"
+        header_style=TABLE_HEADER_STYLE,
+        title=f"{plural(human_name)} ({len(found_counts)} / {len(all_counts)} selected)",
     )
     table.add_column(human_name, style=TABLE_COLUMN_STYLE, no_wrap=False)
     table.add_column(
@@ -105,7 +111,7 @@ def master(
         title = f"Master Images ({len(images)} total)"
         if kind:
             title = f"Master {kind} Images ({len(images)} total)"
-        table = Table(title=title)
+        table = Table(title=title, header_style=TABLE_HEADER_STYLE)
         table.add_column("Date", style=TABLE_COLUMN_STYLE, no_wrap=True)
         table.add_column("Type", style=TABLE_COLUMN_STYLE, no_wrap=True)
         table.add_column("Filename", style=TABLE_VALUE_STYLE, no_wrap=False)
@@ -160,7 +166,7 @@ def main_callback(ctx: typer.Context):
 
     if ctx.invoked_subcommand is None:
         with Starbash("info") as sb:
-            table = Table(title="Starbash Information")
+            table = Table(title="Starbash Information", header_style=TABLE_HEADER_STYLE)
             table.add_column("Setting", style=TABLE_COLUMN_STYLE, no_wrap=True)
             table.add_column("Value", style=TABLE_VALUE_STYLE)
 
