@@ -44,6 +44,10 @@ process: select-test-target
     sb --force process auto
 
 db-browse:
+    # via poetry --dev
+    harlequin -a sqlite -r ~/.local/share/starbash/db.sqlite3
+
+db-browse-gui:
     sqlitebrowser ~/.local/share/starbash/db.sqlite3
 
 make-movies:
