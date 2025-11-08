@@ -3,17 +3,17 @@
 default:
     just --list
 
-clear-cache:
+clean-cache:
     rm -rf ~/.cache/starbash
 
-clear-config:
+clean-config:
     rm -f ~/.local/share/starbash/db.sqlite3
     rm -f ~/.config/starbash/starbash.toml
 
-clear-masters:
+clean-masters:
     rm -rf ~/.local/share/starbash/masters
 
-reinit: clear-cache clear-config clear-masters
+reinit: clean-cache clean-config clean-masters
     #!/usr/bin/env zsh
     echo "Reiniting a developer config..."
 

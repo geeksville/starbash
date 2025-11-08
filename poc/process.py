@@ -540,7 +540,7 @@ def main() -> None:
         "Ha",
         "OIII",
     ]  # FIXME: solve capitalization issues and work with single or dual Duo filter
-    # for sessionconfig in all_configs:
+    #  for sessionconfig in all_configs:
     # for i, variant in enumerate(variants):
 
     logging.info("Processing duo-band filter Ha and Oiii channels (for all filters)")

@@ -29,6 +29,8 @@
 * [ ] get a successful run on X
 * [x] don't let logging mess up progress display when making masters https://rich.readthedocs.io/en/latest/progress.html#print-log
 * [ ] generate .toml in output processed dir
+* [ ] share dual duo python with single duo python
+* [ ] in osc processing implement make_renormalize() & background_removal()
 * [ ] require masters dimensions match image dimensions for selection
 * [ ] test missing siril/graxpert and helpful user message
 * [ ] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()

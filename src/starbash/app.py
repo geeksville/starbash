@@ -171,10 +171,10 @@ class ProcessingContext(tempfile.TemporaryDirectory):
                     logging.error(f"Skipping run due to: {exc_value}")
                     handled = True
 
-        if handled:
-            exc_type = None
-            exc_value = None
-            traceback = None
+            if handled:
+                exc_type = None
+                exc_value = None
+                traceback = None
 
         super().__exit__(exc_type, exc_value, traceback)
         return handled
@@ -206,7 +206,7 @@ class Starbash:
         console = rich.console.Console(
             force_terminal=False if _is_test_env else None,
             width=999999 if _is_test_env else None,  # Disable line wrapping in tests
-            stderr=stderr_logging
+            stderr=stderr_logging,
         )
 
         # We create one top-level progress context so that when various subtasks are created

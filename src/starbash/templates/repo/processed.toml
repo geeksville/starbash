@@ -9,4 +9,5 @@
 [repo]
 kind = "processed"
 
+# FIXME - this path should at least point to a FITS file - so that 'is output file generated' test can work.
 relative = "{date}/{target}"
