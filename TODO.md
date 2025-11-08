@@ -25,8 +25,10 @@
 * [x] fix flat error msg when making masters
 * [x] require biases built before flats
 * [ ] use recipe.priority to define recipe search order. lower pri searched first
+* [ ] make single duo work
+* [ ] make no/uni filter OSC work
+* [ ] make OSC options user customizable per target
 * [ ] improve initial setup wizard - ask where to store masters and processed dirs
-* [ ] share dual duo python with single duo python
 * [x] in osc processing implement make_renormalize()
 * [ ] do background_removal() as a separate stage
 * [ ] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
