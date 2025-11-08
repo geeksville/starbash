@@ -24,22 +24,24 @@
 * [x] "HaOiii_Ha" should not appear in session list - exclude processed repos from session queries. It is in the from_asiair repourl though!
 * [x] fix flat error msg when making masters
 * [x] require biases built before flats
+* [ ] improve initial setup wizard - ask where to store masters and processed dirs
+* [ ] share dual duo python with single duo python
+* [ ] in osc processing implement make_renormalize()
+* [ ] do background_removal() as a separate stage
+* [ ] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
+* [ ] require masters dimensions match image dimensions for selection
 * [ ] master relative path should be based on unique camera ID - so that Ascar_V_80mm_flattener and Ascar_V_80mm_extender can share the same masters.
 * [x] NotEnoughFilesError should not crash processing
+* [ ] find a way for scripts to share python code with each other
 * [ ] add progress 'spinner' bar while doing any tool runs... https://rich.readthedocs.io/en/latest/reference/spinner.html
 * [ ] return a list of ProcessingResult named tuples from auto and master processing.  print as table.
 * [ ] move all the 'processing' stuff out of app.py
-* [ ] find a way for scripts to share python code with each other
 * [ ] check for required/recommended tools at start.
 * [ ] name the progess dirs so they can be semi-persistent
 * [x] get a successful run on X
 * [x] don't let logging mess up progress display when making masters https://rich.readthedocs.io/en/latest/progress.html#print-log
 * [ ] generate .toml in output processed dir
-* [ ] share dual duo python with single duo python
-* [ ] in osc processing implement make_renormalize() & background_removal()
-* [ ] require masters dimensions match image dimensions for selection
 * [ ] test missing siril/graxpert and helpful user message
-* [ ] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
 * [x] fix "Registering and stacking 0 frames for SiiOiii/Ha"
 * [x] make master dark/bias gen for asiair work
 * [ ] include temperature in bias filenames.

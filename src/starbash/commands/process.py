@@ -1,10 +1,11 @@
 """Processing commands for automated image processing workflows."""
 
+import rich
 import typer
 from pathlib import Path
 from typing_extensions import Annotated
 
-from starbash.app import Starbash, copy_images_to_dir
+from starbash.app import ProcessingResult, Starbash, copy_images_to_dir
 from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
 
@@ -86,6 +87,48 @@ def siril(
         # Also FIXME, check for the existence of such a file
 
 
+def print_results(
+    title: str, results: list[ProcessingResult], console: rich.console.Console
+) -> None:
+    """Print processing results in a formatted table.
+
+    Args:
+        title: Title to display above the table
+        results: List of ProcessingResult objects to display
+        console: Rich console instance for output
+    """
+    from rich.table import Table
+
+    if not results:
+        console.print(f"[yellow]{title}: No results to display[/yellow]")
+        return
+
+    table = Table(title=title, show_header=True, header_style="bold magenta")
+    table.add_column("Target", style="cyan", no_wrap=True)
+    table.add_column("Sessions", justify="right", style="blue")
+    table.add_column("Status", justify="center")
+    table.add_column("Notes", style="dim")
+
+    for result in results:
+        # Format status with color
+        if result.success is True:
+            status = "[green]✓ Success[/green]"
+        elif result.success is False:
+            status = "[red]✗ Failed[/red]"
+        else:
+            status = "[yellow]⊘ Skipped[/yellow]"
+
+        # Format session count
+        session_count = str(len(result.sessions))
+
+        # Format notes (truncate if too long)
+        notes = result.notes or ""
+
+        table.add_row(result.target, session_count, status, notes)
+
+    console.print(table)
+
+
 @app.command()
 def auto(
     session_num: Annotated[
@@ -117,7 +160,9 @@ def auto(
         else:
             console.print("[yellow]Auto-processing all selected sessions...[/yellow]")
 
-        sb.run_all_stages()
+        results = sb.run_all_stages()
+
+        print_results("Autoprocessed", results, console)
 
 
 @app.command()
@@ -137,7 +182,9 @@ def masters():
         console.print(
             "[yellow]Generating master frames from current selection...[/yellow]"
         )
-        sb.run_master_stages()
+        results = sb.run_master_stages()
+
+        print_results("Generated masters", results, console)
 
 
 @app.callback(invoke_without_command=True)
