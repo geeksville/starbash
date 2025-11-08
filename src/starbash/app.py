@@ -166,10 +166,10 @@ class ProcessingContext(tempfile.TemporaryDirectory):
                 if exc_value.ask_user_handled():
                     logging.debug("UserHandledError was handled.")
                     handled = True
-                elif issubclass(exc_type, RuntimeError):
-                    # Print errors for runtimeerrors but keep processing other runs...
-                    logging.error(f"Skipping run due to: {exc_value}")
-                    handled = True
+            elif issubclass(exc_type, RuntimeError):
+                # Print errors for runtimeerrors but keep processing other runs...
+                logging.error(f"Skipping run due to: {exc_value}")
+                handled = True
 
             if handled:
                 exc_type = None
