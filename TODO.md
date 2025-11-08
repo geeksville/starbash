@@ -41,6 +41,7 @@
 * [x] get a successful run on X
 * [x] don't let logging mess up progress display when making masters https://rich.readthedocs.io/en/latest/progress.html#print-log
 * [ ] generate .toml in output processed dir
+* [ ] let user spec a max cache size, if we exceed that just delete older build dirs from that cache as needed.  This would allow quick rebuilds for the last N targets rendered.
 * [ ] test missing siril/graxpert and helpful user message
 * [x] fix "Registering and stacking 0 frames for SiiOiii/Ha"
 * [x] make master dark/bias gen for asiair work

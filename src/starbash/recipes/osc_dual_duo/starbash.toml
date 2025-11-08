@@ -89,9 +89,11 @@ output.type = "processed" # write output to the special processed repo
 # if not specified starbash.py used
 # script-file = "script.py"
 
-# or inline python code instead of that function?
-#script = '''
-#    make_stacked("SiiOiii", "Ha", f"results_00001")
-#    ...
-#    (moved to script.py)
-#    '''
+# or inline python code can be provided here.  In this case I'm using some python
+# code I'm temporarily sharing from the main project...
+script = '''
+    from starbash.recipes import osc
+    osc.logger = logger
+    osc.context = context
+    osc.osc_process(has_ha_oiii=True, has_sii_oiii=True)
+    '''

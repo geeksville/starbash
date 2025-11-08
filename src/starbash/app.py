@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from sys import stderr
 import tempfile
+import textwrap
 import typer
 from tomlkit.toml_file import TOMLFile
 import glob
@@ -1398,12 +1399,21 @@ class Starbash:
             tool.timeout = float(tool_timeout)
             logging.debug(f"Using tool timeout: {tool.timeout} seconds")
 
-        script_filename = stage.get("script-file", tool.default_script_file)
-        if script_filename:
-            source = stage.source  # type: ignore (was monkeypatched by repo)
-            script = source.read(script_filename)
+        # is the script included inline?
+        script = stage.get("script")
+        if script:
+            script = textwrap.dedent(script)  # it might be indented in the toml
         else:
-            script = stage.get("script")
+            # try to load it from a file
+            script_filename = stage.get("script-file", tool.default_script_file)
+            if script_filename:
+                source = stage.source  # type: ignore (was monkeypatched by repo)
+                try:
+                    script = source.read(script_filename)
+                except IOError as e:
+                    raise ValueError(
+                        f"Error reading script file '{script_filename}'"
+                    ) from e
 
         if script is None:
             raise ValueError(
