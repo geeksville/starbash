@@ -1,4 +1,3 @@
-import cmd
 import logging
 from importlib import resources
 import os
@@ -6,7 +5,6 @@ from pathlib import Path
 from sys import stderr
 import tempfile
 import typer
-import tomlkit
 from tomlkit.toml_file import TOMLFile
 import glob
 from typing import Any
@@ -17,7 +15,7 @@ from rich.logging import RichHandler
 import shutil
 from datetime import datetime
 import rich.console
-import copy
+from dataclasses import dataclass
 
 import starbash
 from starbash.aliases import Aliases, normalize_target_name
@@ -45,7 +43,14 @@ from starbash.analytics import (
 )
 from starbash.exception import UserHandledError
 
-# Type aliases for better documentation
+
+@dataclass
+class ProcessingResult:
+    target: str  # normalized target name, or in the case of masters the camera or instrument id
+    sessions: list[SessionRow] = []  # the input sessions processed to make this result
+    success: bool | None = None  # false if we had an error, None if skipped
+    notes: str | None = None  # notes about what happened
+    # FIXME, someday we will add information about masters/flats that were used?
 
 
 def setup_logging(console: rich.console.Console):
