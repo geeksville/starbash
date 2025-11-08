@@ -27,8 +27,10 @@
 * [ ] use recipe.priority to define recipe search order. lower pri searched first
 * [ ] make single duo work
 * [ ] make no/uni filter OSC work
-* [ ] make OSC options user customizable per target
 * [ ] improve initial setup wizard - ask where to store masters and processed dirs
+* [ ] make a nicer movie, for setup and usage
+* [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
+* [ ] make OSC options user customizable per target
 * [x] in osc processing implement make_renormalize()
 * [ ] do background_removal() as a separate stage
 * [ ] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
@@ -75,8 +77,6 @@
 * [ ] make auto process work again for dual-duo _multi_ session workflows
 * [x] add targets list
 * [x] implement setup command (including username selection and analytics)
-* [ ] make a nicer movie
-* [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [x] include instrument name in session list (for seestar,asiair,etc)
 * [ ] select default output should show summary info for current target & telescope.
 * [ ] sort the masters list display
