@@ -1217,6 +1217,10 @@ class Starbash:
             full_path = Path(str(full_path).replace(" ", r"_"))
 
             base_path = full_path.parent / full_path.stem
+            if str(base_path).endswith("*"):
+                # The relative path must be of the form foo/blah/*.fits or somesuch.  In that case we want the base
+                # path to just point to that directory prefix.
+                base_path = Path(str(base_path)[:-1])
 
             # create output directory if needed
             os.makedirs(base_path.parent, exist_ok=True)
@@ -1312,12 +1316,14 @@ class Starbash:
             output_info: dict | None = self.context.get("output")
             if output_info and not starbash.force_regen:
                 output_path = output_info.get("full_path")
-
-                if output_path and os.path.exists(output_path):
-                    logging.info(
-                        f"Output file already exists, skipping processing: {output_path}"
-                    )
-                    return
+                if output_path:
+                    # output_path might contain * wildcards, make output_files be a list
+                    output_files = glob.glob(str(output_path))
+                    if len(output_files) > 0:
+                        logging.info(
+                            f"Output file already exists, skipping processing: {output_path}"
+                        )
+                        return
 
             # We normally run tools in a temp dir, but if input.source is recipe we assume we want to
             # run in the shared processing directory.  Because prior stages output files are waiting for us there.
@@ -1327,6 +1333,7 @@ class Starbash:
 
             tool.run(script, context=self.context, cwd=cwd)
         except NotEnoughFilesError as e:
+            # Not enough input files provided
             input_files = e.files
             if len(input_files) != 1:
                 raise  # We only handle the single file case here
@@ -1345,10 +1352,17 @@ class Starbash:
         # verify context.output was created if it was specified
         output_info: dict | None = self.context.get("output")
         if output_info:
-            output_path = output_info.get("full_path")
+            output_path = output_info[
+                "full_path"
+            ]  # This must be present, because we created it when we made the output node
 
-            if not output_path or not os.path.exists(output_path):
+            # output_path might contain * wildcards, make output_files be a list
+            output_files = glob.glob(str(output_path))
+
+            if len(output_files) < 1:
                 raise RuntimeError(f"Expected output file not found: {output_path}")
             else:
-                # add to image DB (ONLY! we don't also create a session)
-                self.add_image(output_info["repo"], Path(output_path), force=True)
+                if output_info["repo"].kind() == "master":
+                    # we add new masters to our image DB
+                    # add to image DB (ONLY! we don't also create a session)
+                    self.add_image(output_info["repo"], Path(output_path), force=True)

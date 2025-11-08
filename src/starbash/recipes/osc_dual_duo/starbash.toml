@@ -84,7 +84,7 @@ tool.name = "python"
 # Based on the following definitions in the stage toml file...
 # FIXME, we should inherit this - most recipes shouldn't have to declare it
 output.dest = "repo" # write to a particular repo
-output.type = "processed" # write output to the special masters repo
+output.type = "processed" # write output to the special processed repo
 
 # if not specified starbash.py used
 # script-file = "script.py"

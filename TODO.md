@@ -41,8 +41,11 @@
 * [x] fix dark frame generation
 * [x] make 'regen all masters' work
 * [ ] normalize imagetyp before inserting them into session or images tables
+* [ ] add backpointers to run-customization repo file to output FITS files.
 * [ ] eventually store master info in the root toml file for masters
+* [ ] allow recipes to specify the min # of expected generated output files.  Currently we just assume it is 1
 * [ ] gracefully handle UnrecognizedAliasError and ask user if they want to add it...
+* [ ] make output-path precheck work for "lights" rules so those expensive operations can sometimes be skipped
 * [ ] make score_candidates() highly prefer frames that are in the past
 * [ ] make and intergration test that uses a few real files
 * [ ] catch the exception for missing siril/graxpert and print user instructions

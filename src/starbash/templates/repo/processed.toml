@@ -9,5 +9,7 @@
 [repo]
 kind = "processed"
 
-# FIXME - this path should at least point to a FITS file - so that 'is output file generated' test can work.
-relative = "{date}/{target}"
+# This path should at least point to a FITS file - so that 'is output file generated' test can work.
+# if this expression includes a * at the end we assume multiple files might be generated and they are all
+# placed in the indicated directory.
+relative = "{date}/{target}/*"
