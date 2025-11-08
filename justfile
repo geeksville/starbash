@@ -13,11 +13,12 @@ clean-config:
 clean-masters:
     rm -rf ~/.local/share/starbash/masters
 
-reinit: clean-cache clean-config clean-masters
+install-completion:
     #!/usr/bin/env zsh
-    echo "Reiniting a developer config..."
-
     sb --install-completion
+
+reinit: clean-cache clean-config clean-masters install-completion
+    echo "Reiniting a developer config..."
     sb user name "Kevin Hester"
     sb user email "kevinh@geeksville.com"
     sb repo add ./images/from_asiair
@@ -25,9 +26,11 @@ reinit: clean-cache clean-config clean-masters
     sb repo add ./images/from_astroboy
     sb repo add --master
     sb repo add --processed ./images/processed
-    sb process masters
     sb info
     sb select list --brief
+
+reinit-masters: reinit
+    sb process masters
 
 select-any:
     sb --verbose select any
@@ -37,17 +40,17 @@ select-after:
     sb select date after 2025-08-01
 
 # test target that has Si and HaOiii filters
-select-test-si-ha:
+select-si-ha:
     sb select any
     sb select target ngc281
 
 # test using just the HaOiii filter
-select-test-ha:
+select-ha:
     sb select any
     sb select target ic1396
 
-process: select-test-si-ha
-    sb --force process auto
+process:
+    sb process auto
 
 db-browse:
     # via poetry --dev

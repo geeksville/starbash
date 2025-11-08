@@ -25,7 +25,7 @@
 * [x] fix flat error msg when making masters
 * [x] require biases built before flats
 * [x] use recipe.priority to define recipe search order. lower pri searched first
-* [ ] figure out why devinit results in "HaOiii_Ha" in the filters table.  use breakpoint
+* [x] figure out why devinit results in "HaOiii_Ha" in the filters table.  I _think_ this is harmless.  it is old processed files in from_asiair: "IC 1386/2025-09-01/results/bkg_result_Ha.fits"
 * [ ] make single duo work
 * [ ] make no/uni filter OSC work
 * [ ] improve initial setup wizard - ask where to store masters and processed dirs

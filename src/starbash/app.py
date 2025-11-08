@@ -893,7 +893,7 @@ class Starbash:
             # Check auto.require conditions if they exist
 
             # If requirements are specified, check if session matches
-            required_filters = repo.get("auto.require.filter", [])
+            required_filters = repo.get("recipe.auto.require.filter", [])
             if required_filters:
                 session_filter = self.aliases.normalize(
                     session_metadata.get(Database.FILTER_KEY)
@@ -907,7 +907,7 @@ class Starbash:
                     )
                     continue
 
-            required_cameras = repo.get("auto.require.camera", [])
+            required_cameras = repo.get("recipe.auto.require.camera", [])
             if required_cameras:
                 session_camera = self.aliases.normalize(
                     session_metadata.get("INSTRUME")

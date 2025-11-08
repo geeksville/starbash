@@ -105,7 +105,8 @@
                 "--debug",
                 "repo",
                 "add",
-                "./images/from_asiair"
+                "--processed",
+                "./images/processed"
             ]
         },
         {
@@ -117,9 +118,9 @@
             "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
             "justMyCode": false,
             "args": [
+                "--force",
                 "repo",
                 "reindex",
-                "--force",
                 "file:///workspaces/starbash/images/from_astroboy"
             ]
         },

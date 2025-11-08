@@ -62,7 +62,7 @@ script = '''
 # this stage is only be considered if the previous stage in this same array
 # was run.  It must be run inside the same tempdir (so that files from previous stage are available)
 
-description = "Stack OSC dual duo filter data, with separate Ha, Oiii and Sii channels"
+description = "Stack OSC single duo filter data: with Ha, Oiii extraction"
 
 input.source = "recipe" # we will use output files from previous stages in this same recipe as our input
 
