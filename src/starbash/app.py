@@ -914,22 +914,38 @@ class Starbash:
 
             # process all light frames
             step = lights_step
-            for session in track(sessions, description="Processing lights..."):
-                if not recipe:
-                    # for the time being: The first step in the pipeline MUST be "light"
-                    recipe = self.get_recipe_for_session(session, step)
+            lights_task = self.progress.add_task(
+                "Processing lights...", total=len(sessions)
+            )
+            try:
+                for session in sessions:
+                    step_name = step["name"]
                     if not recipe:
-                        continue  # No recipe found for this target/session
+                        # for the time being: The first step in the pipeline MUST be "light"
+                        recipe = self.get_recipe_for_session(session, step)
+                        if not recipe:
+                            continue  # No recipe found for this target/session
 
-                    # find the task for this step
-                    task = None
-                    if recipe:
-                        task = recipe.get("recipe.stage." + step["name"])
+                        # find the task for this step
+                        task = None
+                        if recipe:
+                            task = recipe.get("recipe.stage." + step_name)
 
-                    if task:
-                        # Create a default process dir in /tmp.
-                        self.set_session_in_context(session)
-                        self.run_stage(task)
+                        if task:
+                            # put all relevant session info into context
+                            self.set_session_in_context(session)
+
+                            # The following operation might take a long time, so give the user some more info...
+                            self.progress.update(
+                                lights_task,
+                                description=f"Processing {step_name} {self.context['date']}...",
+                            )
+                            self.run_stage(task)
+
+                    # We made progress - call once per iteration ;-)
+                    self.progress.advance(lights_task)
+            finally:
+                self.progress.remove_task(lights_task)
 
             # after all light frames are processed, do the stacking
             step = stack_step
@@ -963,15 +979,28 @@ class Starbash:
             for s in sessions
         }
 
-        for target in track(targets, description=f"Processing targets..."):
-            # select sessions for this target
-            target_sessions = [
-                s
-                for s in sessions
-                if normalize_target_name(s.get(get_column_name(Database.OBJECT_KEY)))
-                == target
-            ]
-            self.process_target(target_sessions)
+        target_task = self.progress.add_task(
+            "Processing targets...", total=len(targets)
+        )
+        try:
+            for target in targets:
+                self.progress.update(
+                    target_task, description=f"Processing target {target}..."
+                )
+                # select sessions for this target
+                target_sessions = [
+                    s
+                    for s in sessions
+                    if normalize_target_name(
+                        s.get(get_column_name(Database.OBJECT_KEY))
+                    )
+                    == target
+                ]
+                self.process_target(target_sessions)
+                # We made progress - call once per iteration ;-)
+                self.progress.advance(target_task)
+        finally:
+            self.progress.remove_task(target_task)
 
     def run_master_stages(self):
         """Generate any missing master frames
@@ -1339,7 +1368,7 @@ class Starbash:
                 raise  # We only handle the single file case here
 
             # Copy the single input file to the output path
-            output_path = self.context.get("output", []).get("full_path")
+            output_path = self.context.get("output", {}).get("full_path")
             if output_path:
                 shutil.copy(input_files[0], output_path)
                 logging.warning(

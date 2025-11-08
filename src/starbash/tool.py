@@ -260,7 +260,7 @@ class Tool:
         # default timeout in seconds, if you need to run a tool longer than this, you should change
         # it before calling run()
         self.timeout = (
-            60.0  # 1 minutes - just to make sure we eventually stop all tools
+            5 * 60.0  # 5 minutes - just to make sure we eventually stop all tools
         )
 
     def run(self, commands: str, context: dict = {}, cwd: str | None = None) -> None:
