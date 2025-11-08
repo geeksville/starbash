@@ -3,8 +3,12 @@
 kind = "recipe"
 
 [recipe]
-author.name = "Kevin Hester"
-author.email = "kevinh@geeksville.com"
+author.name = "FIXMEsirilsomeone"
+author.email = "FIXMEsirilsomeone"
+
+# Lower priority recipes are tried to match first
+# - we want this to match after the osc_dual_duo has a chance
+priority = 10
 
 # FIXME-somehow-specify-what-filternames are used to auto detect this recipe can be used?
 # figure out how to support dual duo vs single duo.  Perhaps: the FIRST recipe that matches an auto rule
@@ -65,17 +69,10 @@ script = '''
 
 [recipe.stage.stack]
 
-# FIXME this stage should only be considered if the previous stage in this same array
+# this stage is considered if the previous stage in this same array
 # was run.  It must be run inside the same tempdir (so that files from previous stage are available)
 
-# FIXME, eventually we could make it optional to even have a starbash.toml.  If we find an
-# starbash.py we could introspect it for a starbash_config dict.  And look inside that for description
-# "stage", "when" or whatever?
-
 description = "Stack OSC dual duo filter data, with separate Ha, Oiii and Sii channels"
-
-# context.target = "M 27" # FIXME
-# context.targets = "/workspaces/starbash/images/processed" # FIXME, do something smarter
 
 input.source = "recipe" # we will use output files from previous stages in this same recipe as our input
 

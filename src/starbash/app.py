@@ -875,7 +875,7 @@ class Starbash:
                     session_metadata.get(Database.FILTER_KEY)
                 )
 
-                # Session must have a filter that matches one of the required filters
+                # Session must have AT LEAST one filter that matches one of the required filters
                 if not session_filter or session_filter not in required_filters:
                     logging.debug(
                         f"Recipe {repo.url} requires filters {required_filters}, "

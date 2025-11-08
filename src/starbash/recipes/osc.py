@@ -1,5 +1,5 @@
 # pyright: reportUndefinedVariable=false
-# ('context' and 'logger' are normally injected by the starbash runtime)
+
 
 import os
 from glob import glob
@@ -9,8 +9,9 @@ siril = tools["siril"]
 
 delete_temps = False
 
-context = None  # type: ignore
-logger = None  # type: ignore
+# ('context' and 'logger' are normally injected by the starbash runtime)
+context: dict[str, Any] = {}
+logger: logging.Logger = None  # type: ignore
 
 
 # FIXME move this into main starbash

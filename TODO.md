@@ -24,15 +24,17 @@
 * [x] "HaOiii_Ha" should not appear in session list - exclude processed repos from session queries. It is in the from_asiair repourl though!
 * [x] fix flat error msg when making masters
 * [x] require biases built before flats
+* [ ] use recipe.priority to define recipe search order. lower pri searched first
 * [ ] improve initial setup wizard - ask where to store masters and processed dirs
 * [ ] share dual duo python with single duo python
-* [ ] in osc processing implement make_renormalize()
+* [x] in osc processing implement make_renormalize()
 * [ ] do background_removal() as a separate stage
 * [ ] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
 * [ ] require masters dimensions match image dimensions for selection
 * [ ] master relative path should be based on unique camera ID - so that Ascar_V_80mm_flattener and Ascar_V_80mm_extender can share the same masters.
 * [x] NotEnoughFilesError should not crash processing
 * [ ] find a way for scripts to share python code with each other
+* [ ] implement recipe/repo inheritence to prevent the copypasta required in the existing OSC scripts
 * [ ] add progress 'spinner' bar while doing any tool runs... https://rich.readthedocs.io/en/latest/reference/spinner.html
 * [ ] return a list of ProcessingResult named tuples from auto and master processing.  print as table.
 * [ ] move all the 'processing' stuff out of app.py
