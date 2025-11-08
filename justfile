@@ -25,7 +25,7 @@ reinit: clean-cache clean-config clean-masters
     sb repo add ./images/from_astroboy
     sb repo add --master
     sb repo add --processed ./images/processed
-    #sb process masters
+    sb process masters
     sb info
     sb select list --brief
 
@@ -36,11 +36,17 @@ select-any:
 select-after:
     sb select date after 2025-08-01
 
-select-test-target:
+# test target that has Si and HaOiii filters
+select-test-si-ha:
     sb select any
     sb select target ngc281
 
-process: select-test-target
+# test using just the HaOiii filter
+select-test-ha:
+    sb select any
+    sb select target ic1396
+
+process: select-test-si-ha
     sb --force process auto
 
 db-browse:

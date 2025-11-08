@@ -760,7 +760,8 @@ class Starbash:
 
         path = repo.get_path()
 
-        if path and repo.is_scheme("file") and repo.kind != "recipe":
+        repo_kind = repo.kind()
+        if path and repo.is_scheme("file") and repo_kind != "recipe":
             logging.debug("Reindexing %s...", repo.url)
 
             if subdir:
@@ -773,7 +774,13 @@ class Starbash:
                 description=f"Indexing {repo.url}...",
             ):
                 # progress.console.print(f"Indexing {f}...")
-                self.add_image_and_session(repo, f, force=starbash.force_regen)
+                if repo_kind == "master":
+                    # for master repos we only add to the image table
+                    self.add_image(repo, f, force=True)
+                elif repo_kind == "processed":
+                    pass  # we never add processed images to our db
+                else:
+                    self.add_image_and_session(repo, f, force=starbash.force_regen)
 
     def reindex_repos(self):
         """Reindex all repositories managed by the RepoManager."""

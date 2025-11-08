@@ -24,7 +24,8 @@
 * [x] "HaOiii_Ha" should not appear in session list - exclude processed repos from session queries. It is in the from_asiair repourl though!
 * [x] fix flat error msg when making masters
 * [x] require biases built before flats
-* [ ] use recipe.priority to define recipe search order. lower pri searched first
+* [x] use recipe.priority to define recipe search order. lower pri searched first
+* [ ] figure out why devinit results in "HaOiii_Ha" in the filters table.  use breakpoint
 * [ ] make single duo work
 * [ ] make no/uni filter OSC work
 * [ ] improve initial setup wizard - ask where to store masters and processed dirs
