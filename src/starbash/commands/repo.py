@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from textwrap import dedent
 from typing import Annotated
 
 import typer
@@ -108,6 +109,13 @@ def add(
             raise typer.Exit(1)
 
     with Starbash("repo.add") as sb:
+        if repo_type and sb.repo_manager.get_repo_by_kind(repo_type):
+            console.print(
+                dedent(f"""
+                       [red]Error[/red]: A repository for '{repo_type}' files already exists.  If you'd like to replace it, use 'sb repo remove <url|number>' first.""")
+            )
+            raise typer.Exit(1)
+
         p = Path(path)
 
         repo_toml = p / repo_suffix  # the starbash.toml file at the root of the repo

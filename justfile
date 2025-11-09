@@ -59,11 +59,6 @@ select-ha:
     sb select any
     sb select target ic1396
 
-# misc current tool failures
-fail-ic5146:
-    sb select any
-    sb select target ic5146
-
 process:
     sb process auto
 
