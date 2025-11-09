@@ -869,7 +869,9 @@ class Starbash:
             # If requirements are specified, check if session matches
             required_filters = repo.get("recipe.auto.require.filter", [])
             if required_filters:
-                session_filter = self.aliases.normalize(session_metadata.get(Database.FILTER_KEY))
+                session_filter = self.aliases.normalize(
+                    session_metadata.get(Database.FILTER_KEY), lenient=True
+                )
 
                 # Session must have AT LEAST one filter that matches one of the required filters
                 if not session_filter or session_filter not in required_filters:

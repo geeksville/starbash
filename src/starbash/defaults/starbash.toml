@@ -24,6 +24,7 @@ HaOiii = ["HaOiii", "HaO3"]
 None = ["None"]
 
 camera_osc = ["OSC", "ZWO ASI2600MC Duo"]
+camera_seestar = ["Seestar", "Seestar S50", "Seestar S30", "Seestar S30 Pro"]
 
 # Passes SII 672.4nm and H-Beta 486.1nm lines
 # Capturing of the two main emission wavebands in the deep red and blue at the same time

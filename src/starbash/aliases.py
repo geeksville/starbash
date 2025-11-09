@@ -1,3 +1,4 @@
+import logging
 import string
 from textwrap import dedent
 from typing import overload
@@ -111,7 +112,7 @@ class Aliases:
         """
         return self.alias_dict.get(name)
 
-    def normalize(self, name: str) -> str:
+    def normalize(self, name: str, lenient: bool = False) -> str:
         """Normalize a name to its canonical form using aliases.
 
         This performs case-insensitive matching to find the canonical form.
@@ -119,6 +120,7 @@ class Aliases:
 
         Args:
             name: The name to normalize (e.g., "darks", "FLAT", "HA-OIII")
+            lenient: If True, return unconverted names if not found
 
         Returns:
             The canonical/preferred form (e.g., "dark", "flat", "HaOiii"), or None if not found
@@ -130,6 +132,9 @@ class Aliases:
         """
         result = self.reverse_dict.get(pre_normalize(name))
         if not result:
+            if lenient:
+                logging.warning(f"Unrecognized alias '{name}' encountered, using unconverted.")
+                return name
             raise UnrecognizedAliasError(f"'{name}' not found in aliases.", name)
         return result
 
