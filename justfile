@@ -13,6 +13,9 @@ clean-config:
 clean-masters:
     rm -rf ~/.local/share/starbash/masters
 
+clean-processed:
+    rm -rf ./images/processed
+
 install-completion:
     #!/usr/bin/env zsh
     sb --install-completion

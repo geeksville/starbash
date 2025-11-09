@@ -199,10 +199,17 @@ class NotEnoughFilesError(UserHandledError):
 class Starbash:
     """The main Starbash application class."""
 
-    def __init__(self, cmd: str = "unspecified", stderr_logging: bool = False):
+    def __init__(
+        self, cmd: str = "unspecified", stderr_logging: bool = False, no_progress: bool = False
+    ):
         """
         Initializes the Starbash application by loading configurations
         and setting up the repository manager.
+
+        Args:
+            cmd (str): The command name or identifier for the current Starbash session.
+            stderr_logging (bool): Whether to enable logging to stderr.
+            no_progress (bool): Whether to disable the (asynchronous) progress display (because it breaks typer.ask)
         """
         from starbash import _is_test_env  # Lazy import to avoid circular dependency
 
@@ -214,14 +221,13 @@ class Starbash:
             stderr=stderr_logging,
         )
 
+        starbash.console = console  # Update the global console to use the progress version
+
         # We create one top-level progress context so that when various subtasks are created
         # the progress bars stack and don't mess up our logging.
         self.progress = Progress(console=console, refresh_per_second=2)
-        starbash.console = (
-            self.progress.console  # Update the global console to use the progress version
-        )
-
-        self.progress.start()
+        if not no_progress:
+            self.progress.start()
 
         setup_logging(starbash.console)
         logging.info("Starbash starting...")
@@ -348,6 +354,47 @@ class Starbash:
 
             session = self.db.get_session(new)
             self.db.upsert_session(new, existing=session)
+
+    def add_local_repo(self, path: str, repo_type: str | None = None) -> Repo:
+        """Add a local repository located at the specified path.  If necessary toml config files
+        will be created at the root of the repository."""
+
+        p = Path(path)
+        console = starbash.console
+
+        repo_toml = p / repo_suffix  # the starbash.toml file at the root of the repo
+        if repo_toml.exists():
+            logging.warning("Using existing repository config file: %s", repo_toml)
+        else:
+            if repo_type:
+                console.print(f"Creating {repo_type} repository: {p}")
+                p.mkdir(parents=True, exist_ok=True)
+
+                toml_from_template(
+                    f"repo/{repo_type}",
+                    p / repo_suffix,
+                    overrides={
+                        "REPO_TYPE": repo_type,
+                        "REPO_PATH": str(p),
+                        "DEFAULT_RELATIVE": "{instrument}/{date}/{imagetyp}/master_{session_config}.fit",
+                    },
+                )
+            else:
+                # No type specified, therefore (for now) assume we are just using this as an input
+                # repo (and it must exist)
+                if not p.exists():
+                    console.print(f"[red]Error: Repo path does not exist: {p}[/red]")
+                    raise typer.Exit(code=1)
+
+        console.print(f"Adding repository: {p}")
+
+        repo = self.user_repo.add_repo_ref(p)
+        if repo:
+            self.reindex_repo(repo)
+
+            # we don't yet always write default config files at roots of repos, but it would be easy to add here
+            # r.write_config()
+            self.user_repo.write_config()
 
     def guess_sessions(self, ref_session: SessionRow, want_type: str) -> list[SessionRow]:
         """Given a particular session type (i.e. FLAT or BIAS etc...) and an

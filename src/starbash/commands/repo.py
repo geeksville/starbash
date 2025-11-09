@@ -1,16 +1,14 @@
 import logging
-from pathlib import Path
 from textwrap import dedent
 from typing import Annotated
 
 import typer
 
 import starbash
-from repo import Repo, repo_suffix
+from repo import Repo
 from starbash import console
 from starbash.app import Starbash
 from starbash.paths import get_user_documents_dir
-from starbash.toml import toml_from_template
 
 app = typer.Typer(invoke_without_command=True)
 
@@ -116,41 +114,7 @@ def add(
             )
             raise typer.Exit(1)
 
-        p = Path(path)
-
-        repo_toml = p / repo_suffix  # the starbash.toml file at the root of the repo
-        if repo_toml.exists():
-            logging.warning("Using existing repository config file: %s", repo_toml)
-        else:
-            if repo_type:
-                console.print(f"Creating {repo_type} repository: {p}")
-                p.mkdir(parents=True, exist_ok=True)
-
-                toml_from_template(
-                    f"repo/{repo_type}",
-                    p / repo_suffix,
-                    overrides={
-                        "REPO_TYPE": repo_type,
-                        "REPO_PATH": str(p),
-                        "DEFAULT_RELATIVE": "{instrument}/{date}/{imagetyp}/master_{session_config}.fit",
-                    },
-                )
-            else:
-                # No type specified, therefore (for now) assume we are just using this as an input
-                # repo (and it must exist)
-                if not p.exists():
-                    console.print(f"[red]Error: Repo path does not exist: {p}[/red]")
-                    raise typer.Exit(code=1)
-
-        console.print(f"Adding repository: {p}")
-
-        repo = sb.user_repo.add_repo_ref(p)
-        if repo:
-            sb.reindex_repo(repo)
-
-            # we don't yet always write default config files at roots of repos, but it would be easy to add here
-            # r.write_config()
-            sb.user_repo.write_config()
+        sb.add_local_repo(path, repo_type=repo_type)
 
 
 def repo_url_to_repo(sb: Starbash, repo_url: str | None) -> Repo | None:
