@@ -21,6 +21,9 @@ dir = "osc_dual_duo"
 [[repo-ref]]
 dir = "osc_single_duo"
 
+[[repo-ref]]
+dir = "osc_simple"
+
 #
 # master specific stages
 #

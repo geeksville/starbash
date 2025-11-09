@@ -39,6 +39,16 @@ select-any:
 select-after:
     sb select date after 2025-08-01
 
+# nina test target with no filter - just flats
+select-no-filter:
+    sb select any
+    sb select target m45
+
+# test target with just a simple filter on a Seestar (no flats, no bias)
+select-seestar:
+    sb select any
+    sb select target Sadr
+
 # test target that has Si and HaOiii filters
 select-si-ha:
     sb select any

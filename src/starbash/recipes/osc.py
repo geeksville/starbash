@@ -67,7 +67,7 @@ def make_stacked(sessionconfig: str, variant: str, output_file: str):
     perhaps_delete_temps([merged_seq_base, f"r_{merged_seq_base}"])
 
 
-def make_renormalize():
+def make_renormalize(channel_num: int):
     """
     Aligns the stacked images (Sii, Ha, OIII) and renormalizes Sii and OIII
     to match the flux of the Ha channel.
@@ -83,37 +83,47 @@ def make_renormalize():
     results_dir = context["output"]["base_path"]
     os.makedirs(results_dir, exist_ok=True)
 
-    ha_final_path = f"{results_dir}/stacked_Ha.fits"
-    oiii_final_path = f"{results_dir}/stacked_OIII.fits"
+    commands = ""
 
-    # Check if final files already exist to allow resuming
-    if all(os.path.exists(f) for f in [ha_final_path, oiii_final_path]):
-        logger.info("Renormalized files already exist, skipping.")
-        return
+    if channel_num == 1:
+        # Only one channel - just copy it - eventually we'll add other metadata
+        final_path = f"{results_dir}/stacked.fits"
+        commands += f"""
+            load results_00001
+            save "{final_path}"
+            """
 
-    # Basenames for registered files (output of 'register' command)
-    r_ha = f"r_{ha_base}"
-    r_oiii = f"r_{oiii_base}"
+    if channel_num >= 2:
+        # Do pixelmath to fixup channel brightness
+        logger.info(f"Doing renormalisation of extra Ha/Oiii channels")
 
-    # Pixel math formula for renormalization.
-    # It matches the median and spread (MAD) of a channel to a reference channel (Ha).
-    # Formula: new = old * (MAD(ref)/MAD(old)) - (MAD(ref)/MAD(old)) * MEDIAN(old) + MEDIAN(ref)
-    pm_oiii = f'"${r_oiii}$*mad(${r_ha}$)/mad(${r_oiii}$)-mad(${r_ha}$)/mad(${r_oiii}$)*median(${r_oiii}$)+median(${r_ha}$)"'
+        ha_final_path = f"{results_dir}/stacked_Ha.fits"
+        oiii_final_path = f"{results_dir}/stacked_OIII.fits"
 
-    # Siril commands to be executed in the 'process' directory
-    commands = f"""
-        # -transf=shift fails sometimes, which I guess is possible because we have multiple sessions with possible different camera rotation
-        # -interp=none also fails sometimes, so let default interp happen
-        register results
-        pm {pm_oiii}
-        update_key FILTER Oiii "OSC dual Duo filter extracted"
-        save "{oiii_final_path}"
-        load {r_ha}
-        update_key FILTER Ha "OSC dual Duo filter extracted"
-        save "{ha_final_path}"
-        """
+        # Basenames for registered files (output of 'register' command)
+        r_ha = f"r_{ha_base}"
+        r_oiii = f"r_{oiii_base}"
 
-    if os.path.exists(f"{results_dir}/{sii_base}.fit"):
+        # Pixel math formula for renormalization.
+        # It matches the median and spread (MAD) of a channel to a reference channel (Ha).
+        # Formula: new = old * (MAD(ref)/MAD(old)) - (MAD(ref)/MAD(old)) * MEDIAN(old) + MEDIAN(ref)
+        pm_oiii = f'"${r_oiii}$*mad(${r_ha}$)/mad(${r_oiii}$)-mad(${r_ha}$)/mad(${r_oiii}$)*median(${r_oiii}$)+median(${r_ha}$)"'
+
+        # Siril commands to be executed in the 'process' directory
+        commands += f"""
+            # -transf=shift fails sometimes, which I guess is possible because we have multiple sessions with possible different camera rotation
+            # -interp=none also fails sometimes, so let default interp happen
+            # -drizzle is required for success on many images
+            register results -drizzle
+            pm {pm_oiii}
+            update_key FILTER Oiii "OSC Duo filter extracted"
+            save "{oiii_final_path}"
+            load {r_ha}
+            update_key FILTER Ha "OSC Duo filter extracted"
+            save "{ha_final_path}"
+            """
+
+    if channel_num >= 3:
         logger.info(f"Doing renormalisation of extra Sii channel")
 
         sii_final_path = f"{results_dir}/stacked_Sii.fits"
@@ -158,5 +168,5 @@ def osc_process(has_ha_oiii: bool, has_sii_oiii: bool):
     if os.path.exists(results_seq_path):
         os.remove(results_seq_path)
 
-    if channel_num >= 3:
-        make_renormalize()
+    if channel_num >= 2:
+        make_renormalize(channel_num)
