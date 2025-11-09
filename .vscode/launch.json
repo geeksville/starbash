@@ -34,7 +34,7 @@
             ]
         },
         {
-            "name": "Python Debugger: starbash select any",
+            "name": "Python Debugger: starbash select",
             "type": "debugpy",
             "request": "launch",
             "module": "starbash.main",
@@ -45,7 +45,8 @@
                 "--debug",
                 "--verbose",
                 "select",
-                "any"
+                "target",
+                "m51"
             ]
         },
         {

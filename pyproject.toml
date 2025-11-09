@@ -19,8 +19,6 @@ astropy = ">=7.1.1,<8.0.0"
 platformdirs = ">=4.5.0,<5.0.0"
 typer = "^0.20.0"
 sentry-sdk = "^2.42.1"
-outdated = "^0.2.2"
-Setuptools = "<81" # required because my 'outdated' tool is kinda old and won't work with newer
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.4.2,<9.0.0"
@@ -62,42 +60,36 @@ line-length = 100
 target-version = "py312"
 
 # Exclude a variety of commonly ignored directories
-exclude = [
-    ".git",
-    ".venv",
-    "__pycache__",
-    "build",
-    "dist",
-]
+exclude = [".git", ".venv", "__pycache__", "build", "dist"]
 
 [tool.ruff.lint]
 # Enable these rule sets
 select = [
-    "E",    # pycodestyle errors
-    "F",    # pyflakes
-    "I",    # isort (import sorting)
-    "W",    # pycodestyle warnings
-    "UP",   # pyupgrade
-    "B",    # flake8-bugbear
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "I",  # isort (import sorting)
+    "W",  # pycodestyle warnings
+    "UP", # pyupgrade
+    "B",  # flake8-bugbear
 ]
 
 # Ignore specific rules that are too noisy for this codebase
 ignore = [
-    "E501",    # Line too long (handled by formatter)
-    "B904",    # Within an `except` clause, raise exceptions with `raise ... from err`
-    "B006",    # Do not use mutable data structures for argument defaults
+    "E501", # Line too long (handled by formatter)
+    "B904", # Within an `except` clause, raise exceptions with `raise ... from err`
+    "B006", # Do not use mutable data structures for argument defaults
 ]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests can have unused arguments (fixtures), imports at module level issues, etc.
 "tests/*" = [
-    "ARG001",   # Unused function argument
-    "ARG002",   # Unused method argument
-    "E402",     # Module level import not at top of file
-    "F811",     # Redefinition of unused variable
-    "F401",     # Imported but unused
-    "F841",     # Local variable assigned but never used
-    "PLC0415",  # Import should be at top of file
+    "ARG001",  # Unused function argument
+    "ARG002",  # Unused method argument
+    "E402",    # Module level import not at top of file
+    "F811",    # Redefinition of unused variable
+    "F401",    # Imported but unused
+    "F841",    # Local variable assigned but never used
+    "PLC0415", # Import should be at top of file
 ]
 
 [build-system]
