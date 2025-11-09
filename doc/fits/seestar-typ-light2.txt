@@ -1,0 +1,42 @@
+# HDU 0 in Light_Sadr_10.0s_LP_20250715-002648.fit:
+SIMPLE  =                    T / file does conform to FITS standard             
+BITPIX  =                   16 / number of bits per data pixel                  
+NAXIS   =                    2 / number of data axes                            
+NAXIS1  =                 1080 / length of data axis 1                          
+NAXIS2  =                 1920 / length of data axis 2                          
+EXTEND  =                    T / FITS dataset may contain extensions            
+COMMENT   FITS (Flexible Image Transport System) format is defined in 'Astronomy
+COMMENT   and Astrophysics', volume 376, page 359; bibcode: 2001A&A...376..359H 
+BZERO   =                32768 / offset data range to that of unsigned short    
+BSCALE  =                    1 / default scaling factor                         
+CREATOR = 'ZWO Seestar S50'    / Capture software                               
+PRODUCER= 'ZWO     '           / Powered by ZWO                                 
+XORGSUBF=                    0 / Subframe X position in binned pixels           
+YORGSUBF=                    0 / Subframe Y position in binned pixels           
+FOCALLEN=                  250 / Focal length of telescope in mm                
+APERTURE=                   5. / Name of field of view aperture                 
+EQMODE  =                    1 / Equatorial mode                                
+PROGRAM = '4.70    '           / The name of the software task that created the 
+XBINNING=                    1 / Camera X Bin                                   
+YBINNING=                    1 / Camera Y Bin                                   
+CCDXBIN =                    1 / Camera X Bin                                   
+CCDYBIN =                    1 / Camera Y Bin                                   
+XPIXSZ  =     2.90000009536743 / pixel size in microns (with binning)           
+YPIXSZ  =     2.90000009536743 / pixel size in microns (with binning)           
+IMAGETYP= 'Light   '           / Type of image                                  
+EXPOSURE=                  10. / Exposure time in seconds                       
+EXPTIME =                  10. / Exposure time in seconds                       
+CCD-TEMP=              20.1875 / sensor temperature in C                        
+RA      =           305.870835 / Object Right Ascension in degrees              
+DEC     =            40.315556 / Object Declination in degrees                  
+SITELONG=             -122.309 / longitude of the imaging site in degrees       
+SITELAT =              37.5208 / latitude of the imaging site in degrees        
+DATE-OBS= '2025-07-15T07:26:35.344647' / Image created time                     
+FILTER  = 'LP      '           / Filter used when taking image                  
+INSTRUME= 'Seestar S50'        / Camera model                                   
+BAYERPAT= 'GRBG    '           / Bayer pattern                                  
+GAIN    =                   80 / Gain Value                                     
+FOCUSPOS=                 1796 / Focuser position in steps                      
+TELESCOP= 'S50_153dd4e2'       / Telescope name                                 
+OBJECT  = 'Sadr    '           / name or catalog number of object being imaged  
+TOTALEXP=                  10. / Total Exposure Time in seconds                 

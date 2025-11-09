@@ -613,6 +613,10 @@ class Starbash:
         for img in images:
             # "HISTORY" nodes are added by processing tools (Siril etc...), we never want to accidentally read those images
             has_history = img.get("HISTORY")
+
+            # images that were stacked on Seestar have this key
+            is_stacked = img.get("CD1_1")
+
             if (
                 img.get(Database.FILTER_KEY) == session[get_column_name(Database.FILTER_KEY)]
                 # and img.get(Database.OBJECT_KEY)
@@ -620,6 +624,7 @@ class Starbash:
                 and img.get(Database.TELESCOP_KEY)
                 == session[get_column_name(Database.TELESCOP_KEY)]
                 and not has_history
+                and not is_stacked
             ):
                 filtered_images.append(img)
 

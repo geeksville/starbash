@@ -84,7 +84,9 @@ class Database:
     IMAGETYP_KEY = "IMAGETYP"
     OBJECT_KEY = "OBJECT"
     TELESCOP_KEY = "TELESCOP"
-    EXPTIME_KEY = "EXPTIME"
+    EXPTIME_KEY = "EXPTIME"  # in all image files
+    TOTALEXP_KEY = "TOTALEXP"  # in stacked ASI files
+
     ID_KEY = "id"  # for finding any row by its ID
     REPO_URL_KEY = "repo_url"
 
