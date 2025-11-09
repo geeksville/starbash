@@ -225,11 +225,11 @@ class Starbash:
 
         setup_logging(starbash.console)
         logging.info("Starbash starting...")
-        check_version()
 
         # Load app defaults and initialize the repository manager
         self._init_repos()
-        self._init_analytics(cmd)
+        self._init_analytics(cmd)  # after init repos so we have user prefs
+        check_version()
         self._init_aliases()
 
         logging.info(f"Repo manager initialized with {len(self.repo_manager.repos)} repos.")

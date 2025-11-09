@@ -61,7 +61,13 @@ def make_stacked(variant: str | None, output_file: str):
             link {merged_seq_base} -out={context["process_dir"]}
             cd {context["process_dir"]}
 
-            register {merged_seq_base}
+            # We use -2pass to select the best possible reference frame for others to register against
+            register {merged_seq_base} -2pass
+
+            # because we are using -2pass we must complete the registration here before stacking
+            # FIXME make drizzle optional
+            seqapplyreg {merged_seq_base} -drizzle
+
             stack r_{merged_seq_base} rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
 
             # and flip if required

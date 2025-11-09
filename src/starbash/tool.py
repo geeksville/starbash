@@ -271,18 +271,19 @@ class Tool:
         from starbash import console  # Lazy import to avoid circular dependency
 
         temp_dir = None
-
-        if not cwd:
-            # Create a temporary directory for processing
-            cwd = temp_dir = tempfile.mkdtemp(prefix=self.name)
-
-            context["temp_dir"] = temp_dir  # pass our directory path in for the tool's usage
-
         spinner = Spinner(
             "arc", text=f"Tool running: [bold]{self.name}[/bold]...", speed=2.0, style=SPINNER_STYLE
         )
         with Live(spinner, console=console, refresh_per_second=5):
             try:
+                if not cwd:
+                    # Create a temporary directory for processing
+                    cwd = temp_dir = tempfile.mkdtemp(prefix=self.name)
+
+                    context["temp_dir"] = (
+                        temp_dir  # pass our directory path in for the tool's usage
+                    )
+
                 self._run(cwd, commands, context=context)
             finally:
                 spinner.update(text=f"Tool completed: [bold]{self.name}[/bold].")

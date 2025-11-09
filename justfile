@@ -64,11 +64,6 @@ fail-ic5146:
     sb select any
     sb select target ic5146
 
-# misc current tool failures
-fail-m51:
-    sb select any
-    sb select target m51
-
 process:
     sb process auto
 
