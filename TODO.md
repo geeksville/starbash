@@ -27,7 +27,10 @@
 * [x] use recipe.priority to define recipe search order. lower pri searched first
 * [x] figure out why devinit results in "HaOiii_Ha" in the filters table.  I _think_ this is harmless.  it is old processed files in from_asiair: "IC 1386/2025-09-01/results/bkg_result_Ha.fits"
 * [x] make single duo work - need to write output files
-* [ ] make no/uni filter OSC work
+* [x] make no/uni filter OSC work - selects wrong flat
+* [ ] require master-flats to come from the same instrument!
+* [ ] require biases/darks to come from the same camera!
+* [ ] better search by date for masters
 * [ ] improve initial setup wizard - ask where to store masters and processed dirs
 * [ ] make a nicer movie, for setup and usage
 * [ ] ask friends to send me the result of session list (with extra diagnostics turned on)

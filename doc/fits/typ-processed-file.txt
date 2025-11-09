@@ -1,0 +1,73 @@
+# HDU 0 in images/from_astroboy/M 45/2025-09-15/results/bkgrbf_result_7020s.fits:
+SIMPLE  =                    T / file does conform to FITS standard             
+BITPIX  =                  -32 / number of bits per data pixel                  
+NAXIS   =                    3 / number of data axes                            
+NAXIS1  =                 6248 / length of data axis 1                          
+NAXIS2  =                 4176 / length of data axis 2                          
+NAXIS3  =                    3 / length of data axis 3                          
+EXTEND  =                    T / FITS dataset may contain extensions            
+COMMENT   FITS (Flexible Image Transport System) format is defined in 'Astronomy
+COMMENT   and Astrophysics', volume 376, page 359; bibcode: 2001A&A...376..359H 
+BZERO   =                   0. / Offset data range to that of unsigned short    
+BSCALE  =                   1. / Default scaling factor                         
+MIPS-FLO=                   0. / Lower visualization cutoff                     
+PROGRAM = 'Siril 1.4.0-beta3'  / Software that created this HDU                 
+DATE    = '2025-09-16T17:20:47' / UTC date that FITS file was created           
+DATE-OBS= '2025-09-16T10:20:35.751268' / YYYY-MM-DDThh:mm:ss observation start, 
+IMAGETYP= 'LIGHT   '           / Type of image                                  
+ROWORDER= 'BOTTOM-UP'          / Order of the rows in image array               
+EXPTIME =                  30. / [s]  Exposure time duration                    
+TELESCOP= 'Ascar V 80mm reducer' / Telescope used to acquire this image         
+FILTER  = 'None    '           / Active filter name                             
+FOCALLEN=                 384. / [mm]  Focal length                             
+CENTALT =     62.2708333333333 / [deg] Altitude of telescope                    
+CENTAZ  =             110.4825 / [deg] Azimuth of telescope                     
+XBINNING=                    1 / Camera binning mode                            
+YBINNING=                    1 / Camera binning mode                            
+XPIXSZ  =     3.75999999046326 / [um] Pixel X axis size                         
+YPIXSZ  =     3.75999999046326 / [um] Pixel Y axis size                         
+INSTRUME= 'ZWO ASI2600MC Duo'  / Instrument name                                
+CCD-TEMP=                -10.1 / [degC] CCD temperature                         
+SET-TEMP=                 -10. / [degC] CCD temperature setpoint                
+GAIN    =                  100 / Sensor gain                                    
+OFFSET  =                   50 / Sensor gain offset                             
+CVF     =    0.242862924933434 / [e-/ADU] Electrons per A/D unit                
+FOCNAME = 'EAF     '           / Focusing equipment name                        
+FOCPOS  =                 1554 / [step] Focuser position                        
+FOCUSSZ =               600000 / [um] Focuser step size                         
+FOCTEMP =                 21.5 / [degC] Focuser temperature                     
+STACKCNT=                  234 / Stack frames                                   
+LIVETIME=                7020. / [s] Exposure time after deadtime correction    
+EXPSTART=     2460934.93061443 / [JD] Exposure start time (standard Julian date)
+EXPEND  =     2460935.03787872 / [JD] Exposure end time (standard Julian date)  
+OBJECT  = 'M 45    '           / Name of the object of interest                 
+AIRMASS =     1.12936383653155 / Airmass at frame center (Gueymard 1993)        
+SITELAT =     37.5209711666667 / [deg] Observation site latitude                
+SITELONG=    -122.309140833333 / [deg] Observation site longitude               
+SITEELEV=                148.6 / [m] Observation site elevation                 
+OBJCTRA = '03 47 00'           / [H M S] Image center Right Ascension           
+OBJCTDEC= '+24 07 00'          / [D M S] Image center Declination               
+RA      =     56.7472967183519 / [deg] Image center Right Ascension             
+DEC     =     24.1171017182657 / [deg] Image center Declination                 
+HISTORY mean stacking with GESDT rejection (outliers=0.300 significance=0.050), 
+HISTORY additive+scaling normalized input, normalized output, no image weighting
+HISTORY , equalized RGB, Filter WFWHM < 5.185                                   
+HISTORY TOP-DOWN mirror                                                         
+HISTORY Background extraction (Correction: Subtraction)                         
+DATE-LOC= '2025-09-16T03:20:35.7512683' / Time of observation (local)           
+MJD-OBS =     60934.4309693403 / Modified Julian Date of observation            
+DATE-AVG= '2025-09-16T10:20:50.9652166' / Averaged midpoint time (UTC)          
+MJD-AVG =     60934.4311454282 / Modified Julian Date of averaged midpoint      
+CAMERAID= 'ZWOptical_ZWO ASI2600MC Duo_' / Imaging instrument identifier        
+USBLIMIT=                   40 / Camera-specific USB setting                    
+FOCRATIO=                  4.8 / Focal ratio                                    
+PIERSIDE= 'West'               / Telescope pointing state                       
+FWHEEL  = 'EFW'                / Filter Wheel name                              
+OBJCTROT=     167.383175458301 / [deg] planned rotation of imaged object        
+DEWPOINT=                 13.1 / [degC] Dew point                               
+HUMIDITY=                 68.0 / [percent] Relative humidity                    
+PRESSURE=                993.8 / [hPa] Air pressure                             
+AMBTEMP =                 19.1 / [degC] Ambient air temperature                 
+WINDDIR =                136.0 / [deg] Wind direction: 0=N, 180=S, 90=E, 270=W  
+WINDGUST=               5.0004 / [kph] Wind gust                                
+WINDSPD =               2.5002 / [kph] Wind speed                               

@@ -62,6 +62,9 @@ select-ha:
 process:
     sb process auto
 
+# Process all images
+process-all: select-any process
+
 db-browse:
     # via poetry --dev
     harlequin -a sqlite -r ~/.local/share/starbash/db.sqlite3

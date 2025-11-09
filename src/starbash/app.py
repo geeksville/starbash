@@ -568,6 +568,26 @@ class Starbash:
             search_conditions.append(SearchCondition("i.imagetyp", "=", imagetyp))
 
         images = self.db.search_image(search_conditions)
+
+        # FIXME - move this into a general filter function
+        # For flat frames, filter images based on matching reference_session filter
+        if (
+            reference_session
+            and imagetyp
+            and self.aliases.normalize(imagetyp) == "flat"
+        ):
+            ref_filter = self.aliases.normalize(
+                reference_session.get(get_column_name(Database.FILTER_KEY), "None")
+            )
+            if ref_filter:
+                # Filter images to only those with matching filter in metadata
+                filtered_images = []
+                for img in images:
+                    img_filter = img.get(Database.FILTER_KEY, "None")
+                    if img_filter == ref_filter:
+                        filtered_images.append(img)
+                images = filtered_images
+
         return images
 
     def add_filter_not_masters(self, conditions: list[SearchCondition]) -> None:
@@ -627,6 +647,9 @@ class Starbash:
         # We no lognger filter by target(object) because it might not be set anyways
         filtered_images = []
         for img in images:
+
+            # "HISTORY" nodes are added by processing tools (Siril etc...), we never want to accidentally read those images
+            has_history = img.get("HISTORY")
             if (
                 img.get(Database.FILTER_KEY)
                 == session[get_column_name(Database.FILTER_KEY)]
@@ -634,6 +657,7 @@ class Starbash:
                 # == session[get_column_name(Database.OBJECT_KEY)]
                 and img.get(Database.TELESCOP_KEY)
                 == session[get_column_name(Database.TELESCOP_KEY)]
+                and not has_history
             ):
                 filtered_images.append(img)
 
