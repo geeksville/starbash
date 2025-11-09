@@ -3,14 +3,15 @@
 import json
 import os
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch, call
+from unittest.mock import MagicMock, Mock, call, patch
+
 import pytest
 import typer
 
-from starbash.app import Starbash, create_user, setup_logging, copy_images_to_dir
+from starbash import paths
+from starbash.app import Starbash, copy_images_to_dir, create_user, setup_logging
 from starbash.database import Database, get_column_name
 from starbash.selection import Selection
-from starbash import paths
 
 
 @pytest.fixture

@@ -1,9 +1,10 @@
-import typer
-from typing_extensions import Annotated
+from typing import Annotated
 
-from starbash.app import Starbash
-from starbash import console
+import typer
 from rich.panel import Panel
+
+from starbash import console
+from starbash.app import Starbash
 
 app = typer.Typer()
 

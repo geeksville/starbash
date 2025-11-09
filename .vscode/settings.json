@@ -9,11 +9,15 @@
     // ---- Python-Specific Settings ----
     // This block specifies settings just for Python files.
     "[python]": {
-        // Here, we set the Black Formatter extension as the default
-        // formatter to use for any .py files.
-        "editor.defaultFormatter": "ms-python.black-formatter"
+        // Use Ruff for both formatting and linting
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+        }
     },
-    "python.analysis.typeCheckingMode": "standard",
+    // Disable Pylance type checking since we're using Ruff
+    "python.analysis.typeCheckingMode": "off",
     "cSpell.words": [
         "apeture",
         "ASIAIR",

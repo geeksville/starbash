@@ -1,40 +1,24 @@
+import glob
+import itertools
 import logging
-from importlib import resources
 import os
-from pathlib import Path
-from sys import stderr
+import shutil
 import tempfile
 import textwrap
-import typer
-from tomlkit.toml_file import TOMLFile
-import glob
-from typing import Any
-from astropy.io import fits
-import itertools
-from rich.progress import track, Progress
-from rich.logging import RichHandler
-import shutil
-from datetime import datetime
-import rich.console
 from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import rich.console
+import typer
+from astropy.io import fits
+from rich.logging import RichHandler
+from rich.progress import Progress, track
 
 import starbash
+from repo import Repo, RepoManager, repo_suffix
 from starbash.aliases import Aliases, normalize_target_name
-from starbash.check_version import check_version
-from starbash.database import (
-    Database,
-    SessionRow,
-    ImageRow,
-    get_column_name,
-    SearchCondition,
-)
-from repo import Repo, repo, repo_suffix
-from starbash.toml import toml_from_template
-from starbash.tool import Tool, expand_context, expand_context_unsafe
-from repo import RepoManager
-from starbash.tool import tools
-from starbash.paths import get_user_config_dir, get_user_data_dir, get_user_cache_dir
-from starbash.selection import Selection, build_search_conditions
 from starbash.analytics import (
     NopAnalytics,
     analytics_exception,
@@ -42,7 +26,19 @@ from starbash.analytics import (
     analytics_shutdown,
     analytics_start_transaction,
 )
+from starbash.check_version import check_version
+from starbash.database import (
+    Database,
+    ImageRow,
+    SearchCondition,
+    SessionRow,
+    get_column_name,
+)
 from starbash.exception import UserHandledError
+from starbash.paths import get_user_cache_dir, get_user_config_dir
+from starbash.selection import Selection, build_search_conditions
+from starbash.toml import toml_from_template
+from starbash.tool import expand_context_unsafe, tools
 
 
 @dataclass
@@ -73,7 +69,7 @@ def update_processing_result(
         elif isinstance(e, RuntimeError):
             # Print errors for runtimeerrors but keep processing other runs...
             logging.error(f"Skipping run due to: {e}")
-            result.notes = f"Aborted due to possible error in (alpha) code, please report a bug on our github..."
+            result.notes = "Aborted due to possible error in (alpha) code, please report a bug on our github..."
         else:
             # Unexpected exception - log it and re-raise
             logging.exception("Unexpected error during processing:")
@@ -157,7 +153,7 @@ def copy_images_to_dir(images: list[ImageRow], output_dir: Path) -> None:
                 error_count += 1
 
     # Print summary
-    console.print(f"[green]Export complete![/green]")
+    console.print("[green]Export complete![/green]")
     if linked_count > 0:
         console.print(f"  Linked: {linked_count} files")
     if copied_count > 0:
@@ -473,7 +469,7 @@ class Starbash:
                         # Using 7-day half-life
                         score += 100 * (2.718 ** (-time_delta / (7 * 86400)))
                     except (ValueError, TypeError):
-                        logging.warning(f"Malformed date - ignoring entry")
+                        logging.warning("Malformed date - ignoring entry")
 
                 scored_candidates.append((score, candidate))
 
@@ -682,7 +678,7 @@ class Starbash:
         repo_refs = self.user_repo.config.get("repo-ref")
 
         if not repo_refs:
-            raise ValueError(f"No repository references found in user configuration.")
+            raise ValueError("No repository references found in user configuration.")
 
         # Find and remove the matching repo-ref
         found = False
@@ -827,7 +823,7 @@ class Starbash:
         except KeyError as e:
             # Re-raise as a ValueError with a more descriptive message.
             raise ValueError(
-                f"invalid stage definition: a stage is missing the required 'priority' key"
+                "invalid stage definition: a stage is missing the required 'priority' key"
             ) from e
 
         logging.debug(
@@ -1456,7 +1452,7 @@ class Starbash:
                 source = stage.source  # type: ignore (was monkeypatched by repo)
                 try:
                     script = source.read(script_filename)
-                except IOError as e:
+                except OSError as e:
                     raise ValueError(
                         f"Error reading script file '{script_filename}'"
                     ) from e

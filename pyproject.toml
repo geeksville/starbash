@@ -28,6 +28,7 @@ pytest-cov = "^6.0.0"
 pytest-xdist = "^3.8.0"
 pre-commit = "^4.3.0"
 harlequin = "^2.4.1"
+ruff = "^0.14.4"
 
 [tool.poetry.scripts]
 starbash = "starbash.main:app"
@@ -55,6 +56,49 @@ exclude_lines = [
 ]
 show_missing = true
 precision = 2
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+# Exclude a variety of commonly ignored directories
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
+# Enable these rule sets
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort (import sorting)
+    "W",    # pycodestyle warnings
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+]
+
+# Ignore specific rules that are too noisy for this codebase
+ignore = [
+    "E501",    # Line too long (handled by formatter)
+    "B904",    # Within an `except` clause, raise exceptions with `raise ... from err`
+    "B006",    # Do not use mutable data structures for argument defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can have unused arguments (fixtures), imports at module level issues, etc.
+"tests/*" = [
+    "ARG001",   # Unused function argument
+    "ARG002",   # Unused method argument
+    "E402",     # Module level import not at top of file
+    "F811",     # Redefinition of unused variable
+    "F401",     # Imported but unused
+    "F841",     # Local variable assigned but never used
+    "PLC0415",  # Import should be at top of file
+]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

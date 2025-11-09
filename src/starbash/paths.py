@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+
 from platformdirs import PlatformDirs
 
 app_name = "starbash"

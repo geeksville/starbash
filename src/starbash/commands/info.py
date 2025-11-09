@@ -1,19 +1,19 @@
 """Info commands for displaying system and data information."""
 
-import typer
-from typing_extensions import Annotated
-from rich.table import Table
 from collections import Counter
+from typing import Annotated
+
+import typer
+from rich.table import Table
 
 from starbash.app import Starbash
-from starbash.database import Database, get_column_name
-from starbash.paths import get_user_config_dir, get_user_data_dir
 from starbash.commands import (
-    TABLE_HEADER_STYLE,
-    format_duration,
     TABLE_COLUMN_STYLE,
+    TABLE_HEADER_STYLE,
     TABLE_VALUE_STYLE,
+    format_duration,
 )
+from starbash.database import Database, get_column_name
 
 app = typer.Typer()
 

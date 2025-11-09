@@ -1,6 +1,5 @@
 """Shared utilities for starbash commands."""
 
-from datetime import datetime
 from rich.style import Style
 
 # Define reusable table styles

@@ -1,11 +1,12 @@
 """Unit tests for the selection commands module."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from typer.testing import CliRunner
-from unittest.mock import patch, MagicMock
 
-from starbash.commands.select import app
 from starbash import paths
+from starbash.commands.select import app
 
 runner = CliRunner()
 

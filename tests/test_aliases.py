@@ -1,4 +1,5 @@
 import pytest
+
 from starbash.aliases import Aliases, UnrecognizedAliasError
 
 
@@ -202,7 +203,7 @@ class TestAliasesIntegration:
 
     def test_all_aliases_map_to_canonical(self, aliases):
         """Test that all aliases in each list map to the canonical form."""
-        for key, alias_list in aliases.alias_dict.items():
+        for _key, alias_list in aliases.alias_dict.items():
             if not alias_list:
                 continue
             canonical = alias_list[0]

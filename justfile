@@ -84,5 +84,15 @@ make-movies:
 bump-version newver: test
     bin/new-version.sh {{newver}}
 
+lint:
+    poetry run ruff check src/ tests/
+
+format:
+    poetry run ruff format src/ tests/
+
+lint-fix:
+    poetry run ruff check --fix src/ tests/
+    poetry run ruff format src/ tests/
+
 test:
     poetry run pytest # test must pass

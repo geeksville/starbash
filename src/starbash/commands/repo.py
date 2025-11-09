@@ -1,12 +1,13 @@
-import typer
-from typing_extensions import Annotated
-from pathlib import Path
 import logging
+from pathlib import Path
+from typing import Annotated
+
+import typer
 
 import starbash
-from repo import repo_suffix, Repo
+from repo import Repo, repo_suffix
+from starbash import console
 from starbash.app import Starbash
-from starbash import console, log_filter_level
 from starbash.paths import get_user_documents_dir
 from starbash.toml import toml_from_template
 
@@ -201,7 +202,7 @@ def remove(
         # Get the repo to remove
         repo_to_remove = repo_url_to_repo(sb, reponum)
         if repo_to_remove is None:
-            console.print(f"[red]Error: You must specify a repository[/red]")
+            console.print("[red]Error: You must specify a repository[/red]")
             raise typer.Exit(code=1)
         repo_url = repo_to_remove.url
 

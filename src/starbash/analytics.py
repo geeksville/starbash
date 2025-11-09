@@ -1,10 +1,11 @@
 import logging
 import os
 
-import starbash
-from starbash import _is_test_env
-import starbash.url as url
 from sentry_sdk.integrations.excepthook import ExcepthookIntegration
+
+import starbash
+import starbash.url as url
+from starbash import _is_test_env
 
 # Default to no analytics/auto crash reports
 analytics_allowed = False

@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-import sqlite3
-from pathlib import Path
-from typing import Any, Optional
-from datetime import datetime, timedelta
 import json
-from typing import TypeAlias
+import sqlite3
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
 
-from .paths import get_user_data_dir
 from .aliases import normalize_target_name
+from .paths import get_user_data_dir
 
-SessionRow: TypeAlias = dict[str, Any]
-ImageRow: TypeAlias = dict[str, Any]
+type SessionRow = dict[str, Any]
+type ImageRow = dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -95,7 +94,7 @@ class Database:
 
     def __init__(
         self,
-        base_dir: Optional[Path] = None,
+        base_dir: Path | None = None,
     ) -> None:
         # Resolve base data directory (allow override for tests)
         if base_dir is None:
@@ -764,7 +763,7 @@ class Database:
         self._db.close()
 
     # Context manager support
-    def __enter__(self) -> "Database":
+    def __enter__(self) -> Database:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

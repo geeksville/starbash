@@ -1,18 +1,19 @@
 """Tests for the analytics module."""
 
 import os
+from unittest.mock import MagicMock, Mock, call, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock, call
 
 from starbash.analytics import (
+    NopAnalytics,
+    analytics_allowed,
+    analytics_exception,
     analytics_setup,
     analytics_shutdown,
-    is_development_environment,
-    analytics_exception,
-    NopAnalytics,
     analytics_start_span,
     analytics_start_transaction,
-    analytics_allowed,
+    is_development_environment,
 )
 
 

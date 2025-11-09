@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from starbash.database import SearchCondition
@@ -14,7 +14,7 @@ from starbash.aliases import normalize_target_name
 
 def build_search_conditions(
     conditions: dict[str, Any] | None,
-) -> list["SearchCondition"]:
+) -> list[SearchCondition]:
     """Build a list of SearchCondition objects from a conditions dictionary.
 
     Args:
@@ -67,7 +67,7 @@ class Selection:
     used to build database queries.
     """
 
-    def __init__(self, user_repo: "Repo"):
+    def __init__(self, user_repo: Repo):
         """Initialize the Selection with the user config repository.
 
         Args:
@@ -75,8 +75,8 @@ class Selection:
         """
         self.user_repo = user_repo
         self.targets: list[str] = []
-        self.date_start: Optional[str] = None
-        self.date_end: Optional[str] = None
+        self.date_start: str | None = None
+        self.date_end: str | None = None
         self.filters: list[str] = []
         self.image_types: list[str] = []
         self.telescopes: list[str] = []
@@ -192,7 +192,7 @@ class Selection:
             self._save()
 
     def set_date_range(
-        self, start: Optional[str] = None, end: Optional[str] = None
+        self, start: str | None = None, end: str | None = None
     ) -> None:
         """Set the date range for the selection.
 
@@ -239,7 +239,7 @@ class Selection:
             and not self.telescopes
         )
 
-    def get_query_conditions(self) -> list["SearchCondition"]:
+    def get_query_conditions(self) -> list[SearchCondition]:
         """Build query conditions based on the current selection.
 
         Returns:

@@ -70,8 +70,7 @@
 		"vscode": {
 			"extensions": [
 				"ms-python.python",
-				"ms-python.vscode-pylance",
-				"ms-python.black-formatter",
+				"charliermarsh.ruff",
 				"tamasfe.even-better-toml",
 				"github.copilot",
 				"skellock.just"

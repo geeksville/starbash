@@ -1,13 +1,14 @@
 import logging
+from typing import Annotated
+
 import typer
-from typing_extensions import Annotated
 
-import starbash.url as url
 import starbash
+import starbash.url as url
 
-from .app import Starbash, get_user_config_path, setup_logging
-from .commands import info, process, repo, select, user
 from . import console
+from .app import Starbash, get_user_config_path
+from .commands import info, process, repo, select, user
 
 app = typer.Typer(
     rich_markup_mode="rich",

@@ -2,11 +2,12 @@
 
 import json
 from pathlib import Path
+
 import pytest
 import tomlkit
 
-from starbash.selection import Selection
 from repo import Repo, RepoManager, repo_suffix
+from starbash.selection import Selection
 
 
 @pytest.fixture

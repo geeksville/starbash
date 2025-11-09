@@ -1,12 +1,13 @@
 """Tests for CLI commands to ensure they don't crash on invocation."""
 
 from pathlib import Path
-from typer.testing import CliRunner
-import pytest
 
-from starbash.main import app
-from starbash.database import Database, get_column_name
+import pytest
+from typer.testing import CliRunner
+
 from starbash import paths
+from starbash.database import Database, get_column_name
+from starbash.main import app
 
 # Rich formatting is automatically disabled when PYTEST_CURRENT_TEST is set
 # (see src/starbash/__init__.py), so test output is plain text without ANSI codes
@@ -14,12 +15,13 @@ runner = CliRunner()
 
 import re
 from pathlib import Path
-from typer.testing import CliRunner
-import pytest
 
-from starbash.main import app
-from starbash.database import Database
+import pytest
+from typer.testing import CliRunner
+
 from starbash import paths
+from starbash.database import Database
+from starbash.main import app
 
 # Configure CliRunner to disable Rich formatting by setting NO_COLOR env var
 # This makes Rich automatically disable all ANSI codes and formatting

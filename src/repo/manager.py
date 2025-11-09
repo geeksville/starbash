@@ -3,15 +3,11 @@ Manages the repository of processing recipes and configurations.
 """
 
 from __future__ import annotations
-import logging
-from pathlib import Path
-from importlib import resources
-from typing import Any
 
-import tomlkit
-from tomlkit.toml_file import TOMLFile
-from tomlkit.items import AoT
+import logging
+
 from multidict import MultiDict
+
 from repo.repo import Repo
 
 
@@ -122,7 +118,7 @@ class RepoManager:
         for key, value in combined_config.items():
             # tomlkit.items() can return complex types (e.g., ArrayOfTables, Table)
             # For a debug dump, a simple string representation is usually sufficient.
-            logging.info(f"  %s: %s", key, value)
+            logging.info("  %s: %s", key, value)
 
     def _add_merged(self, repo: Repo) -> None:
         for key, value in repo.config.items():

@@ -1,18 +1,16 @@
-import os
-import shutil
-import textwrap
-import tempfile
-import subprocess
-import re
-import threading
-import queue
 import logging
-import RestrictedPython
-from typing import Any, TextIO, Callable
-from rich.traceback import Traceback
-from starbash.exception import UserHandledError
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+import textwrap
+from typing import Any
 
-from starbash.analytics import analytics_exception
+import RestrictedPython
+from rich.traceback import Traceback
+
+from starbash.exception import UserHandledError
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +53,7 @@ def expand_context(s: str, context: dict) -> str:
     expanded = s
     previous = None
     max_iterations = 10  # Safety break for infinite recursion
-    for i in range(max_iterations):
+    for _i in range(max_iterations):
         if expanded == previous:
             break  # Expansion is complete
         previous = expanded
@@ -423,11 +421,11 @@ class PythonTool(Tool):
                 globals = {"context": context}
                 exec(byte_code, make_safe_globals(globals), execution_locals)
             except SyntaxError as e:
-                raise PythonScriptError(f"Syntax error in python script") from e
+                raise PythonScriptError("Syntax error in python script") from e
             except UserHandledError:
                 raise  # No need to wrap this - just pass it through for user handling
             except Exception as e:
-                raise PythonScriptError(f"Error during python script execution") from e
+                raise PythonScriptError("Error during python script execution") from e
         finally:
             os.chdir(original_cwd)
 

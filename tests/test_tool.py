@@ -3,23 +3,24 @@
 import os
 import shutil
 import tempfile
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import MagicMock, call, patch
+
+import pytest
 
 from starbash.tool import (
+    GraxpertTool,
+    PythonScriptError,
+    PythonTool,
+    SirilTool,
+    Tool,
+    ToolError,
     _SafeFormatter,
     expand_context,
     expand_context_unsafe,
     make_safe_globals,
     strip_comments,
     tool_run,
-    Tool,
-    ToolError,
-    PythonTool,
-    PythonScriptError,
-    SirilTool,
-    GraxpertTool,
     tools,
 )
 

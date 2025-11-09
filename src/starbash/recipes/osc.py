@@ -1,11 +1,12 @@
 # pyright: reportUndefinedVariable=false
 
 
+import logging
 import os
 from glob import glob
 from typing import Any
+
 from starbash.tool import tools
-import logging
 
 siril = tools["siril"]
 
@@ -103,7 +104,7 @@ def make_renormalize(channel_num: int):
 
     if channel_num >= 2:
         # Do pixelmath to fixup channel brightness
-        logger.info(f"Doing renormalisation of extra Ha/Oiii channels")
+        logger.info("Doing renormalisation of extra Ha/Oiii channels")
 
         ha_final_path = f"{results_dir}/stacked_Ha.fits"
         oiii_final_path = f"{results_dir}/stacked_OIII.fits"
@@ -128,7 +129,7 @@ def make_renormalize(channel_num: int):
             """
 
     if channel_num >= 3:
-        logger.info(f"Doing renormalisation of extra Sii channel")
+        logger.info("Doing renormalisation of extra Sii channel")
 
         sii_final_path = f"{results_dir}/stacked_Sii.fits"
         r_sii = f"r_{sii_base}"

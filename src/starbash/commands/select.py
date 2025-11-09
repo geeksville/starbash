@@ -1,25 +1,23 @@
 """Selection commands for filtering sessions and targets."""
 
-import os
-from typing import Any
-from collections import Counter
-import typer
-from pathlib import Path
-from typing_extensions import Annotated
-from rich.table import Table
 import logging
+from collections import Counter
+from pathlib import Path
+from typing import Annotated, Any
+
+import typer
+from rich.table import Table
 
 import starbash
-from starbash import to_shortdate
+from starbash import console, to_shortdate
 from starbash.app import Starbash, copy_images_to_dir
-from starbash.database import Database, SessionRow, get_column_name
-from starbash import console
 from starbash.commands import (
-    TABLE_HEADER_STYLE,
-    format_duration,
     TABLE_COLUMN_STYLE,
+    TABLE_HEADER_STYLE,
     TABLE_VALUE_STYLE,
+    format_duration,
 )
+from starbash.database import Database, SessionRow, get_column_name
 
 app = typer.Typer()
 
@@ -277,7 +275,6 @@ def do_list_sessions(sb: Starbash, brief: bool = False):
             except (ValueError, TypeError):
                 num_images = get_key(Database.NUM_IMAGES_KEY)
 
-            type_str = image_type
             if image_type.upper() == "LIGHT":
                 image_type = filter
             elif image_type.upper() == "FLAT":

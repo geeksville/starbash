@@ -1,13 +1,13 @@
 from __future__ import annotations
+
 import logging
-from pathlib import Path
 from importlib import resources
-from typing import Any, TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import tomlkit
-from tomlkit.toml_file import TOMLFile
 from tomlkit.items import AoT
-from multidict import MultiDict
+from tomlkit.toml_file import TOMLFile
 
 if TYPE_CHECKING:
     from repo.manager import RepoManager
@@ -45,7 +45,7 @@ class Repo:
 
         # We monkey patch source into any object that came from a repo,
         try:
-            setattr(o, "source", self)
+            o.source = self
 
             # Recursively patch dict-like objects
             if isinstance(o, dict):
@@ -59,7 +59,7 @@ class Repo:
                 except TypeError:
                     # Not actually iterable, skip
                     pass
-        except AttributeError as e:
+        except AttributeError:
             pass  # simple types like int, str, float, etc. can't have attributes set on them
 
     def __str__(self) -> str:

@@ -1,10 +1,10 @@
-import datetime
 import logging
 import os
 from datetime import datetime
 
-from .database import Database  # re-export for convenience
 from rich.console import Console
+
+from .database import Database  # re-export for convenience
 
 # Disable Rich formatting in test environments (pytest or NO_COLOR set)
 # This prevents ANSI escape codes and line wrapping in test output for more reliable test parsing.

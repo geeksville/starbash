@@ -1,12 +1,13 @@
 """Tests for info commands."""
 
 from pathlib import Path
-from typer.testing import CliRunner
-import pytest
 
-from starbash.main import app
-from starbash.database import Database, get_column_name
+import pytest
+from typer.testing import CliRunner
+
 from starbash import paths
+from starbash.database import Database, get_column_name
+from starbash.main import app
 
 runner = CliRunner(env={"NO_COLOR": "1"})
 
