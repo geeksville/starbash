@@ -46,7 +46,7 @@ See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-al
 
 Currently the easiest way to install this command-line based tool is to install is via [pipx](https://pipx.pypa.io/stable/).  If you don't already have pipx and you have python installed, you can auto install it by running "pip install --user pipx."  If you don't have python installed see the pipx link for pipx installers for any OS.
 
-Once pipx is installed just run the following **two** commands (the sb --install-completion will make TAB auto-complete automatically complete sb options (for most platforms)).  Installing auto-complete is **highly** recommended because it makes entering starbash commands fast - by pressing the TAB key:
+Once pipx is installed just run the following **two** commands (the sb --install-completion will make TAB auto-complete automatically complete sb options (for most platforms).  Installing auto-complete is **highly** recommended because it makes entering starbash commands fast - by pressing the TAB key:
 
 ```
 ➜ pipx install starbash
@@ -61,6 +61,21 @@ bash completion installed in /home/.../sb.sh
 Completion will take effect once you restart the terminal
 
 ```
+
+## Use
+
+### Selecting sessions
+
+FIXME
+multisession aware
+auto flat/bias/dark selection (with ability to override)
+
+### Automatic stacking/preprocessing
+
+FIXME
+currently only color cameras are supported
+
+### Manual Siril processing
 
 FIXME - add getting started instructions (possibly with a screenshare video)
 
@@ -100,6 +115,15 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 - `sb process siril [--run] SESSIONNUM DESTDIR` - Generate Siril directory tree and optionally run Siril GUI
 - `sb process auto [SESSIONNUM]` - Automatic processing.  If session # is specified process only that session, otherwise all selected sessions will be processed
 - `sb process masters` - Generate master flats, darks, and biases from available raw frames in the current selection
+
+## Supported telescope software
+
+FIXME explain FITS and directory paths
+
+* N.I.N.A. - tested, seems fairly okay.
+* Asiair - tested, seems fairly okay.
+* Seestar - tested, seems fairly okay.
+* Ekos/Kstars - not tested, please try it and file a github issue if you see any problem.
 
 ## Supported tools (now)
 

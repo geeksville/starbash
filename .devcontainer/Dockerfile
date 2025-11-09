@@ -39,11 +39,11 @@ RUN pip install --user --no-cache-dir --break-system-packages pipx \
 # Note: this must be done here, if done in Dockerfile it doesn't work - this env var is a nasty hack to allow
 # flatpak inside of Dockerfile.
 # https://github.com/flatpak/flatpak/issues/5076
-ENV FLATPAK_SYSTEM_HELPER_ON_SESSION=foo
-RUN flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-RUN flatpak install --user -y flathub org.siril.Siril
+#ENV FLATPAK_SYSTEM_HELPER_ON_SESSION=foo
+#RUN flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+#RUN flatpak install --user -y flathub org.siril.Siril
 # Let siril see /tmp
-RUN flatpak --user override --filesystem=/tmp org.siril.Siril
+#RUN flatpak --user override --filesystem=/tmp org.siril.Siril
 
 # install siril app image (we normally use this for development)
 RUN sudo apt-get install -y --no-install-recommends libfuse2t64
@@ -73,4 +73,4 @@ RUN cd /tmp && \
         apt install -y ./google-chrome-stable_current_amd64.deb
 
 # Make container smaller.  Do this last, so that if we change the container it is fast to use existing apts
-# RUN rm -rf /var/lib/apt/lists/*
+RUN rm -rf /var/lib/apt/lists/*
