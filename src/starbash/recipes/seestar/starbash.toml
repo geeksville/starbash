@@ -5,14 +5,15 @@ kind = "recipe"
 [recipe]
 
 # Lower priority recipes are tried to match first
-# - we want this to match after the osc_dual_duo has a chance
-priority = 30
+# - we want to match this before all other color cameras (because we need special processing)
+priority = 5
 
 author.name = "FIXMEsirilsomeone"
 author.email = "FIXMEsirilsomeone"
 
 # no filter requirements - will work for any osc session
 auto.require.camera = ["Seestar"]
+auto.require.color = true
 
 # all sb.toml files can optionally contain a version section.  if version of the running starbash app is out of bounds a warning message will be printed
 # to the user and the file will be ignored for future processing.

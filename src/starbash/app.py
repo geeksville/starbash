@@ -886,6 +886,18 @@ class Starbash:
                     )
                     continue
 
+            required_color = repo.get("recipe.auto.require.color", False)
+            if required_color:
+                session_bayer = session_metadata.get("BAYERPAT")
+
+                # Session must be color (i.e. have a BAYERPAT header)
+                if not session_bayer:
+                    logging.debug(
+                        f"Recipe {repo.url} requires a color camera, "
+                        f"but session has no BAYERPAT header, skipping"
+                    )
+                    continue
+
             required_cameras = repo.get("recipe.auto.require.camera", [])
             if required_cameras:
                 session_camera = self.aliases.normalize(

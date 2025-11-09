@@ -21,7 +21,9 @@ priority = 10
 auto.require.filter = ["SiiOiii"]
 # for single duo look for this
 # auto.require.filter = ["HaOiii"]
-auto.require.camera = ["OSC"]
+
+# To require a color camera use this.  or to require a mono camera auto.require.mono.
+auto.require.color = true
 
 # all sb.toml files can optionally contain a version section.  if version of the running starbash app is out of bounds a warning message will be printed
 # to the user and the file will be ignored for future processing.

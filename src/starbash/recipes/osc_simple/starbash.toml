@@ -12,7 +12,7 @@ author.name = "FIXMEsirilsomeone"
 author.email = "FIXMEsirilsomeone"
 
 # no filter requirements - will work for any osc session
-auto.require.camera = ["OSC"]
+auto.require.color = true
 
 # all sb.toml files can optionally contain a version section.  if version of the running starbash app is out of bounds a warning message will be printed
 # to the user and the file will be ignored for future processing.
