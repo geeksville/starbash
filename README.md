@@ -76,7 +76,7 @@ FIXME - add getting started instructions (possibly with a screenshare video)
 - `sb user name "Your Name"` - Set name for attribution in generated images
 - `sb user email "foo@example.com"` - Set email for attribution in generated images
 - `sb user analytics <on|off>` - Turn analytics collection on/off
-- `sb user reinit` - Configure starbash via a brief guided process
+- `sb user setup` - Configure starbash via a brief guided process
 
 ### Selection & Filtering
 - `sb select` - Show information about the current selection

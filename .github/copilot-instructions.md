@@ -42,7 +42,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 - **process** — automated processing workflows
   - `process siril SESSION_NUM DESTDIR [--run]` — generate Siril directory tree, optionally launch GUI
 - **repo add/remove/list/reindex** — manage TOML repo references
-- **user name/email/analytics/reinit** — manage user profile and analytics opt-in
+- **user name/email/analytics/setup** — manage user profile and analytics opt-in
 - Console script aliases: `starbash` and `sb` (defined in `pyproject.toml`)
 
 ## Selection and filtering system
