@@ -29,17 +29,20 @@
 * [x] make single duo work - need to write output files
 * [x] make no/uni filter OSC work - selects wrong flat
 * [x] make seestar IRCUT and LP filters work
-* [ ] check for BAYERPAT to find OSC cameras instead of require.camera
+* [x] check for BAYERPAT to find OSC cameras instead of require.camera
 * [ ] improve initial setup wizard - ask where to store masters and processed dirs
 * [ ] make a nicer movie, for setup and usage
 * [ ] ask Jamie to try it!
 * [ ] require master-flats to come from the same instrument!
 * [ ] require biases/darks to come from the same camera!
+* [ ] fix remaining tool failures (just fail-m100)
 * [ ] better search by date for masters
 * [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
+* [ ] generate an auto-stretched output as fits and jpg.
 * [ ] make OSC options user customizable per target
 * [x] in osc processing implement make_renormalize()
-* [ ] do background_removal() as a separate stage
+* [ ] do background_removal() as a separate stage via graxpert
+* [ ] do auto star removal as a separate stage
 * [ ] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
 * [ ] require masters dimensions match image dimensions for selection
 * [ ] master relative path should be based on unique camera ID - so that Ascar_V_80mm_flattener and Ascar_V_80mm_extender can share the same masters.

@@ -59,6 +59,16 @@ select-ha:
     sb select any
     sb select target ic1396
 
+# misc current tool failures
+fail-m100:
+    sb select any
+    sb select target m100
+
+# misc current tool failures
+fail-ngc7023:
+    sb select any
+    sb select target ngc7023
+
 process:
     sb process auto
 
