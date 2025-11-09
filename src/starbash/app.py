@@ -68,9 +68,7 @@ def update_processing_result(
         if isinstance(e, UserHandledError):
             if e.ask_user_handled():
                 logging.debug("UserHandledError was handled.")
-                result.notes = (
-                    "Aborted per configuration - see instructions above on how to fix."
-                )
+                result.notes = e.__rich__()
 
         elif isinstance(e, RuntimeError):
             # Print errors for runtimeerrors but keep processing other runs...

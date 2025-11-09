@@ -1,3 +1,6 @@
+from typing import Any
+
+
 class UserHandledError(ValueError):
     """An exception that terminates processing of the current file, but we want to help the user fix the problem."""
 
@@ -6,7 +9,15 @@ class UserHandledError(ValueError):
         Returns:
             True if the error was handled, False otherwise.
         """
-        raise NotImplementedError("Subclasses must implement ask_user_handled method.")
+        from starbash import console  # Lazy import to avoid circular dependency
+
+        console.print(self)
+        return False
+
+    def __rich__(self) -> Any:
+        raise NotImplementedError(
+            "Subclasses must implement __rich__ to return a short human friendly description of problem."
+        )
 
 
 __all__ = ["UserHandledError"]

@@ -8,7 +8,7 @@ import threading
 import queue
 import logging
 import RestrictedPython
-from typing import TextIO, Callable
+from typing import Any, TextIO, Callable
 from rich.traceback import Traceback
 from starbash.exception import UserHandledError
 
@@ -32,6 +32,9 @@ class ToolError(UserHandledError):
             f"'{self.command}' failed while running [bold red]{self.arguments}[/bold red]"
         )
         return True
+
+    def __rich__(self) -> Any:
+        return f"Tool: [red]'{self.command}'[/red] failed"
 
 
 class _SafeFormatter(dict):
@@ -230,12 +233,12 @@ def tool_run(
 class MissingToolError(UserHandledError):
     """Exception raised when a required tool is not found."""
 
-    def ask_user_handled(self) -> bool:
-        from starbash import console  # Lazy import to avoid circular dependency
+    def __init__(self, *args: object, command: str) -> None:
+        super().__init__(*args)
+        self.command = command
 
-        console.print("[bold red]Missing Tool Error[/bold red]")
-        console.print("FIXME, tell user how to install it...")
-        return True
+    def __rich__(self) -> Any:
+        return f"Tool: [red]'{self.command}'[/red] not found"
 
 
 def executable_path(commands: list[str], name: str) -> str:
@@ -243,7 +246,9 @@ def executable_path(commands: list[str], name: str) -> str:
     for cmd in commands:
         if shutil.which(cmd):
             return cmd
-    raise MissingToolError(f"{name} not found, you probably need to install it.")
+    raise MissingToolError(
+        f"{name} not found, you probably need to install it.", command=name
+    )
 
 
 class Tool:

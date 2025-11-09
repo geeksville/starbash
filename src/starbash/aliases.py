@@ -61,7 +61,6 @@ class UnrecognizedAliasError(UserHandledError):
                       for '{self.alias}'.
 
                       For the time being that means editing {get_user_config_path() / "starbash.toml"}
-
                       (FIXME - we'll eventually provide an interactive picker here...)
                       """
             )

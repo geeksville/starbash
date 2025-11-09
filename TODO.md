@@ -28,11 +28,13 @@
 * [x] figure out why devinit results in "HaOiii_Ha" in the filters table.  I _think_ this is harmless.  it is old processed files in from_asiair: "IC 1386/2025-09-01/results/bkg_result_Ha.fits"
 * [x] make single duo work - need to write output files
 * [x] make no/uni filter OSC work - selects wrong flat
+* [ ] make seestar IRCUT and LP filters work
+* [ ] improve initial setup wizard - ask where to store masters and processed dirs
+* [ ] make a nicer movie, for setup and usage
+* [ ] ask Jamie to try it!
 * [ ] require master-flats to come from the same instrument!
 * [ ] require biases/darks to come from the same camera!
 * [ ] better search by date for masters
-* [ ] improve initial setup wizard - ask where to store masters and processed dirs
-* [ ] make a nicer movie, for setup and usage
 * [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] make OSC options user customizable per target
 * [x] in osc processing implement make_renormalize()
@@ -41,6 +43,7 @@
 * [ ] require masters dimensions match image dimensions for selection
 * [ ] master relative path should be based on unique camera ID - so that Ascar_V_80mm_flattener and Ascar_V_80mm_extender can share the same masters.
 * [x] NotEnoughFilesError should not crash processing
+* [ ] simple OSC processing scripts shouldn't even need custom python - make siril invoke smarter (by being multi-session aware for input files)
 * [ ] find a way for scripts to share python code with each other
 * [ ] implement recipe/repo inheritence to prevent the copypasta required in the existing OSC scripts
 * [ ] add progress 'spinner' bar while doing any tool runs... https://rich.readthedocs.io/en/latest/reference/spinner.html
