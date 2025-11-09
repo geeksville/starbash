@@ -19,6 +19,7 @@ astropy = ">=7.1.1,<8.0.0"
 platformdirs = ">=4.5.0,<5.0.0"
 typer = "^0.20.0"
 sentry-sdk = "^2.42.1"
+update-checker = "^0.18.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.4.2,<9.0.0"
