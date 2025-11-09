@@ -75,11 +75,22 @@ db-browse:
 db-browse-gui:
     sqlitebrowser ~/.local/share/starbash/db.sqlite3
 
-make-movies:
-    echo "This script allows developers to generate new 'vhs' demo movies for the github README."
-    echo "Note: it can't work in the devcontainer you must run it on the host side."
-    echo "On host run 'brew install vhs'"
+# just add the asiair repo if looking for a demo of adding a repo
 
+# genera demo videos for the README
+movies: movie-sample movie-process-auto movie-process-siril
+
+# generate demo of auto processing
+movie-process-auto: select-any
+    vhs doc/vhs/process-auto.tape
+
+# demo of export to siril
+movie-process-siril:
+    sb select target m20
+    vhs doc/vhs/process-siril.tape
+
+# generate video of basic browsing
+movie-sample: select-any
     vhs doc/vhs/sample-session.tape
     # Not needed - for the time being we just use the gif in our repo
     # vhs publish doc/vhs/sample-session.gif

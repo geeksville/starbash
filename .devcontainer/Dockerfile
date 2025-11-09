@@ -63,7 +63,14 @@ RUN echo >> /home/vscode/.bashrc && \
 USER root
 
 # needed for vhs to make movies
-RUN apt-get install -y --no-install-recommends chromium-browser chromium-codecs-ffmpeg
+
+# alas chromium-browser requires snap which is a whole other kettle of fish
+# RUN apt-get install -y --no-install-recommends chromium-browser chromium-codecs-ffmpeg
+
+# instead we install chrome - you might need to run the GUI once before using it from VHS
+RUN cd /tmp && \
+        wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+        apt install -y ./google-chrome-stable_current_amd64.deb
 
 # Make container smaller.  Do this last, so that if we change the container it is fast to use existing apts
 # RUN rm -rf /var/lib/apt/lists/*
