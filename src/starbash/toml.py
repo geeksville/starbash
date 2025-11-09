@@ -1,5 +1,6 @@
 from importlib import resources
 from pathlib import Path
+from string import Template
 from typing import Any
 
 import tomlkit
@@ -20,7 +21,8 @@ def toml_from_template(
     # add default vars always available
     vars = {"PROJECT_URL": url.project}
     vars.update(overrides)
-    tomlstr = tomlstr.format(**vars)
+    t = Template(tomlstr)
+    tomlstr = t.substitute(vars)
 
     toml = tomlkit.parse(tomlstr)
     TOMLFile(dest_path).write(toml)

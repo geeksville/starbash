@@ -1,10 +1,10 @@
-# This is a master repository for (Starbash)[{PROJECT_URL}].
+# This is a master repository for (Starbash)[$PROJECT_URL].
 #
 # This file marks the root directory of a set of auto matinained astrophotography
 # 'master' files, such as master darks, flats or biases.
 #
 # You generally don't need to edit this file directly - it is auto generated when you ran
-# "sb repo add --master {REPO_PATH}".
+# "sb repo add --master $REPO_PATH".
 #
 
 [repo]

@@ -180,9 +180,9 @@ def do_reinit(sb: Starbash) -> None:
             4. (Optional) tell your shell to auto-complete starbash commands:
                 [cyan]sb shell-complete --install-completion[/cyan]
 
-            This project is currently very 'alpha' but we are eager to have it work well for you.
+            This project is currently very 'alpha' but we are eager to have it work for you.
             For full instructions and support [link=https://github.com/geeksville/starbash]visit our github[/link].
-            If you find problems or have questions, just open an issue there.
+            If you find problems or have questions, just open an issue and we'll work with you.
             """),
             border_style="green",
             title="Almost done!",
