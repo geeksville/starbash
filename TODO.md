@@ -31,7 +31,7 @@
 * [x] make seestar IRCUT and LP filters work
 * [x] check for BAYERPAT to find OSC cameras instead of require.camera
 * [x] improve initial setup wizard - ask where to store masters and processed dirs
-* [ ] fix siril export
+* [x] fix siril export
 * [ ] when processing masters always process entire repo
 * [ ] make a nicer movie, for setup and masters, auto, siril
 * [ ] update readme

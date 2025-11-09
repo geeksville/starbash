@@ -9,6 +9,7 @@ Set FontSize 20
 Set Width 1200
 Set Height 300
 Set WindowBar Colorful
+# Set TypingSpeed 0s
 
 Require sb
 
@@ -18,6 +19,14 @@ Enter
 Sleep 2s
 
 Type "sb process siril 3 ./siril-process"
+Sleep 0.5s
+Enter
+Sleep 2s
+
+Type "cd siril-process"
+Sleep 0.5s
+Enter
+Type "ls -lR"
 Sleep 0.5s
 Enter
 Sleep 2s

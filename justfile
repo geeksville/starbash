@@ -82,16 +82,22 @@ movies: movie-sample movie-process-auto movie-process-siril
 
 # generate demo of auto processing
 movie-process-auto: select-any
+    #!/usr/bin/env bash
+    export PROMPT="> "
     vhs doc/vhs/process-auto.tape
 
 # demo of export to siril
 movie-process-siril:
+    #!/usr/bin/env bash
+    export PROMPT="> "
     sb select target m20
     vhs doc/vhs/process-siril.tape
-    @rm -r ./siril-process
+    rm -r ./siril-process
 
 # generate video of basic browsing
 movie-sample: select-any
+    #!/usr/bin/env bash
+    export PROMPT="> "
     vhs doc/vhs/sample-session.tape
     # Not needed - for the time being we just use the gif in our repo
     # vhs publish doc/vhs/sample-session.gif
