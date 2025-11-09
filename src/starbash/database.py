@@ -190,7 +190,7 @@ class Database:
                 filter TEXT COLLATE NOCASE,
                 imagetyp TEXT COLLATE NOCASE NOT NULL,
                 object TEXT,
-                telescop TEXT NOT NULL,
+                telescop TEXT COLLATENOCASE NOT NULL,
                 num_images INTEGER NOT NULL,
                 exptime_total REAL NOT NULL,
                 exptime REAL NOT NULL,
@@ -433,7 +433,9 @@ class Database:
         """Search for sessions matching the given conditions.
 
         Args:
-            conditions: List of SearchCondition tuples for filtering sessions
+            conditions: List of SearchCondition tuples for filtering sessions.
+                       Column names should be from the sessions table. If no table prefix
+                       is given (e.g., "OBJECT"), it will be prefixed with "s." automatically.
 
         Returns:
             List of matching session records with metadata from the reference image and repo_url
@@ -443,7 +445,12 @@ class Database:
         params = []
 
         for condition in conditions:
-            where_clauses.append(f"{condition.column_name} {condition.comparison_op} ?")
+            # Add table prefix 's.' if not already present to avoid ambiguous column names
+            column_name = condition.column_name
+            if "." not in column_name:
+                # Session table columns that might be ambiguous with images table
+                column_name = f"s.{column_name.lower()}"
+            where_clauses.append(f"{column_name} {condition.comparison_op} ?")
             params.append(condition.value)
 
         # Build the query with JOIN to images and repos tables to get reference image metadata and repo_url

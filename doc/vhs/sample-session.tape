@@ -12,22 +12,17 @@ Set WindowBar Colorful
 
 Require sb
 
-Type "sb"
-Sleep 0.5s
-Enter
-Sleep 2s
-
 Type "sb info"
 Sleep 0.5s
 Enter
 Sleep 2s
 
-Type "sb repo"
+Type "sb repo list"
 Sleep 0.5s
 Enter
 Sleep 2s
 
-Type "sb select"
+Type "sb select target m20"
 Sleep 0.5s
 Enter
 Sleep 2s

@@ -427,7 +427,7 @@ class Starbash:
         }
 
         # For FLAT frames, filter must match the reference session
-        if want_type.upper() == "FLAT":
+        if want_type.lower() == "flat":
             conditions[Database.FILTER_KEY] = ref_session[get_column_name(Database.FILTER_KEY)]
 
         # Search for candidate sessions

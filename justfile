@@ -88,6 +88,7 @@ movie-process-auto: select-any
 movie-process-siril:
     sb select target m20
     vhs doc/vhs/process-siril.tape
+    @rm -r ./siril-process
 
 # generate video of basic browsing
 movie-sample: select-any

@@ -72,9 +72,9 @@ def siril(
 
         extras = [
             # FIXME search for BIAS/DARK/FLAT etc... using multiple canonical names
-            ("BIAS", "biases"),
-            ("DARK", "darks"),
-            ("FLAT", "flats"),
+            ("bias", "biases"),
+            ("dark", "darks"),
+            ("flat", "flats"),
         ]
         for typ, subdir in extras:
             candidates = sb.guess_sessions(session, typ)

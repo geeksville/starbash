@@ -31,8 +31,10 @@
 * [x] make seestar IRCUT and LP filters work
 * [x] check for BAYERPAT to find OSC cameras instead of require.camera
 * [x] improve initial setup wizard - ask where to store masters and processed dirs
+* [ ] fix siril export
 * [ ] when processing masters always process entire repo
 * [ ] make a nicer movie, for setup and masters, auto, siril
+* [ ] update readme
 * [ ] ask Jamie to try it!
 * [ ] require master-flats to come from the same instrument!
 * [ ] require biases/darks to come from the same camera!

@@ -61,7 +61,7 @@
                 "--debug",
                 "process",
                 "siril",
-                "5",
+                "3",
                 "/tmp/sir1"
             ]
         },

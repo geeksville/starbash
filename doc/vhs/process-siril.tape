@@ -17,7 +17,7 @@ Sleep 0.5s
 Enter
 Sleep 2s
 
-Type "sb process siril 3 ~/siril-process"
+Type "sb process siril 3 ./siril-process"
 Sleep 0.5s
 Enter
 Sleep 2s
