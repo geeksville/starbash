@@ -6,6 +6,7 @@ import os
 from glob import glob
 from typing import Any
 
+from starbash.app import NotEnoughFilesError
 from starbash.tool import tools
 
 siril = tools["siril"]
@@ -52,7 +53,8 @@ def make_stacked(variant: str | None, output_file: str):
         logger.info(
             f"Registering and stacking {len(frames)} frames for {variant} -> {stacked_output_path}"
         )
-        assert len(frames) > 1, f"Need at least two frames for {variant}"
+        if len(frames) < 2:
+            raise NotEnoughFilesError("Need at least two frames", frames)
 
         # Siril commands for registration and stacking. We run this in process_dir.
         commands = f"""

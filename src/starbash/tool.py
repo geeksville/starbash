@@ -8,8 +8,11 @@ import textwrap
 from typing import Any
 
 import RestrictedPython
+from rich.live import Live
+from rich.spinner import Spinner
 from rich.traceback import Traceback
 
+from starbash.commands import SPINNER_STYLE
 from starbash.exception import UserHandledError
 
 logger = logging.getLogger(__name__)
@@ -265,6 +268,8 @@ class Tool:
 
         If cwd is provided, use that as the working directory otherwise a temp directory is used as cwd.
         """
+        from starbash import console  # Lazy import to avoid circular dependency
+
         temp_dir = None
 
         if not cwd:
@@ -273,12 +278,17 @@ class Tool:
 
             context["temp_dir"] = temp_dir  # pass our directory path in for the tool's usage
 
-        try:
-            self._run(cwd, commands, context=context)
-        finally:
-            if temp_dir:
-                shutil.rmtree(temp_dir)
-                context.pop("temp_dir", None)
+        spinner = Spinner(
+            "arc", text=f"Tool running: [bold]{self.name}[/bold]...", speed=2.0, style=SPINNER_STYLE
+        )
+        with Live(spinner, console=console, refresh_per_second=5):
+            try:
+                self._run(cwd, commands, context=context)
+            finally:
+                spinner.update(text=f"Tool completed: [bold]{self.name}[/bold].")
+                if temp_dir:
+                    shutil.rmtree(temp_dir)
+                    context.pop("temp_dir", None)
 
     def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         """Run commands inside this tool (with cwd pointing to the specified directory)"""

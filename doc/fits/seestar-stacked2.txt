@@ -1,0 +1,45 @@
+# HDU 0 in DSO_Stacked_425_M 100_10.0s_20250704_070948.fit:
+SIMPLE  =                    T / file does conform to FITS standard             
+BITPIX  =                   16 / number of bits per data pixel                  
+NAXIS   =                    3 / number of data axes                            
+NAXIS1  =                 1080 / length of data axis 1                          
+NAXIS2  =                 1920 / length of data axis 2                          
+NAXIS3  =                    3 / length of data axis 3                          
+EXTEND  =                    T / FITS dataset may contain extensions            
+COMMENT   FITS (Flexible Image Transport System) format is defined in 'Astronomy
+COMMENT   and Astrophysics', volume 376, page 359; bibcode: 2001A&A...376..359H 
+BZERO   =                32768 / offset data range to that of unsigned short    
+BSCALE  =                    1 / default scaling factor                         
+CREATOR = 'ZWO Seestar S50'    / Capture software                               
+PRODUCER= 'ZWO     '           / Powered by ZWO                                 
+XORGSUBF=                    0 / Subframe X position in binned pixels           
+YORGSUBF=                    0 / Subframe Y position in binned pixels           
+FOCALLEN=                  250 / Focal length of telescope in mm                
+APERTURE=                   5. / Name of field of view aperture                 
+EQMODE  =                    0 / Equatorial mode                                
+PROGRAM = '4.70    '           / The name of the software task that created the 
+XBINNING=                    1 / Camera X Bin                                   
+YBINNING=                    1 / Camera Y Bin                                   
+CCDXBIN =                    1 / Camera X Bin                                   
+CCDYBIN =                    1 / Camera Y Bin                                   
+XPIXSZ  =     2.90000009536743 / pixel size in microns (with binning)           
+YPIXSZ  =     2.90000009536743 / pixel size in microns (with binning)           
+IMAGETYP= 'Light   '           / Type of image                                  
+STACKCNT=                  425 / Stack frames                                   
+EXPOSURE=                  10. / Exposure time in seconds                       
+EXPTIME =                  10. / Exposure time in seconds                       
+CCD-TEMP=                 19.5 / sensor temperature in C                        
+RA      =     186.033325195312 / Object Right Ascension in degrees              
+DEC     =     15.6674995422363 / Object Declination in degrees                  
+SITELONG=     -122.30899810791 / longitude of the imaging site in degrees       
+SITELAT =     37.5208015441895 / latitude of the imaging site in degrees        
+DATE-OBS= '2025-07-04T06:08:45.377191' / Image created time                     
+FILTER  = 'IRCUT   '           / Filter used when taking image                  
+INSTRUME= 'Seestar S50'        / Camera model                                   
+BAYERPAT= 'GRBG    '           / Bayer pattern                                  
+GAIN    =                   80 / Gain Value                                     
+FOCUSPOS=                 1758 / Focuser position in steps                      
+TELESCOP= 'S50_153dd4e2'       / Telescope name                                 
+OBJCTTYP= 'deepsky '           / type of object being imaged                    
+OBJECT  = 'M 100   '           / name or catalog number of object being imaged  
+TOTALEXP=                4250. / Total Exposure Time in seconds                 

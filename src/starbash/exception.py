@@ -11,13 +11,11 @@ class UserHandledError(ValueError):
         """
         from starbash import console  # Lazy import to avoid circular dependency
 
-        console.print(self)
+        console.print(f"Error: {self}")
         return False
 
     def __rich__(self) -> Any:
-        raise NotImplementedError(
-            "Subclasses must implement __rich__ to return a short human friendly description of problem."
-        )
+        return self.__str__()  # At least this is something readable...
 
 
 __all__ = ["UserHandledError"]

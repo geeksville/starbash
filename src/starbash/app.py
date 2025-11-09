@@ -62,7 +62,7 @@ def update_processing_result(result: ProcessingResult, e: Exception | None = Non
         if isinstance(e, UserHandledError):
             if e.ask_user_handled():
                 logging.debug("UserHandledError was handled.")
-                result.notes = e.__rich__()
+            result.notes = e.__rich__()  # No matter what we want to show the fault in our results
 
         elif isinstance(e, RuntimeError):
             # Print errors for runtimeerrors but keep processing other runs...
@@ -188,15 +188,12 @@ class ProcessingContext(tempfile.TemporaryDirectory):
         # return handled
 
 
-class NotEnoughFilesError(RuntimeError):
+class NotEnoughFilesError(UserHandledError):
     """Exception raised when not enough input files are provided for a processing stage."""
 
     def __init__(self, message: str, files: list[str]):
         super().__init__(message)
         self.files = files
-
-    def __str__(self) -> str:
-        return super().__str__() + f" (files: {self.files})"
 
 
 class Starbash:
@@ -614,8 +611,8 @@ class Starbash:
             # "HISTORY" nodes are added by processing tools (Siril etc...), we never want to accidentally read those images
             has_history = img.get("HISTORY")
 
-            # images that were stacked on Seestar have this key
-            is_stacked = img.get("CD1_1")
+            # images that were stacked on Seestar have one of these keys
+            is_stacked = img.get("CD1_1") or img.get("OBJCTTYP")
 
             if (
                 img.get(Database.FILTER_KEY) == session[get_column_name(Database.FILTER_KEY)]
@@ -965,7 +962,7 @@ class Starbash:
 
                 # process all light frames
                 step = lights_step
-                lights_task = self.progress.add_task("Processing lights...", total=len(sessions))
+                lights_task = self.progress.add_task("Processing session...", total=len(sessions))
                 try:
                     lights_processed = False  # for better reporting
                     stack_processed = False
@@ -992,8 +989,13 @@ class Starbash:
                                     lights_task,
                                     description=f"Processing {step_name} {self.context['date']}...",
                                 )
-                                self.run_stage(task)
-                                lights_processed = True
+                                try:
+                                    self.run_stage(task)
+                                    lights_processed = True
+                                except NotEnoughFilesError:
+                                    logging.warning(
+                                        "Skipping session, siril requires at least two frames per session..."
+                                    )
 
                         # We made progress - call once per iteration ;-)
                         self.progress.advance(lights_task)
@@ -1009,8 +1011,13 @@ class Starbash:
                         #
                         # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
                         # dirs for particular targets?
-                        self.run_stage(task)
-                        stack_processed = True
+                        try:
+                            self.run_stage(task)
+                            stack_processed = True
+                        except NotEnoughFilesError:
+                            logging.warning(
+                                "Skipping stacking, siril requires at least two frames per session..."
+                            )
 
                 # Success!  we processed all lights and did a stack (probably)
                 if not lights_processed:
