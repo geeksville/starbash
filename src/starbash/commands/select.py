@@ -23,7 +23,6 @@ app = typer.Typer()
 
 
 def get_column(sb: Starbash, column_name: str) -> Counter:
-
     # Also do a complete unfiltered search so we can compare for the users
     allsessions = sb.db.search_session([])
 
@@ -42,9 +41,7 @@ def complete_date(incomplete: str, column_name: str):
     in the returned str->count, just include the date portion (YYYY-MM-DD)."""
 
     # We need to use stderr_logging to prevent confusing the bash completion parser
-    starbash.log_filter_level = (
-        logging.ERROR
-    )  # avoid showing output while doing completion
+    starbash.log_filter_level = logging.ERROR  # avoid showing output while doing completion
     with Starbash("select.complete.date", stderr_logging=True) as sb:
         c = get_column(sb, column_name)
 
@@ -63,9 +60,7 @@ def complete_date(incomplete: str, column_name: str):
 
 def complete_column(incomplete: str, column_name: str):
     # We need to use stderr_logging to prevent confusing the bash completion parser
-    starbash.log_filter_level = (
-        logging.ERROR
-    )  # avoid showing output while doing completion
+    starbash.log_filter_level = logging.ERROR  # avoid showing output while doing completion
     with Starbash("repo.complete.column", stderr_logging=True) as sb:
         c = get_column(sb, column_name)
 
@@ -89,9 +84,7 @@ def target(
         str,
         typer.Argument(
             help="Target name to add to the selection (e.g., 'M31', 'NGC 7000')",
-            autocompletion=lambda incomplete: complete_column(
-                incomplete, Database.OBJECT_KEY
-            ),
+            autocompletion=lambda incomplete: complete_column(incomplete, Database.OBJECT_KEY),
         ),
     ],
 ):
@@ -111,9 +104,7 @@ def telescope(
         str,
         typer.Argument(
             help="Telescope name to add to the selection (e.g., 'Vespera', 'EdgeHD 8')",
-            autocompletion=lambda incomplete: complete_column(
-                incomplete, Database.TELESCOP_KEY
-            ),
+            autocompletion=lambda incomplete: complete_column(incomplete, Database.TELESCOP_KEY),
         ),
     ],
 ):
@@ -123,9 +114,7 @@ def telescope(
         # In the future, we could support adding multiple telescopes
         sb.selection.telescopes = []
         sb.selection.add_telescope(telescope_name)
-        console.print(
-            f"[green]Selection limited to telescope: {telescope_name}[/green]"
-        )
+        console.print(f"[green]Selection limited to telescope: {telescope_name}[/green]")
         do_list_sessions(sb, brief=not starbash.verbose_output)
 
 
@@ -151,18 +140,14 @@ def date(
         str,
         typer.Argument(
             help="Date in ISO format (YYYY-MM-DD) or two dates separated by space for 'between'",
-            autocompletion=lambda incomplete: complete_date(
-                incomplete, Database.START_KEY
-            ),
+            autocompletion=lambda incomplete: complete_date(incomplete, Database.START_KEY),
         ),
     ],
     end_date: Annotated[
         str | None,
         typer.Argument(
             help="End date for 'between' operation (YYYY-MM-DD)",
-            autocompletion=lambda incomplete: complete_date(
-                incomplete, Database.START_KEY
-            ),
+            autocompletion=lambda incomplete: complete_date(incomplete, Database.START_KEY),
         ),
     ] = None,
 ):
@@ -178,19 +163,13 @@ def date(
 
         if operation == "after":
             sb.selection.set_date_range(start=date_value, end=None)
-            console.print(
-                f"[green]Selection limited to sessions after {date_value}[/green]"
-            )
+            console.print(f"[green]Selection limited to sessions after {date_value}[/green]")
         elif operation == "before":
             sb.selection.set_date_range(start=None, end=date_value)
-            console.print(
-                f"[green]Selection limited to sessions before {date_value}[/green]"
-            )
+            console.print(f"[green]Selection limited to sessions before {date_value}[/green]")
         elif operation == "between":
             if not end_date:
-                console.print(
-                    "[red]Error: 'between' operation requires two dates[/red]"
-                )
+                console.print("[red]Error: 'between' operation requires two dates[/red]")
                 raise typer.Exit(1)
             sb.selection.set_date_range(start=date_value, end=end_date)
             console.print(
@@ -326,7 +305,7 @@ def list_sessions(
         False,
         "--brief",
         help="If there are many sessions, show only a few.",
-    )
+    ),
 ):
     """List sessions (filtered based on the current selection)"""
 
@@ -368,9 +347,7 @@ def export(
     ],
     destdir: Annotated[
         str,
-        typer.Argument(
-            help="Directory path to export to (if it doesn't exist it will be created)"
-        ),
+        typer.Argument(help="Directory path to export to (if it doesn't exist it will be created)"),
     ],
 ):
     """Export the images for the indicated session number.
@@ -385,9 +362,7 @@ def export(
         # Get images for this session
         images = sb.get_session_images(session)
         if not images:
-            console.print(
-                f"[red]Error: No images found for session {session_num}.[/red]"
-            )
+            console.print(f"[red]Error: No images found for session {session_num}.[/red]")
             raise typer.Exit(0)
 
         # Determine output directory
@@ -412,9 +387,7 @@ def show_selection(ctx: typer.Context):
             if summary["status"] == "all":
                 console.print(f"[yellow]{summary['message']}[/yellow]")
             else:
-                table = Table(
-                    title="Current Selection", header_style=TABLE_HEADER_STYLE
-                )
+                table = Table(title="Current Selection", header_style=TABLE_HEADER_STYLE)
                 table.add_column("Criteria", style=TABLE_COLUMN_STYLE)
                 table.add_column("Value", style=TABLE_VALUE_STYLE)
 

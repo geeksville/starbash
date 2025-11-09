@@ -41,9 +41,7 @@ class TestAnalyticsSetup:
 
     @patch("sentry_sdk.init")
     @patch("sentry_sdk.set_user")
-    def test_setup_enabled_initializes_sentry(
-        self, mock_set_user, mock_init, reset_analytics
-    ):
+    def test_setup_enabled_initializes_sentry(self, mock_set_user, mock_init, reset_analytics):
         """Test that enabling analytics initializes Sentry."""
         analytics_setup(allowed=True)
 
@@ -175,9 +173,7 @@ class TestAnalyticsException:
         mock_capture.assert_not_called()
 
     @patch("sentry_sdk.capture_exception", return_value="test-report-id-123")
-    def test_exception_with_analytics_enabled(
-        self, mock_capture, reset_analytics, monkeypatch
-    ):
+    def test_exception_with_analytics_enabled(self, mock_capture, reset_analytics, monkeypatch):
         """Test that exceptions are reported when analytics is enabled."""
         monkeypatch.delenv("SENTRY_ENVIRONMENT", raising=False)
         # Clear VS Code env vars
@@ -308,9 +304,7 @@ class TestAnalyticsStartTransaction:
 
         result = analytics_start_transaction(name="test.transaction", op="test")
 
-        mock_start_transaction.assert_called_once_with(
-            name="test.transaction", op="test"
-        )
+        mock_start_transaction.assert_called_once_with(name="test.transaction", op="test")
         assert result == mock_txn
 
     def test_start_transaction_when_analytics_disabled(self, reset_analytics):
@@ -324,9 +318,7 @@ class TestAnalyticsStartTransaction:
         assert isinstance(result, NopAnalytics)
 
     @patch("sentry_sdk.start_transaction")
-    def test_start_transaction_with_various_kwargs(
-        self, mock_start_transaction, reset_analytics
-    ):
+    def test_start_transaction_with_various_kwargs(self, mock_start_transaction, reset_analytics):
         """Test that kwargs are passed through to Sentry."""
         import starbash.analytics
 
@@ -334,9 +326,7 @@ class TestAnalyticsStartTransaction:
 
         analytics_start_transaction(name="http.request", op="http", sampled=True)
 
-        mock_start_transaction.assert_called_once_with(
-            name="http.request", op="http", sampled=True
-        )
+        mock_start_transaction.assert_called_once_with(name="http.request", op="http", sampled=True)
 
 
 class TestAnalyticsIntegration:

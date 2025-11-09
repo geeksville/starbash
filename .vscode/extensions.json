@@ -1,10 +1,10 @@
 {
     "recommendations": [
         "ms-python.python",
-        "ms-python.black-formatter",
         "tamasfe.even-better-toml",
         "github.copilot",
-        "skellock.just"
+        "skellock.just",
+        "charliermarsh.ruff",
         // "google.geminicodeassist"
     ]
 }

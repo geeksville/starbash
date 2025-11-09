@@ -25,9 +25,7 @@ def siril(
     ],
     destdir: Annotated[
         str,
-        typer.Argument(
-            help="Destination directory for Siril directory tree and processing"
-        ),
+        typer.Argument(help="Destination directory for Siril directory tree and processing"),
     ],
     run: Annotated[
         bool,
@@ -184,9 +182,7 @@ def masters():
     with Starbash("process.masters") as sb:
         from starbash import console
 
-        console.print(
-            "[yellow]Generating master frames from current selection...[/yellow]"
-        )
+        console.print("[yellow]Generating master frames from current selection...[/yellow]")
         results = sb.run_master_stages()
 
         print_results("Generated masters", results, console)

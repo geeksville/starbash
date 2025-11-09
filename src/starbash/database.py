@@ -427,9 +427,7 @@ class Database:
 
         return results
 
-    def search_session(
-        self, conditions: list[SearchCondition] = []
-    ) -> list[SessionRow]:
+    def search_session(self, conditions: list[SearchCondition] = []) -> list[SessionRow]:
         """Search for sessions matching the given conditions.
 
         Args:
@@ -695,9 +693,7 @@ class Database:
 
         return dict(row)
 
-    def upsert_session(
-        self, new: SessionRow, existing: SessionRow | None = None
-    ) -> None:
+    def upsert_session(self, new: SessionRow, existing: SessionRow | None = None) -> None:
         """Insert or update a session record."""
         cursor = self._db.cursor()
 
@@ -745,9 +741,7 @@ class Database:
                     new[get_column_name(Database.END_KEY)],
                     new.get(get_column_name(Database.FILTER_KEY)),
                     new[get_column_name(Database.IMAGETYP_KEY)],
-                    normalize_target_name(
-                        new.get(get_column_name(Database.OBJECT_KEY))
-                    ),
+                    normalize_target_name(new.get(get_column_name(Database.OBJECT_KEY))),
                     new.get(get_column_name(Database.TELESCOP_KEY)),
                     new[get_column_name(Database.NUM_IMAGES_KEY)],
                     new[get_column_name(Database.EXPTIME_TOTAL_KEY)],

@@ -70,9 +70,7 @@ class TestAliasesGet:
     def test_get_case_sensitive_key(self, aliases):
         """Test that get() is case-sensitive for keys."""
         result = aliases.get("DARK")
-        assert (
-            result is None
-        )  # Key lookup is case-sensitive (but normalize is case-insensitive)
+        assert result is None  # Key lookup is case-sensitive (but normalize is case-insensitive)
 
 
 class TestAliasesNormalize:
@@ -115,13 +113,9 @@ class TestAliasesNormalize:
 
     def test_normalize_nonexistent(self, aliases):
         """Test normalizing a non-existent alias raises UnrecognizedAliasError."""
-        with pytest.raises(
-            UnrecognizedAliasError, match="'nonexistent' not found in aliases"
-        ):
+        with pytest.raises(UnrecognizedAliasError, match="'nonexistent' not found in aliases"):
             aliases.normalize("nonexistent")
-        with pytest.raises(
-            UnrecognizedAliasError, match="'unknown' not found in aliases"
-        ):
+        with pytest.raises(UnrecognizedAliasError, match="'unknown' not found in aliases"):
             aliases.normalize("unknown")
 
     def test_normalize_returns_canonical(self, aliases):
@@ -186,9 +180,7 @@ class TestAliasesEdgeCases:
         assert aliases.normalize("canonical_form") == "canonical_form"
         assert aliases.normalize("variant1") == "canonical_form"
         # Key itself is not an alias and should raise
-        with pytest.raises(
-            UnrecognizedAliasError, match="'code_name' not found in aliases"
-        ):
+        with pytest.raises(UnrecognizedAliasError, match="'code_name' not found in aliases"):
             aliases.normalize("code_name")
 
 

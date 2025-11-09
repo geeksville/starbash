@@ -34,9 +34,7 @@ def set_test_directories(
 
 def get_user_config_dir() -> Path:
     """Get the user config directory. Returns test override if set, otherwise the real user directory."""
-    dir_to_use = (
-        _override_config_dir if _override_config_dir is not None else config_dir
-    )
+    dir_to_use = _override_config_dir if _override_config_dir is not None else config_dir
     os.makedirs(dir_to_use, exist_ok=True)
     return dir_to_use
 
@@ -57,10 +55,6 @@ def get_user_cache_dir() -> Path:
 
 def get_user_documents_dir() -> Path:
     """Get the user documents directory. Returns test override if set, otherwise the real user directory."""
-    dir_to_use = (
-        _override_documents_dir
-        if _override_documents_dir is not None
-        else documents_dir
-    )
+    dir_to_use = _override_documents_dir if _override_documents_dir is not None else documents_dir
     os.makedirs(dir_to_use, exist_ok=True)
     return dir_to_use

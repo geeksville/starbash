@@ -52,9 +52,7 @@ class ProcessingResult:
     # FIXME, someday we will add information about masters/flats that were used?
 
 
-def update_processing_result(
-    result: ProcessingResult, e: Exception | None = None
-) -> None:
+def update_processing_result(result: ProcessingResult, e: Exception | None = None) -> None:
     """Handle exceptions during processing and update the ProcessingResult accordingly."""
 
     result.success = True  # assume success
@@ -82,9 +80,7 @@ def setup_logging(console: rich.console.Console):
     """
     from starbash import _is_test_env  # Lazy import to avoid circular dependency
 
-    handlers = (
-        [RichHandler(console=console, rich_tracebacks=True)] if not _is_test_env else []
-    )
+    handlers = [RichHandler(console=console, rich_tracebacks=True)] if not _is_test_env else []
     logging.basicConfig(
         level=starbash.log_filter_level,  # use the global log filter level
         format="%(message)s",
@@ -239,9 +235,7 @@ class Starbash:
         self._init_analytics(cmd)
         self._init_aliases()
 
-        logging.info(
-            f"Repo manager initialized with {len(self.repo_manager.repos)} repos."
-        )
+        logging.info(f"Repo manager initialized with {len(self.repo_manager.repos)} repos.")
         # self.repo_manager.dump()
 
         self._db = None  # Lazy initialization - only create when accessed
@@ -261,9 +255,7 @@ class Starbash:
         self.analytics = NopAnalytics()
         if self.user_repo.get("analytics.enabled", True):
             include_user = self.user_repo.get("analytics.include_user", False)
-            user_email = (
-                self.user_repo.get("user.email", None) if include_user else None
-            )
+            user_email = self.user_repo.get("user.email", None) if include_user else None
             if user_email is not None:
                 user_email = str(user_email)
             analytics_setup(allowed=True, user_email=user_email)
@@ -360,9 +352,7 @@ class Starbash:
             session = self.db.get_session(new)
             self.db.upsert_session(new, existing=session)
 
-    def guess_sessions(
-        self, ref_session: SessionRow, want_type: str
-    ) -> list[SessionRow]:
+    def guess_sessions(self, ref_session: SessionRow, want_type: str) -> list[SessionRow]:
         """Given a particular session type (i.e. FLAT or BIAS etc...) and an
         existing session (which is assumed to generally be a LIGHT frame based session):
 
@@ -395,9 +385,7 @@ class Starbash:
 
         # For FLAT frames, filter must match the reference session
         if want_type.upper() == "FLAT":
-            conditions[Database.FILTER_KEY] = ref_session[
-                get_column_name(Database.FILTER_KEY)
-            ]
+            conditions[Database.FILTER_KEY] = ref_session[get_column_name(Database.FILTER_KEY)]
 
         # Search for candidate sessions
         candidates = self.db.search_session(build_search_conditions(conditions))
@@ -475,9 +463,7 @@ class Starbash:
 
             except (AssertionError, KeyError) as e:
                 # If we can't get the session image, log and skip this candidate
-                logging.warning(
-                    f"Could not score candidate session {candidate.get('id')}: {e}"
-                )
+                logging.warning(f"Could not score candidate session {candidate.get('id')}: {e}")
                 continue
 
         # Sort by score (highest first)
@@ -520,15 +506,9 @@ class Starbash:
         from starbash.database import SearchCondition
 
         images = self.db.search_image(
-            [
-                SearchCondition(
-                    "i.id", "=", session[get_column_name(Database.IMAGE_DOC_KEY)]
-                )
-            ]
+            [SearchCondition("i.id", "=", session[get_column_name(Database.IMAGE_DOC_KEY)])]
         )
-        assert (
-            len(images) == 1
-        ), f"Expected exactly one reference for session, found {len(images)}"
+        assert len(images) == 1, f"Expected exactly one reference for session, found {len(images)}"
         return self._add_image_abspath(images[0])
 
     def get_master_images(
@@ -565,11 +545,7 @@ class Starbash:
 
         # FIXME - move this into a general filter function
         # For flat frames, filter images based on matching reference_session filter
-        if (
-            reference_session
-            and imagetyp
-            and self.aliases.normalize(imagetyp) == "flat"
-        ):
+        if reference_session and imagetyp and self.aliases.normalize(imagetyp) == "flat":
             ref_filter = self.aliases.normalize(
                 reference_session.get(get_column_name(Database.FILTER_KEY), "None")
             )
@@ -617,15 +593,9 @@ class Starbash:
         # Note: We need to search JSON metadata for FILTER, IMAGETYP, OBJECT, TELESCOP
         # since they're not indexed columns in the images table
         conditions = [
-            SearchCondition(
-                "i.date_obs", ">=", session[get_column_name(Database.START_KEY)]
-            ),
-            SearchCondition(
-                "i.date_obs", "<=", session[get_column_name(Database.END_KEY)]
-            ),
-            SearchCondition(
-                "i.imagetyp", "=", session[get_column_name(Database.IMAGETYP_KEY)]
-            ),
+            SearchCondition("i.date_obs", ">=", session[get_column_name(Database.START_KEY)]),
+            SearchCondition("i.date_obs", "<=", session[get_column_name(Database.END_KEY)]),
+            SearchCondition("i.imagetyp", "=", session[get_column_name(Database.IMAGETYP_KEY)]),
         ]
 
         # Note: not needed here, because we filter this earlier - when building the
@@ -641,12 +611,10 @@ class Starbash:
         # We no lognger filter by target(object) because it might not be set anyways
         filtered_images = []
         for img in images:
-
             # "HISTORY" nodes are added by processing tools (Siril etc...), we never want to accidentally read those images
             has_history = img.get("HISTORY")
             if (
-                img.get(Database.FILTER_KEY)
-                == session[get_column_name(Database.FILTER_KEY)]
+                img.get(Database.FILTER_KEY) == session[get_column_name(Database.FILTER_KEY)]
                 # and img.get(Database.OBJECT_KEY)
                 # == session[get_column_name(Database.OBJECT_KEY)]
                 and img.get(Database.TELESCOP_KEY)
@@ -656,11 +624,7 @@ class Starbash:
                 filtered_images.append(img)
 
         # Reconstruct absolute paths for all images
-        return (
-            [self._add_image_abspath(img) for img in filtered_images]
-            if filtered_images
-            else []
-        )
+        return [self._add_image_abspath(img) for img in filtered_images] if filtered_images else []
 
     def remove_repo_ref(self, url: str) -> None:
         """
@@ -698,9 +662,7 @@ class Starbash:
         # Write the updated config
         self.user_repo.write_config()
 
-    def add_image(
-        self, repo: Repo, f: Path, force: bool = False
-    ) -> dict[str, Any] | None:
+    def add_image(self, repo: Repo, f: Path, force: bool = False) -> dict[str, Any] | None:
         """Read FITS header from file and add/update image entry in the database."""
 
         path = repo.get_path()
@@ -826,9 +788,7 @@ class Starbash:
                 "invalid stage definition: a stage is missing the required 'priority' key"
             ) from e
 
-        logging.debug(
-            f"Found {len(sorted_pipeline)} pipeline steps to run in order of priority."
-        )
+        logging.debug(f"Found {len(sorted_pipeline)} pipeline steps to run in order of priority.")
         return sorted_pipeline
 
     def run_pipeline_step(self, step_name: str):
@@ -860,9 +820,7 @@ class Starbash:
 
         return recipes
 
-    def get_recipe_for_session(
-        self, session: SessionRow, step: dict[str, Any]
-    ) -> Repo | None:
+    def get_recipe_for_session(self, session: SessionRow, step: dict[str, Any]) -> Repo | None:
         """Try to find a recipe that can be used to process the given session for the given step name
         (master-dark, master-bias, light, stack, etc...)
 
@@ -903,9 +861,7 @@ class Starbash:
             # Check if this recipe has the requested stage
             stage_config = repo.get(f"recipe.stage.{step_name}")
             if not stage_config:
-                logging.debug(
-                    f"Recipe {repo.url} does not have stage '{step_name}', skipping"
-                )
+                logging.debug(f"Recipe {repo.url} does not have stage '{step_name}', skipping")
                 continue
 
             # Check auto.require conditions if they exist
@@ -913,9 +869,7 @@ class Starbash:
             # If requirements are specified, check if session matches
             required_filters = repo.get("recipe.auto.require.filter", [])
             if required_filters:
-                session_filter = self.aliases.normalize(
-                    session_metadata.get(Database.FILTER_KEY)
-                )
+                session_filter = self.aliases.normalize(session_metadata.get(Database.FILTER_KEY))
 
                 # Session must have AT LEAST one filter that matches one of the required filters
                 if not session_filter or session_filter not in required_filters:
@@ -946,9 +900,7 @@ class Starbash:
         # No matching recipe found
         return None
 
-    def filter_sessions_with_lights(
-        self, sessions: list[SessionRow]
-    ) -> list[SessionRow]:
+    def filter_sessions_with_lights(self, sessions: list[SessionRow]) -> list[SessionRow]:
         """Filter sessions to only those that contain light frames."""
         filtered_sessions: list[SessionRow] = []
         for s in sessions:
@@ -972,9 +924,7 @@ class Starbash:
                 filtered_sessions.append(s)
         return filtered_sessions
 
-    def process_target(
-        self, target: str, sessions: list[SessionRow]
-    ) -> ProcessingResult:
+    def process_target(self, target: str, sessions: list[SessionRow]) -> ProcessingResult:
         """Do processing for a particular target (i.e. all sessions for a particular object)."""
 
         pipeline = self._get_stages("stages")
@@ -996,9 +946,7 @@ class Starbash:
 
                 # process all light frames
                 step = lights_step
-                lights_task = self.progress.add_task(
-                    "Processing lights...", total=len(sessions)
-                )
+                lights_task = self.progress.add_task("Processing lights...", total=len(sessions))
                 try:
                     lights_processed = False  # for better reporting
                     stack_processed = False
@@ -1047,9 +995,7 @@ class Starbash:
 
                 # Success!  we processed all lights and did a stack (probably)
                 if not lights_processed:
-                    result.notes = (
-                        "Skipped, no suitable recipe found for light frames..."
-                    )
+                    result.notes = "Skipped, no suitable recipe found for light frames..."
                 elif not stack_processed:
                     result.notes = "Skipped, no suitable recipe found for stacking..."
                 else:
@@ -1082,16 +1028,12 @@ class Starbash:
             if (obj := s.get(get_column_name(Database.OBJECT_KEY))) is not None
         }
 
-        target_task = self.progress.add_task(
-            "Processing targets...", total=len(targets)
-        )
+        target_task = self.progress.add_task("Processing targets...", total=len(targets))
 
         results: list[ProcessingResult] = []
         try:
             for target in targets:
-                self.progress.update(
-                    target_task, description=f"Processing target {target}..."
-                )
+                self.progress.update(target_task, description=f"Processing target {target}...")
                 # select sessions for this target
                 target_sessions = self.filter_sessions_by_target(sessions, target)
 
@@ -1129,9 +1071,7 @@ class Starbash:
             step_name = step.get("name")
             if not step_name:
                 raise ValueError("Invalid pipeline step found: missing 'name' key.")
-            for session in track(
-                sessions, description=f"Processing {step_name} for sessions..."
-            ):
+            for session in track(sessions, description=f"Processing {step_name} for sessions..."):
                 task = None
                 recipe = self.get_recipe_for_session(session, step)
                 if recipe:
@@ -1230,9 +1170,7 @@ class Starbash:
         input_config = stage.get("input", {})
         master_types: list[str] = input_config.get("masters", [])
         for master_type in master_types:
-            masters = self.get_master_images(
-                imagetyp=master_type, reference_session=session
-            )
+            masters = self.get_master_images(imagetyp=master_type, reference_session=session)
             if not masters:
                 raise RuntimeError(
                     f"No master frames of type '{master_type}' found for stage '{stage.get('name')}'"
@@ -1278,9 +1216,7 @@ class Starbash:
             elif source == "repo":
                 # Get images for this session (by pulling from repo)
                 session = self.context.get("session")
-                assert (
-                    session is not None
-                ), "context.session should have been already set"
+                assert session is not None, "context.session should have been already set"
 
                 images = self.get_session_images(session)
                 logging.debug(f"Using {len(images)} files as input_files")
@@ -1419,19 +1355,13 @@ class Starbash:
 
         tool_dict = stage.get("tool")
         if not tool_dict:
-            raise ValueError(
-                f"Stage '{stage.get('name')}' is missing a 'tool' definition."
-            )
+            raise ValueError(f"Stage '{stage.get('name')}' is missing a 'tool' definition.")
         tool_name = tool_dict.get("name")
         if not tool_name:
-            raise ValueError(
-                f"Stage '{stage.get('name')}' is missing a 'tool.name' definition."
-            )
+            raise ValueError(f"Stage '{stage.get('name')}' is missing a 'tool.name' definition.")
         tool = tools.get(tool_name)
         if not tool:
-            raise ValueError(
-                f"Tool '{tool_name}' for stage '{stage.get('name')}' not found."
-            )
+            raise ValueError(f"Tool '{tool_name}' for stage '{stage.get('name')}' not found.")
         logging.debug(f"Using tool: {tool_name}")
         tool.set_defaults()
 
@@ -1453,9 +1383,7 @@ class Starbash:
                 try:
                     script = source.read(script_filename)
                 except OSError as e:
-                    raise ValueError(
-                        f"Error reading script file '{script_filename}'"
-                    ) from e
+                    raise ValueError(f"Error reading script file '{script_filename}'") from e
 
         if script is None:
             raise ValueError(
@@ -1502,9 +1430,7 @@ class Starbash:
             output_path = self.context.get("output", {}).get("full_path")
             if output_path:
                 shutil.copy(input_files[0], output_path)
-                logging.warning(
-                    f"Copied single master from {input_files[0]} to {output_path}"
-                )
+                logging.warning(f"Copied single master from {input_files[0]} to {output_path}")
             else:
                 # no output path specified, re-raise
                 raise

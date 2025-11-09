@@ -31,14 +31,12 @@ def setup_test_environment(tmp_path):
 @pytest.fixture
 def mock_analytics():
     """Mock analytics functions to avoid Sentry calls."""
-    with patch("starbash.app.analytics_setup") as mock_setup, patch(
-        "starbash.app.analytics_shutdown"
-    ) as mock_shutdown, patch(
-        "starbash.app.analytics_start_transaction"
-    ) as mock_transaction, patch(
-        "starbash.app.analytics_exception"
-    ) as mock_exception:
-
+    with (
+        patch("starbash.app.analytics_setup") as mock_setup,
+        patch("starbash.app.analytics_shutdown") as mock_shutdown,
+        patch("starbash.app.analytics_start_transaction") as mock_transaction,
+        patch("starbash.app.analytics_exception") as mock_exception,
+    ):
         # Make transaction return a NopAnalytics-like mock
         mock_context = MagicMock()
         mock_context.__enter__ = MagicMock(return_value=mock_context)
@@ -64,9 +62,7 @@ class TestSelectionClearCommand:
         assert "Selection cleared" in result.stdout
         assert "selecting all sessions" in result.stdout
 
-    def test_clear_command_actually_clears(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_clear_command_actually_clears(self, setup_test_environment, mock_analytics):
         """Test that clear command actually modifies the selection."""
         # First add a target
         runner.invoke(app, ["target", "M31"])
@@ -77,10 +73,7 @@ class TestSelectionClearCommand:
 
         # Verify selection is empty by showing it
         show_result = runner.invoke(app, [])
-        assert (
-            "Selecting all sessions" in show_result.stdout
-            or "all" in show_result.stdout.lower()
-        )
+        assert "Selecting all sessions" in show_result.stdout or "all" in show_result.stdout.lower()
 
 
 class TestSelectionTargetCommand:
@@ -98,9 +91,7 @@ class TestSelectionTargetCommand:
         assert result.exit_code == 0
         assert "NGC 7000" in result.stdout
 
-    def test_target_command_replaces_previous(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_target_command_replaces_previous(self, setup_test_environment, mock_analytics):
         """Test that setting a new target replaces the previous one."""
         # Set first target
         runner.invoke(app, ["target", "M31"])
@@ -113,9 +104,7 @@ class TestSelectionTargetCommand:
         show_result = runner.invoke(app, [])
         assert "M42" in show_result.stdout
 
-    def test_target_command_missing_argument(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_target_command_missing_argument(self, setup_test_environment, mock_analytics):
         """Test that target command requires an argument."""
         result = runner.invoke(app, ["target"])
         assert result.exit_code != 0
@@ -130,17 +119,13 @@ class TestSelectionTelescopeCommand:
         assert result.exit_code == 0
         assert "Selection limited to telescope: Vespera" in result.stdout
 
-    def test_telescope_command_with_spaces(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_telescope_command_with_spaces(self, setup_test_environment, mock_analytics):
         """Test telescope command with names containing spaces."""
         result = runner.invoke(app, ["telescope", "EdgeHD 8"])
         assert result.exit_code == 0
         assert "EdgeHD 8" in result.stdout
 
-    def test_telescope_command_replaces_previous(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_telescope_command_replaces_previous(self, setup_test_environment, mock_analytics):
         """Test that setting a new telescope replaces the previous one."""
         # Set first telescope
         runner.invoke(app, ["telescope", "Vespera"])
@@ -153,9 +138,7 @@ class TestSelectionTelescopeCommand:
         show_result = runner.invoke(app, [])
         assert "EdgeHD" in show_result.stdout
 
-    def test_telescope_command_missing_argument(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_telescope_command_missing_argument(self, setup_test_environment, mock_analytics):
         """Test that telescope command requires an argument."""
         result = runner.invoke(app, ["telescope"])
         assert result.exit_code != 0
@@ -182,9 +165,7 @@ class TestSelectionDateCommand:
         assert result.exit_code == 0
         assert "between 2023-10-01 and 2023-12-31" in result.stdout
 
-    def test_date_between_missing_end_date(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_date_between_missing_end_date(self, setup_test_environment, mock_analytics):
         """Test that 'between' requires two dates."""
         result = runner.invoke(app, ["date", "between", "2023-10-01"])
         assert result.exit_code == 1
@@ -196,9 +177,7 @@ class TestSelectionDateCommand:
         assert result.exit_code == 1
         assert "Unknown operation" in result.stdout
 
-    def test_date_operation_case_insensitive(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_date_operation_case_insensitive(self, setup_test_environment, mock_analytics):
         """Test that date operations are case-insensitive."""
         result = runner.invoke(app, ["date", "AFTER", "2023-10-01"])
         assert result.exit_code == 0
@@ -231,9 +210,7 @@ class TestSelectionShowCommand:
         # Should show the target in a table or summary
         assert "M31" in result.stdout or "Current Selection" in result.stdout
 
-    def test_show_selection_with_date_range(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_show_selection_with_date_range(self, setup_test_environment, mock_analytics):
         """Test showing selection after setting a date range."""
         # Set date range
         runner.invoke(app, ["date", "between", "2023-10-01", "2023-12-31"])
@@ -244,9 +221,7 @@ class TestSelectionShowCommand:
         # Should show date information
         assert "2023" in result.stdout or "Current Selection" in result.stdout
 
-    def test_show_selection_with_telescope(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_show_selection_with_telescope(self, setup_test_environment, mock_analytics):
         """Test showing selection after setting a telescope."""
         # Set telescope
         runner.invoke(app, ["telescope", "Vespera"])
@@ -257,9 +232,7 @@ class TestSelectionShowCommand:
         # Should show the telescope
         assert "Vespera" in result.stdout or "Current Selection" in result.stdout
 
-    def test_show_selection_with_multiple_criteria(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_show_selection_with_multiple_criteria(self, setup_test_environment, mock_analytics):
         """Test showing selection with multiple criteria."""
         # Set multiple criteria
         runner.invoke(app, ["target", "M31"])
@@ -289,13 +262,9 @@ class TestSelectionIntegration:
 
         # Verify cleared
         show_result = runner.invoke(app, [])
-        assert (
-            "Selecting all" in show_result.stdout or "all" in show_result.stdout.lower()
-        )
+        assert "Selecting all" in show_result.stdout or "all" in show_result.stdout.lower()
 
-    def test_selection_persistence_across_commands(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_selection_persistence_across_commands(self, setup_test_environment, mock_analytics):
         """Test that selection persists across command invocations."""
         # Set a target
         runner.invoke(app, ["target", "M31"])
@@ -309,9 +278,7 @@ class TestSelectionIntegration:
         # At least one of them should be shown
         assert "M31" in show_result.stdout or "Vespera" in show_result.stdout
 
-    def test_date_range_after_clears_previous_range(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_date_range_after_clears_previous_range(self, setup_test_environment, mock_analytics):
         """Test that setting a new date range replaces the previous one."""
         # Set first range
         runner.invoke(app, ["date", "after", "2023-01-01"])
@@ -331,9 +298,7 @@ class TestSelectionHelp:
         """Test that 'selection --help' works."""
         result = runner.invoke(app, ["--help"])
         assert result.exit_code == 0
-        assert (
-            "selection" in result.stdout.lower() or "List information" in result.stdout
-        )
+        assert "selection" in result.stdout.lower() or "List information" in result.stdout
 
     def test_target_help(self):
         """Test that 'selection target --help' works."""

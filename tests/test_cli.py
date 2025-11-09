@@ -148,9 +148,7 @@ def test_repo_list_non_verbose(setup_test_environment):
         numbered_lines = [
             line
             for line in output_lines
-            if line.strip()
-            and ":" in line
-            and line.strip().split(":")[0].strip().isdigit()
+            if line.strip() and ":" in line and line.strip().split(":")[0].strip().isdigit()
         ]
 
         # Debug output for troubleshooting
@@ -159,16 +157,11 @@ def test_repo_list_non_verbose(setup_test_environment):
             print(f"\n=== DEBUG: Output lines ===\n{output_lines}")
             print(f"\n=== DEBUG: Numbered lines ===\n{numbered_lines}")
 
-        assert (
-            len(numbered_lines) > 0
-        ), f"Should have numbered repos. Output lines: {output_lines}"
+        assert len(numbered_lines) > 0, f"Should have numbered repos. Output lines: {output_lines}"
 
         # Should NOT show preferences or recipe repos in non-verbose mode
         # (these are filtered out by regular_repos property)
-        assert (
-            "(kind=preferences)" not in output
-            or output.count("(kind=preferences)") == 0
-        )
+        assert "(kind=preferences)" not in output or output.count("(kind=preferences)") == 0
 
         # Some repos might be shown, but pkg:// repos should be filtered
         # Should have file:// but not pkg://
@@ -203,9 +196,9 @@ def test_repo_list_verbose(setup_test_environment):
         stripped = line.strip()
         if stripped:
             # Should start with pkg:// or file://, not a number
-            assert stripped.startswith("pkg://") or stripped.startswith(
-                "file://"
-            ), f"Verbose mode should not show numbers, but got: {stripped}"
+            assert stripped.startswith("pkg://") or stripped.startswith("file://"), (
+                f"Verbose mode should not show numbers, but got: {stripped}"
+            )
 
 
 def test_repo_add_command(setup_test_environment, tmp_path):
@@ -258,9 +251,7 @@ def test_repo_remove_command(setup_test_environment, tmp_path):
         print(f"\n=== DEBUG: Full output ===\n{list_result.stdout}")
         print(f"\n=== DEBUG: Filtered lines ===\n{lines}")
 
-    assert (
-        last_line is not None
-    ), f"Could not find numbered repo in list. Lines: {lines}"
+    assert last_line is not None, f"Could not find numbered repo in list. Lines: {lines}"
     repo_num = last_line.strip().split(":")[0].strip()
 
     # Remove the repo
@@ -344,9 +335,7 @@ def test_repo_reindex_by_number(setup_test_environment, tmp_path):
         print(f"\n=== DEBUG: Full output ===\n{list_result.stdout}")
         print(f"\n=== DEBUG: Filtered lines ===\n{lines}")
 
-    assert (
-        last_line is not None
-    ), f"Could not find numbered repo in list. Lines: {lines}"
+    assert last_line is not None, f"Could not find numbered repo in list. Lines: {lines}"
     repo_num = last_line.strip().split(":")[0].strip()
 
     # Reindex the specific repo
@@ -524,9 +513,7 @@ def test_user_analytics_command(setup_test_environment):
 def test_user_reinit_command(setup_test_environment):
     """Test 'starbash user reinit' command with interactive prompts."""
     # Test with full input
-    result = runner.invoke(
-        app, ["user", "reinit"], input="John Doe\njohn@example.com\ny\n"
-    )
+    result = runner.invoke(app, ["user", "reinit"], input="John Doe\njohn@example.com\ny\n")
     assert result.exit_code == 0
     assert "Configuration complete!" in result.stdout
     assert "Name set to: John Doe" in result.stdout
@@ -591,10 +578,7 @@ def test_selection_commands(setup_test_environment):
     # Test showing selection with no filters
     result = runner.invoke(app, ["select"])
     assert result.exit_code == 0
-    assert (
-        "selecting all" in result.stdout.lower()
-        or "no filters" in result.stdout.lower()
-    )
+    assert "selecting all" in result.stdout.lower() or "no filters" in result.stdout.lower()
 
     # Test setting a target
     result = runner.invoke(app, ["select", "target", "M31"])
@@ -619,10 +603,7 @@ def test_selection_commands(setup_test_environment):
     # Verify selection is cleared
     result = runner.invoke(app, ["select"])
     assert result.exit_code == 0
-    assert (
-        "selecting all" in result.stdout.lower()
-        or "no filters" in result.stdout.lower()
-    )
+    assert "selecting all" in result.stdout.lower() or "no filters" in result.stdout.lower()
 
 
 def test_selection_date_between(setup_test_environment):
@@ -630,9 +611,7 @@ def test_selection_date_between(setup_test_environment):
     # Clear any existing selection first
     runner.invoke(app, ["select", "any"])
 
-    result = runner.invoke(
-        app, ["select", "date", "between", "2023-10-01", "2023-12-31"]
-    )
+    result = runner.invoke(app, ["select", "date", "between", "2023-10-01", "2023-12-31"])
     assert result.exit_code == 0
     assert "2023-10-01" in result.stdout
     assert "2023-12-31" in result.stdout

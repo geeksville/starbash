@@ -129,9 +129,7 @@ class TestExpandContextUnsafe:
     def test_path_building(self):
         """Test building filesystem paths (real use case)."""
         context = {"instrument": "MyScope", "date": "2025-01-01", "imagetyp": "BIAS"}
-        result = expand_context_unsafe(
-            "{instrument}/{date}/{imagetyp}/output.fits", context
-        )
+        result = expand_context_unsafe("{instrument}/{date}/{imagetyp}/output.fits", context)
         assert result == "MyScope/2025-01-01/BIAS/output.fits"
 
     def test_arithmetic_with_context(self):
@@ -388,9 +386,7 @@ class TestPythonTool:
             tool.run(code, context, temp_dir)
             # Verify cwd was changed during execution. Use realpath to
             # resolve macOS /private vs /var symlink differences.
-            assert os.path.realpath(context["cwd_during_run"][0]) == os.path.realpath(
-                temp_dir
-            )
+            assert os.path.realpath(context["cwd_during_run"][0]) == os.path.realpath(temp_dir)
             # Verify cwd was restored after execution
             assert os.getcwd() == original_cwd
 
@@ -469,9 +465,7 @@ class TestToolRun:
             tool_run("echo hello", temp_dir)
             # If we get here without exception, the command succeeded
 
-    @pytest.mark.skipif(
-        os.name == "nt", reason="Shell redirection syntax not supported on Windows"
-    )
+    @pytest.mark.skipif(os.name == "nt", reason="Shell redirection syntax not supported on Windows")
     def test_tool_run_with_stderr_warning(self, caplog):
         """Test that stderr output is logged as warning."""
         import logging
@@ -500,9 +494,7 @@ class TestToolRun:
             with pytest.raises(RuntimeError, match="Tool timed out after 1 seconds"):
                 tool_run("sleep 5", temp_dir, timeout=1)
 
-    @pytest.mark.skipif(
-        os.name == "nt", reason="Shell redirection syntax not supported on Windows"
-    )
+    @pytest.mark.skipif(os.name == "nt", reason="Shell redirection syntax not supported on Windows")
     def test_tool_run_failure_logs_output(self, caplog):
         """Test that failure logs both stdout and stderr."""
         import logging

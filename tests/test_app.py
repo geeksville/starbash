@@ -34,14 +34,12 @@ def setup_test_environment(tmp_path):
 @pytest.fixture
 def mock_analytics():
     """Mock analytics functions to avoid Sentry calls."""
-    with patch("starbash.app.analytics_setup") as mock_setup, patch(
-        "starbash.app.analytics_shutdown"
-    ) as mock_shutdown, patch(
-        "starbash.app.analytics_start_transaction"
-    ) as mock_transaction, patch(
-        "starbash.app.analytics_exception"
-    ) as mock_exception:
-
+    with (
+        patch("starbash.app.analytics_setup") as mock_setup,
+        patch("starbash.app.analytics_shutdown") as mock_shutdown,
+        patch("starbash.app.analytics_start_transaction") as mock_transaction,
+        patch("starbash.app.analytics_exception") as mock_exception,
+    ):
         # Make transaction return a NopAnalytics-like mock
         mock_context = MagicMock()
         mock_context.__enter__ = MagicMock(return_value=mock_context)
@@ -203,9 +201,7 @@ class TestCopyImagesToDir:
 
     @patch("shutil.copy2")
     @patch("pathlib.Path.symlink_to")
-    def test_copy_images_to_dir_copy_failure(
-        self, mock_symlink, mock_copy, tmp_path, capsys
-    ):
+    def test_copy_images_to_dir_copy_failure(self, mock_symlink, mock_copy, tmp_path, capsys):
         """Test that copy_images_to_dir handles copy failures."""
         # Create source file
         source_dir = tmp_path / "source"
@@ -361,8 +357,7 @@ class TestStarbashInit:
         config_dir = setup_test_environment["config_dir"]
         config_file = config_dir / "starbash.toml"
         config_file.write_text(
-            "[analytics]\nenabled = true\ninclude_user = true\n"
-            '[user]\nemail = "test@example.com"\n'
+            '[analytics]\nenabled = true\ninclude_user = true\n[user]\nemail = "test@example.com"\n'
         )
 
         with Starbash() as app:
@@ -402,9 +397,7 @@ class TestStarbashLifecycle:
         assert result is app
         app.close()
 
-    def test_context_manager_exit_no_exception(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_context_manager_exit_no_exception(self, setup_test_environment, mock_analytics):
         """Test that __exit__ handles no exception case."""
         app = Starbash()
         result = app.__exit__(None, None, None)
@@ -412,9 +405,7 @@ class TestStarbashLifecycle:
         assert result is False or result is None
         mock_analytics["exception"].assert_not_called()
 
-    def test_context_manager_exit_with_exception(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_context_manager_exit_with_exception(self, setup_test_environment, mock_analytics):
         """Test that __exit__ calls analytics_exception on error."""
         mock_analytics["exception"].return_value = True
         app = Starbash()
@@ -422,9 +413,7 @@ class TestStarbashLifecycle:
         result = app.__exit__(type(exc), exc, None)
         mock_analytics["exception"].assert_called_once_with(exc)
 
-    def test_context_manager_exit_with_typer_exit(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_context_manager_exit_with_typer_exit(self, setup_test_environment, mock_analytics):
         """Test that __exit__ doesn't suppress typer.Exit."""
         app = Starbash()
         exc = typer.Exit(code=0)
@@ -444,9 +433,7 @@ class TestStarbashLifecycle:
 class TestAddSession:
     """Tests for the _add_session method."""
 
-    def test_add_session_with_valid_header(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_add_session_with_valid_header(self, setup_test_environment, mock_analytics):
         """Test adding a session with valid FITS header."""
         with Starbash() as app:
             header = {
@@ -465,9 +452,7 @@ class TestAddSession:
             assert len(sessions) == 1
             assert sessions[0][Database.OBJECT_KEY] == "M31"
 
-    def test_add_session_missing_date(
-        self, setup_test_environment, mock_analytics, caplog
-    ):
+    def test_add_session_missing_date(self, setup_test_environment, mock_analytics, caplog):
         """Test adding a session with missing DATE-OBS logs warning."""
         with Starbash() as app:
             header = {
@@ -482,9 +467,7 @@ class TestAddSession:
             assert sessions
             assert len(sessions) == 0
 
-    def test_add_session_missing_imagetyp(
-        self, setup_test_environment, mock_analytics, caplog
-    ):
+    def test_add_session_missing_imagetyp(self, setup_test_environment, mock_analytics, caplog):
         """Test adding a session with missing IMAGETYP logs warning."""
         with Starbash() as app:
             header = {
@@ -515,9 +498,7 @@ class TestAddSession:
 class TestSearchSession:
     """Tests for the search_session method."""
 
-    def test_search_session_empty_selection(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_search_session_empty_selection(self, setup_test_environment, mock_analytics):
         """Test search_session with empty selection returns all sessions."""
         with Starbash() as app:
             # Add some sessions
@@ -582,9 +563,7 @@ class TestSearchSession:
 class TestGetSessionImages:
     """Tests for the get_session_images method."""
 
-    def test_get_session_images_valid_session(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_get_session_images_valid_session(self, setup_test_environment, mock_analytics):
         """Test retrieving images for a valid session."""
         with Starbash() as app:
             # Add an image
@@ -624,9 +603,7 @@ class TestGetSessionImages:
             assert len(images) == 1
             assert images[0]["abspath"] == "/path/to/image.fit"
 
-    def test_get_session_images_invalid_session(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_get_session_images_invalid_session(self, setup_test_environment, mock_analytics):
         """Test that invalid session ID raises ValueError."""
         with Starbash() as app:
             with pytest.raises(ValueError, match="Session with id 999 not found"):
@@ -701,9 +678,7 @@ class TestRemoveRepoRef:
 class TestReindexRepo:
     """Tests for the reindex_repo method."""
 
-    def test_reindex_repo_skips_non_file_schemes(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_reindex_repo_skips_non_file_schemes(self, setup_test_environment, mock_analytics):
         """Test that reindex_repo skips repos that aren't file:// scheme."""
         with Starbash() as app:
             # The pkg://defaults repo should be skipped
@@ -713,9 +688,7 @@ class TestReindexRepo:
             # This should not raise an error or try to scan files
             app.reindex_repo(pkg_repo)
 
-    def test_reindex_repo_skips_recipe_repos(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_reindex_repo_skips_recipe_repos(self, setup_test_environment, mock_analytics):
         """Test that reindex_repo skips recipe repos."""
         with Starbash() as app:
             # Create a recipe repo
@@ -791,9 +764,7 @@ class TestReindexRepo:
             assert image is not None
             assert image["FILTER"] == "OIII"
 
-    def test_reindex_repo_handles_bad_fits(
-        self, setup_test_environment, mock_analytics, caplog
-    ):
+    def test_reindex_repo_handles_bad_fits(self, setup_test_environment, mock_analytics, caplog):
         """Test that reindex_repo handles corrupt FITS files gracefully."""
         with Starbash() as app:
             # Create a test repo with a bad FITS file
@@ -816,9 +787,7 @@ class TestReindexRepo:
 class TestReindexRepos:
     """Tests for the reindex_repos method."""
 
-    def test_reindex_repos_calls_reindex_repo(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_reindex_repos_calls_reindex_repo(self, setup_test_environment, mock_analytics):
         """Test that reindex_repos calls reindex_repo for each repo."""
         with Starbash() as app:
             with patch.object(app, "reindex_repo") as mock_reindex:
@@ -841,9 +810,7 @@ class TestReindexRepos:
 class TestProcessing:
     """Tests for processing-related methods."""
 
-    def test_start_session_initializes_context(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_start_session_initializes_context(self, setup_test_environment, mock_analytics):
         """Test that start_session initializes the context dict."""
         with Starbash() as app:
             app.start_session()
@@ -878,9 +845,7 @@ class TestProcessing:
             with pytest.raises(ValueError, match="not found"):
                 app.run_stage(stage)
 
-    def test_run_stage_disabled_skips(
-        self, setup_test_environment, mock_analytics, caplog
-    ):
+    def test_run_stage_disabled_skips(self, setup_test_environment, mock_analytics, caplog):
         """Test that disabled stages are skipped."""
         with Starbash() as app:
             app.start_session()
@@ -990,9 +955,7 @@ class TestProcessing:
             assert "input_files" in app.context
             assert len(app.context["input_files"]) == 2
 
-    def test_run_stage_input_required_missing(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_run_stage_input_required_missing(self, setup_test_environment, mock_analytics):
         """Test that run_stage raises error when required inputs are missing."""
         with Starbash() as app:
             app.start_session()
@@ -1010,9 +973,7 @@ class TestProcessing:
             with pytest.raises(RuntimeError, match="No input files found"):
                 app.run_stage(stage)
 
-    def test_run_stage_input_optional_missing(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_run_stage_input_optional_missing(self, setup_test_environment, mock_analytics):
         """Test that run_stage succeeds when optional inputs are missing."""
         with Starbash() as app:
             app.start_session()
@@ -1031,9 +992,7 @@ class TestProcessing:
             app.run_stage(stage)
             assert app.context["input_files"] == []
 
-    def test_run_stage_clears_previous_input_files(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_run_stage_clears_previous_input_files(self, setup_test_environment, mock_analytics):
         """Test that run_stage clears input_files from previous stages."""
         with Starbash() as app:
             app.start_session()
@@ -1052,9 +1011,7 @@ class TestProcessing:
             # input_files should be removed
             assert "input_files" not in app.context
 
-    def test_run_all_stages_executes_stages(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_run_all_stages_executes_stages(self, setup_test_environment, mock_analytics):
         """Test that run_all_stages executes stages in priority order."""
         with Starbash() as app:
             # Mock the repo manager to return valid stage definitions
@@ -1090,9 +1047,7 @@ class TestProcessing:
             assert app.context.get("s1") == 1
             assert app.context.get("s2") == 2
 
-    def test_run_all_stages_missing_priority(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_run_all_stages_missing_priority(self, setup_test_environment, mock_analytics):
         """Test that run_all_stages raises error for stages missing priority."""
         with Starbash() as app:
             # Mock the repo manager to return invalid stage definitions
@@ -1151,9 +1106,7 @@ class TestAddOutputPath:
             with pytest.raises(ValueError, match="missing 'type'"):
                 app.add_output_path(stage)
 
-    def test_add_output_path_repo_not_found(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_add_output_path_repo_not_found(self, setup_test_environment, mock_analytics):
         """Test that add_output_path raises error when repo kind not found."""
         with Starbash() as app:
             app.init_context()
@@ -1166,9 +1119,7 @@ class TestAddOutputPath:
             with pytest.raises(ValueError, match="No repository found with kind"):
                 app.add_output_path(stage)
 
-    def test_add_output_path_success(
-        self, setup_test_environment, mock_analytics, tmp_path
-    ):
+    def test_add_output_path_success(self, setup_test_environment, mock_analytics, tmp_path):
         """Test successful output path creation."""
         with Starbash() as app:
             app.init_context()
@@ -1228,9 +1179,7 @@ class TestAddOutputPath:
             expected_dir = output_repo / "TestScope" / "2025-01-01" / "FLAT"
             assert expected_dir.exists()
 
-    def test_add_output_path_unsupported_dest(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_add_output_path_unsupported_dest(self, setup_test_environment, mock_analytics):
         """Test that add_output_path raises error for unsupported dest types."""
         with Starbash() as app:
             app.init_context()
@@ -1252,9 +1201,7 @@ class TestAddOutputPath:
             # Create a mock repo with a path containing context variables
             mock_repo = MagicMock()
             mock_repo.get_path.return_value = output_repo
-            mock_repo.get.return_value = (
-                "{context['instrument']}/{context['date']}/output.fits"
-            )
+            mock_repo.get.return_value = "{context['instrument']}/{context['date']}/output.fits"
             mock_repo.url = "file:///test/repo"
 
             app.repo_manager.get_repo_by_kind = MagicMock(return_value=mock_repo)
@@ -1477,9 +1424,7 @@ class TestGetRecipeForSession:
             # First recipe should be returned
             assert result is mock_recipe1
 
-    def test_get_recipe_session_without_metadata(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_get_recipe_session_without_metadata(self, setup_test_environment, mock_analytics):
         """Test handling of sessions without metadata field."""
         with Starbash() as app:
             mock_recipe = MagicMock()

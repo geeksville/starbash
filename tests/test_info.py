@@ -312,10 +312,7 @@ def test_info_master_command_no_repo(setup_test_environment):
     assert result.exit_code == 0
 
     # Should show message about no master repository
-    assert (
-        "master repository" in result.stdout.lower()
-        or "no master" in result.stdout.lower()
-    )
+    assert "master repository" in result.stdout.lower() or "no master" in result.stdout.lower()
 
 
 def test_info_master_command_no_data(setup_test_environment):

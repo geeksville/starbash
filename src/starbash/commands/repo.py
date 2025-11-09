@@ -24,9 +24,7 @@ def repo_enumeration(sb: Starbash):
 
 def complete_repo_by_num(incomplete: str):
     # We need to use stderr_logging to prevent confusing the bash completion parser
-    starbash.log_filter_level = (
-        logging.ERROR
-    )  # avoid showing output while doing completion
+    starbash.log_filter_level = logging.ERROR  # avoid showing output while doing completion
     with Starbash("repo.complete.num", stderr_logging=True) as sb:
         for num, repo in repo_enumeration(sb).items():
             if str(num).startswith(incomplete):
@@ -35,9 +33,7 @@ def complete_repo_by_num(incomplete: str):
 
 def complete_repo_by_url(incomplete: str):
     # We need to use stderr_logging to prevent confusing the bash completion parser
-    starbash.log_filter_level = (
-        logging.ERROR
-    )  # avoid showing output while doing completion
+    starbash.log_filter_level = logging.ERROR  # avoid showing output while doing completion
     with Starbash("repo.complete.url", stderr_logging=True) as sb:
         repos = sb.repo_manager.regular_repos
 
@@ -52,11 +48,7 @@ def list():
     lists all repositories.
     """
     with Starbash("repo.list") as sb:
-        repos = (
-            sb.repo_manager.repos
-            if starbash.verbose_output
-            else sb.repo_manager.regular_repos
-        )
+        repos = sb.repo_manager.repos if starbash.verbose_output else sb.repo_manager.regular_repos
         for i, repo in enumerate(repos):
             kind = repo.kind("input")
             # for unknown repos (probably because we haven't written a starbash.toml file to the root yet),
@@ -64,10 +56,10 @@ def list():
 
             if starbash.verbose_output:
                 # No numbers for verbose mode (system repos can't be removed)
-                console.print(f"{ repo.url } (kind={ kind })")
+                console.print(f"{repo.url} (kind={kind})")
             else:
                 # Show numbers for user repos (can be removed later)
-                console.print(f"{ i + 1:2}: { repo.url } (kind={ kind })")
+                console.print(f"{i + 1:2}: {repo.url} (kind={kind})")
 
 
 @app.callback()
@@ -189,9 +181,7 @@ def repo_url_to_repo(sb: Starbash, repo_url: str | None) -> Repo | None:
 def remove(
     reponum: Annotated[
         str,
-        typer.Argument(
-            help="Repository number or URL", autocompletion=complete_repo_by_url
-        ),
+        typer.Argument(help="Repository number or URL", autocompletion=complete_repo_by_url),
     ],
 ):
     """
@@ -235,9 +225,7 @@ def reindex(
             # Get the repo to reindex
             console.print(f"Reindexing repository: {repo_to_reindex.url}")
             sb.reindex_repo(repo_to_reindex)
-            console.print(
-                f"[green]Successfully reindexed repository {repo_to_reindex}[/green]"
-            )
+            console.print(f"[green]Successfully reindexed repository {repo_to_reindex}[/green]")
 
 
 if __name__ == "__main__":

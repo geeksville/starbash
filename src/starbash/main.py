@@ -18,9 +18,7 @@ app.add_typer(user.app, name="user", help="Manage user settings.")
 app.add_typer(repo.app, name="repo", help="Manage Starbash repositories.")
 app.add_typer(select.app, name="select", help="Manage session and target selection.")
 app.add_typer(info.app, name="info", help="Display system and data information.")
-app.add_typer(
-    process.app, name="process", help="Process images using automated workflows."
-)
+app.add_typer(process.app, name="process", help="Process images using automated workflows.")
 
 
 @app.callback(invoke_without_command=True)

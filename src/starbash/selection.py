@@ -191,9 +191,7 @@ class Selection:
             self.telescopes.remove(telescope)
             self._save()
 
-    def set_date_range(
-        self, start: str | None = None, end: str | None = None
-    ) -> None:
+    def set_date_range(self, start: str | None = None, end: str | None = None) -> None:
         """Set the date range for the selection.
 
         Args:
@@ -255,9 +253,7 @@ class Selection:
             # For now, just use the first target
             # TODO: Support multiple targets in queries
             conditions["OBJECT"] = (
-                normalize_target_name(self.targets[0])
-                if len(self.targets) == 1
-                else None
+                normalize_target_name(self.targets[0]) if len(self.targets) == 1 else None
             )
 
         if self.filters:
@@ -268,9 +264,7 @@ class Selection:
         if self.telescopes:
             # For now, just use the first telescope
             # TODO: Support multiple telescopes in queries
-            conditions["TELESCOP"] = (
-                self.telescopes[0] if len(self.telescopes) == 1 else None
-            )
+            conditions["TELESCOP"] = self.telescopes[0] if len(self.telescopes) == 1 else None
 
         # Add date range conditions
         if self.date_start:

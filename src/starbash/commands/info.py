@@ -50,9 +50,7 @@ def dump_column(sb: Starbash, human_name: str, column_name: str) -> None:
         title=f"{plural(human_name)} ({len(found_counts)} / {len(all_counts)} selected)",
     )
     table.add_column(human_name, style=TABLE_COLUMN_STYLE, no_wrap=False)
-    table.add_column(
-        "# of sessions", style=TABLE_COLUMN_STYLE, no_wrap=True, justify="right"
-    )
+    table.add_column("# of sessions", style=TABLE_COLUMN_STYLE, no_wrap=True, justify="right")
 
     for i, count in sorted_list:
         table.add_row(i, str(count))
@@ -126,11 +124,7 @@ def master(
         )
 
         for image in sorted_images:
-            date = (
-                image.get(Database.DATE_OBS_KEY)
-                or image.get(Database.DATE_KEY)
-                or "Unknown"
-            )
+            date = image.get(Database.DATE_OBS_KEY) or image.get(Database.DATE_KEY) or "Unknown"
             # Extract just the date part (YYYY-MM-DD) if it's a full ISO timestamp
             if "T" in date:
                 date = date.split("T")[0]
@@ -188,9 +182,7 @@ def main_callback(ctx: typer.Context):
             table.add_row("User Repositories", str(len(sb.repo_manager.regular_repos)))
 
             # Show database stats
-            table.add_row(
-                "Sessions Indexed", str(sb.db.len_table(Database.SESSIONS_TABLE))
-            )
+            table.add_row("Sessions Indexed", str(sb.db.len_table(Database.SESSIONS_TABLE)))
 
             table.add_row("Images Indexed", str(sb.db.len_table(Database.IMAGES_TABLE)))
 

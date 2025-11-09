@@ -121,8 +121,7 @@ def do_reinit(sb: Starbash) -> None:
 
     console.print(
         Panel.fit(
-            "[bold green]Configuration complete![/bold green]\n\n"
-            "Your preferences have been saved.",
+            "[bold green]Configuration complete![/bold green]\n\nYour preferences have been saved.",
             border_style="green",
         )
     )

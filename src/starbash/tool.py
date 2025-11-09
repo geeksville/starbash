@@ -184,9 +184,7 @@ def strip_comments(text: str) -> str:
     return "\n".join(lines)
 
 
-def tool_run(
-    cmd: str, cwd: str, commands: str | None = None, timeout: float | None = None
-) -> None:
+def tool_run(cmd: str, cwd: str, commands: str | None = None, timeout: float | None = None) -> None:
     """Executes an external tool with an optional script of commands in a given working directory."""
 
     logger.debug(f"Running {cmd} in {cwd}: stdin={commands}")
@@ -204,9 +202,7 @@ def tool_run(
 
     # Wait for process to complete with timeout
     try:
-        stdout_lines, stderr_lines = process.communicate(
-            input=commands, timeout=timeout
-        )
+        stdout_lines, stderr_lines = process.communicate(input=commands, timeout=timeout)
     except subprocess.TimeoutExpired:
         process.kill()
         stdout_lines, stderr_lines = process.communicate()
@@ -244,9 +240,7 @@ def executable_path(commands: list[str], name: str) -> str:
     for cmd in commands:
         if shutil.which(cmd):
             return cmd
-    raise MissingToolError(
-        f"{name} not found, you probably need to install it.", command=name
-    )
+    raise MissingToolError(f"{name} not found, you probably need to install it.", command=name)
 
 
 class Tool:
@@ -277,9 +271,7 @@ class Tool:
             # Create a temporary directory for processing
             cwd = temp_dir = tempfile.mkdtemp(prefix=self.name)
 
-            context["temp_dir"] = (
-                temp_dir  # pass our directory path in for the tool's usage
-            )
+            context["temp_dir"] = temp_dir  # pass our directory path in for the tool's usage
 
         try:
             self._run(cwd, commands, context=context)
@@ -431,6 +423,4 @@ class PythonTool(Tool):
 
 
 # A dictionary mapping tool names to their respective tool instances.
-tools: dict[str, Tool] = {
-    tool.name: tool for tool in [SirilTool(), GraxpertTool(), PythonTool()]
-}
+tools: dict[str, Tool] = {tool.name: tool for tool in [SirilTool(), GraxpertTool(), PythonTool()]}

@@ -566,12 +566,8 @@ class TestSelectionGetQueryConditions:
         # Note: date conditions are duplicated for start >= and <=, so we handle separately
         date_conditions = [c for c in conditions if c.column_name == "start"]
         assert len(date_conditions) == 2
-        assert any(
-            c.comparison_op == ">=" and c.value == "2023-01-01" for c in date_conditions
-        )
-        assert any(
-            c.comparison_op == "<=" and c.value == "2023-12-31" for c in date_conditions
-        )
+        assert any(c.comparison_op == ">=" and c.value == "2023-01-01" for c in date_conditions)
+        assert any(c.comparison_op == "<=" and c.value == "2023-12-31" for c in date_conditions)
 
         # Check other conditions
         assert cond_by_col["OBJECT"].value == "m31"  # normalized to lowercase
@@ -661,9 +657,7 @@ class TestSelectionSummary:
         selection.image_types = ["Light", "Dark"]
         summary = selection.summary()
         assert summary["status"] == "filtered"
-        image_type_criterion = [c for c in summary["criteria"] if "Image types:" in c][
-            0
-        ]
+        image_type_criterion = [c for c in summary["criteria"] if "Image types:" in c][0]
         assert "Light" in image_type_criterion
         assert "Dark" in image_type_criterion
 
