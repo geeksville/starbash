@@ -57,15 +57,17 @@ class UnrecognizedAliasError(UserHandledError):
 
         console.print(
             dedent(
-                f"""[red]Error:[/red] To process this session you need to add a missing alias
-                      for '{self.alias}'.
+                f"""{self.__rich__()}
 
-                      For the time being that means editing {get_user_config_path() / "starbash.toml"}
-                      (FIXME - we'll eventually provide an interactive picker here...)
-                      """
+                    For the time being that means editing {get_user_config_path() / "starbash.toml"}
+                    (FIXME - we'll eventually provide an interactive picker here...)
+                    """
             )
         )
         return True
+
+    def __rich__(self) -> str:
+        return f"[red]Error:[/red] To process this session you need to add a missing alias for '[red]{self.alias}[/red]'."
 
 
 class Aliases:
