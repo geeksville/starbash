@@ -30,7 +30,7 @@
 * [x] make no/uni filter OSC work - selects wrong flat
 * [x] make seestar IRCUT and LP filters work
 * [x] check for BAYERPAT to find OSC cameras instead of require.camera
-* [ ] improve initial setup wizard - ask where to store masters and processed dirs
+* [x] improve initial setup wizard - ask where to store masters and processed dirs
 * [ ] make a nicer movie, for setup and usage
 * [ ] ask Jamie to try it!
 * [ ] require master-flats to come from the same instrument!
