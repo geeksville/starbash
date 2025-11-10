@@ -519,11 +519,13 @@ class Starbash:
 
         return [candidate for _, candidate in scored_candidates]
 
-    def search_session(self) -> list[SessionRow]:
+    def search_session(self, conditions: list[SearchCondition] | None = None) -> list[SessionRow]:
         """Search for sessions, optionally filtered by the current selection."""
         # Get query conditions from selection
-        conditions = self.selection.get_query_conditions()
-        self.add_filter_not_masters(conditions)
+        if conditions is None:
+            conditions = self.selection.get_query_conditions()
+
+        self.add_filter_not_masters(conditions)  # we never return processed masters as sessions
         return self.db.search_session(conditions)
 
     def _add_image_abspath(self, image: ImageRow) -> ImageRow:
@@ -1140,7 +1142,7 @@ class Starbash:
         *    run_stage(task) to generate the new master frame
         """
         sorted_pipeline = self._get_stages("master-stages")
-        sessions = self.search_session()
+        sessions = self.search_session([])  # for masters we always search everything
         results: list[ProcessingResult] = []
 
         # we loop over pipeline steps in the

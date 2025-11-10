@@ -35,7 +35,7 @@
 * [x] make a nicer movie, for setup and masters, auto, siril
 * [x] update readme
 * [x] ask Jaime to try it!
-* [ ] when processing masters always process entire repo
+* [x] when processing masters always process entire repo
 * [ ] fix master processing result table display
 * [ ] require master-flats to come from the same instrument!
 * [ ] require biases/darks to come from the same camera!
