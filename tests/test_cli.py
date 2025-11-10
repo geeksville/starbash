@@ -196,9 +196,9 @@ def test_repo_list_verbose(setup_test_environment):
         stripped = line.strip()
         if stripped:
             # Should start with pkg:// or file://, not a number
-            assert stripped.startswith("pkg://") or stripped.startswith("file://"), (
-                f"Verbose mode should not show numbers, but got: {stripped}"
-            )
+            assert stripped.startswith("pkg://") or stripped.startswith(
+                "file://"
+            ), f"Verbose mode should not show numbers, but got: {stripped}"
 
 
 def test_repo_add_command(setup_test_environment, tmp_path):

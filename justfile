@@ -106,8 +106,15 @@ movie-sample: select-any
 bump-version newver: test
     bin/new-version.sh {{newver}}
 
-lint:
+_lint:
     poetry run ruff check src/ tests/
+
+# Run type checking with pyright (same errors as Pylance in VS Code)
+_typecheck:
+    poetry run pyright src/
+
+# Run all linting checks (ruff + pyright)
+check: _lint _typecheck
 
 format:
     poetry run ruff format src/ tests/

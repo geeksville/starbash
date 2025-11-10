@@ -52,7 +52,7 @@ class Repo:
                 for value in o.values():
                     self._monkey_patch(value)
             # Recursively patch list-like objects (including AoT)
-            elif hasattr(o, "__iter__") and not isinstance(o, (str, bytes)):
+            elif hasattr(o, "__iter__") and not isinstance(o, str | bytes):
                 try:
                     for item in o:
                         self._monkey_patch(item)

@@ -1,4 +1,3 @@
-import itertools
 import logging
 import shutil
 from datetime import datetime
@@ -29,7 +28,7 @@ from starbash.database import (
     SessionRow,
     get_column_name,
 )
-from starbash.paths import get_user_config_dir
+from starbash.paths import get_user_config_dir, get_user_config_path
 from starbash.selection import Selection, build_search_conditions
 from starbash.toml import toml_from_template
 from starbash.tool import preflight_tools
@@ -52,12 +51,6 @@ def setup_logging(console: rich.console.Console):
         datefmt="[%X]",
         handlers=handlers,
     )
-
-
-def get_user_config_path() -> Path:
-    """Returns the path to the user config file."""
-    config_dir = get_user_config_dir()
-    return config_dir / repo_suffix
 
 
 def create_user() -> Path:
@@ -274,7 +267,7 @@ class Starbash:
             session = self.db.get_session(new)
             self.db.upsert_session(new, existing=session)
 
-    def add_local_repo(self, path: str, repo_type: str | None = None) -> Repo:
+    def add_local_repo(self, path: str, repo_type: str | None = None) -> None:
         """Add a local repository located at the specified path.  If necessary toml config files
         will be created at the root of the repository."""
 
@@ -737,40 +730,6 @@ class Starbash:
 
         for repo in track(self.repo_manager.repos, description="Reindexing repos..."):
             self.reindex_repo(repo)
-
-    def _get_stages(self, name: str) -> list[dict[str, Any]]:
-        """Get all pipeline stages defined in the merged configuration.
-
-        Returns:
-            List of stage definitions (dictionaries with 'name' and 'priority')
-        """
-        # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
-        pipeline_definitions = self.repo_manager.merged.getall(name)
-        flat_pipeline_steps = list(itertools.chain.from_iterable(pipeline_definitions))
-
-        # 2. Sort the pipeline steps by their 'priority' field.
-        try:
-            sorted_pipeline = sorted(flat_pipeline_steps, key=lambda s: s["priority"])
-        except KeyError as e:
-            # Re-raise as a ValueError with a more descriptive message.
-            raise ValueError(
-                "invalid stage definition: a stage is missing the required 'priority' key"
-            ) from e
-
-        logging.debug(f"Found {len(sorted_pipeline)} pipeline steps to run in order of priority.")
-        return sorted_pipeline
-
-    def run_pipeline_step(self, step_name: str):
-        logging.info(f"--- Running pipeline step: '{step_name}' ---")
-
-        # 3. Get all available task definitions (the `[[stage]]` tables with tool, script, when).
-        task_definitions = self.repo_manager.merged.getall("stage")
-        all_tasks = list(itertools.chain.from_iterable(task_definitions))
-
-        # Find all tasks that should run during this pipeline step.
-        tasks_to_run = [task for task in all_tasks if task.get("when") == step_name]
-        for task in tasks_to_run:
-            self.run_stage(task)
 
     def get_recipes(self) -> list[Repo]:
         """Get all recipe repos available, sorted by priority (lower number first).

@@ -2,13 +2,19 @@
 Manages the repository of processing recipes and configurations.
 """
 
+# pyright: reportImportCycles=false
+# The circular dependency between manager.py and repo.py is properly handled
+# using TYPE_CHECKING and local imports where needed.
+
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from multidict import MultiDict
 
-from repo.repo import Repo
+if TYPE_CHECKING:
+    from repo.repo import Repo
 
 
 class RepoManager:
@@ -39,6 +45,8 @@ class RepoManager:
         return [r for r in self.repos if r.kind() not in ("preferences") and not r.is_scheme("pkg")]
 
     def add_repo(self, url: str) -> Repo:
+        from repo.repo import Repo  # Local import to avoid circular dependency
+
         logging.debug(f"Adding repo: {url}")
         r = Repo(self, url)
         self.repos.append(r)

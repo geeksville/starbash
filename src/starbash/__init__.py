@@ -4,8 +4,6 @@ from datetime import datetime
 
 from rich.console import Console
 
-from .database import Database  # re-export for convenience
-
 # Disable Rich formatting in test environments (pytest or NO_COLOR set)
 # This prevents ANSI escape codes and line wrapping in test output for more reliable test parsing.
 _is_test_env = "PYTEST_VERSION" in os.environ
@@ -44,4 +42,4 @@ def to_shortdate(date_iso: str) -> str:
         return date_iso
 
 
-__all__ = ["Database"]
+__all__ = ["console", "to_shortdate", "log_filter_level", "force_regen", "verbose_output"]

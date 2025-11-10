@@ -16,8 +16,9 @@
             "source.organizeImports.ruff": "explicit"
         }
     },
-    // Disable Pylance type checking since we're using Ruff
-    "python.analysis.typeCheckingMode": "off",
+    // Enable Pylance type checking to catch import errors and type issues
+    // "basic" mode catches import errors without being too strict about types
+    "python.analysis.typeCheckingMode": "basic",
     "cSpell.words": [
         "apeture",
         "ASIAIR",

@@ -52,9 +52,9 @@ class UnrecognizedAliasError(UserHandledError):
 
     def ask_user_handled(self) -> bool:
         from starbash import console  # Lazy import to avoid circular dependency
-        from starbash.app import (
+        from starbash.paths import (
             get_user_config_path,
-        )  # Lazy import to avoid circular dependency
+        )  # Moved to paths module to avoid circular dependency
 
         console.print(
             dedent(

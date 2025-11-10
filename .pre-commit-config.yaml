@@ -2,12 +2,37 @@
 # See https://pre-commit.com for more information
 
 repos:
+  # Ruff - Python linter and formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      # Run the linter
+      - id: ruff
+        args: [--fix]
+        stages: [pre-push]
+        files: ^(src|tests)/.*\.py$
+      # Run the formatter
+      - id: ruff-format
+        stages: [pre-push]
+        files: ^(src|tests)/.*\.py$
+
+  # Python import validation - catches import errors that Ruff misses
+  - repo: local
+    hooks:
+      - id: python-import-check
+        name: Check Python imports
+        entry: poetry run python .pre-commit-scripts/check-imports.py
+        language: system
+        pass_filenames: false
+        files: ^src/.*\.py$
+        stages: [pre-push]
+
   # Run "just test" before pushing
   - repo: local
     hooks:
       - id: run-tests
-        name: Run tests
-        entry: just test
+        name: Run check and tests
+        entry: just check test
         language: system
         stages: [pre-push]
         pass_filenames: false

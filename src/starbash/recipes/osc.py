@@ -6,7 +6,7 @@ import os
 from glob import glob
 from typing import Any
 
-from starbash.app import NotEnoughFilesError
+from starbash.processing import NotEnoughFilesError
 from starbash.tool import tools
 
 siril = tools["siril"]

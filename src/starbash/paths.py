@@ -39,6 +39,14 @@ def get_user_config_dir() -> Path:
     return dir_to_use
 
 
+def get_user_config_path() -> Path:
+    """Returns the path to the user config file (starbash.toml)."""
+    from repo import repo_suffix  # Lazy import to avoid circular dependency
+
+    config_dir = get_user_config_dir()
+    return config_dir / repo_suffix
+
+
 def get_user_data_dir() -> Path:
     """Get the user data directory. Returns test override if set, otherwise the real user directory."""
     dir_to_use = _override_data_dir if _override_data_dir is not None else data_dir

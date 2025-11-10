@@ -6,14 +6,14 @@ from typing import Annotated
 import rich
 import typer
 
-from starbash.app import ProcessingResult, Starbash, copy_images_to_dir
+from starbash.app import Starbash, copy_images_to_dir
 from starbash.commands.__init__ import (
     TABLE_COLUMN_STYLE,
     TABLE_HEADER_STYLE,
 )
 from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
-from starbash.processing import Processing
+from starbash.processing import Processing, ProcessingResult
 
 app = typer.Typer()
 

@@ -1,4 +1,5 @@
 import glob
+import itertools
 import logging
 import os
 import shutil
@@ -63,14 +64,14 @@ class ProcessingContext(tempfile.TemporaryDirectory):
     directory in context["process_dir"].
     """
 
-    def __init__(self, starbash: Starbash):
+    def __init__(self, p: "Processing"):
         cache_dir = get_user_cache_dir()
         super().__init__(prefix="sbprocessing_", dir=cache_dir)
-        self.sb = starbash
+        self.p = p
         logging.debug(f"Created processing context at {self.name}")
 
-        self.sb.init_context()
-        self.sb.context["process_dir"] = self.name
+        self.p.init_context()
+        self.p.context["process_dir"] = self.name
 
     def __enter__(self) -> "ProcessingContext":
         return super().__enter__()
@@ -80,7 +81,7 @@ class ProcessingContext(tempfile.TemporaryDirectory):
         logging.debug(f"Cleaning up processing context at {self.name}")
 
         # unregister our process dir
-        self.sb.context.pop("process_dir", None)
+        self.p.context.pop("process_dir", None)
 
         super().__exit__(exc_type, exc_value, traceback)
         # return handled
@@ -108,16 +109,49 @@ class Processing:
     # --- Lifecycle ---
     def close(self) -> None:
         self.progress.stop()
-        self.analytics.__exit__(None, None, None)
 
     # Context manager support
-    def __enter__(self) -> "Progress":
+    def __enter__(self) -> "Processing":
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
         handled = False
         self.close()
         return handled
+
+    def _get_stages(self, name: str) -> list[dict[str, Any]]:
+        """Get all pipeline stages defined in the merged configuration.
+
+        Returns:
+            List of stage definitions (dictionaries with 'name' and 'priority')
+        """
+        # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
+        pipeline_definitions = self.sb.repo_manager.merged.getall(name)
+        flat_pipeline_steps = list(itertools.chain.from_iterable(pipeline_definitions))
+
+        # 2. Sort the pipeline steps by their 'priority' field.
+        try:
+            sorted_pipeline = sorted(flat_pipeline_steps, key=lambda s: s["priority"])
+        except KeyError as e:
+            # Re-raise as a ValueError with a more descriptive message.
+            raise ValueError(
+                "invalid stage definition: a stage is missing the required 'priority' key"
+            ) from e
+
+        logging.debug(f"Found {len(sorted_pipeline)} pipeline steps to run in order of priority.")
+        return sorted_pipeline
+
+    def run_pipeline_step(self, step_name: str):
+        logging.info(f"--- Running pipeline step: '{step_name}' ---")
+
+        # 3. Get all available task definitions (the `[[stage]]` tables with tool, script, when).
+        task_definitions = self.sb.repo_manager.merged.getall("stage")
+        all_tasks = list(itertools.chain.from_iterable(task_definitions))
+
+        # Find all tasks that should run during this pipeline step.
+        tasks_to_run = [task for task in all_tasks if task.get("when") == step_name]
+        for task in tasks_to_run:
+            self.run_stage(task)
 
     def process_target(self, target: str, sessions: list[SessionRow]) -> ProcessingResult:
         """Do processing for a particular target (i.e. all sessions for a particular object)."""
@@ -150,7 +184,7 @@ class Processing:
                         step_name = step["name"]
                         if not recipe:
                             # for the time being: The first step in the pipeline MUST be "light"
-                            recipe = self.get_recipe_for_session(session, step)
+                            recipe = self.sb.get_recipe_for_session(session, step)
                             if not recipe:
                                 continue  # No recipe found for this target/session
 
@@ -226,7 +260,7 @@ class Processing:
         *   after all sessions are processed, run final.stack stages (using the shared context and temp dir)
 
         """
-        sessions = self.search_session()
+        sessions = self.sb.search_session()
         targets = {
             normalize_target_name(obj)
             for s in sessions
@@ -240,10 +274,10 @@ class Processing:
             for target in targets:
                 self.progress.update(target_task, description=f"Processing target {target}...")
                 # select sessions for this target
-                target_sessions = self.filter_sessions_by_target(sessions, target)
+                target_sessions = self.sb.filter_sessions_by_target(sessions, target)
 
                 # we only want sessions with light frames
-                target_sessions = self.filter_sessions_with_lights(target_sessions)
+                target_sessions = self.sb.filter_sessions_with_lights(target_sessions)
 
                 if target_sessions:
                     result = self.process_target(target, target_sessions)
@@ -268,7 +302,7 @@ class Processing:
         *    run_stage(task) to generate the new master frame
         """
         sorted_pipeline = self._get_stages("master-stages")
-        sessions = self.search_session([])  # for masters we always search everything
+        sessions = self.sb.search_session([])  # for masters we always search everything
         results: list[ProcessingResult] = []
 
         # we loop over pipeline steps in the
@@ -278,7 +312,7 @@ class Processing:
                 raise ValueError("Invalid pipeline step found: missing 'name' key.")
             for session in track(sessions, description=f"Processing {step_name} for sessions..."):
                 task = None
-                recipe = self.get_recipe_for_session(session, step)
+                recipe = self.sb.get_recipe_for_session(session, step)
                 if recipe:
                     task = recipe.get("recipe.stage." + step_name)
 
@@ -341,7 +375,7 @@ class Processing:
 
         imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
         if imagetyp:
-            imagetyp = self.aliases.normalize(imagetyp)
+            imagetyp = self.sb.aliases.normalize(imagetyp)
             self.context["imagetyp"] = imagetyp
 
             # add a short human readable description of the session - suitable for logs or in filenames
@@ -375,7 +409,7 @@ class Processing:
         input_config = stage.get("input", {})
         master_types: list[str] = input_config.get("masters", [])
         for master_type in master_types:
-            masters = self.get_master_images(imagetyp=master_type, reference_session=session)
+            masters = self.sb.get_master_images(imagetyp=master_type, reference_session=session)
             if not masters:
                 raise RuntimeError(
                     f"No master frames of type '{master_type}' found for stage '{stage.get('name')}'"
@@ -389,9 +423,9 @@ class Processing:
                 )
 
             # Try to rank the images by desirability
-            masters = self.score_candidates(masters, session)
+            masters = self.sb.score_candidates(masters, session)
 
-            self._add_image_abspath(masters[0])  # make sure abspath is populated
+            self.sb._add_image_abspath(masters[0])  # make sure abspath is populated
             selected_master = masters[0]["abspath"]
             logging.info(f"For master '{master_type}', using: {selected_master}")
 
@@ -423,7 +457,7 @@ class Processing:
                 session = self.context.get("session")
                 assert session is not None, "context.session should have been already set"
 
-                images = self.get_session_images(session)
+                images = self.sb.get_session_images(session)
                 logging.debug(f"Using {len(images)} files as input_files")
                 self.context["input_files"] = [
                     img["abspath"] for img in images
@@ -485,7 +519,7 @@ class Processing:
                 )
 
             # Find the repo with matching kind
-            dest_repo = self.repo_manager.get_repo_by_kind(output_type)
+            dest_repo = self.sb.repo_manager.get_repo_by_kind(output_type)
             if not dest_repo:
                 raise ValueError(
                     f"No repository found with kind '{output_type}' for output destination"
@@ -656,4 +690,4 @@ class Processing:
                 if output_info["repo"].kind() == "master":
                     # we add new masters to our image DB
                     # add to image DB (ONLY! we don't also create a session)
-                    self.add_image(output_info["repo"], Path(output_path), force=True)
+                    self.sb.add_image(output_info["repo"], Path(output_path), force=True)

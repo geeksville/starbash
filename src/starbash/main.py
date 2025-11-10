@@ -9,8 +9,9 @@ import starbash.url as url
 
 from . import console
 from .analytics import is_development_environment
-from .app import Starbash, get_user_config_path
+from .app import Starbash
 from .commands import info, process, repo, select, user
+from .paths import get_user_config_path
 
 # Suppress deprecation warnings in production mode to provide a cleaner user experience.
 # In development mode (VS Code, devcontainer, or SENTRY_ENVIRONMENT=development),
