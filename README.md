@@ -68,7 +68,7 @@ Completion will take effect once you restart the terminal
 
 ### Initial setup
 
-The first time you launch starbash you will be prompted to choose a few options, and told how you can add your existing raw frames and an input repo.
+The first time you launch starbash you will be prompted to choose a few options. You will also be told how you can add your existing raw frames and an input repo.
 
 ![user setup](doc/img/user-setup.png)
 
