@@ -31,16 +31,18 @@ See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-al
 * Automatically recognizes and auto-parses the default NINA, Asiair and Seestar raw file repos (adding support for other layouts is easy)
 * Multisession support by default (including automatic selection of correct flats, biases and dark frames)
 * 'Repos' can contain raw files, generated masters, preprocessed files, or recipes.
-
+* Automatically performs **complete** preprocessing on OSC (broadband, narrowband or dual Duo filter), Mono (LRGB, SHO) data.  i.e. give you 'seestar level' auto-preprocessing, so you only need to do the (optional) custom post-processing.
 ## Features coming soon
 
-* Automatically performs **complete** preprocessing on OSC (broadband, narrowband or dual Duo filter), Mono (LRGB, SHO) data.  i.e. give you 'seestar level' auto-preprocessing, so you only need to do the (optional) custom post-processing.
+* Support for mono-camera workflows (this alpha version only supports color cameras)
 * Generates a per target report/config file which can be customized if the detected defaults or preprocessing are not what you want
 * 'Recipes' provide repeatable/human-readable/sharable descriptions of all processing steps
 * Repos can be on the local disk or shared via HTTPS/github/etc.  This is particularly useful for recipe repos
 * Uses Siril and Graxpert for its pre-processing operations (support for Pixinsight based recipes will probably be coming at some point...)
 * The target report can be used to auto generate a human friendly 'postable/sharable' report about that image
 * Target reports are sharable so that you can request comments by others and others can rerender with different settings
+
+For a very raw list of work items in our queue see [TODO](TODO.md).
 
 ## Installing
 
@@ -64,20 +66,54 @@ Completion will take effect once you restart the terminal
 
 ## Use
 
-### Selecting sessions
+### Initial setup
 
-FIXME
-multisession aware
-auto flat/bias/dark selection (with ability to override)
+The first time you launch starbash you will be prompted to choose a few options, and told how you can add your existing raw frames and an input repo.
+
+![user setup](doc/img/user-setup.png)
+
+If you ever want to rerun this setup just run 'sb user setup'
 
 ### Automatic stacking/preprocessing
 
-FIXME
-currently only color cameras are supported
+One of the main goals of starbash is to provide 'seestar like' automatic image preprocessing:
+* automatic stacking (even over multiple sessions) - (via siril)
+* automatic recipe selection (color, bw, duo filters etc...), but you can customize if starbash picks poorly
+* background removal - (via graxpert by default) provided as extra (optional) output files
+* star removal - (via starnet by default) provided as extra (optional) output files
+* no changes to input repos - you can safely ask starbash to auto process your entire tree of raw images.  Processed images go in a special 'processed' output repo.
+
+![auto session](doc/vhs/process-auto.gif)
+
+How to use:
+
+* Step 1 - Select some sessions.  Example commands to use (when running commands the tool will provide feedback on what the current session set contains):
+
+```
+sb select any # selects all sessions in your repo
+sb select # prints information about the current selection
+sb select list # lists all sessions in the current selection
+sb select date after 2025-09-01
+sb select date before 2025-10-01
+sb select date between 2025-07-03 2025-10-01
+
+sb select target m31 # select all sessions with m31.
+# Note: tab completion is supported so if you type select target m<tab> you should get a list of all the Messier objects you have in your images
+```
+
+* Step 2 - Do auto process.  This will process all of the sessions you currently have selected.  It will group outputs by target name and it will auto select flat frames on a per session date basis.  At the end of processing a lists of targets and their processing will be printed.
+
+```
+sb process auto
+```
+
+In the output directory we will eventually be putting a 'starbash.toml' file with information about what choices were made on processing (which masters selected, which recipes selected...). Selected siril options etc... You can edit that file to pick different different choices and if you reprocess that target your choices will be used.  (Note: this is not yet implemented in the release version of the tool - but soon, it will be)
 
 ### Manual Siril processing
 
 FIXME - add getting started instructions (possibly with a screenshare video)
+
+![siril session](doc/vhs/process-siril.gif)
 
 ## Supported commands
 
@@ -141,9 +177,9 @@ FIXME explain FITS and directory paths
 We try to make this project useful and friendly.  If you find problems please file a github issue.
 We accept pull-requests and enjoy discussing possible new development directions via github issues.  If you might want to work on this, just describe what your interests are and we can talk about how to get it merged.
 
-Soon (before Jan 2026?) we should have decent developer docs here for how to develop/modify/improve starbash.
+Soon (before Jan 2026?) we should have decent developer docs for how to develop/modify/improve starbash.  [Click here](doc/development.md) for the current work in progress docs.
 
-Project members can access crash reports [here](https://geeksville.sentry.io/insights/projects/starbash/?project=4510264204132352).
+
 
 ## License
 
