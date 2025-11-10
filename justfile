@@ -102,6 +102,7 @@ movie-sample: select-any
     # Not needed - for the time being we just use the gif in our repo
     # vhs publish doc/vhs/sample-session.gif
 
+# release a new version pypi
 bump-version newver: test
     bin/new-version.sh {{newver}}
 
