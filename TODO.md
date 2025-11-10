@@ -43,6 +43,8 @@
 * [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] generate an auto-stretched output as fits and jpg.
 * [ ] make OSC options user customizable per target
+* [ ] move processing code out of app
+* [ ] move masters code out of app
 * [x] in osc processing implement make_renormalize()
 * [ ] do background_removal() as a separate stage via graxpert
 * [ ] do auto star removal as a separate stage
