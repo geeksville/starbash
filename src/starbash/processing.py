@@ -317,8 +317,6 @@ class Processing:
                     task = recipe.get("recipe.stage." + step_name)
 
                 processing_exception: Exception | None = None
-                result = ProcessingResult(target=step_name, sessions=[session])
-
                 if task:
                     try:
                         # Create a default process dir in /tmp.
@@ -329,6 +327,14 @@ class Processing:
                             self.run_stage(task)
                     except Exception as e:
                         processing_exception = e
+
+                    # for user feedback we try to tell the name of the master we made
+                    target = step_name
+                    if self.context.get("output"):
+                        output_path = self.context.get("output", {}).get("relative_base_path")
+                        if output_path:
+                            target = str(output_path)
+                    result = ProcessingResult(target=target, sessions=[session])
 
                     # We did one processing run. add the results
                     update_processing_result(result, processing_exception)
@@ -557,6 +563,7 @@ class Processing:
                 "base_path": base_path,
                 # "suffix": full_path.suffix, not needed I think
                 "full_path": full_path,
+                "relative_base_path": repo_relative,
                 "repo": dest_repo,
             }
         else:

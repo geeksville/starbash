@@ -39,7 +39,8 @@ output.type = "master" # write output to the special masters repo
 # the following fields will be auto populated in the context before entry:
 # context.output.base_path - the full filepath to write the output file to **excluding the suffix**
 # context.output.full_path - the full filepath to write the output file to (including suffix)
-# (NOT implemented / needed) context.output.root_path - points to the base of the destination repo
+# context.output.repo - points to the destination repo object
+# context.output.relative_base_path - the relative path within the repo (excluding suffix) (for logging/user message purposes)
 # (NOT implemented / needed) context.output.suffix - the suffix to append to the output file (e.g. .fits or .fit.gz)
 
 # The following constants are auto defined before running the tool

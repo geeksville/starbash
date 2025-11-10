@@ -36,25 +36,25 @@
 * [x] update readme
 * [x] ask Jaime to try it!
 * [x] when processing masters always process entire repo
-* [ ] fix master processing result table display
+* [x] fix master processing result table display
 * [ ] require master-flats to come from the same instrument!
 * [ ] require biases/darks to come from the same camera!
 * [ ] require masters dimensions match image dimensions for selection
+* [ ] when processing a target, generate a toml file with the options used to for that generation (so it can be regenerated or customized).  Include doc comments in that file for new users.
+* [ ] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
 * [ ] fix remaining tool failures (just fail-m100)
 * [ ] do background_removal() as a separate stage via graxpert
-* [ ] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
 * [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] generate an auto-stretched output as fits and jpg.
 * [ ] make OSC options user customizable per target
 * [ ] do auto star removal as a separate stage
 * [x] check for required/recommended tools at start.
-* [ ] when processing a target, generate a toml file with the options used to for that generation (so it can be regenerated or customized).  Include doc comments in that file for new users.
 * [ ] **first public alpha** at approximately this point
 * [ ] always regen masters after adding a repo
 * [ ] include temperature in bias filenames.
 * [ ] name the progess dirs so they can be semi-persistent (speed up reruns)
 * [ ] let user spec a max cache size, if we exceed that just delete older build dirs from that cache as needed.  This would allow quick rebuilds for the last N targets rendered.
-* [ ] move processing code out of app
+* [x] move processing code out of app
 * [ ] move masters code out of app
 * [x] in osc processing implement make_renormalize()
 * [x] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
