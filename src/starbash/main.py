@@ -1,4 +1,5 @@
 import logging
+import warnings
 from typing import Annotated
 
 import typer
@@ -7,8 +8,16 @@ import starbash
 import starbash.url as url
 
 from . import console
+from .analytics import is_development_environment
 from .app import Starbash, get_user_config_path
 from .commands import info, process, repo, select, user
+
+# Suppress deprecation warnings in production mode to provide a cleaner user experience.
+# In development mode (VS Code, devcontainer, or SENTRY_ENVIRONMENT=development),
+# all warnings are shown to help developers identify potential issues.
+# See: is_development_environment() in analytics.py for detection logic.
+if not is_development_environment():
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 app = typer.Typer(
     rich_markup_mode="rich",

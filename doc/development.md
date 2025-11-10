@@ -52,6 +52,21 @@ This is mostly useful if you want a second 'virgin' build machine to compare aga
 
 ![screencap](img/codespace.png)
 
+## Development vs Production Mode
+
+Starbash automatically detects whether it's running in a development or production environment:
+
+- **Development mode** is detected when:
+  - `SENTRY_ENVIRONMENT=development` environment variable is set
+  - Any `VSCODE_*` environment variables are present (VS Code)
+  - The devcontainer is being used
+
+- **Production mode** is when none of the above conditions are met
+
+In **production mode**, `DeprecationWarning` messages are automatically suppressed to provide a cleaner user experience. In **development mode**, all warnings are shown to help developers identify potential issues.
+
+This behavior is implemented in `src/starbash/main.py` and uses the `is_development_environment()` function from `src/starbash/analytics.py`.
+
 ## Field exception reports
 
 Project members can access user crash reports [here](https://geeksville.sentry.io/insights/projects/starbash/?project=4510264204132352).
