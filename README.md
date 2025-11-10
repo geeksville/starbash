@@ -98,7 +98,8 @@ sb select date before 2025-10-01
 sb select date between 2025-07-03 2025-10-01
 
 sb select target m31 # select all sessions with m31.
-# Note: tab completion is supported so if you type select target m<tab> you should get a list of all the Messier objects you have in your images
+# Note: tab completion is supported so if you type select target m<tab> you should get a list of all the Messier objects you have in your images.
+In fact, tab completion works on virtually any starbash option - pressing tab for dates will show you dates you have image sessions for instance...
 ```
 
 * Step 2 - Generate 'master' images.  This will auto stack your raw BIAS, DARK, FLAT etc... frames as single frame masters.  You only need to perform this step once:
