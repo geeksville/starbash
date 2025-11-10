@@ -20,9 +20,9 @@ A tool for automating/standardizing/sharing astrophotography workflows.
 
 # Current status
 
-Not quite ready 😊.  But making good progress.
+This project is still very young - but making good progress 😊!
 
-See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-alpha testers/feedback soon.
+If you are interested in alpha-testing we ❤️ you.  This README should have enough instructions to get you going, but if you encounter **any** problems please file a github issue and we'll work together to fix them.
 
 ![Sample session movie](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/vhs/sample-session.gif)
 
@@ -32,6 +32,7 @@ See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-al
 * Multi-session support by default (including automatic selection of correct flats, biases, and dark frames).
 * 'Repos' can contain raw files, generated masters, preprocessed files, or recipes.
 * Automatically performs **complete** preprocessing on OSC (broadband, narrowband, or dual Duo filter), Mono (LRGB, SHO) data.  i.e., gives you 'seestar-level' auto-preprocessing, so you only need to do the (optional) custom post-processing.
+
 ## Features coming soon
 
 * Support for mono-camera workflows (this alpha version only supports color cameras).
@@ -42,7 +43,7 @@ See the current [TODO](TODO.md) file for work items.  I'll be looking for pre-al
 * The target report can be used to auto-generate a human-friendly 'postable/shareable' report about that image.
 * Target reports are shareable so that you can request comments from others and others can rerender with different settings.
 
-For a very raw list of work items in our queue see [TODO](TODO.md).
+See the [TODO](TODO.md) file for work items and approximate schedule.
 
 ## Installing
 

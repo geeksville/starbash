@@ -32,24 +32,32 @@
 * [x] check for BAYERPAT to find OSC cameras instead of require.camera
 * [x] improve initial setup wizard - ask where to store masters and processed dirs
 * [x] fix siril export
-* [ ] when processing masters always process entire repo
 * [x] make a nicer movie, for setup and masters, auto, siril
 * [x] update readme
 * [x] ask Jaime to try it!
+* [ ] when processing masters always process entire repo
+* [ ] fix master processing result table display
 * [ ] require master-flats to come from the same instrument!
 * [ ] require biases/darks to come from the same camera!
+* [ ] require masters dimensions match image dimensions for selection
 * [ ] fix remaining tool failures (just fail-m100)
-* [ ] better search by date for masters
+* [ ] do background_removal() as a separate stage via graxpert
+* [ ] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
 * [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] generate an auto-stretched output as fits and jpg.
 * [ ] make OSC options user customizable per target
+* [ ] do auto star removal as a separate stage
+* [ ] check for required/recommended tools at start.
+* [ ] when processing a target, generate a toml file with the options used to for that generation (so it can be regenerated or customized).  Include doc comments in that file for new users.
+* [ ] **first public alpha** at approximately this point
+* [ ] always regen masters after adding a repo
+* [ ] include temperature in bias filenames.
+* [ ] name the progess dirs so they can be semi-persistent (speed up reruns)
+* [ ] let user spec a max cache size, if we exceed that just delete older build dirs from that cache as needed.  This would allow quick rebuilds for the last N targets rendered.
 * [ ] move processing code out of app
 * [ ] move masters code out of app
 * [x] in osc processing implement make_renormalize()
-* [ ] do background_removal() as a separate stage via graxpert
-* [ ] do auto star removal as a separate stage
 * [x] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
-* [ ] require masters dimensions match image dimensions for selection
 * [ ] master relative path should be based on unique camera ID - so that Ascar_V_80mm_flattener and Ascar_V_80mm_extender can share the same masters.
 * [x] NotEnoughFilesError should not crash processing
 * [ ] simple OSC processing scripts shouldn't even need custom python - make siril invoke smarter (by being multi-session aware for input files)
@@ -57,30 +65,22 @@
 * [ ] implement recipe/repo inheritence to prevent the copypasta required in the existing OSC scripts
 * [x] add progress 'spinner' bar while doing any tool runs... https://rich.readthedocs.io/en/latest/reference/spinner.html
 * [x] return a list of ProcessingResult named tuples from auto and master processing.  print as table.
-* [ ] move all the 'processing' stuff out of app.py
-* [ ] check for required/recommended tools at start.
-* [ ] name the progess dirs so they can be semi-persistent
 * [x] get a successful run on X
 * [x] don't let logging mess up progress display when making masters https://rich.readthedocs.io/en/latest/progress.html#print-log
-* [ ] when processing a target, generate a toml file with the options used to for that generation (so it can be regenerated or customized).  Include doc comments in that file for new users.
-* [ ] let user spec a max cache size, if we exceed that just delete older build dirs from that cache as needed.  This would allow quick rebuilds for the last N targets rendered.
-* [ ] test missing siril/graxpert and helpful user message
+* [x] test missing siril/graxpert and helpful user message
 * [x] fix "Registering and stacking 0 frames for SiiOiii/Ha"
 * [x] make master dark/bias gen for asiair work
-* [ ] include temperature in bias filenames.
 * [x] make process running smarter about printing messages as they occur
 * [x] fix dark frame generation
 * [x] make 'regen all masters' work
 * [ ] normalize imagetyp before inserting them into session or images tables
 * [ ] add backpointers to run-customization repo file to output FITS files.
 * [ ] eventually store master info in the root toml file for masters
-* [ ] allow recipes to specify the min # of expected generated output files.  Currently we just assume it is 1
-* [ ] gracefully handle UnrecognizedAliasError and ask user if they want to add it...
+* [x] allow recipes to specify the min # of expected generated output files.  Currently we just assume it is 1
+* [ ] more gracefully handle UnrecognizedAliasError and ask user if they want to add it...
 * [ ] make output-path precheck work for "lights" rules so those expensive operations can sometimes be skipped
-* [ ] make score_candidates() highly prefer frames that are in the past
 * [ ] make and intergration test that uses a few real files
-* [ ] catch the exception for missing siril/graxpert and print user instructions
-* [ ] always regen masters after adding a repo
+* [ ] catch the exception for missing siril/graxpert and print user instructions on how to install
 * [x] make flat rule work
 * [ ] use normalized names when searching for filters or master or light frames
 * [x] when reindexing/adding masters, put them in the session db as some sort of special entry
