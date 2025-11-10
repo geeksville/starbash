@@ -35,7 +35,7 @@
 * [ ] when processing masters always process entire repo
 * [x] make a nicer movie, for setup and masters, auto, siril
 * [x] update readme
-* [x] ask Jamie to try it!
+* [x] ask Jaime to try it!
 * [ ] require master-flats to come from the same instrument!
 * [ ] require biases/darks to come from the same camera!
 * [ ] fix remaining tool failures (just fail-m100)
