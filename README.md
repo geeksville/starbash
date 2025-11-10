@@ -101,7 +101,13 @@ sb select target m31 # select all sessions with m31.
 # Note: tab completion is supported so if you type select target m<tab> you should get a list of all the Messier objects you have in your images
 ```
 
-* Step 2 - Do auto process.  This will process all of the sessions you currently have selected.  It will group outputs by target name and it will auto select flat frames on a per session date basis.  At the end of processing a lists of targets and their processing will be printed.
+* Step 2 - Generate 'master' images.  This will auto stack your raw BIAS, DARK, FLAT etc... frames as single frame masters.  You only need to perform this step once:
+
+```
+sb process masters
+```
+
+* Step 3 - Do auto process.  This will process all of the sessions you currently have selected.  It will group outputs by target name and it will auto select flat frames on a per session date basis.  At the end of processing a lists of targets and their processing will be printed.
 
 ```
 sb process auto
