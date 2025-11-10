@@ -198,7 +198,7 @@ def setup():
     This will ask you for your name, email, and analytics preferences.
     You can skip any question by pressing Enter.
     """
-    with Starbash("user.setup", no_progress=True) as sb:
+    with Starbash("user.setup") as sb:
         do_reinit(sb)
 
 
