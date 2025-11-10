@@ -13,6 +13,7 @@ from starbash.commands.__init__ import (
 )
 from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
+from starbash.processing import Processing
 
 app = typer.Typer()
 
@@ -156,16 +157,17 @@ def auto(
     The output will be saved according to the configured recipes.
     """
     with Starbash("process.auto") as sb:
-        from starbash import console
+        with Processing(sb) as proc:
+            from starbash import console
 
-        if session_num is not None:
-            console.print(f"[yellow]Auto-processing session {session_num}...[/yellow]")
-        else:
-            console.print("[yellow]Auto-processing all selected sessions...[/yellow]")
+            if session_num is not None:
+                console.print(f"[yellow]Auto-processing session {session_num}...[/yellow]")
+            else:
+                console.print("[yellow]Auto-processing all selected sessions...[/yellow]")
 
-        results = sb.run_all_stages()
+            results = proc.run_all_stages()
 
-        print_results("Autoprocessed", results, console)
+            print_results("Autoprocessed", results, console)
 
 
 @app.command()
@@ -180,12 +182,13 @@ def masters():
     and will be automatically used for future processing operations.
     """
     with Starbash("process.masters") as sb:
-        from starbash import console
+        with Processing(sb) as proc:
+            from starbash import console
 
-        console.print("[yellow]Generating master frames from current selection...[/yellow]")
-        results = sb.run_master_stages()
+            console.print("[yellow]Generating master frames from current selection...[/yellow]")
+            results = proc.run_master_stages()
 
-        print_results("Generated masters", results, console)
+            print_results("Generated masters", results, console)
 
 
 @app.callback(invoke_without_command=True)
