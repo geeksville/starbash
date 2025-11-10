@@ -48,21 +48,21 @@
 * [x] in osc processing implement make_renormalize()
 * [ ] do background_removal() as a separate stage via graxpert
 * [ ] do auto star removal as a separate stage
-* [ ] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
+* [x] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
 * [ ] require masters dimensions match image dimensions for selection
 * [ ] master relative path should be based on unique camera ID - so that Ascar_V_80mm_flattener and Ascar_V_80mm_extender can share the same masters.
 * [x] NotEnoughFilesError should not crash processing
 * [ ] simple OSC processing scripts shouldn't even need custom python - make siril invoke smarter (by being multi-session aware for input files)
 * [ ] find a way for scripts to share python code with each other
 * [ ] implement recipe/repo inheritence to prevent the copypasta required in the existing OSC scripts
-* [ ] add progress 'spinner' bar while doing any tool runs... https://rich.readthedocs.io/en/latest/reference/spinner.html
-* [ ] return a list of ProcessingResult named tuples from auto and master processing.  print as table.
+* [x] add progress 'spinner' bar while doing any tool runs... https://rich.readthedocs.io/en/latest/reference/spinner.html
+* [x] return a list of ProcessingResult named tuples from auto and master processing.  print as table.
 * [ ] move all the 'processing' stuff out of app.py
 * [ ] check for required/recommended tools at start.
 * [ ] name the progess dirs so they can be semi-persistent
 * [x] get a successful run on X
 * [x] don't let logging mess up progress display when making masters https://rich.readthedocs.io/en/latest/progress.html#print-log
-* [ ] generate .toml in output processed dir
+* [ ] when processing a target, generate a toml file with the options used to for that generation (so it can be regenerated or customized).  Include doc comments in that file for new users.
 * [ ] let user spec a max cache size, if we exceed that just delete older build dirs from that cache as needed.  This would allow quick rebuilds for the last N targets rendered.
 * [ ] test missing siril/graxpert and helpful user message
 * [x] fix "Registering and stacking 0 frames for SiiOiii/Ha"
@@ -85,25 +85,24 @@
 * [ ] use normalized names when searching for filters or master or light frames
 * [x] when reindexing/adding masters, put them in the session db as some sort of special entry
 * [ ] make siril prep smarter about best sets, include report in toml file, show options on log
-* [ ] I bet that masters are probably being included in the session images, don't include them when passing image files to tasks.
+* [x] I bet that masters are probably being included in the session images, don't include them when passing image files to tasks.
 * [ ] probably: instead of a list of repos we should keep repos in memory in a tree structure - which would allow walking up the tree to inherit/override entries.
 * [x] add exposure length as another common element for a session
-* [ ] validate resolution and binning when looking for darks etc...
-* [ ] auto select workflows by filter name
-* [ ] make auto process work again for dual-duo _multi_ session workflows
+* [x] auto select workflows by filter name
+* [x] make auto process work again for dual-duo _multi_ session workflows
 * [x] add targets list
 * [x] implement setup command (including username selection and analytics)
 * [x] include instrument name in session list (for seestar,asiair,etc)
-* [ ] select default output should show summary info for current target & telescope.
+* [x] select default output should show summary info for current target & telescope.
 * [ ] sort the masters list display
-* [ ] fix auto generation of processed directory paths
+* [x] fix auto generation of processed directory paths
 * [ ] track image quality on a per frame basis
 * [x] use db find master bias frames
-* [ ] use db to find flat frames
+* [x] use db to find flat frames
 * [x] use db to find light frames
 * [x] add top level catch asking users to report bugs
 * [x] add crash and usage analytics - sentry.io?
-* [ ] add automated session config looping (Sii, Oiii etc...)
+* [ ] move session config looping out of scripts - to require less script coding (Sii, Oiii etc...)
 * [x] add automated session looping (multiday)
 * [x] unify the script execution code between sessions and masters
 * [x] pass stage outputs via the context?
@@ -115,14 +114,13 @@
 * [x] Add a db starbash.Database class, populated from repos.  Regen as needed.
 * [x] change the info commands to use the current selection query (and include comparison to all in the output)
 * [ ] Possibly store the DB queries as the description for the sesssion inputs?
-* [ ] consider two different 'users' one who just wants to use the DB/repo stuff (doesn't need the auto processing) - for that user just let them do queries and build a 'process' directory for siril.  And the other user who wants our slick smart scripts to also do at least pre-processing.  In initial release just support the the query opts
+* [x] consider two different 'users' one who just wants to use the DB/repo stuff (doesn't need the auto processing) - for that user just let them do queries and build a 'process' directory for siril.  And the other user who wants our slick smart scripts to also do at least pre-processing.  In initial release just support the the query opts
 * [ ] add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
 * [ ] add makefile style dependencies
 * [ ] allow selecting targets using OBJCTRA and OBJECTDEC + an angle of view - because it makes name differences meaningless.  possibly start with a name and then query a DB to find RA/DEC then look for the local images.
 * [x] add FITS based filter detection (use astropy.io https://docs.astropy.org/en/stable/install.html)
-* [ ] make single DUO processing work
+* [x] make single DUO processing work
 * [x] add a command to select the current set of sessions to process (allow filtering by target name, date, instrument, etc...)
-* [ ] keep quality metadata for every image that has been processed
 * [x] have tab completion work for dates or target names (showing a shorthand of what the new selection would mean)
 * [x] user https://typer.tiangolo.com/ for CLI support and rich-click
 * [x] support subcommands per https://typer.tiangolo.com/tutorial/subcommands/add-typer/#put-them-together
@@ -130,30 +128,29 @@
 * [x] add a command to list all known sessions in all repos (eventually use a DB to cache this info)
 * [x] use https://tinydb.readthedocs.io as the DB?
 * [x] render output (including tables) with https://github.com/Textualize/rich - use basic command lines at first
-* [ ] test on asiair, seestar, nina
+* [x] test on asiair, seestar, nina
 * [ ] eventually do a simple gui using https://flet.dev/docs/
-* [ ] use import importlib.util to load python code it is own namespace
-* [ ] make crude flat frame generation work
-* [ ] make crude light frame processing work
+* [x] use import importlib.util to load python code it is own namespace
+* [x] make crude flat frame generation work
+* [x] make crude light frame processing work
 * [ ] normalize instrument names (removing spaces) when creating masters directories
-* [ ] don't include recipes in the list of repos on the CLI.
+* [x] don't include recipes in the list of repos on the CLI.
 * [x] add a repo-add command that creates repo.sb.toml file in the rootdir and references it from users preferences.
-* [ ] have repo-add auto recognize common nina/asiair/seestar layouts
+* [x] have repo-add auto recognize common nina/asiair/seestar layouts
 * [ ] generate a report on the final output including attribution for data sources, recpies etc...
-* [ ] when processing a target, generate a toml file with the options used to for that generation (so it can be regenerated or customized).  Include doc comments in that file for new users.
-* [ ] make default invocation walk the user through creation of input and output repos.
+* [x] make default invocation walk the user through creation of input and output repos.
 * [ ] do star extraction
 * [ ] don't regen masters/stacks/etc... if we don't need to - precheck for existence of output file
 * [x] add a backpointer in stages to the recipe they came from (for attribution, reporting etc...)
 * [ ] validate TOML files at load time to look for invalid keys (detect possible typos in recpie files etc...)
 * [x] change from eval() to something more secure (ast + eval? a restricted dict API?)
-* [ ] add something like repo-add for masters and processed
-* [ ] do background elim with graxpert before tri merge
+* [x] add something like repo-add for masters and processed
+* [ ] do background elim with graxpert (before?) tri merge
 * [x] FIX GRAXPERT RELEASE
 * [ ] merge the tri colors into one file using pixel math
 * [x] generalize processing to also work on single duo filter or broadband OSC
-* [ ] auto recognize my nina config, default nina config, asiair config, seestar config
-* [ ] list all found targets across all repos
+* [x] auto recognize my nina config, default nina config, asiair config, seestar config
+* [x] list all found targets across all repos
 * [x] allow restricting processing by date ranges, or equipment or whatever
 * [ ] print report on frame quality, registration etc...
 * [ ] get a real app icon (instead of current placeholder)
