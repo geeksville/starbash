@@ -235,7 +235,7 @@ class MissingToolError(UserHandledError):
         self.command = command
 
     def __rich__(self) -> Any:
-        return f"Tool: [red]'{self.command}'[/red] not found"
+        return str(self)  # FIXME do something better here?
 
 
 class Tool:
@@ -314,7 +314,8 @@ class ExternalTool(Tool):
             if shutil.which(cmd):
                 return cmd
         raise MissingToolError(
-            f"{self.name} not found, you probably need to install it.", command=self.name
+            f"{self.name} not found. Installation instructions [link={self.install_url}]here[/link]",
+            command=self.name,
         )
 
 
