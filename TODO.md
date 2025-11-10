@@ -47,7 +47,7 @@
 * [ ] generate an auto-stretched output as fits and jpg.
 * [ ] make OSC options user customizable per target
 * [ ] do auto star removal as a separate stage
-* [ ] check for required/recommended tools at start.
+* [x] check for required/recommended tools at start.
 * [ ] when processing a target, generate a toml file with the options used to for that generation (so it can be regenerated or customized).  Include doc comments in that file for new users.
 * [ ] **first public alpha** at approximately this point
 * [ ] always regen masters after adding a repo

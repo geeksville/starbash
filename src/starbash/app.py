@@ -38,7 +38,7 @@ from starbash.exception import UserHandledError
 from starbash.paths import get_user_cache_dir, get_user_config_dir
 from starbash.selection import Selection, build_search_conditions
 from starbash.toml import toml_from_template
-from starbash.tool import expand_context_unsafe, tools
+from starbash.tool import expand_context_unsafe, preflight_tools, tools
 
 
 @dataclass
@@ -80,7 +80,11 @@ def setup_logging(console: rich.console.Console):
     """
     from starbash import _is_test_env  # Lazy import to avoid circular dependency
 
-    handlers = [RichHandler(console=console, rich_tracebacks=True)] if not _is_test_env else []
+    handlers = (
+        [RichHandler(console=console, rich_tracebacks=True, markup=True)]
+        if not _is_test_env
+        else []
+    )
     logging.basicConfig(
         level=starbash.log_filter_level,  # use the global log filter level
         format="%(message)s",
@@ -245,6 +249,7 @@ class Starbash:
 
         # Initialize selection state (stored in user config repo)
         self.selection = Selection(self.user_repo)
+        preflight_tools()
 
     def _init_repos(self) -> None:
         """Initialize all repositories managed by the RepoManager."""

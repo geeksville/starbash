@@ -238,14 +238,6 @@ class MissingToolError(UserHandledError):
         return f"Tool: [red]'{self.command}'[/red] not found"
 
 
-def executable_path(commands: list[str], name: str) -> str:
-    """Find the correct executable path to run for the given tool"""
-    for cmd in commands:
-        if shutil.which(cmd):
-            return cmd
-    raise MissingToolError(f"{name} not found, you probably need to install it.", command=name)
-
-
 class Tool:
     """A tool for stage execution"""
 
@@ -296,11 +288,43 @@ class Tool:
         raise NotImplementedError()
 
 
-class SirilTool(Tool):
+class ExternalTool(Tool):
+    """A tool provided by an external executable"""
+
+    def __init__(self, name: str, commands: list[str], install_url: str) -> None:
+        super().__init__(name)
+        self.commands = commands
+        self.install_url = install_url
+
+    def preflight(self) -> None:
+        """Check that the tool is available"""
+        try:
+            _ = self.executable_path  # raise if not found
+        except MissingToolError:
+            logger.warning(
+                textwrap.dedent(f"""\
+                    The {self.name} executable was not found.  Some features will be unavailable until you install it.
+                    Click [link={self.install_url}]here[/link] for installation instructions.""")
+            )
+
+    @property
+    def executable_path(self) -> str:
+        """Find the correct executable path to run for the given tool"""
+        for cmd in self.commands:
+            if shutil.which(cmd):
+                return cmd
+        raise MissingToolError(
+            f"{self.name} not found, you probably need to install it.", command=self.name
+        )
+
+
+class SirilTool(ExternalTool):
     """Expose Siril as a tool"""
 
     def __init__(self) -> None:
-        super().__init__("siril")
+        # siril_path = "/home/kevinh/packages/Siril-1.4.0~beta3-x86_64.AppImage"
+        # Possible siril commands, with preferred option first
+        super().__init__("siril", ["siril-cli", "siril", "org.siril.Siril"], "https://siril.org/")
 
     def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         """Executes Siril with a script of commands in a given working directory."""
@@ -313,10 +337,7 @@ class SirilTool(Tool):
 
         temp_dir = cwd
 
-        # siril_path = "/home/kevinh/packages/Siril-1.4.0~beta3-x86_64.AppImage"
-        # Possible siril commands, with preferred option first
-        siril_commands = ["siril-cli", "siril", "org.siril.Siril"]
-        siril_path = executable_path(siril_commands, "Siril")
+        siril_path = self.executable_path
         if siril_path == "org.siril.Siril":
             # The executable is inside a flatpak, so run the lighter/faster/no-gui required exe
             # from inside the flatpak
@@ -353,17 +374,17 @@ class SirilTool(Tool):
         tool_run(cmd, temp_dir, script_content, timeout=self.timeout)
 
 
-class GraxpertTool(Tool):
+class GraxpertTool(ExternalTool):
     """Expose Graxpert as a tool"""
 
     def __init__(self) -> None:
-        super().__init__("graxpert")
+        super().__init__("graxpert", ["graxpert"], "https://graxpert.com/")
 
     def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         """Executes Graxpert with the specified command line arguments"""
 
         # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
-        cmd = f"graxpert {commands}"
+        cmd = f"{self.executable_path} {commands}"
 
         tool_run(cmd, cwd, timeout=self.timeout)
 
@@ -431,6 +452,13 @@ class PythonTool(Tool):
                 raise PythonScriptError("Error during python script execution") from e
         finally:
             os.chdir(original_cwd)
+
+
+def preflight_tools() -> None:
+    """Preflight check all known tools to see if they are available"""
+    for tool in tools.values():
+        if isinstance(tool, ExternalTool):
+            tool.preflight()
 
 
 # A dictionary mapping tool names to their respective tool instances.
