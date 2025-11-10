@@ -16,9 +16,10 @@
             "source.organizeImports.ruff": "explicit"
         }
     },
-    // Enable Pylance type checking to catch import errors and type issues
-    // "basic" mode catches import errors without being too strict about types
-    "python.analysis.typeCheckingMode": "basic",
+    // Disable Pylance type checking - using BasedPyright extension instead
+    "python.analysis.typeCheckingMode": "off",
+    // BasedPyright settings (requires detachhead.basedpyright extension)
+    "basedpyright.analysis.typeCheckingMode": "basic",
     "cSpell.words": [
         "apeture",
         "ASIAIR",

@@ -1,6 +1,7 @@
 {
     "recommendations": [
         "ms-python.python",
+        "detachhead.basedpyright",
         "tamasfe.even-better-toml",
         "github.copilot",
         "skellock.just",

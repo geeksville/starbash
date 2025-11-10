@@ -635,12 +635,12 @@ class Processing:
         self.expand_to_context(stage_context)
         self.add_output_path(stage)
 
+        output_info: dict | None = self.context.get("output")
         try:
             self.add_input_files(stage)
             self.add_input_masters(stage)
 
             # if the output path already exists and is newer than all input files, skip processing
-            output_info: dict | None = self.context.get("output")
             if output_info and not starbash.force_regen:
                 output_path = output_info.get("full_path")
                 if output_path:
@@ -675,7 +675,6 @@ class Processing:
                 raise
 
         # verify context.output was created if it was specified
-        output_info: dict | None = self.context.get("output")
         if output_info:
             output_path = output_info[
                 "full_path"

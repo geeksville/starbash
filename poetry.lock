@@ -75,6 +75,21 @@ docs = ["pytest"]
 test = ["hypothesis", "pytest", "pytest-remotedata"]
 
 [[package]]
+name = "basedpyright"
+version = "1.33.0"
+description = "static type checking for Python (but based)"
+optional = false
+python-versions = ">=3.8"
+groups = ["dev"]
+files = [
+    {file = "basedpyright-1.33.0-py3-none-any.whl", hash = "sha256:1ab813683e28184aa60fd4000731f6fe9dbd083c9bd489420bb20f3e5dbb6ab8"},
+    {file = "basedpyright-1.33.0.tar.gz", hash = "sha256:a7e4d6d2285b93d8c0c91c75490d5bc00adbe7ef96ba1f1d4c010d9a731e243a"},
+]
+
+[package.dependencies]
+nodejs-wheel-binaries = ">=20.13.1"
+
+[[package]]
 name = "certifi"
 version = "2025.10.5"
 description = "Python package for providing Mozilla's CA Bundle."
@@ -889,6 +904,25 @@ files = [
 ]
 
 [[package]]
+name = "nodejs-wheel-binaries"
+version = "22.20.0"
+description = "unoffical Node.js package"
+optional = false
+python-versions = ">=3.7"
+groups = ["dev"]
+files = [
+    {file = "nodejs_wheel_binaries-22.20.0-py2.py3-none-macosx_11_0_arm64.whl", hash = "sha256:455add5ac4f01c9c830ab6771dbfad0fdf373f9b040d3aabe8cca9b6c56654fb"},
+    {file = "nodejs_wheel_binaries-22.20.0-py2.py3-none-macosx_11_0_x86_64.whl", hash = "sha256:5d8c12f97eea7028b34a84446eb5ca81829d0c428dfb4e647e09ac617f4e21fa"},
+    {file = "nodejs_wheel_binaries-22.20.0-py2.py3-none-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7a2b0989194148f66e9295d8f11bc463bde02cbe276517f4d20a310fb84780ae"},
+    {file = "nodejs_wheel_binaries-22.20.0-py2.py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b5c500aa4dc046333ecb0a80f183e069e5c30ce637f1c1a37166b2c0b642dc21"},
+    {file = "nodejs_wheel_binaries-22.20.0-py2.py3-none-musllinux_1_2_aarch64.whl", hash = "sha256:3279eb1b99521f0d20a850bbfc0159a658e0e85b843b3cf31b090d7da9f10dfc"},
+    {file = "nodejs_wheel_binaries-22.20.0-py2.py3-none-musllinux_1_2_x86_64.whl", hash = "sha256:d29705797b33bade62d79d8f106c2453c8a26442a9b2a5576610c0f7e7c351ed"},
+    {file = "nodejs_wheel_binaries-22.20.0-py2.py3-none-win_amd64.whl", hash = "sha256:4bd658962f24958503541963e5a6f2cc512a8cb301e48a69dc03c879f40a28ae"},
+    {file = "nodejs_wheel_binaries-22.20.0-py2.py3-none-win_arm64.whl", hash = "sha256:1fccac931faa210d22b6962bcdbc99269d16221d831b9a118bbb80fe434a60b8"},
+    {file = "nodejs_wheel_binaries-22.20.0.tar.gz", hash = "sha256:a62d47c9fd9c32191dff65bbe60261504f26992a0a19fe8b4d523256a84bd351"},
+]
+
+[[package]]
 name = "numpy"
 version = "2.2.6"
 description = "Fundamental package for array computing in Python"
@@ -1386,27 +1420,6 @@ files = [
     {file = "pyperclip-1.11.0-py3-none-any.whl", hash = "sha256:299403e9ff44581cb9ba2ffeed69c7aa96a008622ad0c46cb575ca75b5b84273"},
     {file = "pyperclip-1.11.0.tar.gz", hash = "sha256:244035963e4428530d9e3a6101a1ef97209c6825edab1567beac148ccc1db1b6"},
 ]
-
-[[package]]
-name = "pyright"
-version = "1.1.407"
-description = "Command line wrapper for pyright"
-optional = false
-python-versions = ">=3.7"
-groups = ["dev"]
-files = [
-    {file = "pyright-1.1.407-py3-none-any.whl", hash = "sha256:6dd419f54fcc13f03b52285796d65e639786373f433e243f8b94cf93a7444d21"},
-    {file = "pyright-1.1.407.tar.gz", hash = "sha256:099674dba5c10489832d4a4b2d302636152a9a42d317986c38474c76fe562262"},
-]
-
-[package.dependencies]
-nodeenv = ">=1.6.0"
-typing-extensions = ">=4.1"
-
-[package.extras]
-all = ["nodejs-wheel-binaries", "twine (>=3.4.1)"]
-dev = ["twine (>=3.4.1)"]
-nodejs = ["nodejs-wheel-binaries"]
 
 [[package]]
 name = "pytest"
@@ -2434,4 +2447,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "6ed9d576cafe8b6fe398e79fba578f7890509cbab755f33801318be538be2d1a"
+content-hash = "46d8f40d69f28c435ecf7f9d2f1561ca23eecdf566b9b21f160771cf8e80d78a"

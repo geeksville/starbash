@@ -73,7 +73,8 @@
 				"charliermarsh.ruff",
 				"tamasfe.even-better-toml",
 				"github.copilot",
-				"skellock.just"
+				"skellock.just",
+				"detachhead.basedpyright",
 				// "google.geminicodeassist"
 			],
 			"settings": {

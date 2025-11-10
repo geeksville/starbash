@@ -109,11 +109,11 @@ bump-version newver: test
 _lint:
     poetry run ruff check src/ tests/
 
-# Run type checking with pyright (same errors as Pylance in VS Code)
+# Run type checking with basedpyright (same errors as Pylance in VS Code)
 _typecheck:
-    poetry run pyright src/
+    poetry run basedpyright src/
 
-# Run all linting checks (ruff + pyright)
+# Run all linting checks (ruff + basedpyright)
 check: _lint _typecheck
 
 format:
