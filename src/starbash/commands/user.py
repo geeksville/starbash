@@ -103,7 +103,7 @@ def _ask_user_config(sb: Starbash) -> None:
     # Ask for username
     user_name = Prompt.ask(
         "Enter your name (for attribution in generated images)",
-        default="",
+        default=sb.user_repo.get("user.name", ""),
         show_default=False,
         console=console,
     )
@@ -117,7 +117,7 @@ def _ask_user_config(sb: Starbash) -> None:
     # Ask for email
     user_email = Prompt.ask(
         "Enter your email address (for attribution in generated images)",
-        default="",
+        default=sb.user_repo.get("user.email", ""),
         show_default=False,
         console=console,
     )
@@ -132,7 +132,7 @@ def _ask_user_config(sb: Starbash) -> None:
     include_in_reports = Confirm.ask(
         "Would you like to include your email address with crash reports/analytics?\n"
         "(This helps us follow up if we need more information about issues.)",
-        default=False,
+        default=sb.user_repo.get("analytics.include_user", False),
         console=console,
     )
     sb.analytics.set_data("analytics.use_email_report", include_in_reports)
