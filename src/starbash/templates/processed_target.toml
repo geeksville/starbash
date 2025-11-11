@@ -1,0 +1,57 @@
+[repo]
+kind = "processed-target"
+
+# This is auto generated at the root of a Starbash target processing tree
+# it is initially auto populated based on the best guess of starbash, but you
+# can customize as needed.  Any changes you make to this file will be preserved/used
+# in future runs.
+
+[about] # (if not present this section will be auto generated at processing time)
+
+# this section contains textual information the user might want to share on social media or whatever
+# some of it comes from FITS headers gleaned during processing or other statistics
+
+target.id = "unspecified"
+# target.name = "Some Big Nebula"
+# target.ra = "123.45"
+# OBJCTRA = '00 23 44'           / [H M S] RA of imaged object
+# OBJCTDEC= '+89 55 28'
+
+[overrides]
+
+# FIXME let user specify overrides for script parameters here (for custom settings etc... without having to tweak recipes)
+
+[processing]
+
+# later during preprocessing information and attribution for recipe/tool usage etc will be added here
+
+[processing.citation]
+
+# The creator of this image session
+# (if not present this section will be auto generated at processing time)
+# this whole secion is auto copied from userprefs.sb.toml
+# The format of this session is compatible with the Citation File Format (CFF)
+# see https://github.com/citation-file-format/citation-file-format/blob/main/schema-guide.md
+# for details.
+# The only difference is to facilitate toml parsing we use an = sign instead of :
+# if/when .cff file exports are required we'll do that conversion then.
+
+[processing.recipe]
+
+# if specified a specific recipe will be used, otherwiase one will be chosen and run
+# automatically
+# Starbash will search all recipe repos to find this by name
+# url = "http://foo.blah/osc-dual-duo"
+
+# other standard recipes...
+# osc-duo, osc-broadband
+# mono-sho (fixme find other names used in mono workflow land)
+
+# a default starbash file for a particular processed target will typically contain only the preceeding
+
+[processing.recipe.options]
+
+# elegible recipes available for use, if one was not specified above the first recipe in this list will be used
+url = ["file:///blah/blah/recipes/osc-broadband.toml"]
+
+[[sessions]]

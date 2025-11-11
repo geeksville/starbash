@@ -1,5 +1,5 @@
 [repo]
-kind="session"
+kind="processed-target"
 
 # This is auto generated at the root of a session processing tree
 # it is initially auto populated based on the best guess of starbash, but the user
@@ -11,8 +11,8 @@ kind="session"
 # some of it comes from FITS headers gleaned during processing or other statistics
 
 target.id = "NGC281"
-target.name = "Some Big Nebula"
-target.ra = "123.45"
+# target.name = "Some Big Nebula"
+# target.ra = "123.45"
 # OBJCTRA = '00 23 44'           / [H M S] RA of imaged object
 # OBJCTDEC= '+89 55 28'
 
@@ -24,18 +24,10 @@ date = 1979-05-27T07:32:00     # date of processing
 num-frames = 45                # Total number of times
 exposure = 120                 # Average exposure in seconds
 filter = "HaOiii"              # all images of a session are guaranteed to have the same filter
-temperature = 23.5
-wind = 4.5
-telescope = "Askar V"
-focal-length = 600
-apeture = 80
-mount = "ZWO AM5"
-kind = "light"                 # all images of a session are guaranteed to have the same kind
+metadata.FOO = "blah"
 
-# if masters were selected for use processing this session they will be listed here
-# (if not present this section will be auto generated at processing time)
-# time of first frame in this session.config
-# storing these settings here ensure if we reprocess settings remain the same
+# if masters were SPECIFICALLY selected for use processing this session they will be listed here
+# Set this to override the auto selection from sessions.options (below)
 master.flat = "/blag/blah.fits"
 master.dark = ""
 master.bias = ""
@@ -56,10 +48,15 @@ images.dir = "2025-09-01/light"
 # if not present - generated dynamically at load time from imagesbase+"*.fit*"
 # images = [ "file://images/ngc281/session1/light/frame0001.fits" ]
 
-[sessions.rejected]
+[sessions.options]
 
-# various other candidates for this session that were either manually or automatically rejected
-master.flat = ["/blag/blah.fits"]
+# various other candidates for this session that were found automatically
+# these lists are sorted with the presumed most desirable candidate first.  If master.flat (or whatever)
+# is not specified above the first entry in this list will be used.
+master.flat = [
+    "/blag/blah.fits", # score 405: good date etc...
+    "/blag/blah2.fits" # score 607: less good date etc...
+    ]
 master.dark = [""]
 master.bias = [""]
 
@@ -83,11 +80,11 @@ date = 1979-05-27T07:32:00     # date of processing
 num-frames = 45                # Total number of times
 # same sort of content as sessions #1
 
-[preprocessing]
+[processing]
 
 # later during preprocessing information and attribution for recipe/tool usage etc will be added here
 
-[preprocessing.citation]
+[processing.citation]
 
 # The creator of this image session
 # (if not present this section will be auto generated at processing time)
@@ -105,18 +102,18 @@ doi = "10.5281/zenodo.1234"
 date-released = "2017-12-18"
 url = "https://github.com/github-linguist/linguist"
 
-[[preprocessing.citation.authors]]
+[[processing.citation.authors]]
 family-names = "Lisa"
 given-names = "Mona"
 orcid = "https://orcid.org/0000-0000-0000-0000"
 
-[[preprocessing.citation.authors]]
+[[processing.citation.authors]]
 family-names = "Bot"
 given-names = "Hew"
 orcid = "https://orcid.org/0000-0000-0000-0000"
 
 
-[preprocessing.recipe]
+[processing.recipe]
 
 # if specified a specific recipe will be used, otherwiase one will be chosen and run
 # automatically
@@ -129,6 +126,6 @@ url = "http://foo.blah/osc-dual-duo"
 
 # a default starbash file for a particular processed target will typically contain only the preceeding
 
-[preprocessing.recipe.rejected]
-# other eligible recipes which were found and rejected during recipe selection
+[processing.recipe.options]
+# elegible recipes available for use, if one was not specified above the first recipe in this list will be used
 url = ["file:///blah/blah/recipes/osc-broadband.toml"]
