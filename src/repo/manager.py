@@ -48,14 +48,14 @@ class RepoManager:
         from repo.repo import Repo  # Local import to avoid circular dependency
 
         logging.debug(f"Adding repo: {url}")
-        r = Repo(self, url)
+        r = Repo(url)
         self.repos.append(r)
 
         # FIXME, generate the merged dict lazily
         self._add_merged(r)
 
         # if this new repo has sub-repos, add them too
-        r.add_by_repo_refs()
+        r.add_by_repo_refs(self)
 
         return r
 

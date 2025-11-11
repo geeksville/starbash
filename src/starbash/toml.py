@@ -25,5 +25,10 @@ def toml_from_template(
     tomlstr = t.substitute(vars)
 
     toml = tomlkit.parse(tomlstr)
+
+    # create parent dirs as needed
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # write the resulting toml
     TOMLFile(dest_path).write(toml)
     return toml

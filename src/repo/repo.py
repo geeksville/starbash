@@ -10,7 +10,7 @@ from tomlkit.items import AoT
 from tomlkit.toml_file import TOMLFile
 
 if TYPE_CHECKING:
-    from repo.manager import RepoManager
+    from .manager import RepoManager
 
 repo_suffix = "starbash.toml"
 
@@ -19,16 +19,24 @@ REPO_REF = "repo-ref"
 
 class Repo:
     """
-    Represents a single starbash repository."""
+    Represents a single starbash repository.
+    """
 
-    def __init__(self, manager: RepoManager, url: str):
-        """
-        Initializes a Repo instance.
+    def __init__(self, url_or_path: str | Path):
+        """Initialize a Repo instance.
 
         Args:
-            url: The URL to the repository (file or general http/https urls are acceptable).
+            url_or_path: Either a string URL (e.g. file://, pkg://, http://...) or a Path.
+                If a Path is provided it will be converted to a file:// URL using its
+                absolute, resolved form.
         """
-        self.manager = manager
+        if isinstance(url_or_path, Path):
+            # Always resolve to an absolute path to avoid ambiguity
+            resolved = url_or_path.expanduser().resolve()
+            url = f"file://{resolved}"
+        else:
+            url = str(url_or_path)
+
         self.url = url
         self.config = self._load_config()
         self._monkey_patch()
@@ -81,7 +89,7 @@ class Repo:
         c = self.get("repo.kind", unknown_kind)
         return str(c)
 
-    def add_repo_ref(self, dir: Path) -> Repo | None:
+    def add_repo_ref(self, manager: RepoManager, dir: Path) -> Repo | None:
         """
         Adds a new repo-ref to this repository's configuration.
         if new returns the newly added Repo object, if already exists returns None"""
@@ -108,7 +116,7 @@ class Repo:
         aot.append(ref)
 
         # Also add the repo to the manager
-        return self.add_from_ref(ref)
+        return self.add_from_ref(manager, ref)
 
     def write_config(self) -> None:
         """
@@ -151,7 +159,7 @@ class Repo:
 
         return None
 
-    def add_from_ref(self, ref: dict) -> Repo:
+    def add_from_ref(self, manager: RepoManager, ref: dict) -> Repo:
         """
         Adds a repository based on a repo-ref dictionary.
         """
@@ -175,14 +183,14 @@ class Repo:
                 url = self.url.rstrip("/") + "/" + ref["dir"].lstrip("/")
         else:
             raise ValueError(f"Invalid repo reference: {ref}")
-        return self.manager.add_repo(url)
+        return manager.add_repo(url)
 
-    def add_by_repo_refs(self) -> None:
+    def add_by_repo_refs(self, manager: RepoManager) -> None:
         """Add all repos mentioned by repo-refs in this repo's config."""
         repo_refs = self.config.get(REPO_REF, [])
 
         for ref in repo_refs:
-            self.add_from_ref(ref)
+            self.add_from_ref(manager, ref)
 
     def resolve_path(self, filepath: str) -> Path:
         """

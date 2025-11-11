@@ -55,7 +55,7 @@ select-seestar:
 # test target that has Si and HaOiii filters
 select-si-ha:
     sb select any
-    sb select target ngc281
+    sb select target m20 # or for a longer test: ngc281
 
 # test using just the HaOiii filter
 select-ha:
@@ -65,8 +65,8 @@ select-ha:
 process:
     sb process auto
 
-# process one typical session
-process-one: select-no-filter process
+# process one typical session that is at least not huge
+process-one: select-si-ha process
 
 # Process all images
 process-all: select-any process

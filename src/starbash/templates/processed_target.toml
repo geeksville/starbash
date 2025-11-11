@@ -11,7 +11,7 @@ kind = "processed-target"
 # this section contains textual information the user might want to share on social media or whatever
 # some of it comes from FITS headers gleaned during processing or other statistics
 
-target.id = "unspecified"
+target.id = "$target"
 # target.name = "Some Big Nebula"
 # target.ra = "123.45"
 # OBJCTRA = '00 23 44'           / [H M S] RA of imaged object

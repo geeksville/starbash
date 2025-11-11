@@ -21,6 +21,7 @@ from starbash.database import (
 )
 from starbash.exception import UserHandledError
 from starbash.paths import get_user_cache_dir
+from starbash.processed_target import ProcessedTarget
 from starbash.tool import expand_context_unsafe, tools
 
 
@@ -226,6 +227,10 @@ class Processing:
                         # dirs for particular targets?
                         try:
                             self.run_stage(task)
+
+                            # FIXME create this earlier - but for now I want to assume the output
+                            # path is correct.
+                            _ = ProcessedTarget(self.context)
                             stack_processed = True
                         except NotEnoughFilesError:
                             logging.warning(

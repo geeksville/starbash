@@ -280,8 +280,6 @@ class Starbash:
         else:
             if repo_type:
                 console.print(f"Creating {repo_type} repository: {p}")
-                p.mkdir(parents=True, exist_ok=True)
-
                 toml_from_template(
                     f"repo/{repo_type}",
                     p / repo_suffix,
@@ -299,7 +297,7 @@ class Starbash:
 
         console.print(f"Adding repository: {p}")
 
-        repo = self.user_repo.add_repo_ref(p)
+        repo = self.user_repo.add_repo_ref(self.repo_manager, p)
         if repo:
             self.reindex_repo(repo)
 
