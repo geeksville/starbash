@@ -1,11 +1,19 @@
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Any, Protocol
 
 from repo import Repo, repo_suffix
 from starbash.toml import toml_from_template
 
-if TYPE_CHECKING:
-    from .processing import Processing
+
+class ProcessingLike(Protocol):
+    """Minimal protocol to avoid importing Processing and creating cycles.
+
+    This captures only the attributes used by ProcessedTarget.
+    """
+
+    context: dict[str, Any]
+    sessions: list[Any]
+    recipes_considered: list[Any]
 
 
 class ProcessedTarget:
@@ -15,7 +23,7 @@ class ProcessedTarget:
     for the processed target.
     """
 
-    def __init__(self, p: "Processing") -> None:
+    def __init__(self, p: ProcessingLike) -> None:
         """Initialize a ProcessedTarget with the given processing context.
 
         Args:
