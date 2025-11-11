@@ -65,6 +65,9 @@ select-ha:
 process:
     sb process auto
 
+# process one typical session
+process-one: select-no-filter process
+
 # Process all images
 process-all: select-any process
 
@@ -123,5 +126,10 @@ lint-fix:
     poetry run ruff check --fix src/ tests/
     poetry run ruff format src/ tests/
 
+# standard quick test
 test:
     poetry run pytest # test must pass
+
+# a slow through test
+test-slow: test process-one
+
