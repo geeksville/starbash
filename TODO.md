@@ -38,6 +38,9 @@
 * [x] when processing masters always process entire repo
 * [x] fix master processing result table display
 * [x] organize bias/dark masters by camera ID not instrument ID (make an optional setting for this)
+* [x] masters have to be organized by gain also
+* [ ] masters have to be matched by gain (use in scoring)
+* [ ] get_session_images is filtering out stacked biases - we don't want that, instead we want to let our regular fallback copy rule work for masters
 * [ ] require master-flats to come from the same instrument!
 * [ ] require biases/darks to come from the same camera!
 * [ ] require masters dimensions match image dimensions for selection
