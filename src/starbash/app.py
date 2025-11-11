@@ -571,8 +571,8 @@ class Starbash:
             # "HISTORY" nodes are added by processing tools (Siril etc...), we never want to accidentally read those images
             has_history = img.get("HISTORY")
 
-            # images that were stacked on Seestar have one of these keys
-            is_stacked = img.get("CD1_1") or img.get("OBJCTTYP")
+            # images that were stacked seem to always have a STACKCNT header set
+            is_stacked = img.get("STACKCNT")
 
             if (
                 img.get(Database.FILTER_KEY) == session[get_column_name(Database.FILTER_KEY)]

@@ -501,7 +501,8 @@ class Processing:
         if input_required:
             if len(input_files) < input_required:
                 raise NotEnoughFilesError(
-                    f"Stage requires at least {input_required} input files", input_files
+                    f"Stage requires >{input_required} input files ({len(input_files)} found)",
+                    input_files,
                 )
 
     def add_output_path(self, stage: dict) -> None:
