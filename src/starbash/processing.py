@@ -385,9 +385,11 @@ class Processing:
         # if needed?
         # It isn't in the main session columns, so we look in metadata blob
         metadata = session.get("metadata", {})
-        camera_id = metadata.get("INSTRUMEN", instrument)  # Fall back to the telescope name
+        camera_id = metadata.get("INSTRUME", instrument)  # Fall back to the telescope name
         if camera_id:
             self.context["camera_id"] = camera_id
+
+        logging.debug(f"Using camera_id={camera_id}")
 
         # The type of images in this session
         imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
@@ -548,6 +550,7 @@ class Processing:
                 raise ValueError(f"Repository '{dest_repo.url}' has no filesystem path")
 
             # try to find repo.relative.<imagetyp> first, fallback to repo.relative.default
+            # Note: we are guaranteed imagetyp is already normalized
             imagetyp = self.context.get("imagetyp", "unspecified")
             repo_relative: str | None = dest_repo.get(
                 f"repo.relative.{imagetyp}", dest_repo.get("repo.relative.default")

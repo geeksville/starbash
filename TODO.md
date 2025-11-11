@@ -42,6 +42,7 @@
 * [ ] require biases/darks to come from the same camera!
 * [ ] require masters dimensions match image dimensions for selection
 * [ ] let master generation work with only one input file (by copying)
+* [ ] look for STACKCNT in input images - if populated (i.e. in prestacked biases from another platform) that is a great indication it was a processed/stacked file
 * [ ] when processing a target, generate a toml file with the options used to for that generation (so it can be regenerated or customized).  Include doc comments in that file for new users.
 * [ ] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
 * [ ] fix remaining tool failures (just fail-m100)

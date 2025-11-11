@@ -11,7 +11,7 @@ clean-config:
     rm -f ~/.config/starbash/starbash.toml
 
 clean-masters:
-    rm -rf ~/.local/share/starbash/masters
+    rm -rf ./images/masters
 
 clean-processed:
     rm -rf ./images/processed
