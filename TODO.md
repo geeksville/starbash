@@ -37,9 +37,11 @@
 * [x] ask Jaime to try it!
 * [x] when processing masters always process entire repo
 * [x] fix master processing result table display
+* [x] organize bias/dark masters by camera ID not instrument ID (make an optional setting for this)
 * [ ] require master-flats to come from the same instrument!
 * [ ] require biases/darks to come from the same camera!
 * [ ] require masters dimensions match image dimensions for selection
+* [ ] let master generation work with only one input file (by copying)
 * [ ] when processing a target, generate a toml file with the options used to for that generation (so it can be regenerated or customized).  Include doc comments in that file for new users.
 * [ ] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
 * [ ] fix remaining tool failures (just fail-m100)

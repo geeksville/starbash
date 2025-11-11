@@ -361,7 +361,8 @@ class Processing:
 
         Sets the following context variables based on the provided session:
         * target - the normalized target name of the session
-        * instrument - for the session
+        * instrument - the telescope ID for this session
+        * camera_id - the camera ID for this session (cameras might be moved between telescopes by users)
         * date - the localtimezone date of the session
         * imagetyp - the imagetyp of the session
         * session - the current session row (joined with a typical image) (can be used to
@@ -375,10 +376,20 @@ class Processing:
         if target:
             self.context["target"] = normalize_target_name(target)
 
+        # the telescope name is our instrument id
         instrument = session.get(get_column_name(Database.TELESCOP_KEY))
         if instrument:
             self.context["instrument"] = instrument
 
+        # the FITS INSTRUMEN keyword is the closest thing we have to a default camera ID.  FIXME, let user override
+        # if needed?
+        # It isn't in the main session columns, so we look in metadata blob
+        metadata = session.get("metadata", {})
+        camera_id = metadata.get("INSTRUMEN", instrument)  # Fall back to the telescope name
+        if camera_id:
+            self.context["camera_id"] = camera_id
+
+        # The type of images in this session
         imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
         if imagetyp:
             imagetyp = self.sb.aliases.normalize(imagetyp)
@@ -399,6 +410,7 @@ class Processing:
 
             self.context["session_config"] = session_config
 
+        # a short user friendly date for this session
         date = session.get(get_column_name(Database.START_KEY))
         if date:
             from starbash import (
@@ -535,10 +547,14 @@ class Processing:
             if not repo_base:
                 raise ValueError(f"Repository '{dest_repo.url}' has no filesystem path")
 
-            repo_relative: str | None = dest_repo.get("repo.relative")
+            # try to find repo.relative.<imagetyp> first, fallback to repo.relative.default
+            imagetyp = self.context.get("imagetyp", "unspecified")
+            repo_relative: str | None = dest_repo.get(
+                f"repo.relative.{imagetyp}", dest_repo.get("repo.relative.default")
+            )
             if not repo_relative:
                 raise ValueError(
-                    f"Repository '{dest_repo.url}' is missing 'repo.relative' configuration"
+                    f"Repository '{dest_repo.url}' is missing 'repo.relative.default' configuration"
                 )
 
             # we support context variables in the relative path

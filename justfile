@@ -27,7 +27,7 @@ reinit: clean-cache clean-config clean-masters install-completion
     sb repo add ./images/from_asiair
     sb repo add ./images/from_seestar
     sb repo add ./images/from_astroboy
-    sb repo add --master
+    sb repo add --master ./images/masters
     sb repo add --processed ./images/processed
     sb info
     sb select list --brief
