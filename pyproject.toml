@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "starbash"
-version = "0.1.14"
+version = "0.1.15"
 description = "A tool for automating/standardizing/sharing astrophotography workflows."
 authors = ["Kevin Hester <kevinh@geeksville.com>"]
 readme = "README.md"
