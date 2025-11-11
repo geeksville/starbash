@@ -324,7 +324,9 @@ class Processing:
                         # dirs for particular targets?
                         with ProcessingContext(self):
                             self.set_session_in_context(session)
-                            self.run_stage(task)
+
+                            # we want to allow already processed masters from other apps to be imported
+                            self.run_stage(task, processed_ok=True)
                     except Exception as e:
                         processing_exception = e
 
@@ -409,8 +411,9 @@ class Processing:
                 exptime = session.get(get_column_name(Database.EXPTIME_KEY))
                 if exptime:
                     session_config += f"_{int(float(exptime))}s"
-            gain = metadata.get("GAIN", 0)
-            session_config += f"_gain{gain}"
+            gain = metadata.get("GAIN")
+            if gain is not None:  # gain values can be zero
+                session_config += f"_gain{gain}"
 
             self.context["session_config"] = session_config
 
@@ -453,7 +456,7 @@ class Processing:
 
             context_master[master_type] = selected_master
 
-    def add_input_files(self, stage: dict) -> None:
+    def add_input_files(self, stage: dict, processed_ok: bool = False) -> None:
         """adds to context.input_files based on the stage input config"""
         input_config = stage.get("input")
         input_required = 0
@@ -479,7 +482,7 @@ class Processing:
                 session = self.context.get("session")
                 assert session is not None, "context.session should have been already set"
 
-                images = self.sb.get_session_images(session)
+                images = self.sb.get_session_images(session, processed_ok=processed_ok)
                 logging.debug(f"Using {len(images)} files as input_files")
                 self.context["input_files"] = [
                     img["abspath"] for img in images
@@ -605,7 +608,7 @@ class Processing:
             else:
                 self.context[key] = value
 
-    def run_stage(self, stage: dict) -> None:
+    def run_stage(self, stage: dict, processed_ok: bool = False) -> None:
         """
         Executes a single processing stage.
 
@@ -666,7 +669,7 @@ class Processing:
 
         output_info: dict | None = self.context.get("output")
         try:
-            self.add_input_files(stage)
+            self.add_input_files(stage, processed_ok=processed_ok)
             self.add_input_masters(stage)
 
             # if the output path already exists and is newer than all input files, skip processing

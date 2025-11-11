@@ -526,7 +526,7 @@ class Starbash:
         if processed_repo is not None:
             conditions.append(SearchCondition("r.url", "<>", processed_repo.url))
 
-    def get_session_images(self, session: SessionRow) -> list[ImageRow]:
+    def get_session_images(self, session: SessionRow, processed_ok: bool = False) -> list[ImageRow]:
         """
         Get all images belonging to a specific session.
 
@@ -536,6 +536,9 @@ class Starbash:
 
         Args:
             session_id: The database ID of the session
+
+            processed_ok: If True, include images which were processed by apps (i.e. stacked or other procesing)
+            Normally image pipelines don't want to accidentially consume those files.
 
         Returns:
             List of image records (dictionaries with path, metadata, etc.)
@@ -580,13 +583,12 @@ class Starbash:
                 # == session[get_column_name(Database.OBJECT_KEY)]
                 and img.get(Database.TELESCOP_KEY)
                 == session[get_column_name(Database.TELESCOP_KEY)]
-                and not has_history
-                and not is_stacked
+                and (processed_ok or (not has_history and not is_stacked))
             ):
                 filtered_images.append(img)
 
         # Reconstruct absolute paths for all images
-        return [self._add_image_abspath(img) for img in filtered_images] if filtered_images else []
+        return [self._add_image_abspath(img) for img in filtered_images]
 
     def remove_repo_ref(self, url: str) -> None:
         """
