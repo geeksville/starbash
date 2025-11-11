@@ -54,6 +54,7 @@
 * [ ] generate an auto-stretched output as fits and jpg.
 * [ ] make OSC options user customizable per target
 * [ ] do auto star removal as a separate stage
+* [ ] merge Processing with ProcessingContext?
 * [x] check for required/recommended tools at start.
 * [ ] **first public alpha** at approximately this point
 * [ ] always regen masters after adding a repo

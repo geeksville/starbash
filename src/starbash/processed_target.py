@@ -1,7 +1,11 @@
 from pathlib import Path
 from typing import Any, Protocol
 
+import tomlkit
+
 from repo import Repo, repo_suffix
+from starbash.app import ScoredCandidate
+from starbash.database import SessionRow
 from starbash.toml import toml_from_template
 
 
@@ -12,7 +16,7 @@ class ProcessingLike(Protocol):
     """
 
     context: dict[str, Any]
-    sessions: list[Any]
+    sessions: list[SessionRow]
     recipes_considered: list[Any]
 
 
@@ -60,7 +64,31 @@ class ProcessedTarget:
         assert proc_sessions is not None, "sessions must exist in the repo config"
         proc_sessions.clear()
         for sess in self.p.sessions:
-            proc_sessions.append(sess)
+            # record the masters considered
+            masters: dict[str, list[ScoredCandidate]] | None = sess.get("masters")
+
+            to_add = sess.copy()
+            to_add.pop("masters", None)  # masters is not serializable
+
+            # session_options = self.repo.get("processing.session.options")
+            t = tomlkit.item(to_add)
+
+            if masters:
+                # a dict from masters k to as_toml values
+                masters_out = tomlkit.table()
+                for k, vlist in masters.items():
+                    array_out = tomlkit.array()
+                    for v in vlist:
+                        array_out.add_line(v.candidate["path"], comment=v.comment)
+                    array_out.add_line()  # MUST add a trailing line so the closing ] is on its own line
+                    masters_out.append(k, array_out)
+
+                options_out = tomlkit.table()
+                options_out.append("master", masters_out)
+
+                t.append("options", options_out)
+
+            proc_sessions.append(t)
 
         proc_options = self.repo.get("processing.recipe.options")
         assert proc_options is not None, "processing.recipe.options must exist in the repo config"

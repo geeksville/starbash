@@ -1,14 +1,17 @@
 import logging
 import shutil
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import rich.console
+import tomlkit
 import typer
 from astropy.io import fits
 from rich.logging import RichHandler
 from rich.progress import track
+from tomlkit.items import Item
 
 import starbash
 from repo import Repo, RepoManager, repo_suffix
@@ -114,6 +117,28 @@ def copy_images_to_dir(images: list[ImageRow], output_dir: Path) -> None:
         console.print(f"  Copied: {copied_count} files")
     if error_count > 0:
         console.print(f"  [red]Errors: {error_count} files[/red]")
+
+
+@dataclass
+class ScoredCandidate:
+    """Our helper structure for scoring candidate sessions will return lists of these."""
+
+    candidate: dict[str, Any]  # the scored candidate
+    score: float  # a score - higher is better.  higher scores will be at the head of the list
+    reason: str  # short explanation of why this score
+
+    @property
+    def comment(self) -> str:
+        """Generate a comment string for this candidate."""
+        return f"{self.score} {self.reason}"
+
+    @property
+    def as_toml(self) -> Item:
+        """As a formatted toml node with documentation comment"""
+        s: str = self.candidate["path"]  # Must be defined by now, FIXME, use abspath instead?
+        result = tomlkit.string(s)
+        result.comment(self.comment)
+        return result
 
 
 class Starbash:
@@ -305,7 +330,7 @@ class Starbash:
             # r.write_config()
             self.user_repo.write_config()
 
-    def guess_sessions(self, ref_session: SessionRow, want_type: str) -> list[SessionRow]:
+    def guess_sessions(self, ref_session: SessionRow, want_type: str) -> list[ScoredCandidate]:
         """Given a particular session type (i.e. FLAT or BIAS etc...) and an
         existing session (which is assumed to generally be a LIGHT frame based session):
 
@@ -347,7 +372,7 @@ class Starbash:
 
     def score_candidates(
         self, candidates: list[dict[str, Any]], ref_session: SessionRow
-    ) -> list[SessionRow]:
+    ) -> list[ScoredCandidate]:
         """Given a list of images or sessions, try to rank that list by desirability.
 
         Return a list of possible images/sessions which would be acceptable.  The more desirable
@@ -375,10 +400,11 @@ class Starbash:
         ref_date_str = metadata.get(Database.DATE_OBS_KEY)
 
         # Now score and sort the candidates
-        scored_candidates = []
+        scored_candidates: list[ScoredCandidate] = []
 
         for candidate in candidates:
             score = 0.0
+            reasons: list[str] = []
 
             # Get candidate image metadata to access CCD-TEMP and DATE-OBS
             try:
@@ -393,7 +419,9 @@ class Starbash:
                             temp_diff = abs(float(ref_temp) - float(candidate_temp))
                             # Use exponential decay: closer temps get much better scores
                             # Perfect match (0°C diff) = 1000, 1°C diff ≈ 368, 2°C diff ≈ 135
-                            score += 1000 * (2.718 ** (-temp_diff))
+                            temp_score = 1000 * (2.718 ** (-temp_diff))
+                            score += temp_score
+                            reasons.append(f"temp Δ={temp_diff:.1f}°C")
                         except (ValueError, TypeError):
                             # If we can't parse temps, give a neutral score
                             score += 0
@@ -408,11 +436,17 @@ class Starbash:
                         # Closer in time = better score
                         # Same day ≈ 100, 7 days ≈ 37, 30 days ≈ 9
                         # Using 7-day half-life
-                        score += 100 * (2.718 ** (-time_delta / (7 * 86400)))
+                        time_score = 100 * (2.718 ** (-time_delta / (7 * 86400)))
+                        score += time_score
+                        days_diff = time_delta / 86400
+                        reasons.append(f"time Δ={days_diff:.1f}d")
                     except (ValueError, TypeError):
                         logging.warning("Malformed date - ignoring entry")
 
-                scored_candidates.append((score, candidate))
+                reason = ", ".join(reasons) if reasons else "no scoring factors"
+                scored_candidates.append(
+                    ScoredCandidate(candidate=candidate, score=score, reason=reason)
+                )
 
             except (AssertionError, KeyError) as e:
                 # If we can't get the session image, log and skip this candidate
@@ -420,9 +454,9 @@ class Starbash:
                 continue
 
         # Sort by score (highest first)
-        scored_candidates.sort(key=lambda x: x[0], reverse=True)
+        scored_candidates.sort(key=lambda x: x.score, reverse=True)
 
-        return [candidate for _, candidate in scored_candidates]
+        return scored_candidates
 
     def search_session(self, conditions: list[SearchCondition] | None = None) -> list[SessionRow]:
         """Search for sessions, optionally filtered by the current selection."""

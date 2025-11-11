@@ -84,7 +84,7 @@ def siril(
                     f"[yellow]No candidate sessions found for {typ} calibration frames.[/yellow]"
                 )
             else:
-                session_to_dir(candidates[0], subdir)
+                session_to_dir(candidates[0].candidate, subdir)
 
         # FIXME put an starbash.toml repo file in output_dir (with info about what we picked/why)
         # to allow users to override/reprocess with the same settings.

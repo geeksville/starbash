@@ -466,11 +466,18 @@ class Processing:
                 )
 
             # Try to rank the images by desirability
-            masters = self.sb.score_candidates(masters, session)
+            scored_masters = self.sb.score_candidates(masters, session)
+            session_masters = session.setdefault("masters", {})
+            session_masters[master_type] = scored_masters  # for reporting purposes
 
-            self.sb._add_image_abspath(masters[0])  # make sure abspath is populated
-            selected_master = masters[0]["abspath"]
-            logging.info(f"For master '{master_type}', using: {selected_master}")
+            self.sb._add_image_abspath(
+                scored_masters[0].candidate
+            )  # make sure abspath is populated, we need it
+
+            selected_master = scored_masters[0].candidate["abspath"]
+            logging.info(
+                f"For master '{master_type}', using: {selected_master} (score={scored_masters[0].score:.1f}, {scored_masters[0].reason})"
+            )
 
             context_master[master_type] = selected_master
 
