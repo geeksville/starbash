@@ -12,6 +12,7 @@ from typing import Any
 from rich.progress import Progress, track
 
 import starbash
+from repo import Repo
 from starbash.aliases import normalize_target_name
 from starbash.app import Starbash
 from starbash.database import (
@@ -102,6 +103,10 @@ class Processing:
     def __init__(self, sb: Starbash) -> None:
         self.sb = sb
 
+        self.sessions: list[SessionRow] = []  # The list of sessions we are currently processing
+        self.recipe: Repo | None = None  # the recipe we are using for processing
+        self.recipes_considered: list[Repo] = []  # all recipes considered for this processing run
+
         # We create one top-level progress context so that when various subtasks are created
         # the progress bars stack and don't mess up our logging.
         self.progress = Progress(console=starbash.console, refresh_per_second=2)
@@ -165,6 +170,8 @@ class Processing:
         stack_step = pipeline[1]
         task_exception: Exception | None = None
 
+        self.sessions = sessions
+
         result = ProcessingResult(target=target, sessions=sessions)
 
         with ProcessingContext(self):
@@ -188,6 +195,11 @@ class Processing:
                             recipe = self.sb.get_recipe_for_session(session, step)
                             if not recipe:
                                 continue  # No recipe found for this target/session
+
+                            self.recipe = recipe
+                            self.recipes_considered = [
+                                recipe
+                            ]  # FIXME: we should let the user pick if needed
 
                             # find the task for this step
                             task = None
@@ -230,7 +242,8 @@ class Processing:
 
                             # FIXME create this earlier - but for now I want to assume the output
                             # path is correct.
-                            _ = ProcessedTarget(self.context)
+                            processed_target = ProcessedTarget(self)
+                            processed_target.close()
                             stack_processed = True
                         except NotEnoughFilesError:
                             logging.warning(

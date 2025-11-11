@@ -1,8 +1,11 @@
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 from repo import Repo, repo_suffix
 from starbash.toml import toml_from_template
+
+if TYPE_CHECKING:
+    from .processing import Processing
 
 
 class ProcessedTarget:
@@ -12,21 +15,21 @@ class ProcessedTarget:
     for the processed target.
     """
 
-    def __init__(self, context: dict[str, Any]) -> None:
+    def __init__(self, p: "Processing") -> None:
         """Initialize a ProcessedTarget with the given processing context.
 
         Args:
             context: The processing context dictionary containing output paths and metadata.
         """
-        self.context = context
-        dir = Path(context["output"]["base_path"])
+        self.p = p
+        dir = Path(self.p.context["output"]["base_path"])
 
         # Get the path to the starbash.toml file
         config_path = dir / repo_suffix
 
         self._init_from_template(config_path)
-
         self.repo = Repo(dir)  # a structured Repo object for reading/writing this config
+        self._update_from_context()
 
     def _init_from_template(self, config_path: Path) -> None:
         """Create a default starbash.toml file from template.
@@ -37,14 +40,28 @@ class ProcessedTarget:
         # Create the config file from template
         # If starbash.toml does not exist, create it from template
         if not config_path.exists():
-            toml_from_template("processed_target", config_path, overrides=self.context)
+            toml_from_template("processed_target", config_path, overrides=self.p.context)
 
     def _update_from_context(self) -> None:
         """Update the repo toml based on the current context.
 
         Call this **after** processing so that output path info etc... is in the context."""
-        # fixme p.sessions
-        # fixme p.recipe to get the recipe
+
+        # Update the sessions list
+        proc_sessions = self.repo.get("sessions")
+        assert proc_sessions is not None, "sessions must exist in the repo config"
+        proc_sessions.clear()
+        for sess in self.p.sessions:
+            proc_sessions.append(sess)
+
+        proc_options = self.repo.get("processing.recipe.options")
+        assert proc_options is not None, "processing.recipe.options must exist in the repo config"
+
+        # populate the list of recipes considered
+        proc_options["url"] = [recipe.url for recipe in self.p.recipes_considered]
+
+        # fixme - create earlier and add a p.set_output_dir() that can run earlier - before recipies
+
         pass  # placeholder don't implement yet
 
     def close(self) -> None:
