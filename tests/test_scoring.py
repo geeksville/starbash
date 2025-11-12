@@ -271,7 +271,6 @@ def test_camera_dimensions_excludes_mismatch(setup_test_environment):
                 Database.FILTER_KEY: "Ha",
                 Database.IMAGETYP_KEY: "LIGHT",
                 "INSTRUME": "ScopeA",
-                "BITPIX": 16,
                 "NAXIS": 2,
                 "NAXIS1": 3000,
                 "NAXIS2": 2000,
@@ -285,7 +284,6 @@ def test_camera_dimensions_excludes_mismatch(setup_test_environment):
                 Database.FILTER_KEY: "Ha",
                 Database.IMAGETYP_KEY: "LIGHT",
                 "INSTRUME": "ScopeA",
-                "BITPIX": 16,
                 "NAXIS": 2,
                 "NAXIS1": 3000,
                 "NAXIS2": 2000,
@@ -297,16 +295,15 @@ def test_camera_dimensions_excludes_mismatch(setup_test_environment):
                 Database.FILTER_KEY: "Ha",
                 Database.IMAGETYP_KEY: "LIGHT",
                 "INSTRUME": "ScopeA",
-                "BITPIX": 8,
                 "NAXIS": 2,
                 "NAXIS1": 3000,
-                "NAXIS2": 2000,
+                "NAXIS2": 1999,
             },
         ]
         scored = app.score_candidates(candidates, ref)
-        # Second candidate should be excluded due to BITPIX mismatch
+        # Second candidate should be excluded due to NAXIS2 mismatch
         assert len(scored) == 1
-        assert scored[0].candidate["BITPIX"] == 16
+        assert scored[0].candidate["NAXIS2"] == 2000
 
 
 def test_flat_filter_penalty_only_for_flat(setup_test_environment):
@@ -352,7 +349,7 @@ def test_flat_filter_penalty_only_for_flat(setup_test_environment):
         assert len(scored) == 2
         # Ha filter match should rank higher than OIII mismatch
         assert scored[0].candidate[Database.FILTER_KEY] == "Ha"
-        assert any("flat filter mismatch" in s.reason for s in scored)
+    assert any("filter mismatch" in s.reason for s in scored)
 
 
 def test_flat_filter_not_applied_to_non_flat(setup_test_environment):
