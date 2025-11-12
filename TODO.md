@@ -44,8 +44,9 @@
 * [ ] allow toml target files to be customized
 * [x] why are scores not being calculated?
 * [x] masters have to be matched by gain (use in scoring)
-* [ ] require master-flats to come from the same instrument!
-* [ ] require biases/darks to come from the same camera!
+* [x] require master-flats to come from the same instrument!
+* [x] require biases/darks to come from the same camera!
+* [ ] store flats in directory names based on INSTRUMENT not camera
 * [ ] require masters dimensions match image dimensions for selection
 * [x] let master generation work with only one input file (by copying)
 * [x] look for STACKCNT in input images - if populated (i.e. in prestacked biases from another platform) that is a great indication it was a processed/stacked file

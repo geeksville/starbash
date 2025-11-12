@@ -15,7 +15,10 @@ from tomlkit.items import Item
 
 import starbash
 from repo import Repo, RepoManager, repo_suffix
-from starbash.aliases import Aliases, normalize_target_name
+from starbash.aliases import (
+    Aliases,
+    normalize_target_name,
+)
 from starbash.analytics import (
     NopAnalytics,
     analytics_exception,
@@ -30,6 +33,8 @@ from starbash.database import (
     SearchCondition,
     SessionRow,
     get_column_name,
+    metadata_to_camera_id,
+    metadata_to_instrument_id,
 )
 from starbash.paths import get_user_config_dir, get_user_config_path
 from starbash.selection import Selection, build_search_conditions
@@ -468,7 +473,23 @@ class Starbash:
                         logging.warning("Malformed date - ignoring entry")
                         return 0.0
 
-                rankers = [rank_gain, rank_temp, rank_time]
+                def rank_instrument(reasons=reasons, candidate_image=candidate_image) -> float:
+                    ref_instrument = metadata_to_instrument_id(metadata)
+                    candidate_instrument = metadata_to_instrument_id(candidate_image)
+                    if ref_instrument != candidate_instrument:
+                        reasons.append("instrument mismatch")
+                        return -100000.0
+                    return 0.0
+
+                def rank_camera(reasons=reasons, candidate_image=candidate_image) -> float:
+                    ref_camera = metadata_to_camera_id(metadata)
+                    candidate_camera = metadata_to_camera_id(candidate_image)
+                    if ref_camera != candidate_camera:
+                        reasons.append("camera mismatch")
+                        return -200000.0
+                    return 0.0
+
+                rankers = [rank_gain, rank_temp, rank_time, rank_instrument, rank_camera]
 
                 for r in rankers:
                     score += r()
