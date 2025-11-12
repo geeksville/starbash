@@ -41,9 +41,6 @@ camera_seestar = ["Seestar", "Seestar S50", "Seestar S30", "Seestar S30 Pro"]
 SiiHb = ["SiiHb", "S2Hb"]
 
 
-# FIXME, somewhere here list default patterns which can be used to identify NINA, ASIAIR, SEESTAR
-# raw repo layouts
-
 # List the initial search path to find other repos, when the app launches it always first loads this sb.toml file and this file should list all of the
 # standard default repo locations.  When searching repos, repos listed LAST have precedence, so target file can override the root processing defaults,
 # then the user prefs, then a live github URL or whatever
