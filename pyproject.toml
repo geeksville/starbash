@@ -4,6 +4,9 @@ version = "0.1.17"
 description = "A tool for automating/standardizing/sharing astrophotography workflows."
 authors = ["Kevin Hester <kevinh@geeksville.com>"]
 readme = "README.md"
+homepage = "https://github.com/geeksville/starbash"
+repository = "https://github.com/geeksville/starbash"
+documentation = "https://github.com/geeksville/starbash/blob/main/README.md" # FIXME provide something better
 packages = [
     { include = "starbash", from = "src" },
     { include = "repo", from = "src" },
