@@ -119,11 +119,13 @@ sb process masters
 sb process auto
 ```
 
-In the output directory we will eventually be putting a 'starbash.toml' file with information about what choices were made during processing (which masters selected, which recipes selected..., selected Siril options, etc...). You can edit that file to pick different choices and if you reprocess that target your choices will be used.  (Note: this is not yet implemented in the release version of the tool - but soon.)
+The output directory (in addition to the processed fits outputs) will also contain a 'starbash.toml'.  That file contains information about what choices were made during processing (which masters selected, which recipes selected..., selected Siril options, etc...).
+
+You can edit that file to pick different choices and if you reprocess that target your choices will be used.  (Note: this feature is not yet implemented in the release version of the tool - but soon.)
 
 ### Manual Siril processing
 
-FIXME - add getting started instructions (possibly with a screenshare video)
+If you don't want the automated processing you can still ask Starbash to prepare a 'siril processing directory' with the appropriate flats, darks, biases and your light frames.  FIXME - add instructions on how to do this.
 
 ![siril session](doc/vhs/process-siril.gif)
 
