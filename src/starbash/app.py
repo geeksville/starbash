@@ -135,7 +135,7 @@ class ScoredCandidate:
     @property
     def comment(self) -> str:
         """Generate a comment string for this candidate."""
-        return f"{self.score} {self.reason}"
+        return f"{round(self.score)} {self.reason}"
 
     @property
     def as_toml(self) -> Item:
@@ -420,6 +420,7 @@ class Starbash:
 
                 # Define rankers that close over candidate_image, ref_* and reasons
                 def rank_gain(reasons=reasons, candidate_image=candidate_image) -> float:
+                    """Score by GAIN difference: prefer exact match, penalize mismatch."""
                     ref_gain = metadata.get(Database.GAIN_KEY, None)
                     if ref_gain is None:
                         return 0.0
@@ -439,6 +440,7 @@ class Starbash:
                         return 0.0
 
                 def rank_temp(reasons=reasons, candidate_image=candidate_image) -> float:
+                    """Score by CCD-TEMP difference: prefer closer temperatures."""
                     ref_temp = metadata.get("CCD-TEMP", None)
                     if ref_temp is None:
                         return 0.0
@@ -456,6 +458,7 @@ class Starbash:
                         return 0.0
 
                 def rank_time(reasons=reasons, candidate_image=candidate_image) -> float:
+                    """Score by time difference: prefer older or slightly newer candidates."""
                     ref_date_str = metadata.get(Database.DATE_OBS_KEY)
                     candidate_date_str = candidate_image.get(Database.DATE_OBS_KEY)
                     if not (ref_date_str and candidate_date_str):
@@ -463,17 +466,24 @@ class Starbash:
                     try:
                         ref_date = datetime.fromisoformat(ref_date_str)  # type: ignore[arg-type]
                         candidate_date = datetime.fromisoformat(candidate_date_str)
-                        time_delta = abs((ref_date - candidate_date).total_seconds())
-                        # 7-day half-life, weighted higher than temp
-                        time_score = 1000 * (2.718 ** (-time_delta / (7 * 86400)))
+                        time_delta = (candidate_date - ref_date).total_seconds()
                         days_diff = time_delta / 86400
-                        reasons.append(f"time Δ={days_diff:.1f}d")
+                        # Prefer candidates OLDER or less than 2 days newer
+                        if time_delta <= 0 or days_diff <= 2.0:
+                            # 7-day half-life, weighted higher than temp
+                            time_score = 1000 * (2.718 ** (-abs(time_delta) / (7 * 86400)))
+                            reasons.append(f"time Δ={days_diff:.1f}d")
+                        else:
+                            # Penalize candidates >2 days newer by 10x
+                            time_score = 100 * (2.718 ** (-abs(time_delta) / (7 * 86400)))
+                            reasons.append(f"time Δ={days_diff:.1f}d (in future!)")
                         return float(time_score)
                     except (ValueError, TypeError):
                         logging.warning("Malformed date - ignoring entry")
                         return 0.0
 
                 def rank_instrument(reasons=reasons, candidate_image=candidate_image) -> float:
+                    """Penalize instrument mismatch between reference and candidate."""
                     ref_instrument = metadata_to_instrument_id(metadata)
                     candidate_instrument = metadata_to_instrument_id(candidate_image)
                     if ref_instrument != candidate_instrument:
@@ -482,6 +492,7 @@ class Starbash:
                     return 0.0
 
                 def rank_camera(reasons=reasons, candidate_image=candidate_image) -> float:
+                    """Penalize camera mismatch between reference and candidate."""
                     ref_camera = metadata_to_camera_id(metadata)
                     candidate_camera = metadata_to_camera_id(candidate_image)
                     if ref_camera != candidate_camera:
@@ -492,7 +503,7 @@ class Starbash:
                 def rank_camera_dimensions(
                     reasons=reasons, candidate_image=candidate_image
                 ) -> float:
-                    """Check if camera dimensions match. Return -inf (unusable) if they don't."""
+                    """Penalize if camera dimensions do not match (NAXIS, NAXIS1, NAXIS2)."""
                     dimension_keys = ["NAXIS", "NAXIS1", "NAXIS2"]
                     for key in dimension_keys:
                         ref_value = metadata.get(key)

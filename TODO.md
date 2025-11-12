@@ -51,7 +51,7 @@
 * [x] require masters dimensions match image dimensions for selection
 * [x] let master generation work with only one input file (by copying)
 * [x] look for STACKCNT in input images - if populated (i.e. in prestacked biases from another platform) that is a great indication it was a processed/stacked file
-* [ ] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
+* [x] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
 * [ ] fix remaining tool failures (just fail-m100)
 * [ ] do background_removal() as a separate stage via graxpert
 * [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
@@ -60,8 +60,8 @@
 * [ ] do auto star removal as a separate stage
 * [ ] merge Processing with ProcessingContext?
 * [x] check for required/recommended tools at start.
-* [ ] **first public alpha** at approximately this point
 * [ ] for debugging purposes generate a mastername.sb.toml file per master - to see input selection choices
+* [ ] **first public alpha** at approximately this point
 * [ ] always regen masters after adding a repo
 * [ ] include temperature in bias filenames.
 * [ ] name the progess dirs so they can be semi-persistent (speed up reruns)
