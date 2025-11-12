@@ -152,12 +152,12 @@ class TestExpandContextUnsafe:
     def test_invalid_expression_raises_error(self):
         """Test that invalid expressions raise ValueError."""
         # Invalid syntax should raise ValueError
-        with pytest.raises(ValueError, match="Failed to evaluate expression"):
+        with pytest.raises(ValueError, match="Failed to evaluate"):
             expand_context_unsafe("bad: {this is not valid}", {})
 
     def test_missing_variable_raises_error(self):
         """Test that missing variables raise ValueError."""
-        with pytest.raises(ValueError, match="Failed to evaluate expression.*missing"):
+        with pytest.raises(ValueError, match="Failed to evaluate.*missing"):
             expand_context_unsafe("value: {missing}", {})
 
 
