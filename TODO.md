@@ -46,7 +46,7 @@
 * [x] masters have to be matched by gain (use in scoring)
 * [x] require master-flats to come from the same instrument!
 * [x] require biases/darks to come from the same camera!
-* [ ] penalize filter mismatch when doing flats
+* [x] penalize filter mismatch when doing flats
 * [ ] store flats in directory names based on INSTRUMENT not camera
 * [x] require masters dimensions match image dimensions for selection
 * [x] let master generation work with only one input file (by copying)

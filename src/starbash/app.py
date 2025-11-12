@@ -387,11 +387,11 @@ class Starbash:
 
         The following critera MUST match to be acceptable:
         * matches requested imagetyp.
-        * same filter as reference session (in the case want_type==FLAT only)
         * same telescope as reference session
 
         Quality is determined by (most important first):
         * GAIN setting is as close as possible to the reference session (very high penalty for mismatch)
+        * same filter as reference session (in the case want_type==FLAT only)
         * smaller DATE-OBS delta to the reference session (within same week beats 5°C temp difference)
         * temperature of CCD-TEMP is closer to the reference session
 
@@ -478,7 +478,7 @@ class Starbash:
                     candidate_instrument = metadata_to_instrument_id(candidate_image)
                     if ref_instrument != candidate_instrument:
                         reasons.append("instrument mismatch")
-                        return -100000.0
+                        return -200000.0
                     return 0.0
 
                 def rank_camera(reasons=reasons, candidate_image=candidate_image) -> float:
@@ -486,7 +486,7 @@ class Starbash:
                     candidate_camera = metadata_to_camera_id(candidate_image)
                     if ref_camera != candidate_camera:
                         reasons.append("camera mismatch")
-                        return -200000.0
+                        return -300000.0
                     return 0.0
 
                 def rank_camera_dimensions(
@@ -502,6 +502,28 @@ class Starbash:
                             return float("-inf")
                     return 0.0
 
+                def rank_flat_filter(reasons=reasons, candidate_image=candidate_image) -> float:
+                    """Heavily penalize FLAT frames whose FILTER metadata does not match the reference.
+
+                    Only applies if the candidate imagetyp is FLAT. Missing filter values are treated as None
+                    and do not cause a penalty (neutral)."""
+                    imagetyp = self.aliases.normalize(
+                        candidate_image.get(Database.IMAGETYP_KEY), lenient=True
+                    )
+                    if imagetyp and imagetyp == "flat":
+                        ref_filter = self.aliases.normalize(
+                            metadata.get(Database.FILTER_KEY, "None"), lenient=True
+                        )
+                        candidate_filter = self.aliases.normalize(
+                            candidate_image.get(Database.FILTER_KEY, "None"), lenient=True
+                        )
+                        if ref_filter != candidate_filter:
+                            reasons.append("filter mismatch")
+                            return -100000.0
+                        else:
+                            reasons.append("filter match")
+                    return 0.0
+
                 rankers = [
                     rank_gain,
                     rank_temp,
@@ -509,6 +531,7 @@ class Starbash:
                     rank_instrument,
                     rank_camera,
                     rank_camera_dimensions,
+                    rank_flat_filter,
                 ]
 
                 # Apply all rankers and check for unusable candidates
@@ -610,20 +633,20 @@ class Starbash:
 
         images = self.db.search_image(search_conditions)
 
-        # FIXME - move this into a general filter function
+        # WE NO LONGER block mismatched filters here, instead we let our scoring function just heavily derank them
         # For flat frames, filter images based on matching reference_session filter
-        if reference_session and imagetyp and self.aliases.normalize(imagetyp) == "flat":
-            ref_filter = self.aliases.normalize(
-                reference_session.get(get_column_name(Database.FILTER_KEY), "None")
-            )
-            if ref_filter:
-                # Filter images to only those with matching filter in metadata
-                filtered_images = []
-                for img in images:
-                    img_filter = img.get(Database.FILTER_KEY, "None")
-                    if img_filter == ref_filter:
-                        filtered_images.append(img)
-                images = filtered_images
+        # if reference_session and imagetyp and self.aliases.normalize(imagetyp) == "flat":
+        #     ref_filter = self.aliases.normalize(
+        #         reference_session.get(get_column_name(Database.FILTER_KEY), "None")
+        #     )
+        #     if ref_filter:
+        #         # Filter images to only those with matching filter in metadata
+        #         filtered_images = []
+        #         for img in images:
+        #             img_filter = img.get(Database.FILTER_KEY, "None")
+        #             if img_filter == ref_filter:
+        #                 filtered_images.append(img)
+        #         images = filtered_images
 
         return images
 
