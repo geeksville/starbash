@@ -489,15 +489,42 @@ class Starbash:
                         return -200000.0
                     return 0.0
 
-                rankers = [rank_gain, rank_temp, rank_time, rank_instrument, rank_camera]
+                def rank_camera_dimensions(
+                    reasons=reasons, candidate_image=candidate_image
+                ) -> float:
+                    """Check if camera dimensions match. Return -inf (unusable) if they don't."""
+                    dimension_keys = ["NAXIS", "NAXIS1", "NAXIS2"]
+                    for key in dimension_keys:
+                        ref_value = metadata.get(key)
+                        candidate_value = candidate_image.get(key)
+                        if ref_value != candidate_value:
+                            reasons.append(f"{key} mismatch")
+                            return float("-inf")
+                    return 0.0
 
+                rankers = [
+                    rank_gain,
+                    rank_temp,
+                    rank_time,
+                    rank_instrument,
+                    rank_camera,
+                    rank_camera_dimensions,
+                ]
+
+                # Apply all rankers and check for unusable candidates
                 for r in rankers:
-                    score += r()
+                    contribution = r()
+                    score += contribution
+                    # If any ranker returns -inf, this candidate is unusable
+                    if contribution == float("-inf"):
+                        break
 
-                reason = ", ".join(reasons) if reasons else "no scoring factors"
-                scored_candidates.append(
-                    ScoredCandidate(candidate=candidate, score=score, reason=reason)
-                )
+                # Only keep usable candidates
+                if score != float("-inf"):
+                    reason = ", ".join(reasons) if reasons else "no scoring factors"
+                    scored_candidates.append(
+                        ScoredCandidate(candidate=candidate, score=score, reason=reason)
+                    )
 
             except (AssertionError, KeyError) as e:
                 # If we can't get the session image, log and skip this candidate

@@ -46,8 +46,9 @@
 * [x] masters have to be matched by gain (use in scoring)
 * [x] require master-flats to come from the same instrument!
 * [x] require biases/darks to come from the same camera!
+* [ ] penalize filter mismatch when doing flats
 * [ ] store flats in directory names based on INSTRUMENT not camera
-* [ ] require masters dimensions match image dimensions for selection
+* [x] require masters dimensions match image dimensions for selection
 * [x] let master generation work with only one input file (by copying)
 * [x] look for STACKCNT in input images - if populated (i.e. in prestacked biases from another platform) that is a great indication it was a processed/stacked file
 * [ ] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
