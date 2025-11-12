@@ -3,7 +3,7 @@
 <img src="https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/img/icon.png" alt="Starbash: Astrophotography workflows simplified" width="30%" align="right" style="margin-bottom: 20px;">
 
 [![PyPI - Version](https://img.shields.io/pypi/v/starbash)](https://pypi.org/project/starbash/)
-[![GitHub branch check runs](https://img.shields.io/github/check-runs/geeksville/starbash/main)](https://github.com/geeksville/starbash/actions)
+[![Continuous Integration](https://github.com/geeksville/starbash/actions/workflows/ci.yml/badge.svg)](https://github.com/geeksville/starbash/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/geeksville/starbash/graph/badge.svg?token=47RE10I7O1)](https://codecov.io/github/geeksville/starbash)
 
 A tool for automating/standardizing/sharing astrophotography workflows.
