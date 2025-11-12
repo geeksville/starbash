@@ -32,16 +32,18 @@ If you are interested in alpha-testing we ❤️ you.  This README should have e
 * Automatically recognizes and auto-parses the default NINA, Asiair, and Seestar raw file repos (adding support for other layouts is easy).
 * Multi-session support by default (including automatic selection of correct flats, biases, and dark frames).
 * 'Repos' can contain raw files, generated masters, preprocessed files, or recipes.
-* Automatically performs **complete** preprocessing on OSC (broadband, narrowband, or dual Duo filter), Mono (LRGB, SHO) data.  i.e., gives you 'seestar-level' auto-preprocessing, so you only need to do the (optional) custom post-processing.
+* Automatically performs **complete** preprocessing on OSC (broadband, narrowband, or dual Duo filter).  i.e., gives you 'seestar-level' auto-preprocessing, so you only need to do the (optional) custom post-processing.
+* Uses Siril recipes for its pre-processing operations (support for Pixinsight-based recipes will probably be coming at some point...).
+* Generates a per-target config file which can (eventually) be customized if the detected defaults or preprocessing are not what you want.
 
 ## Features coming soon
 
 * Include a stretched 'thumbnail' jpg proof-of-concept render in the output directories
 * Support for mono-camera workflows (this alpha version only supports color cameras).
 * Generates a per-target report/config file which can be customized if the detected defaults or preprocessing are not what you want.
-* 'Recipes' provide repeatable/human-readable/shareable descriptions of all processing steps.
+* 'Recipes' are now user-editable - provides repeatable/human-readable/shareable descriptions of all processing steps.
 * Repos can be on the local disk or shared via HTTPS/GitHub/etc.  This is particularly useful for recipe repos.
-* Uses Siril and Graxpert for its pre-processing operations (support for Pixinsight-based recipes will probably be coming at some point...).
+* Graxpert based recipe stages added (support for Pixinsight-based recipes will probably be coming at some point...).
 * The target report can be used to auto-generate a human-friendly 'postable/shareable' report about that image.
 * Target reports are shareable so that you can request comments from others and others can rerender with different settings.
 
