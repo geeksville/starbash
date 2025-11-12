@@ -54,7 +54,7 @@ def update_processing_result(result: ProcessingResult, e: Exception | None = Non
         elif isinstance(e, RuntimeError):
             # Print errors for runtimeerrors but keep processing other runs...
             logging.error(f"Skipping run due to: {e}")
-            result.notes = "Aborted due to possible error in (alpha) code, please report a bug on our github..."
+            result.notes = f"Aborted due to possible error in (alpha) code, please file bug on our github: {str(e)}"
         else:
             # Unexpected exception - log it and re-raise
             logging.exception("Unexpected error during processing:")
@@ -463,20 +463,13 @@ class Processing:
 
             context_master = self.context.setdefault("master", {})
 
-            if len(masters) > 1:
-                logging.debug(
-                    f"Multiple ({len(masters)}) master frames of type '{master_type}' found, using first. FIXME."
-                )
-
             # Try to rank the images by desirability
             scored_masters = self.sb.score_candidates(masters, session)
             session_masters = session.setdefault("masters", {})
             session_masters[master_type] = scored_masters  # for reporting purposes
 
             if len(scored_masters) == 0:
-                raise RuntimeError(
-                    f"No suitable master frames of type '{master_type}' found for stage '{stage.get('name')}'"
-                )
+                raise RuntimeError(f"No suitable master frames of type '{master_type}' found.")
 
             self.sb._add_image_abspath(
                 scored_masters[0].candidate

@@ -41,18 +41,19 @@
 * [x] masters have to be organized by gain also
 * [x] get_session_images is filtering out stacked biases - we don't want that, instead we want to let our regular fallback copy rule work for masters
 * [x] when processing a target, generate a toml file with the options used to for that generation (so it can be regenerated or customized).  Include doc comments in that file for new users.
-* [ ] allow toml target files to be customized
 * [x] why are scores not being calculated?
 * [x] masters have to be matched by gain (use in scoring)
 * [x] require master-flats to come from the same instrument!
 * [x] require biases/darks to come from the same camera!
 * [x] penalize filter mismatch when doing flats
-* [ ] store flats in directory names based on INSTRUMENT not camera
 * [x] require masters dimensions match image dimensions for selection
 * [x] let master generation work with only one input file (by copying)
 * [x] look for STACKCNT in input images - if populated (i.e. in prestacked biases from another platform) that is a great indication it was a processed/stacked file
 * [x] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
 * [x] fix remaining tool failures (just fail-ngc7023)
+* [x] **first public alpha** at approximately this point
+* [ ] allow toml target files to be customized
+* [ ] store flats in directory names based on INSTRUMENT not camera
 * [ ] do background_removal() as a separate stage via graxpert
 * [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] generate an auto-stretched output as fits and jpg.
@@ -61,7 +62,9 @@
 * [ ] merge Processing with ProcessingContext?
 * [x] check for required/recommended tools at start.
 * [ ] for debugging purposes generate a mastername.sb.toml file per master - to see input selection choices
-* [x] **first public alpha** at approximately this point
+* [ ] move the recipe repos to their own github - stop pulling them as python resources
+* [ ] make recipes work with dark frames - not just bias frames
+* [ ] bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
 * [ ] always regen masters after adding a repo
 * [ ] include temperature in bias filenames.
 * [ ] name the progess dirs so they can be semi-persistent (speed up reruns)

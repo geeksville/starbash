@@ -75,7 +75,7 @@ process-all: select-any process
 
 # Process the currently failing test
 process-fail: select-any
-    sb select target lbn354
+    sb select target m31 # m13 # ngc6960
     sb --debug process auto
 
 db-browse:

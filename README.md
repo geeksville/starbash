@@ -13,6 +13,7 @@ A tool for automating/standardizing/sharing astrophotography workflows.
 * Fast - even with large image repositories.  Automatic master bias and flat generation and reasonable defaults.
 * Multi-session - by default.  So your workflows can stack from multiple nights (and still use the correct flats etc...).
 * Shareable - you can share/use recipes for image preprocessing flows.
+* Attribution (by default) - a full set of contributions to final image can be tracked: instrument, raw images, processed-by, scripts-by/version etc...
 
 (This project is currently 'alpha' and missing recipes for some workflows, but adding new recipes is easy and we're happy to help.  Please file a GitHub issue if your images are not auto-processed and we'll work out a fix.)
 
