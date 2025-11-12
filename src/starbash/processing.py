@@ -473,6 +473,11 @@ class Processing:
             session_masters = session.setdefault("masters", {})
             session_masters[master_type] = scored_masters  # for reporting purposes
 
+            if len(scored_masters) == 0:
+                raise RuntimeError(
+                    f"No suitable master frames of type '{master_type}' found for stage '{stage.get('name')}'"
+                )
+
             self.sb._add_image_abspath(
                 scored_masters[0].candidate
             )  # make sure abspath is populated, we need it
