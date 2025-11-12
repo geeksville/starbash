@@ -51,7 +51,7 @@ script = '''
     # Remove background gradient on a per-frame basis (generates bkg_pp_light.seq)
     seqsubsky pp_{light_base} 1
 
-    # FIXME only do this step for duo filters (refactor to share common light processing function)
+    # only do this step for duo filters
     seqextract_HaOIII bkg_pp_{light_base} -resample=ha
     '''
 
