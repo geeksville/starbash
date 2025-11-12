@@ -414,7 +414,7 @@ class Starbash:
                 candidate_image = candidate  # metadata is already in the root of this object
 
                 # Define rankers that close over candidate_image, ref_* and reasons
-                def rank_gain() -> float:
+                def rank_gain(reasons=reasons, candidate_image=candidate_image) -> float:
                     ref_gain = metadata.get(Database.GAIN_KEY, None)
                     if ref_gain is None:
                         return 0.0
@@ -433,7 +433,7 @@ class Starbash:
                     except (ValueError, TypeError):
                         return 0.0
 
-                def rank_temp() -> float:
+                def rank_temp(reasons=reasons, candidate_image=candidate_image) -> float:
                     ref_temp = metadata.get("CCD-TEMP", None)
                     if ref_temp is None:
                         return 0.0
@@ -450,7 +450,7 @@ class Starbash:
                     except (ValueError, TypeError):
                         return 0.0
 
-                def rank_time() -> float:
+                def rank_time(reasons=reasons, candidate_image=candidate_image) -> float:
                     ref_date_str = metadata.get(Database.DATE_OBS_KEY)
                     candidate_date_str = candidate_image.get(Database.DATE_OBS_KEY)
                     if not (ref_date_str and candidate_date_str):
