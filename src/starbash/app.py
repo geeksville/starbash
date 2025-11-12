@@ -344,8 +344,9 @@ class Starbash:
         * same telescope as reference session
 
         Quality is determined by (most important first):
+        * GAIN setting is as close as possible to the reference session (very high penalty for mismatch)
+        * smaller DATE-OBS delta to the reference session (within same week beats 5°C temp difference)
         * temperature of CCD-TEMP is closer to the reference session
-        * smaller DATE-OBS delta to the reference session
 
         Eventually the code will check the following for 'nice to have' (but not now):
         * TBD
@@ -385,8 +386,9 @@ class Starbash:
         * same telescope as reference session
 
         Quality is determined by (most important first):
+        * GAIN setting is as close as possible to the reference session (very high penalty for mismatch)
+        * smaller DATE-OBS delta to the reference session (within same week beats 5°C temp difference)
         * temperature of CCD-TEMP is closer to the reference session
-        * smaller DATE-OBS delta to the reference session
 
         Eventually the code will check the following for 'nice to have' (but not now):
         * TBD
@@ -397,6 +399,7 @@ class Starbash:
 
         metadata: dict = ref_session.get("metadata", {})
         ref_temp = metadata.get("CCD-TEMP", None)
+        ref_gain = metadata.get(Database.GAIN_KEY, None)
         ref_date_str = metadata.get(Database.DATE_OBS_KEY)
 
         # Now score and sort the candidates
@@ -410,7 +413,26 @@ class Starbash:
             try:
                 candidate_image = candidate  # metadata is already in the root of this object
 
-                # Score by CCD-TEMP difference (most important)
+                # Score by GAIN difference (highest priority - very high penalty for mismatch)
+                # Gain values typically range from 0-300
+                # Different gains fundamentally change the sensor characteristics
+                if ref_gain is not None:
+                    candidate_gain = candidate_image.get(Database.GAIN_KEY)
+                    if candidate_gain is not None:
+                        try:
+                            gain_diff = abs(float(ref_gain) - float(candidate_gain))
+                            # Very steep exponential decay: even small differences hurt badly
+                            # Perfect match (0 diff) = 5000, 1 diff ≈ 3678, 5 diff ≈ 337, 10 diff ≈ 23
+                            # This ensures gain mismatches dominate the scoring
+                            gain_score = 5000 * (2.718 ** (-gain_diff / 2))
+                            score += gain_score
+                            if gain_diff > 0:
+                                reasons.append(f"gain Δ={gain_diff:.0f}")
+                        except (ValueError, TypeError):
+                            # If we can't parse gains, give a neutral score
+                            score += 0
+
+                # Score by CCD-TEMP difference (second most important)
                 # Lower temperature difference = better score
                 if ref_temp is not None:
                     candidate_temp = candidate_image.get("CCD-TEMP")
@@ -418,10 +440,12 @@ class Starbash:
                         try:
                             temp_diff = abs(float(ref_temp) - float(candidate_temp))
                             # Use exponential decay: closer temps get much better scores
-                            # Perfect match (0°C diff) = 1000, 1°C diff ≈ 368, 2°C diff ≈ 135
-                            temp_score = 1000 * (2.718 ** (-temp_diff))
+                            # Perfect match (0°C diff) = 500, 1°C diff ≈ 368, 2°C diff ≈ 271, 5°C diff ≈ 61
+                            # This is lower weighted than time so recent images beat old ones with better temp
+                            temp_score = 500 * (2.718 ** (-temp_diff / 5))
                             score += temp_score
-                            reasons.append(f"temp Δ={temp_diff:.1f}°C")
+                            if temp_diff >= 0.2:  # don't report tiny differences
+                                reasons.append(f"temp Δ={temp_diff:.1f}°C")
                         except (ValueError, TypeError):
                             # If we can't parse temps, give a neutral score
                             score += 0
@@ -434,9 +458,9 @@ class Starbash:
                         candidate_date = datetime.fromisoformat(candidate_date_str)
                         time_delta = abs((ref_date - candidate_date).total_seconds())
                         # Closer in time = better score
-                        # Same day ≈ 100, 7 days ≈ 37, 30 days ≈ 9
-                        # Using 7-day half-life
-                        time_score = 100 * (2.718 ** (-time_delta / (7 * 86400)))
+                        # Same day ≈ 1000, 3.5 days (half week) ≈ 606, 7 days ≈ 368, 14 days ≈ 135, 30 days ≈ 22
+                        # Using 7-day half-life, weighted higher than temp so recent beats old+good-temp
+                        time_score = 1000 * (2.718 ** (-time_delta / (7 * 86400)))
                         score += time_score
                         days_diff = time_delta / 86400
                         reasons.append(f"time Δ={days_diff:.1f}d")

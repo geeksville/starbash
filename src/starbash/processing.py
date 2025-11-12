@@ -429,7 +429,7 @@ class Processing:
                 exptime = session.get(get_column_name(Database.EXPTIME_KEY))
                 if exptime:
                     session_config += f"_{int(float(exptime))}s"
-            gain = metadata.get("GAIN")
+            gain = metadata.get(Database.GAIN_KEY)
             if gain is not None:  # gain values can be zero
                 session_config += f"_gain{gain}"
 

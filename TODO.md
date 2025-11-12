@@ -41,9 +41,9 @@
 * [x] masters have to be organized by gain also
 * [x] get_session_images is filtering out stacked biases - we don't want that, instead we want to let our regular fallback copy rule work for masters
 * [x] when processing a target, generate a toml file with the options used to for that generation (so it can be regenerated or customized).  Include doc comments in that file for new users.
-* [x] allow toml target files to be customized
-* [ ] why are scores not being calculated?
-* [ ] masters have to be matched by gain (use in scoring)
+* [ ] allow toml target files to be customized
+* [x] why are scores not being calculated?
+* [x] masters have to be matched by gain (use in scoring)
 * [ ] require master-flats to come from the same instrument!
 * [ ] require biases/darks to come from the same camera!
 * [ ] require masters dimensions match image dimensions for selection
