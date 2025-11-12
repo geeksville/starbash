@@ -32,8 +32,10 @@ reinit: clean-cache clean-config clean-masters install-completion
     sb info
     sb select list --brief
 
-reinit-masters: reinit
+process-masters:
     sb process masters
+
+reinit-masters: reinit process-masters
 
 select-any:
     sb --verbose select any

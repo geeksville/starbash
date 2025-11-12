@@ -121,7 +121,7 @@ def expand_context_unsafe(s: str, context: dict) -> str:
             return str(result)
 
         except Exception as e:
-            raise ValueError(f"Failed to evaluate expression '{expr}'") from e
+            raise ValueError(f"Failed to evaluate '{expr}' in context") from e
 
     # Replace all expressions
     expanded = re.sub(pattern, eval_expression, s)

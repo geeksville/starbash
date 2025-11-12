@@ -421,13 +421,20 @@ class Starbash:
                     if candidate_gain is not None:
                         try:
                             gain_diff = abs(float(ref_gain) - float(candidate_gain))
-                            # Very steep exponential decay: even small differences hurt badly
-                            # Perfect match (0 diff) = 5000, 1 diff ≈ 3678, 5 diff ≈ 337, 10 diff ≈ 23
-                            # This ensures gain mismatches dominate the scoring
-                            gain_score = 5000 * (2.718 ** (-gain_diff / 2))
+                            # New gain scoring: massive bonus for exact match, linear heavy penalty otherwise.
+                            # Ensures large mismatches (e.g. Δ=200) sink to the bottom of the list.
+                            # Formula: gain_score = 30000 - 1000 * gain_diff
+                            #  Δ=0   => 30000
+                            #  Δ=1   => 29000
+                            #  Δ=5   => 25000
+                            #  Δ=100 => -70000
+                            #  Δ=200 => -170000 (guaranteed end of list)
+                            gain_score = 30000 - 1000 * gain_diff
                             score += gain_score
                             if gain_diff > 0:
                                 reasons.append(f"gain Δ={gain_diff:.0f}")
+                            else:
+                                reasons.append("gain match")
                         except (ValueError, TypeError):
                             # If we can't parse gains, give a neutral score
                             score += 0

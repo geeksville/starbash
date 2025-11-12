@@ -24,10 +24,10 @@ def normalize_target_name(name: None) -> None: ...
 
 
 def normalize_target_name(name: str | None) -> str | None:
-    """Converts a target name to an any filesystem-safe format by removing spaces"""
+    """Converts a target name to an any filesystem-safe format by removing spaces and other noise"""
     if name is None:
         return None
-    return name.replace(" ", "").lower()
+    return name.replace(" ", "").replace("(", "").replace(")", "").lower()
 
 
 def pre_normalize(name: str) -> str:

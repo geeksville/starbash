@@ -59,6 +59,7 @@
 * [ ] merge Processing with ProcessingContext?
 * [x] check for required/recommended tools at start.
 * [ ] **first public alpha** at approximately this point
+* [ ] for debugging purposes generate a mastername.sb.toml file per master - to see input selection choices
 * [ ] always regen masters after adding a repo
 * [ ] include temperature in bias filenames.
 * [ ] name the progess dirs so they can be semi-persistent (speed up reruns)

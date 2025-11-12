@@ -19,6 +19,8 @@ from starbash.database import (
     Database,
     SessionRow,
     get_column_name,
+    metadata_to_camera_id,
+    metadata_to_instrument_id,
 )
 from starbash.exception import UserHandledError
 from starbash.paths import get_user_cache_dir
@@ -396,16 +398,17 @@ class Processing:
         if target:
             self.context["target"] = normalize_target_name(target)
 
+        metadata = session.get("metadata", {})
         # the telescope name is our instrument id
-        instrument = session.get(get_column_name(Database.TELESCOP_KEY))
+        instrument = metadata_to_instrument_id(metadata)
         if instrument:
             self.context["instrument"] = instrument
 
         # the FITS INSTRUMEN keyword is the closest thing we have to a default camera ID.  FIXME, let user override
         # if needed?
         # It isn't in the main session columns, so we look in metadata blob
-        metadata = session.get("metadata", {})
-        camera_id = metadata.get("INSTRUME", instrument)  # Fall back to the telescope name
+
+        camera_id = metadata_to_camera_id(metadata)
         if camera_id:
             self.context["camera_id"] = camera_id
 

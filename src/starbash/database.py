@@ -37,6 +37,26 @@ def get_column_name(k: str) -> str:
     return k
 
 
+def metadata_to_instrument_id(metadata: dict[str, Any]) -> str | None:
+    """Extract a normalized instrument ID from the metadata."""
+    instrument: str | None = metadata.get("INSTRUME")
+    if instrument:
+        instrument = normalize_target_name(instrument)
+    return instrument
+
+
+def metadata_to_camera_id(metadata: dict[str, Any]) -> str | None:
+    """Extract a normalized camera ID from the metadata."""
+    camera_id = metadata.get(
+        "INSTRUME", metadata_to_instrument_id(metadata)
+    )  # Fall back to the telescope name
+
+    if camera_id:
+        camera_id = normalize_target_name(camera_id)
+
+    return camera_id
+
+
 class Database:
     """SQLite-backed application database.
 
