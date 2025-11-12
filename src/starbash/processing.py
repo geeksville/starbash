@@ -203,27 +203,27 @@ class Processing:
                                 recipe
                             ]  # FIXME: we should let the user pick if needed
 
-                            # find the task for this step
-                            task = None
-                            if recipe:
-                                task = recipe.get("recipe.stage." + step_name)
+                        # find the task for this step
+                        task = None
+                        if recipe:
+                            task = recipe.get("recipe.stage." + step_name)
 
-                            if task:
-                                # put all relevant session info into context
-                                self.set_session_in_context(session)
+                        if task:
+                            # put all relevant session info into context
+                            self.set_session_in_context(session)
 
-                                # The following operation might take a long time, so give the user some more info...
-                                self.progress.update(
-                                    lights_task,
-                                    description=f"Processing {step_name} {self.context['date']}...",
+                            # The following operation might take a long time, so give the user some more info...
+                            self.progress.update(
+                                lights_task,
+                                description=f"Processing {step_name} {self.context['date']}...",
+                            )
+                            try:
+                                self.run_stage(task)
+                                lights_processed = True
+                            except NotEnoughFilesError:
+                                logging.warning(
+                                    "Skipping session, siril requires at least two frames per session..."
                                 )
-                                try:
-                                    self.run_stage(task)
-                                    lights_processed = True
-                                except NotEnoughFilesError:
-                                    logging.warning(
-                                        "Skipping session, siril requires at least two frames per session..."
-                                    )
 
                         # We made progress - call once per iteration ;-)
                         self.progress.advance(lights_task)

@@ -73,6 +73,11 @@ process-one: select-si-ha process
 # Process all images
 process-all: select-any process
 
+# Process the currently failing test
+process-fail: select-any
+    sb select target ngc7023
+    sb --debug process auto
+
 db-browse:
     # via poetry --dev
     harlequin -a sqlite -r ~/.local/share/starbash/db.sqlite3
