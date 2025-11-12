@@ -393,14 +393,14 @@ class Starbash:
         Eventually the code will check the following for 'nice to have' (but not now):
         * TBD
 
-        Possibly eventually this code could be moved into recipes.
+                Implementation notes:
+                - This uses a list of inner "ranker" functions that each compute a score contribution
+                    and may append to a shared 'reasons' list from the outer closure. This makes it easy
+                    to add new ranking dimensions by appending another function to the list.
 
         """
 
         metadata: dict = ref_session.get("metadata", {})
-        ref_temp = metadata.get("CCD-TEMP", None)
-        ref_gain = metadata.get(Database.GAIN_KEY, None)
-        ref_date_str = metadata.get(Database.DATE_OBS_KEY)
 
         # Now score and sort the candidates
         scored_candidates: list[ScoredCandidate] = []
@@ -413,66 +413,71 @@ class Starbash:
             try:
                 candidate_image = candidate  # metadata is already in the root of this object
 
-                # Score by GAIN difference (highest priority - very high penalty for mismatch)
-                # Gain values typically range from 0-300
-                # Different gains fundamentally change the sensor characteristics
-                if ref_gain is not None:
+                # Define rankers that close over candidate_image, ref_* and reasons
+                def rank_gain(
+                    candidate_image=candidate_image, reasons=reasons, ref_gain=ref_gain
+                ) -> float:  # type: ignore[misc]
+                    ref_gain = metadata.get(Database.GAIN_KEY, None)
+                    if ref_gain is None:
+                        return 0.0
                     candidate_gain = candidate_image.get(Database.GAIN_KEY)
-                    if candidate_gain is not None:
-                        try:
-                            gain_diff = abs(float(ref_gain) - float(candidate_gain))
-                            # New gain scoring: massive bonus for exact match, linear heavy penalty otherwise.
-                            # Ensures large mismatches (e.g. Δ=200) sink to the bottom of the list.
-                            # Formula: gain_score = 30000 - 1000 * gain_diff
-                            #  Δ=0   => 30000
-                            #  Δ=1   => 29000
-                            #  Δ=5   => 25000
-                            #  Δ=100 => -70000
-                            #  Δ=200 => -170000 (guaranteed end of list)
-                            gain_score = 30000 - 1000 * gain_diff
-                            score += gain_score
-                            if gain_diff > 0:
-                                reasons.append(f"gain Δ={gain_diff:.0f}")
-                            else:
-                                reasons.append("gain match")
-                        except (ValueError, TypeError):
-                            # If we can't parse gains, give a neutral score
-                            score += 0
-
-                # Score by CCD-TEMP difference (second most important)
-                # Lower temperature difference = better score
-                if ref_temp is not None:
-                    candidate_temp = candidate_image.get("CCD-TEMP")
-                    if candidate_temp is not None:
-                        try:
-                            temp_diff = abs(float(ref_temp) - float(candidate_temp))
-                            # Use exponential decay: closer temps get much better scores
-                            # Perfect match (0°C diff) = 500, 1°C diff ≈ 368, 2°C diff ≈ 271, 5°C diff ≈ 61
-                            # This is lower weighted than time so recent images beat old ones with better temp
-                            temp_score = 500 * (2.718 ** (-temp_diff / 5))
-                            score += temp_score
-                            if temp_diff >= 0.2:  # don't report tiny differences
-                                reasons.append(f"temp Δ={temp_diff:.1f}°C")
-                        except (ValueError, TypeError):
-                            # If we can't parse temps, give a neutral score
-                            score += 0
-
-                # Parse reference date for time delta calculations
-                candidate_date_str = candidate_image.get(Database.DATE_OBS_KEY)
-                if ref_date_str and candidate_date_str:
+                    if candidate_gain is None:
+                        return 0.0
                     try:
-                        ref_date = datetime.fromisoformat(ref_date_str)
+                        gain_diff = abs(float(ref_gain) - float(candidate_gain))
+                        # Massive bonus for exact match, linear heavy penalty otherwise
+                        gain_score = 30000 - 1000 * gain_diff
+                        if gain_diff > 0:
+                            reasons.append(f"gain Δ={gain_diff:.0f}")
+                        else:
+                            reasons.append("gain match")
+                        return float(gain_score)
+                    except (ValueError, TypeError):
+                        return 0.0
+
+                def rank_temp(
+                    candidate_image=candidate_image, reasons=reasons, ref_temp=ref_temp
+                ) -> float:  # type: ignore[misc]
+                    ref_temp = metadata.get("CCD-TEMP", None)
+                    if ref_temp is None:
+                        return 0.0
+                    candidate_temp = candidate_image.get("CCD-TEMP")
+                    if candidate_temp is None:
+                        return 0.0
+                    try:
+                        temp_diff = abs(float(ref_temp) - float(candidate_temp))
+                        # Exponential decay: closer temps get better scores
+                        temp_score = 500 * (2.718 ** (-temp_diff / 5))
+                        if temp_diff >= 0.2:  # don't report tiny differences
+                            reasons.append(f"temp Δ={temp_diff:.1f}°C")
+                        return float(temp_score)
+                    except (ValueError, TypeError):
+                        return 0.0
+
+                def rank_time(
+                    candidate_image=candidate_image, reasons=reasons, ref_date_str=ref_date_str
+                ) -> float:  # type: ignore[misc]
+                    ref_date_str = metadata.get(Database.DATE_OBS_KEY)
+                    candidate_date_str = candidate_image.get(Database.DATE_OBS_KEY)
+                    if not (ref_date_str and candidate_date_str):
+                        return 0.0
+                    try:
+                        ref_date = datetime.fromisoformat(ref_date_str)  # type: ignore[arg-type]
                         candidate_date = datetime.fromisoformat(candidate_date_str)
                         time_delta = abs((ref_date - candidate_date).total_seconds())
-                        # Closer in time = better score
-                        # Same day ≈ 1000, 3.5 days (half week) ≈ 606, 7 days ≈ 368, 14 days ≈ 135, 30 days ≈ 22
-                        # Using 7-day half-life, weighted higher than temp so recent beats old+good-temp
+                        # 7-day half-life, weighted higher than temp
                         time_score = 1000 * (2.718 ** (-time_delta / (7 * 86400)))
-                        score += time_score
                         days_diff = time_delta / 86400
                         reasons.append(f"time Δ={days_diff:.1f}d")
+                        return float(time_score)
                     except (ValueError, TypeError):
                         logging.warning("Malformed date - ignoring entry")
+                        return 0.0
+
+                rankers = [rank_gain, rank_temp, rank_time]
+
+                for r in rankers:
+                    score += r()
 
                 reason = ", ".join(reasons) if reasons else "no scoring factors"
                 scored_candidates.append(
