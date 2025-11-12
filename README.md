@@ -35,6 +35,7 @@ If you are interested in alpha-testing we ❤️ you.  This README should have e
 
 ## Features coming soon
 
+* Include a stretched 'thumbnail' jpg proof-of-concept render in the output directories
 * Support for mono-camera workflows (this alpha version only supports color cameras).
 * Generates a per-target report/config file which can be customized if the detected defaults or preprocessing are not what you want.
 * 'Recipes' provide repeatable/human-readable/shareable descriptions of all processing steps.
