@@ -408,7 +408,7 @@ class Starbash:
 
             # Get candidate image metadata to access CCD-TEMP and DATE-OBS
             try:
-                candidate_image = candidate.get("metadata", {})
+                candidate_image = candidate  # metadata is already in the root of this object
 
                 # Score by CCD-TEMP difference (most important)
                 # Lower temperature difference = better score
