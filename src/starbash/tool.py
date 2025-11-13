@@ -325,7 +325,42 @@ class SirilTool(ExternalTool):
     def __init__(self) -> None:
         # siril_path = "/home/kevinh/packages/Siril-1.4.0~beta3-x86_64.AppImage"
         # Possible siril commands, with preferred option first
-        super().__init__("siril", ["siril-cli", "siril", "org.siril.Siril"], "https://siril.org/")
+        commands: list[str] = [
+            "siril-cli",
+            "siril",
+            "org.siril.Siril",
+        ]
+
+        # On macOS, also search common Homebrew/MacPorts bins and .app bundles
+        try:
+            import sys
+
+            if sys.platform == "darwin":
+                brew_like_bins = [
+                    "/opt/homebrew/bin",
+                    "/usr/local/bin",
+                    "/opt/local/bin",
+                ]
+                for bindir in brew_like_bins:
+                    commands.extend(
+                        [
+                            os.path.join(bindir, "siril-cli"),
+                            os.path.join(bindir, "siril"),
+                        ]
+                    )
+
+                # App bundle executables
+                commands.extend(
+                    [
+                        "/Applications/Siril.app/Contents/MacOS/siril-cli",
+                        "/Applications/Siril.app/Contents/MacOS/siril",
+                    ]
+                )
+        except Exception:
+            # Best-effort platform augmentation; safe to ignore if anything goes wrong
+            pass
+
+        super().__init__("siril", commands, "https://siril.org/")
 
     def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         """Executes Siril with a script of commands in a given working directory."""
@@ -379,7 +414,33 @@ class GraxpertTool(ExternalTool):
     """Expose Graxpert as a tool"""
 
     def __init__(self) -> None:
-        super().__init__("graxpert", ["graxpert"], "https://graxpert.com/")
+        commands: list[str] = ["graxpert"]
+
+        # On macOS, also search common Homebrew/MacPorts bins and .app bundles
+        try:
+            import sys
+
+            if sys.platform == "darwin":
+                brew_like_bins = [
+                    "/opt/homebrew/bin",
+                    "/usr/local/bin",
+                    "/opt/local/bin",
+                ]
+                for bindir in brew_like_bins:
+                    commands.append(os.path.join(bindir, "graxpert"))
+
+                # App bundle executable name is usually 'GraXpert' (capital G X)
+                commands.extend(
+                    [
+                        "/Applications/GraXpert.app/Contents/MacOS/graxpert",
+                        "/Applications/GraXpert.app/Contents/MacOS/GraXpert",
+                    ]
+                )
+        except Exception:
+            # Ignore platform augmentation errors
+            pass
+
+        super().__init__("graxpert", commands, "https://graxpert.com/")
 
     def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         """Executes Graxpert with the specified command line arguments"""
