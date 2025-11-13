@@ -52,6 +52,7 @@
 * [x] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
 * [x] fix remaining tool failures (just fail-ngc7023)
 * [x] **first public alpha** at approximately this point
+* [ ] fix dwarf3
 * [ ] add dwarf3 files to integration tests
 * [ ] allow toml target files to be customized
 * [ ] store flats in directory names based on INSTRUMENT not camera

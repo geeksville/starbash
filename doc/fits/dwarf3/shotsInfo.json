@@ -1,0 +1,15 @@
+{
+    "DEC": -2.492014,
+    "RA": 5.685828466666666,
+    "binning": "1*1",
+    "exp": "60",
+    "format": "FITS",
+    "gain": 60,
+    "ir": "Astro",
+    "maxTemp": 17,
+    "minTemp": 13,
+    "shotsStacked": 43,
+    "shotsTaken": 54,
+    "shotsToTake": 60,
+    "target": "IC 434"
+}
