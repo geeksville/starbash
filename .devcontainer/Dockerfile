@@ -12,9 +12,6 @@ USER root
 RUN apt-get update && apt-get -y install --no-install-recommends \
         python3 python3-pip python3-venv python-is-python3 python3-tk sudo git flatpak sqlitebrowser
 
-# Not yet using docker (we might need docker for using the vhs movie maker)
-# RUN apt-get install docker.io
-
 # Create a non-root user if one doesn't exist, and give it sudo rights
 RUN if ! id -u ${USERNAME} > /dev/null 2>&1; then \
         groupadd --gid 1000 ${USERNAME} && \
@@ -71,6 +68,9 @@ USER root
 RUN cd /tmp && \
         wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
         apt install -y ./google-chrome-stable_current_amd64.deb
+
+# We need the docker CLI for build ghcr.io containers
+RUN apt-get install docker.io
 
 # Make container smaller.  Do this last, so that if we change the container it is fast to use existing apts
 RUN rm -rf /var/lib/apt/lists/*

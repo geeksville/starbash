@@ -9,8 +9,13 @@
 	"features": {
 		// add git
 		"ghcr.io/devcontainers/features/git:1": {},
+		// add the github cli tool (gh)
+		"ghcr.io/devcontainers/features/github-cli:1": {},
 		// use https://just.systems/ for developer scripts via https://github.com/guiyomh/features/tree/main/src/just
-		"ghcr.io/guiyomh/features/just:0": {}
+		"ghcr.io/guiyomh/features/just:0": {},
+		// install the podman command (for building ghcr.io containers)
+		// DOESN'T WORK just do an "apt install docker.io" instead (which does successfully use podman.sock)
+		// "ghcr.io/devcontainers-extra/features/podman-homebrew:1": {}
 	},
 	// "forwardPorts": [5000]
 	"runArgs": [
