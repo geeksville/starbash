@@ -70,7 +70,9 @@ RUN cd /tmp && \
         apt install -y ./google-chrome-stable_current_amd64.deb
 
 # We need the docker CLI for build ghcr.io containers
-RUN apt-get install docker.io
+# needed because i'm using old docker commands above - someday move this docker install to top and the update can leave
+RUN apt-get update
+RUN apt-get -y install --no-install-recommends docker.io
 
 # Make container smaller.  Do this last, so that if we change the container it is fast to use existing apts
 RUN rm -rf /var/lib/apt/lists/*
