@@ -1,4 +1,4 @@
-# from /workspaces/starbash/test-data/inflated/dwarf3/IC 434 Horsehead Nebula/DWARF_RAW_TELE_IC 434_EXP_60_GAIN_60_2025-10-18-04-51-22-420
+# from /workspaces/starbash/test-data/inflated/dwarf3/IC 434 Horsehead Nebula/DWARF_RAW_TELE_IC 434_EXP_60_GAIN_60_2025-10-18-04-51-22-420/IC 434_60s60_Astro_20251018-045926401_16C.fits
 # HDU 0 in IC 434_60s60_Astro_20251018-045926401_16C.fits:
 SIMPLE  =                    T / file does conform to FITS standard
 BITPIX  =                   16 / number of bits per data pixel

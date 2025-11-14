@@ -9,7 +9,7 @@ Manages the repository of processing recipes and configurations.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from multidict import MultiDict
 
@@ -37,7 +37,7 @@ class RepoManager:
         # self.repos.append(root_repo)
 
         # Most users will just want to read from merged
-        self.merged = MultiDict()
+        self.merged: MultiDict[Any] = MultiDict()
 
     @property
     def regular_repos(self) -> list[Repo]:

@@ -1,4 +1,4 @@
-# kevinh from /workspaces/starbash/test-data/inflated/dwarf3/DWARF_DARK/tele_exp_60_gain_60_bin_1_2025-10-20-03-20-10-952
+# kevinh from /workspaces/starbash/test-data/inflated/dwarf3/DWARF_DARK/tele_exp_60_gain_60_bin_1_2025-10-20-03-20-10-952/raw_60s_60_0002_20251020-032310186_20C.fits
 # HDU 0 in raw_60s_60_0002_20251020-032310186_20C.fits:
 SIMPLE  =                    T / file does conform to FITS standard
 BITPIX  =                   16 / number of bits per data pixel

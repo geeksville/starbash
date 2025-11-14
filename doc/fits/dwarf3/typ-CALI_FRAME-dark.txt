@@ -1,4 +1,4 @@
-# from /workspaces/starbash/test-data/inflated/dwarf3/CALI_FRAME/dark/cam_0
+# from /workspaces/starbash/test-data/inflated/dwarf3/CALI_FRAME/dark/cam_0/dark_exp_60.000000_gain_60_bin_1_20C_stack_8.fits
 # HDU 0 in dark_exp_60.000000_gain_60_bin_1_20C_stack_8.fits:
 SIMPLE  =                    T / file does conform to FITS standard
 BITPIX  =                   16 / number of bits per data pixel

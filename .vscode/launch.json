@@ -89,7 +89,6 @@
             "justMyCode": false,
             "args": [
                 "--debug",
-                "--force",
                 "process",
                 "masters"
             ]
@@ -106,8 +105,7 @@
                 "--debug",
                 "repo",
                 "add",
-                "--processed",
-                "./images/processed"
+                "./test-data/inflated/dwarf3"
             ]
         },
         {
@@ -135,9 +133,9 @@
             "justMyCode": false,
             "args": [
                 "--force",
+                "--debug",
                 "repo",
-                "reindex",
-                "file:///workspaces/starbash/images/from_astroboy"
+                "reindex"
             ]
         },
         {

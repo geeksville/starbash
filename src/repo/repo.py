@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import tomlkit
 from tomlkit.items import AoT
+from tomlkit.toml_document import TOMLDocument
 from tomlkit.toml_file import TOMLFile
 
 if TYPE_CHECKING:
@@ -37,8 +38,8 @@ class Repo:
         else:
             url = str(url_or_path)
 
-        self.url = url
-        self.config = self._load_config()
+        self.url: str = url
+        self.config: TOMLDocument = self._load_config()
         self._monkey_patch()
 
     def _monkey_patch(self, o: Any | None = None) -> None:

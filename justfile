@@ -6,8 +6,12 @@ default:
 clean-cache:
     rm -rf ~/.cache/starbash
 
-clean-config:
+# erase the DB
+clean-db:
     rm -f ~/.local/share/starbash/db.sqlite3
+
+# erase user settings and DB
+clean-config: clean-db
     rm -f ~/.config/starbash/starbash.toml
 
 clean-masters:
@@ -20,15 +24,25 @@ install-completion:
     #!/usr/bin/env zsh
     sb --install-completion
 
-reinit: clean-cache clean-config clean-masters install-completion
+# wipe install and do standard reinit
+common-init: clean-cache clean-config clean-masters install-completion
     echo "Reiniting a developer config..."
     sb user name "Kevin Hester"
     sb user email "kevinh@geeksville.com"
+    sb repo add --master ./images/masters
+    sb repo add --processed ./images/processed
+
+# Use our 'big' test database
+reinit: common-init
     sb repo add ./images/from_asiair
     sb repo add ./images/from_seestar
     sb repo add ./images/from_astroboy
-    sb repo add --master ./images/masters
-    sb repo add --processed ./images/processed
+    sb info
+    sb select list --brief
+
+# our small test database
+reinit-small: common-init
+    sb repo add ./test-data/inflated/dwarf3
     sb info
     sb select list --brief
 

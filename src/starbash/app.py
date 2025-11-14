@@ -36,10 +36,13 @@ from starbash.database import (
     metadata_to_camera_id,
     metadata_to_instrument_id,
 )
+from starbash.dwarf3 import extend_dwarf3_headers
 from starbash.paths import get_user_config_dir, get_user_config_path
 from starbash.selection import Selection, build_search_conditions
 from starbash.toml import toml_from_template
 from starbash.tool import preflight_tools
+
+critical_keys = [Database.DATE_OBS_KEY, Database.IMAGETYP_KEY]
 
 
 def setup_logging(console: rich.console.Console):
@@ -770,7 +773,31 @@ class Starbash:
         # Write the updated config
         self.user_repo.write_config()
 
-    def add_image(self, repo: Repo, f: Path, force: bool = False) -> dict[str, Any] | None:
+    def _extend_image_header(self, headers: dict[str, Any], full_image_path: Path) -> bool:
+        """Given a FITS header dictionary, possibly extend it with additional computed fields.
+        Returns True if the header is invalid and should be skipped."""
+
+        def has_critical_keys() -> bool:
+            return all(key in headers for key in critical_keys)
+
+        if not has_critical_keys():
+            # See if possibly from a Dwarf3 camera which needs special handling
+            extend_dwarf3_headers(headers, full_image_path)
+
+            # Perhaps it saved us
+            if not has_critical_keys():
+                logging.debug(f"Headers {headers}")
+                logging.warning(
+                    "Image '%s' missing required FITS header (DATE-OBS or IMAGETYP), skipping...",
+                    headers["path"],
+                )
+                return False
+
+        return True
+
+    def add_image(
+        self, repo: Repo, f: Path, force: bool = False, extra_metadata: dict[str, Any] = {}
+    ) -> dict[str, Any] | None:
         """Read FITS header from file and add/update image entry in the database."""
 
         path = repo.get_path()
@@ -813,6 +840,10 @@ class Starbash:
                     if (not whitelist) or (key in whitelist):
                         headers[key] = value
 
+                # Add any extra metadata if it was missing in the existing headers
+                for key, value in extra_metadata.items():
+                    headers.setdefault(key, value)
+
                 # Some device software (old Asiair versions) fails to populate TELESCOP, in that case fall back to
                 # CREATOR (see doc/fits/malformedasimaster.txt for an example)
                 if Database.TELESCOP_KEY not in headers:
@@ -820,22 +851,25 @@ class Starbash:
                     if creator:
                         headers[Database.TELESCOP_KEY] = creator
 
-                logging.debug("Headers for %s: %s", f, headers)
-
                 # Store relative path in database
                 headers["path"] = str(relative_path)
-                image_doc_id = self.db.upsert_image(headers, repo.url)
-                headers[Database.ID_KEY] = image_doc_id
+                if self._extend_image_header(headers, f):
+                    image_doc_id = self.db.upsert_image(headers, repo.url)
+                    headers[Database.ID_KEY] = image_doc_id
 
-                if not found:
-                    return headers
+                    if not found:  # allow a session to also be created
+                        return headers
 
         return None
 
     def add_image_and_session(self, repo: Repo, f: Path, force: bool = False) -> None:
         """Read FITS header from file and add/update image entry in the database."""
         headers = self.add_image(repo, f, force=force)
+
         if headers:
+            if "dark_exp_" in headers.get("path", ""):
+                logging.debug("Debugging image")
+
             # Update the session infos, but ONLY on first file scan
             # (otherwise invariants will get messed up)
             self._add_session(headers)

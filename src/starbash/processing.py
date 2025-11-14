@@ -361,8 +361,8 @@ class Processing:
                     # We did one processing run. add the results
                     update_processing_result(result, processing_exception)
 
-                # if we skipped leave the result as skipped
-                results.append(result)
+                    # if we skipped leave the result as skipped
+                    results.append(result)
 
         return results
 
@@ -507,6 +507,9 @@ class Processing:
                 # Get images for this session (by pulling from repo)
                 session = self.context.get("session")
                 assert session is not None, "context.session should have been already set"
+
+                # if session["id"] == 10:
+                #    logging.warning("debugging session 10")
 
                 images = self.sb.get_session_images(session, processed_ok=processed_ok)
                 logging.debug(f"Using {len(images)} files as input_files")
@@ -747,4 +750,12 @@ class Processing:
                 if output_info["repo"].kind() == "master":
                     # we add new masters to our image DB
                     # add to image DB (ONLY! we don't also create a session)
-                    self.sb.add_image(output_info["repo"], Path(output_path), force=True)
+
+                    # The generated files might not have propagated all of the metadata (because we added it after FITS import)
+                    extra_metadata = self.context.get("session", {}).get("metadata", {})
+                    self.sb.add_image(
+                        output_info["repo"],
+                        Path(output_path),
+                        force=True,
+                        extra_metadata=extra_metadata,
+                    )

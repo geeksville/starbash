@@ -8,7 +8,7 @@ Some rules:
 * DWARF_DARK might exist and if it exist it contains only dark frames.  These files do contain usefule DATE-OBS.
 * For imaging sessions with light frames the raws directory (the only directory we care about) will contain a shotsInfo.json file.
 
-FIXME - which cam (0 or 1) is "TELE"?  What is the name of the other camera?
+cam0 is the "TELE" and cam1 is "WIDE" camera.  Use this to populate "INSTRUME"
 
 Therefore, when importing raws:
 
@@ -17,6 +17,48 @@ Therefore, when importing raws:
   * If within a DWARF_DARK tree parse all the same things, but also parse the date.  Add to metadata as dark.
   * If the directory with the image contains a shotsInfo.json file, import using the filename parsing + json info.  Add to metadata as light.
 * If after all these fixups are applied key metadata is still missing (mainly IMAGETYP and DATE-OBS), drop the image and spit out a warning.
+
+## cam0 "tele" info
+
+This is the main camera probably used for astrophotography.
+
+It has three selectable filters, VIS (for daytime), Astro (IR pass filter), "Duo" HaOiii.  I assume 0, 1 and 2 in this flat list:
+
+flat_gain_2_bin_1_ir_0.fits
+flat_gain_2_bin_1_ir_1.fits
+flat_gain_2_bin_1_ir_2.fits
+
+## Typical paths
+
+* sometimes the user might take extra dark frames, populate these based on the date
+dwarf3/DWARF_DARK/tele_exp_60_gain_60_bin_1_2025-10-20-03-20-10-952/raw_60s_60_0002_20251020-032310186_20C.fits
+
+* the various light frames all have names like this.  populate these by parsing the filename and supplementing with the shotsInfo.json data.
+dwarf3/IC 434 Horsehead Nebula/DWARF_RAW_TELE_IC 434_EXP_60_GAIN_60_2025-10-18-04-51-22-420/IC 434_60s60_Astro_20251018-045926401_16C.fits
+
+typical shotsInfo.json:
+```
+{
+    "DEC": -2.492014,
+    "RA": 5.685828466666666,
+    "binning": "1*1",
+    "exp": "60",
+    "format": "FITS",
+    "gain": 60,
+    "ir": "Astro",
+    "maxTemp": 17,
+    "minTemp": 13,
+    "shotsStacked": 43,
+    "shotsTaken": 54,
+    "shotsToTake": 60,
+    "target": "IC 434"
+}
+```
+
+* for factory dark/flat/bias frames: populate these with DATE-OBS set to Jan 1, 2000 (they never change)
+dwarf3/CALI_FRAME/flat/cam_0/flat_gain_2_bin_1_ir_0.fits
+dwarf3/CALI_FRAME/dark/cam_0/dark_exp_60.000000_gain_60_bin_1_20C_stack_8.fits
+dwarf3/CALI_FRAME/bias/cam_0/bias_gain_2_bin_1.fits
 
 ## Credits and thanks
 

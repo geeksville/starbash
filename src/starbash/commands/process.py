@@ -185,7 +185,7 @@ def masters():
         with Processing(sb) as proc:
             from starbash import console
 
-            console.print("[yellow]Generating master frames from current selection...[/yellow]")
+            console.print("[yellow]Generating master frames...[/yellow]")
             results = proc.run_master_stages()
 
             print_results("Generated masters", results, console)

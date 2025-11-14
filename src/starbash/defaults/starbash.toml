@@ -19,9 +19,13 @@ fits = ["fits", "fit"]
 
 # filter names
 SiiOiii = ["SiiOiii", "S2O3"]
-HaOiii = ["HaOiii", "HaO3"]
 
-None = ["None"]
+# Duo is the name Dwarf3 uses for their HaOiii filter
+HaOiii = ["HaOiii", "HaO3", "Duo"]
+
+# Filter names for none/clear filters
+# Astro is the name Dwarf3 uses for their IR cut filter
+None = ["None", "Astro"]
 
 camera_osc = ["OSC", "ZWO ASI2600MC Duo"]
 camera_seestar = ["Seestar", "Seestar S50", "Seestar S30", "Seestar S30 Pro"]
