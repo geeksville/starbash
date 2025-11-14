@@ -52,8 +52,11 @@
 * [x] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
 * [x] fix remaining tool failures (just fail-ngc7023)
 * [x] **first public alpha** at approximately this point
-* [ ] fix dwarf3
-* [ ] add dwarf3 files to integration tests
+* [ ] fix dwarf3 (bug #1)
+* [ ] tweak osx path finding fixes
+* [ ] don't warn for "[tool-warnings] Reading sequence failed, file cannot be opened: *.seq.
+Reading sequence failed, file cannot be opened: *.seq." because harmless
+* [ ] add dwarf3 files to integration tests - fix ghcr.io stuff
 * [ ] allow toml target files to be customized
 * [ ] store flats in directory names based on INSTRUMENT not camera
 * [ ] do background_removal() as a separate stage via graxpert

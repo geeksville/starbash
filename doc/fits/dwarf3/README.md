@@ -20,7 +20,7 @@ Therefore, when importing raws:
 
 ## Credits and thanks
 
-These files were kindly donated by [Bitgistics](mailto:zonezero@gmail.com) to facilitate supporting Dwarf3 telescopes in starbash.
+These files were kindly donated by @codegistics to facilitate supporting Dwarf3 telescopes in starbash.
 
 ## Full directory tree
 
