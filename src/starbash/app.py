@@ -868,8 +868,8 @@ class Starbash:
         headers = self.add_image(repo, f, force=force)
 
         if headers:
-            if "dark_exp_" in headers.get("path", ""):
-                logging.debug("Debugging dark_exp image")
+            # if "dark_exp_" in headers.get("path", ""):
+            #    logging.debug("Debugging dark_exp image")
 
             # Update the session infos, but ONLY on first file scan
             # (otherwise invariants will get messed up)
