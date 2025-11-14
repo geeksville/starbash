@@ -721,8 +721,9 @@ class Starbash:
             # "HISTORY" nodes are added by processing tools (Siril etc...), we never want to accidentally read those images
             has_history = img.get("HISTORY")
 
-            # images that were stacked seem to always have a STACKCNT header set
-            is_stacked = img.get("STACKCNT")
+            # images that were stacked seem to always have a STACKCNT header set (in the case of Siril)
+            # or a NAXIS of >2 (because presumably the dwarflab tools view the third dimension as time)
+            is_stacked = img.get("STACKCNT") or img.get("NAXIS", 0) > 2
 
             if (
                 img.get(Database.FILTER_KEY) == session[get_column_name(Database.FILTER_KEY)]
