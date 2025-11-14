@@ -53,10 +53,11 @@
 * [x] fix remaining tool failures (just fail-ngc7023)
 * [x] **first public alpha** at approximately this point
 * [ ] fix dwarf3 (bug #1) investigation by @codegistics
-* [ ] osx path finding fixes by @jmachuca77 (bug #2)
-* [ ] if there are no masters implicitly run the make masters step (for now)
-* [ ] don't warn for "[tool-warnings] Reading sequence failed, file cannot be opened: *.seq.
-Reading sequence failed, file cannot be opened: *.seq." because harmless
+* [x] osx path finding fixes by @jmachuca77 (bug #2)
+* [ ] always regen masters after adding a repo
+* [ ] don't warn for "[tool-warnings] Reading sequence failed, file cannot be opened: *.seq. Reading sequence failed, file cannot be opened: *.seq." because harmless
+* [x] add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
+* [x] move the recipe repos to their own github - stop pulling them as python resources
 * [ ] add dwarf3 files to integration tests - fix ghcr.io stuff
 * [ ] allow toml target files to be customized
 * [ ] store flats in directory names based on INSTRUMENT not camera
@@ -65,13 +66,12 @@ Reading sequence failed, file cannot be opened: *.seq." because harmless
 * [ ] generate an auto-stretched output as fits and jpg.
 * [ ] make OSC options user customizable per target
 * [ ] do auto star removal as a separate stage
+* [ ] make recipes work with dark frames - not just bias frames
+* [ ] **second alpha release approximately here**
 * [ ] merge Processing with ProcessingContext?
 * [x] check for required/recommended tools at start.
 * [ ] for debugging purposes generate a mastername.sb.toml file per master - to see input selection choices
-* [ ] move the recipe repos to their own github - stop pulling them as python resources
-* [ ] make recipes work with dark frames - not just bias frames
 * [ ] bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
-* [ ] always regen masters after adding a repo
 * [ ] include temperature in bias filenames.
 * [ ] name the progess dirs so they can be semi-persistent (speed up reruns)
 * [ ] let user spec a max cache size, if we exceed that just delete older build dirs from that cache as needed.  This would allow quick rebuilds for the last N targets rendered.
@@ -136,7 +136,6 @@ Reading sequence failed, file cannot be opened: *.seq." because harmless
 * [x] change the info commands to use the current selection query (and include comparison to all in the output)
 * [ ] Possibly store the DB queries as the description for the sesssion inputs?
 * [x] consider two different 'users' one who just wants to use the DB/repo stuff (doesn't need the auto processing) - for that user just let them do queries and build a 'process' directory for siril.  And the other user who wants our slick smart scripts to also do at least pre-processing.  In initial release just support the the query opts
-* [ ] add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
 * [ ] add makefile style dependencies
 * [ ] allow selecting targets using OBJCTRA and OBJECTDEC + an angle of view - because it makes name differences meaningless.  possibly start with a name and then query a DB to find RA/DEC then look for the local images.
 * [x] add FITS based filter detection (use astropy.io https://docs.astropy.org/en/stable/install.html)

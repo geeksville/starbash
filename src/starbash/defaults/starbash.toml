@@ -57,7 +57,9 @@ SiiHb = ["SiiHb", "S2Hb"]
 
 # Add our built-in recipes (FIXME, add a "resource" repo type for directories we expect to find inside
 # our python blob)
-url = "pkg://recipes"
+# url = "pkg://recipes"
+# We now (finally) fetch our recipes from the sister github repo via http
+url = "https://raw.githubusercontent.com/geeksville/starbash-recipes/refs/heads/main"
 
 # [[repo-ref]]
 

@@ -10,6 +10,8 @@ from tomlkit.items import AoT
 from tomlkit.toml_document import TOMLDocument
 from tomlkit.toml_file import TOMLFile
 
+from .http_client import http_session
+
 if TYPE_CHECKING:
     from .manager import RepoManager
 
@@ -235,6 +237,29 @@ class Repo:
 
         return target_path.read_text()
 
+    def _read_http(self, filepath: str) -> str:
+        """
+        Read a resource from an HTTP(S) URL.
+
+        Args:
+            filepath: Path within the base resource directory for this repo.
+
+        Returns:
+            The content of the resource as a string.
+
+        Raises:
+            ValueError: If the HTTP request fails.
+        """
+        # Construct the full URL by joining the base URL with the filepath
+        url = self.url.rstrip("/") + "/" + filepath.lstrip("/")
+
+        try:
+            response = http_session.get(url)
+            response.raise_for_status()  # Raise an exception for HTTP errors
+            return response.text
+        except Exception as e:
+            raise ValueError(f"Failed to read {url}: {e}") from e
+
     def _read_resource(self, filepath: str) -> str:
         """
         Read a resource from the installed starbash package using a pkg:// URL.
@@ -292,6 +317,8 @@ class Repo:
             return self._read_file(filepath)
         elif self.is_scheme("pkg"):
             return self._read_resource(filepath)
+        elif self.is_scheme("http") or self.is_scheme("https"):
+            return self._read_http(filepath)
         else:
             raise ValueError(f"Unsupported URL scheme for repo: {self.url}")
 
