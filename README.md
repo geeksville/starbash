@@ -49,6 +49,10 @@ If you are interested in alpha-testing we ❤️ you.  This README should have e
 
 See the [TODO](TODO.md) file for work items and approximate schedule.
 
+## Support
+
+If you have questions/ideas please post in the [discussion group](https://github.com/geeksville/starbash/discussions).  If you find bugs please create an [issue](https://github.com/geeksville/starbash/issues).  This is a friendly project.
+
 ## Installing
 
 Currently the easiest way to install this command-line based tool is via [pipx](https://pipx.pypa.io/stable/).  If you don't already have pipx and you have Python installed, you can auto-install it by running "pip install --user pipx."  If you don't have Python installed see the pipx link for pipx installers for any OS.
