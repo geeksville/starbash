@@ -55,7 +55,7 @@
 * [ ] fix dwarf3 (bug #1) investigation by @codegistics
 * [x] osx path finding fixes by @jmachuca77 (bug #2)
 * [ ] always regen masters after adding a repo
-* [ ] don't warn for "[tool-warnings] Reading sequence failed, file cannot be opened: *.seq. Reading sequence failed, file cannot be opened: *.seq." because harmless
+* [x] don't warn for "[tool-warnings] Reading sequence failed, file cannot be opened: *.seq. Reading sequence failed, file cannot be opened: *.seq." because harmless
 * [x] add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
 * [x] move the recipe repos to their own github - stop pulling them as python resources
 * [ ] add dwarf3 files to integration tests - fix ghcr.io stuff

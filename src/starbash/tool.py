@@ -215,7 +215,15 @@ def tool_run(cmd: str, cwd: str, commands: str | None = None, timeout: float | N
     returncode = process.returncode
 
     if stderr_lines:
-        logger.warning(f"[tool-warnings] {stderr_lines}")
+        # drop any line that contains "Reading sequence failed, file cannot be opened"
+        # because it is a bogus harmless message from siril and confuses users.
+        filtered_lines = [
+            line
+            for line in stderr_lines.splitlines()
+            if "Reading sequence failed, file cannot be opened" not in line
+        ]
+        if filtered_lines:
+            logger.warning(f"[tool-warnings] {'\n'.join(filtered_lines)}")
 
     if returncode != 0:
         # log stdout with warn priority because the tool failed
