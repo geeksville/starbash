@@ -113,7 +113,7 @@ movie-sample: select-any
     # vhs publish doc/vhs/sample-session.gif
 
 # release a new version pypi
-bump-version newver: test
+bump-version newver="patch": test
     bin/new-version.sh {{newver}}
 
 _lint:
