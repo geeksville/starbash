@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import textwrap
 from typing import Any
@@ -242,10 +243,10 @@ class Tool:
     """A tool for stage execution"""
 
     def __init__(self, name: str) -> None:
-        self.name = name
+        self.name: str = name
 
         # default script file name
-        self.default_script_file = None
+        self.default_script_file: None | str = None
         self.set_defaults()
 
     def set_defaults(self):
@@ -289,12 +290,38 @@ class Tool:
 
 
 class ExternalTool(Tool):
-    """A tool provided by an external executable"""
+    """A tool provided by an external executable
+
+    Args:
+        name: Name of the tool (e.g. "Siril" or "GraXpert") it is important that this matches the GUI name exactly
+        commands: List of possible command names to try to find the tool executable
+        install_url: URL to installation instructions for the tool
+    """
 
     def __init__(self, name: str, commands: list[str], install_url: str) -> None:
         super().__init__(name)
         self.commands = commands
         self.install_url = install_url
+        self.extra_dirs: list[
+            str
+        ] = []  # extra directories we look for the tool in addition to system PATH
+
+        # Look for the tool in the system PATH first, but if that doesn't work look in common install locations
+        if sys.platform == "linux" or sys.platform == "darwin":
+            self.extra_dirs.extend(
+                [
+                    "/opt/homebrew/bin",
+                    "/usr/local/bin",
+                    "/opt/local/bin",
+                    os.path.expanduser("~/.local/share/flatpak/exports/bin"),
+                ]
+            )
+
+        # On macOS, also search common .app bundles
+        if sys.platform == "darwin":
+            self.extra_dirs.append(
+                f"/Applications/{name}.app/Contents/MacOS",
+            )
 
     def preflight(self) -> None:
         """Check that the tool is available"""
@@ -310,9 +337,19 @@ class ExternalTool(Tool):
     @property
     def executable_path(self) -> str:
         """Find the correct executable path to run for the given tool"""
-        for cmd in self.commands:
-            if shutil.which(cmd):
-                return cmd
+
+        paths: list[None | str] = [None]  # None means use system PATH
+
+        if self.extra_dirs:
+            as_path = os.pathsep.join(self.extra_dirs)
+            paths.append(as_path)
+
+        for path in paths:
+            for cmd in self.commands:
+                if shutil.which(cmd, path=path):
+                    return cmd
+
+        # didn't find anywhere
         raise MissingToolError(
             f"{self.name} not found. Installation instructions [link={self.install_url}]here[/link]",
             command=self.name,
@@ -329,38 +366,10 @@ class SirilTool(ExternalTool):
             "siril-cli",
             "siril",
             "org.siril.Siril",
+            "Siril",
         ]
 
-        # On macOS, also search common Homebrew/MacPorts bins and .app bundles
-        try:
-            import sys
-
-            if sys.platform == "darwin":
-                brew_like_bins = [
-                    "/opt/homebrew/bin",
-                    "/usr/local/bin",
-                    "/opt/local/bin",
-                ]
-                for bindir in brew_like_bins:
-                    commands.extend(
-                        [
-                            os.path.join(bindir, "siril-cli"),
-                            os.path.join(bindir, "siril"),
-                        ]
-                    )
-
-                # App bundle executables
-                commands.extend(
-                    [
-                        "/Applications/Siril.app/Contents/MacOS/siril-cli",
-                        "/Applications/Siril.app/Contents/MacOS/siril",
-                    ]
-                )
-        except Exception:
-            # Best-effort platform augmentation; safe to ignore if anything goes wrong
-            pass
-
-        super().__init__("siril", commands, "https://siril.org/")
+        super().__init__("Siril", commands, "https://siril.org/")
 
     def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         """Executes Siril with a script of commands in a given working directory."""
@@ -414,33 +423,9 @@ class GraxpertTool(ExternalTool):
     """Expose Graxpert as a tool"""
 
     def __init__(self) -> None:
-        commands: list[str] = ["graxpert"]
+        commands: list[str] = ["graxpert", "GraXpert"]
 
-        # On macOS, also search common Homebrew/MacPorts bins and .app bundles
-        try:
-            import sys
-
-            if sys.platform == "darwin":
-                brew_like_bins = [
-                    "/opt/homebrew/bin",
-                    "/usr/local/bin",
-                    "/opt/local/bin",
-                ]
-                for bindir in brew_like_bins:
-                    commands.append(os.path.join(bindir, "graxpert"))
-
-                # App bundle executable name is usually 'GraXpert' (capital G X)
-                commands.extend(
-                    [
-                        "/Applications/GraXpert.app/Contents/MacOS/graxpert",
-                        "/Applications/GraXpert.app/Contents/MacOS/GraXpert",
-                    ]
-                )
-        except Exception:
-            # Ignore platform augmentation errors
-            pass
-
-        super().__init__("graxpert", commands, "https://graxpert.com/")
+        super().__init__("GraXpert", commands, "https://graxpert.com/")
 
     def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         """Executes Graxpert with the specified command line arguments"""
@@ -524,4 +509,6 @@ def preflight_tools() -> None:
 
 
 # A dictionary mapping tool names to their respective tool instances.
-tools: dict[str, Tool] = {tool.name: tool for tool in [SirilTool(), GraxpertTool(), PythonTool()]}
+tools: dict[str, Tool] = {
+    tool.name.lower(): tool for tool in list[Tool]([SirilTool(), GraxpertTool(), PythonTool()])
+}

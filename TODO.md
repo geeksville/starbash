@@ -52,8 +52,9 @@
 * [x] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
 * [x] fix remaining tool failures (just fail-ngc7023)
 * [x] **first public alpha** at approximately this point
-* [ ] fix dwarf3 (bug #1)
-* [ ] tweak osx path finding fixes
+* [ ] fix dwarf3 (bug #1) investigation by @codegistics
+* [ ] osx path finding fixes by @jmachuca77 (bug #2)
+* [ ] if there are no masters implicitly run the make masters step (for now)
 * [ ] don't warn for "[tool-warnings] Reading sequence failed, file cannot be opened: *.seq.
 Reading sequence failed, file cannot be opened: *.seq." because harmless
 * [ ] add dwarf3 files to integration tests - fix ghcr.io stuff

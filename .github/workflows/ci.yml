@@ -124,8 +124,6 @@ jobs:
         run: |
           # Let siril see /tmp
           flatpak --user override --filesystem=/tmp org.siril.Siril
-          # Add flatpak bin to PATH
-          echo "$HOME/.local/share/flatpak/exports/bin" >> $GITHUB_PATH
 
       - name: Run tests
         env:

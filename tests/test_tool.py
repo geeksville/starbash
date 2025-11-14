@@ -410,14 +410,14 @@ class TestSirilTool:
     def test_siril_tool_name(self):
         """Test SirilTool has correct name."""
         tool = SirilTool()
-        assert tool.name == "siril"
+        assert tool.name == "Siril"
 
     def test_siril_tool_expands_context(self):
         """Test that SirilTool expands context variables in commands."""
         tool = SirilTool()
         # We can't easily test the actual siril execution without mocking subprocess,
         # but we can verify the tool is instantiated correctly
-        assert tool.name == "siril"
+        assert tool.name == "Siril"
 
 
 class TestGraxpertTool:
@@ -426,7 +426,7 @@ class TestGraxpertTool:
     def test_graxpert_tool_name(self):
         """Test GraxpertTool has correct name."""
         tool = GraxpertTool()
-        assert tool.name == "graxpert"
+        assert tool.name == "GraXpert"
 
 
 class TestToolsDict:
@@ -450,9 +450,9 @@ class TestToolsDict:
         assert isinstance(tools["python"], PythonTool)
 
     def test_tools_dict_keys_match_names(self):
-        """Test that dict keys match tool names."""
+        """Test that dict keys are lowercase versions of tool names."""
         for key, tool in tools.items():
-            assert key == tool.name
+            assert key == tool.name.lower()
 
 
 class TestToolRun:
