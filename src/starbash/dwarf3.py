@@ -25,6 +25,26 @@ def _extract_temperature(filename: str) -> float | None:
     return None
 
 
+def _make_monotonic_datetime() -> str:
+    """Return a guaranteed unique date starting Jan 1, 2000.  Increment by 1 hour per
+    each call."""
+    from datetime import datetime, timedelta
+
+    # Use a function attribute to track call count
+    if not hasattr(_make_monotonic_datetime, "counter"):
+        _make_monotonic_datetime.counter = 0
+
+    # Set base date to Jan 1, 2000 for factory calibration frames
+    base = datetime(2000, 1, 1, 0, 0, 0)
+
+    # Increment by 1 hour per call
+    current = base + timedelta(hours=_make_monotonic_datetime.counter)
+    _make_monotonic_datetime.counter += 1
+
+    # Format as ISO 8601 with milliseconds
+    return current.strftime("%Y-%m-%dT%H:%M:%S.000")
+
+
 def extend_dwarf3_headers(headers: dict[str, Any], full_image_path: Path) -> bool:
     """Given a FITS header dictionary, if it was from a Dwarf3 extend it with additional computed fields.
 
@@ -59,8 +79,7 @@ def extend_dwarf3_headers(headers: dict[str, Any], full_image_path: Path) -> boo
 
     # Process CALI_FRAME files (bias/dark/flat from factory)
     if is_cali_frame:
-        # Set date to Jan 1, 2000 for factory calibration frames
-        headers[Database.DATE_OBS_KEY] = "2000-01-01T00:00:00.000"
+        headers[Database.DATE_OBS_KEY] = _make_monotonic_datetime()
 
         # Determine frame type from path
         if "/bias/" in short_path:

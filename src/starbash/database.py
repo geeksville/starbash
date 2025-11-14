@@ -429,7 +429,7 @@ class Database:
         cursor = self._db.cursor()
         cursor.execute(query, params)
 
-        results = []
+        results: list[ImageRow] = []
         for row in cursor.fetchall():
             metadata = json.loads(row["metadata"])
             # Store the relative path, repo_id, and repo_url for caller
