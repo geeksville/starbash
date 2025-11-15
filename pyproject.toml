@@ -39,9 +39,13 @@ starbash = "starbash.main:app"
 sb = "starbash.main:app"       # std alias for convenience
 
 [tool.pytest.ini_options]
-markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests requiring /test-data (deselect with '-m \"not integration\"')",
+]
 # -n auto enables parallel test execution plugin
-addopts = "-m 'not slow' -n auto"
+# By default, exclude slow and integration tests
+addopts = "-m 'not slow and not integration' -n auto"
 
 [tool.coverage.run]
 source = ["src"]

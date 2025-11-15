@@ -30,7 +30,12 @@ runner = CliRunner(env={"NO_COLOR": "1"})
 
 @pytest.fixture
 def setup_test_environment(tmp_path):
-    """Setup a test environment with isolated config and data directories."""
+    """Setup a test environment with isolated config and data directories.
+
+    This is a specialized version of the shared setup_test_environment fixture
+    that additionally saves and restores global starbash state variables
+    (verbose_output, force_regen, log_filter_level) to prevent test pollution.
+    """
     import starbash
 
     # Save original global state
@@ -196,9 +201,9 @@ def test_repo_list_verbose(setup_test_environment):
         stripped = line.strip()
         if stripped:
             # Should start with pkg:// or file://, not a number
-            assert stripped.startswith("pkg://") or stripped.startswith(
-                "file://"
-            ), f"Verbose mode should not show numbers, but got: {stripped}"
+            assert stripped.startswith("pkg://") or stripped.startswith("file://"), (
+                f"Verbose mode should not show numbers, but got: {stripped}"
+            )
 
 
 def test_repo_add_command(setup_test_environment, tmp_path):

@@ -13,24 +13,6 @@ runner = CliRunner(env={"NO_COLOR": "1"})
 
 
 @pytest.fixture
-def setup_test_environment(tmp_path):
-    """Setup a test environment with isolated config and data directories."""
-    # Create isolated directories for testing
-    config_dir = tmp_path / "config"
-    data_dir = tmp_path / "data"
-    config_dir.mkdir(parents=True, exist_ok=True)
-    data_dir.mkdir(parents=True, exist_ok=True)
-
-    # Set the override directories for this test
-    paths.set_test_directories(config_dir, data_dir)
-
-    yield {"config_dir": config_dir, "data_dir": data_dir}
-
-    # Clean up: reset to None after test
-    paths.set_test_directories(None, None)
-
-
-@pytest.fixture
 def populated_database(setup_test_environment):
     """Fixture that provides a database populated with test data."""
     data_dir = setup_test_environment["data_dir"]

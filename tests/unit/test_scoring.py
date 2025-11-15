@@ -5,15 +5,19 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from starbash.scoring import gain_proximity_score, temp_proximity_score
 
 from starbash import paths
 from starbash.app import Starbash
-from starbash.database import Database
 
 
 @pytest.fixture
 def setup_test_environment(tmp_path):
-    """Isolated config/data directories for ranking tests."""
+    """Isolated config/data directories for ranking tests with analytics disabled.
+
+    This is a specialized version of the shared setup_test_environment fixture
+    that additionally disables analytics via config file to avoid external calls.
+    """
     config_dir = tmp_path / "config"
     data_dir = tmp_path / "data"
     config_dir.mkdir(parents=True, exist_ok=True)
