@@ -1,5 +1,6 @@
 import logging
 import os
+import platform
 
 from sentry_sdk.integrations.excepthook import ExcepthookIntegration
 
@@ -131,6 +132,13 @@ def analytics_start_transaction(**kwargs):
     if analytics_allowed:
         import sentry_sdk
 
-        return sentry_sdk.start_transaction(**kwargs)
+        r = sentry_sdk.start_transaction(**kwargs)
+
+        # include key OS info
+        r.set_data("os.name", platform.system())
+        r.set_data("os.release", platform.release())
+        r.set_data("os.architecture", platform.machine())
+
+        return r
     else:
         return NopAnalytics()
