@@ -58,7 +58,7 @@
 * [x] don't warn for "[tool-warnings] Reading sequence failed, file cannot be opened: *.seq. Reading sequence failed, file cannot be opened: *.seq." because harmless
 * [x] add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
 * [x] move the recipe repos to [their own github ](https://github.com/geeksville/starbash-recipes/)- stop pulling them as python resources
-* [ ] add dwarf3 files to integration tests - fix ghcr.io stuff
+* [x] add dwarf3 files to integration tests - fix ghcr.io stuff
 * [ ] explain about PATH https://github.com/geeksville/starbash/issues/5
 * [ ] allow toml target files to be customized
 * [x] store flats in directory names based on INSTRUMENT not camera
@@ -67,7 +67,8 @@
 * [ ] generate an auto-stretched output as fits and jpg.
 * [ ] make OSC options user customizable per target
 * [ ] do auto star removal as a separate stage
-* [ ] make default recipes work with dark frames - not just bias frames
+* [ ] make default recipes work with dark frames - not just bias frames - REQUIRED for dwarf3
+* [ ] make "repo list" only show user repos
 * [ ] make graxpert network check faster & expose an API
 * [ ] **second alpha release approximately here**
 * [ ] merge Processing with ProcessingContext?

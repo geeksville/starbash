@@ -34,7 +34,7 @@
 		"--volumes-from=starbash-test-data:ro"
 	],
 	// Download and initialize the test-data container
-	"initializeCommand": "docker rm -f starbash-test-data || true && docker create --name starbash-test-data ghcr.io/geeksville/starbash/test-data:latest",
+	"initializeCommand": "bash .devcontainer/create-test-data.sh",
 	"mounts": [
 		// NOTE: None of the following are allowed in GitHub CI devcontainers
 		// Needed for x11 forwarding, but throws: invalid mount config for type "bind": bind source path does not exist: /run/user/1000
