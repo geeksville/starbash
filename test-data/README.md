@@ -15,7 +15,7 @@ at https://github.com/settings/tokens
 give it at least write:packages and read:packages scope.
 Paste the generated token into ./.env as:
 ```
-GH_TOKEN=xxx
+GHCR_GH_TOKEN=xxx
 ```
 
 
