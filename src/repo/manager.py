@@ -42,7 +42,11 @@ class RepoManager:
     @property
     def regular_repos(self) -> list[Repo]:
         "We exclude certain repo types (preferences, recipe) from the list of repos users care about."
-        return [r for r in self.repos if r.kind() not in ("preferences") and not r.is_scheme("pkg")]
+        return [
+            r
+            for r in self.repos
+            if r.kind() not in ["preferences", "recipe"] and not r.is_scheme("pkg")
+        ]
 
     def add_repo(self, url: str) -> Repo:
         from repo.repo import Repo  # Local import to avoid circular dependency

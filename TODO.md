@@ -68,9 +68,10 @@
 * [ ] make OSC options user customizable per target
 * [ ] do auto star removal as a separate stage
 * [ ] make default recipes work with dark frames - not just bias frames - REQUIRED for dwarf3
-* [ ] make "repo list" only show user repos
+* [x] make "repo list" only show user repos
 * [ ] make graxpert network check faster & expose an API
 * [ ] **second alpha release approximately here**
+* [ ] make test data even smaller
 * [ ] merge Processing with ProcessingContext?
 * [x] check for required/recommended tools at start.
 * [ ] for debugging purposes generate a mastername.sb.toml file per master - to see input selection choices
