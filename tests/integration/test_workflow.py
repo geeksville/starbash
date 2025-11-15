@@ -64,87 +64,112 @@ class TestRepoAddWorkflow:
     If an early test fails, later tests may also fail.
     """
 
-    def test_add_dwarf3_repo(self, workflow_environment):
-        """Add dwarf3 test data repository."""
+    def _add_test_data_repo(self, workflow_environment, repo_name: str):
+        """Helper to add a test data repository.
+
+        Args:
+            workflow_environment: The workflow fixture providing test paths
+            repo_name: Name of the subdirectory under /test-data (e.g., 'dwarf3', 'asiair')
+        """
         test_data = workflow_environment["test_data_dir"]
-        dwarf3_path = test_data / "dwarf3"
+        repo_path = test_data / repo_name
 
         # Skip if this specific test data doesn't exist
-        if not dwarf3_path.exists():
-            pytest.skip(f"Test data not found: {dwarf3_path}")
+        if not repo_path.exists():
+            pytest.skip(f"Test data not found: {repo_path}")
 
-        result = runner.invoke(app, ["repo", "add", str(dwarf3_path)])
-        assert result.exit_code == 0, f"Failed to add dwarf3 repo: {result.stdout}"
+        result = runner.invoke(app, ["repo", "add", str(repo_path)])
+        assert result.exit_code == 0, f"Failed to add {repo_name} repo: {result.stdout}"
         # Check for success messages (either adding or already added)
         output_lower = result.stdout.lower()
         assert "adding repository" in output_lower or "already added" in output_lower, (
             f"Unexpected output: {result.stdout}"
         )
 
+    def test_add_dwarf3_repo(self, workflow_environment):
+        """Add dwarf3 test data repository."""
+        self._add_test_data_repo(workflow_environment, "dwarf3")
+
     def test_add_asiair_repo(self, workflow_environment):
         """Add asiair test data repository."""
-        test_data = workflow_environment["test_data_dir"]
-        asiair_path = test_data / "asiair"
-
-        if not asiair_path.exists():
-            pytest.skip(f"Test data not found: {asiair_path}")
-
-        result = runner.invoke(app, ["repo", "add", str(asiair_path)])
-        assert result.exit_code == 0, f"Failed to add asiair repo: {result.stdout}"
-        output_lower = result.stdout.lower()
-        assert "adding repository" in output_lower or "already added" in output_lower, (
-            f"Unexpected output: {result.stdout}"
-        )
+        self._add_test_data_repo(workflow_environment, "asiair")
 
     def test_add_nina_repo(self, workflow_environment):
         """Add nina test data repository."""
-        test_data = workflow_environment["test_data_dir"]
-        nina_path = test_data / "nina"
-
-        if not nina_path.exists():
-            pytest.skip(f"Test data not found: {nina_path}")
-
-        result = runner.invoke(app, ["repo", "add", str(nina_path)])
-        assert result.exit_code == 0, f"Failed to add nina repo: {result.stdout}"
-        output_lower = result.stdout.lower()
-        assert "adding repository" in output_lower or "already added" in output_lower, (
-            f"Unexpected output: {result.stdout}"
-        )
+        self._add_test_data_repo(workflow_environment, "nina")
 
     def test_add_seestar_repo(self, workflow_environment):
         """Add seestar test data repository."""
-        test_data = workflow_environment["test_data_dir"]
-        seestar_path = test_data / "seestar"
+        self._add_test_data_repo(workflow_environment, "seestar")
 
-        if not seestar_path.exists():
-            pytest.skip(f"Test data not found: {seestar_path}")
-
-        result = runner.invoke(app, ["repo", "add", str(seestar_path)])
-        assert result.exit_code == 0, f"Failed to add seestar repo: {result.stdout}"
-        output_lower = result.stdout.lower()
-        assert "adding repository" in output_lower or "already added" in output_lower, (
-            f"Unexpected output: {result.stdout}"
-        )
-
-    def test_info_after_repo_add(self, workflow_environment):
+    def test_verify_info_after_repo_add(self, workflow_environment):
         """Verify 'sb info' shows indexed data from added repos."""
         result = runner.invoke(app, ["info"])
         assert result.exit_code == 0, f"'sb info' failed: {result.stdout}"
 
-        # Should show some basic information (exact content depends on test data)
-        # Just verify it runs without crashing
-        assert len(result.stdout) > 0, "Info command should produce output"
+        # Verify expected output contains meaningful data
+        output = result.stdout
+        assert len(output) > 0, "Info command should produce output"
 
-    def test_select_list_after_repo_add(self, workflow_environment):
+        # Check for expected metrics from indexed test data
+        assert "Total Repositories" in output, "Should show total repositories"
+        assert "Sessions Indexed" in output, "Should show sessions indexed"
+        assert "Images Indexed" in output, "Should show images indexed"
+        assert "Total image time" in output, "Should show total image time"
+
+        # Verify we have substantial data indexed (based on test data in /test-data)
+        # Total Repositories should be >12 (package defaults + test data repos)
+        # Sessions should be >40, Images >500, Total time >4h
+        import re
+
+        repos_match = re.search(r"Total Repositories\s+│\s+(\d+)", output)
+        assert repos_match, "Could not find Total Repositories value"
+        total_repos = int(repos_match.group(1))
+        assert total_repos > 12, f"Expected >12 repos, got {total_repos}"
+
+        sessions_match = re.search(r"Sessions Indexed\s+│\s+(\d+)", output)
+        assert sessions_match, "Could not find Sessions Indexed value"
+        sessions = int(sessions_match.group(1))
+        assert sessions > 40, f"Expected >40 sessions, got {sessions}"
+
+        images_match = re.search(r"Images Indexed\s+│\s+(\d+)", output)
+        assert images_match, "Could not find Images Indexed value"
+        images = int(images_match.group(1))
+        assert images > 500, f"Expected >500 images, got {images}"
+
+        time_match = re.search(r"Total image time\s+│\s+(\d+)h", output)
+        assert time_match, "Could not find Total image time value"
+        hours = int(time_match.group(1))
+        assert hours >= 4, f"Expected >=4 hours, got {hours}h"
+
+    def test_verify_select_list_after_repo_add(self, workflow_environment):
         """Verify 'sb select list --brief' shows sessions from added repos."""
         result = runner.invoke(app, ["select", "list", "--brief"])
         assert result.exit_code == 0, f"'sb select list --brief' failed: {result.stdout}"
 
-        # With NO_COLOR, Rich output may be suppressed
-        # Just verify the command completes successfully
-        # (actual output depends on test data content and Rich formatting)
+        output = result.stdout
+        assert len(output) > 0, "Select list should produce output"
 
-    def test_repo_list_shows_added_repos(self, workflow_environment):
+        # Check for "Sessions (X selected out of Y)" header with X and Y > 40
+        import re
+
+        sessions_header_match = re.search(r"Sessions \((\d+) selected out of (\d+)\)", output)
+        assert sessions_header_match, (
+            f"Could not find 'Sessions (X selected out of Y)' header in output:\n{output}"
+        )
+
+        selected_count = int(sessions_header_match.group(1))
+        total_count = int(sessions_header_match.group(2))
+        assert selected_count > 40, f"Expected >40 selected sessions, got {selected_count}"
+        assert total_count > 40, f"Expected >40 total sessions, got {total_count}"
+
+        # Check for at least 4 numbered table rows (format: "│ N   │ ...")
+        table_row_matches = re.findall(r"│\s+(\d+)\s+│", output)
+        assert len(table_row_matches) >= 4, (
+            f"Expected at least 4 table rows, found {len(table_row_matches)}"
+        )
+
+    def test_verify_repo_list_shows_added_repos(self, workflow_environment):
         """Verify all added repos appear in 'sb repo list'."""
         result = runner.invoke(app, ["repo", "list"])
         assert result.exit_code == 0, f"'sb repo list' failed: {result.stdout}"
