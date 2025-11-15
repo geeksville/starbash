@@ -61,7 +61,7 @@
 * [ ] add dwarf3 files to integration tests - fix ghcr.io stuff
 * [ ] explain about PATH https://github.com/geeksville/starbash/issues/5
 * [ ] allow toml target files to be customized
-* [ ] store flats in directory names based on INSTRUMENT not camera
+* [x] store flats in directory names based on INSTRUMENT not camera
 * [ ] do background_removal() as a separate stage via graxpert
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] generate an auto-stretched output as fits and jpg.

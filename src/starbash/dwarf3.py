@@ -66,12 +66,12 @@ def extend_dwarf3_headers(headers: dict[str, Any], full_image_path: Path) -> boo
 
     # Determine camera/instrument from path (cam_0 = TELE, cam_1 = WIDE)
     if "cam_0" in short_path or "TELE" in short_path or "_tele_" in short_path.lower():
-        headers["INSTRUME"] = "TELE"
+        headers[Database.INSTRUME_KEY] = "TELE"
     elif "cam_1" in short_path or "WIDE" in short_path or "_wide_" in short_path.lower():
-        headers["INSTRUME"] = "WIDE"
+        headers[Database.INSTRUME_KEY] = "WIDE"
     else:
         # Default to TELE if we can't determine
-        headers["INSTRUME"] = "TELE"
+        headers[Database.INSTRUME_KEY] = "TELE"
 
     # Conceptually there are two different optical/paths/telescopes inside the Dwarf3.  We need to treat them differently
     # i.e. separate sets of flats/biases/lights etc...  So we give them different instrument names (D3TELE or D3WIDE)

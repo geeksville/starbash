@@ -1005,7 +1005,7 @@ class Starbash:
             required_cameras = repo.get("recipe.auto.require.camera", [])
             if required_cameras:
                 session_camera = self.aliases.normalize(
-                    session_metadata.get("INSTRUME"), lenient=True
+                    session_metadata.get(Database.INSTRUME_KEY), lenient=True
                 )  # Camera identifier
 
                 # Session must have a camera that matches one of the required cameras

@@ -39,7 +39,7 @@ def get_column_name(k: str) -> str:
 
 def metadata_to_instrument_id(metadata: dict[str, Any]) -> str | None:
     """Extract a normalized instrument ID from the metadata."""
-    instrument: str | None = metadata.get("INSTRUME")
+    instrument: str | None = metadata.get(Database.TELESCOP_KEY)
     if instrument:
         instrument = normalize_target_name(instrument)
     return instrument
@@ -48,7 +48,7 @@ def metadata_to_instrument_id(metadata: dict[str, Any]) -> str | None:
 def metadata_to_camera_id(metadata: dict[str, Any]) -> str | None:
     """Extract a normalized camera ID from the metadata."""
     camera_id = metadata.get(
-        "INSTRUME", metadata_to_instrument_id(metadata)
+        Database.INSTRUME_KEY, metadata_to_instrument_id(metadata)
     )  # Fall back to the telescope name
 
     if camera_id:
@@ -104,6 +104,7 @@ class Database:
     IMAGETYP_KEY = "IMAGETYP"
     OBJECT_KEY = "OBJECT"
     TELESCOP_KEY = "TELESCOP"
+    INSTRUME_KEY = "INSTRUME"
     EXPTIME_KEY = "EXPTIME"  # in all image files
     TOTALEXP_KEY = "TOTALEXP"  # in stacked ASI files
     GAIN_KEY = "GAIN"

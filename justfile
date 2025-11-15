@@ -43,6 +43,9 @@ reinit: common-init
 # our small test database
 reinit-small: common-init
     sb repo add ./test-data/inflated/dwarf3
+    sb repo add ./test-data/inflated/asiair
+    sb repo add ./test-data/inflated/nina
+    sb repo add ./test-data/inflated/seestar
     sb info
     sb select list --brief
 
