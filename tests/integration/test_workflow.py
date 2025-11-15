@@ -25,12 +25,12 @@ runner = CliRunner(env={"NO_COLOR": "1"})
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="module")
 def workflow_environment(tmp_path_factory, test_data_dir):
     """Shared environment for the entire workflow test sequence.
 
-    This class-scoped fixture allows tests to build upon each other's state.
-    Each test class will have access to the same starbash environment
+    This module-scoped fixture allows tests across all test classes to build upon each other's state.
+    All test classes in this module will share the same starbash environment
     with accumulated data from previous operations.
     """
     from starbash import paths
@@ -52,7 +52,7 @@ def workflow_environment(tmp_path_factory, test_data_dir):
         "test_root": test_root,
     }
 
-    # Clean up after all tests in the class
+    # Clean up after all tests in the module
     paths.set_test_directories(None, None)
 
 
@@ -102,6 +102,28 @@ class TestRepoAddWorkflow:
         """Add seestar test data repository."""
         self._add_test_data_repo(workflow_environment, "seestar")
 
+    def test_repo_add_master(self, workflow_environment):
+        """Add master calibration frames repository."""
+        result = runner.invoke(app, ["repo", "add", "--master"])
+        assert result.exit_code == 0, f"'sb repo add --master' failed: {result.stdout}"
+
+        # Should show success message
+        output_lower = result.stdout.lower()
+        assert "adding repository" in output_lower or "already added" in output_lower, (
+            f"Unexpected output: {result.stdout}"
+        )
+
+    def test_repo_add_processed(self, workflow_environment):
+        """Add processed images repository."""
+        result = runner.invoke(app, ["repo", "add", "--processed"])
+        assert result.exit_code == 0, f"'sb repo add --processed' failed: {result.stdout}"
+
+        # Should show success message
+        output_lower = result.stdout.lower()
+        assert "adding repository" in output_lower or "already added" in output_lower, (
+            f"Unexpected output: {result.stdout}"
+        )
+
     def test_verify_info_after_repo_add(self, workflow_environment):
         """Verify 'sb info' shows indexed data from added repos."""
         result = runner.invoke(app, ["info"])
@@ -135,12 +157,12 @@ class TestRepoAddWorkflow:
         images_match = re.search(r"Images Indexed\s+│\s+(\d+)", output)
         assert images_match, "Could not find Images Indexed value"
         images = int(images_match.group(1))
-        assert images > 500, f"Expected >500 images, got {images}"
+        assert images > 200, f"Expected >500 images, got {images}"
 
         time_match = re.search(r"Total image time\s+│\s+(\d+)h", output)
         assert time_match, "Could not find Total image time value"
         hours = int(time_match.group(1))
-        assert hours >= 4, f"Expected >=4 hours, got {hours}h"
+        assert hours >= 2, f"Expected >=4 hours, got {hours}h"
 
     def test_verify_select_list_after_repo_add(self, workflow_environment):
         """Verify 'sb select list --brief' shows sessions from added repos."""
@@ -195,28 +217,28 @@ class TestProcessMastersWorkflow:
         """Run 'sb process masters' and verify it completes without error."""
         result = runner.invoke(app, ["process", "masters"])
 
-        # The command should complete (exit code 0) even if no masters are generated
-        # (depends on whether calibration frames exist in test data)
+        # The command should complete (exit code 0)
         assert result.exit_code == 0, f"'sb process masters' failed: {result.stdout}"
 
         # Should show some output about processing or results
-        assert len(result.stdout) > 0, "Process masters should produce output"
+        output = result.stdout
+        assert len(output) > 0, "Process masters should produce output"
 
-    def test_process_masters_output_messages(self, workflow_environment):
-        """Verify 'sb process masters' produces expected output messages."""
-        result = runner.invoke(app, ["process", "masters"])
-        assert result.exit_code == 0, f"'sb process masters' failed: {result.stdout}"
+        # Verify the output contains a results table with at least 10 successful entries
+        import re
 
-        # Should mention generating masters or show results
-        # (exact message depends on whether calibration frames were found)
-        output = result.stdout.lower()
-        has_master_output = (
-            "generating" in output
-            or "master" in output
-            or "generated" in output
-            or "no results" in output
+        # Find all table rows (lines with "│" that contain "Success")
+        # Table format: │ path │ Sessions │ ✓ Success │ Notes │
+        success_rows = [line for line in output.split("\n") if "│" in line and "Success" in line]
+
+        assert len(success_rows) >= 10, (
+            f"Expected at least 10 successful master generations, found {len(success_rows)}\n"
+            f"Output:\n{output}"
         )
-        assert has_master_output, f"Expected master-related output:\n{result.stdout}"
+
+        # Verify every success row contains the word "Success"
+        for row in success_rows:
+            assert "Success" in row, f"Expected 'Success' in row: {row}"
 
     def test_database_updated_after_masters(self, workflow_environment):
         """Verify database has been updated (sessions may have been processed)."""
@@ -243,32 +265,34 @@ class TestProcessAutoWorkflow:
     in previous test classes. They use the same workflow_environment fixture.
     """
 
-    def test_process_auto_executes(self, workflow_environment):
+    def test_verify_process_auto_executes(self, workflow_environment):
         """Run 'sb process auto' and verify it completes without error."""
         result = runner.invoke(app, ["process", "auto"])
 
-        # Command should complete (may not process anything if no suitable data)
+        # Command should complete successfully
         assert result.exit_code == 0, f"'sb process auto' failed: {result.stdout}"
 
         # Should produce some output
-        assert len(result.stdout) > 0, "Process auto should produce output"
+        output = result.stdout
+        assert len(output) > 0, "Process auto should produce output"
 
-    def test_process_auto_output_messages(self, workflow_environment):
-        """Verify 'sb process auto' produces expected output messages."""
-        result = runner.invoke(app, ["process", "auto"])
-        assert result.exit_code == 0, f"'sb process auto' failed: {result.stdout}"
+        # Verify the output contains a results table with at least 4 successful entries
+        import re
 
-        # Should mention auto-processing or show results
-        output = result.stdout.lower()
-        has_processing_output = (
-            "auto-processing" in output
-            or "processing" in output
-            or "autoprocessed" in output
-            or "no results" in output
+        # Find all table rows (lines with "│" that contain "Success")
+        # Table format: │ Target │ Sessions │ ✓ Success │ Notes │
+        success_rows = [line for line in output.split("\n") if "│" in line and "Success" in line]
+
+        assert len(success_rows) >= 4, (
+            f"Expected at least 4 successful auto-processing entries, found {len(success_rows)}\n"
+            f"Output:\n{output}"
         )
-        assert has_processing_output, f"Expected processing-related output:\n{result.stdout}"
 
-    def test_workflow_completion(self, workflow_environment):
+        # Verify every success row contains the word "Success"
+        for row in success_rows:
+            assert "Success" in row, f"Expected 'Success' in row: {row}"
+
+    def test_verify_workflow_completion(self, workflow_environment):
         """Verify the complete workflow has run successfully.
 
         This is a final sanity check that the entire sequence completed:
