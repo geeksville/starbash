@@ -30,7 +30,11 @@
 		// "--ulimit=core=-1:-1" // Allow core dumps
 		// NOTE: Not allowed in github CI devcontainers
 		"--userns=keep-id:uid=1000,gid=1000",
+		// We pre-create this data-only container in initializeCommand
+		"--volumes-from=starbash-test-data:ro"
 	],
+	// Download and initialize the test-data container
+	"initializeCommand": "docker rm -f starbash-test-data || true && docker create --name starbash-test-data ghcr.io/geeksville/starbash/test-data:latest",
 	"mounts": [
 		// NOTE: None of the following are allowed in GitHub CI devcontainers
 		// Needed for x11 forwarding, but throws: invalid mount config for type "bind": bind source path does not exist: /run/user/1000

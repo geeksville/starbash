@@ -33,19 +33,19 @@ common-init: clean-cache clean-config clean-masters install-completion
     sb repo add --processed ./images/processed
 
 # Use our 'big' test database
-reinit: common-init
+reinit-big: common-init
     sb repo add ./images/from_asiair
     sb repo add ./images/from_seestar
     sb repo add ./images/from_astroboy
     sb info
     sb select list --brief
 
-# our small test database
-reinit-small: common-init
-    sb repo add ./test-data/inflated/dwarf3
-    sb repo add ./test-data/inflated/asiair
-    sb repo add ./test-data/inflated/nina
-    sb repo add ./test-data/inflated/seestar
+# our small standard set of test images (from ghcr.io/geeksville/starbash/test-data:latest)
+reinit: common-init
+    sb repo add /test-data/dwarf3
+    sb repo add /test-data/asiair
+    sb repo add /test-data/nina
+    sb repo add /test-data/seestar
     sb info
     sb select list --brief
 

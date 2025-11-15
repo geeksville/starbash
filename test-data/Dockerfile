@@ -1,5 +1,6 @@
 # Start from a 'scratch' image. It's literally empty.
-FROM scratch
+#FROM scratch
+FROM alpine:latest
 
 # backpointer for info on ghcr.io
 LABEL org.opencontainers.image.source https://github.com/geeksville/starbash
