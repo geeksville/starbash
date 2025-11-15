@@ -51,22 +51,24 @@
 * [x] look for STACKCNT in input images - if populated (i.e. in prestacked biases from another platform) that is a great indication it was a processed/stacked file
 * [x] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
 * [x] fix remaining tool failures (just fail-ngc7023)
-* [x] **first public alpha** at approximately this point
+* [x] **first public alpha (reddit)** at approximately this point
 * [ ] fix dwarf3 (bug #1) investigation by @codegistics
 * [x] osx path finding fixes by @jmachuca77 (bug #2)
 * [ ] always regen masters after adding a repo
 * [x] don't warn for "[tool-warnings] Reading sequence failed, file cannot be opened: *.seq. Reading sequence failed, file cannot be opened: *.seq." because harmless
 * [x] add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
-* [x] move the recipe repos to their own github - stop pulling them as python resources
+* [x] move the recipe repos to [their own github ](https://github.com/geeksville/starbash-recipes/)- stop pulling them as python resources
 * [ ] add dwarf3 files to integration tests - fix ghcr.io stuff
+* [ ] explain about PATH https://github.com/geeksville/starbash/issues/5
 * [ ] allow toml target files to be customized
 * [ ] store flats in directory names based on INSTRUMENT not camera
 * [ ] do background_removal() as a separate stage via graxpert
-* [ ] ask friends to send me the result of session list (with extra diagnostics turned on)
+* [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] generate an auto-stretched output as fits and jpg.
 * [ ] make OSC options user customizable per target
 * [ ] do auto star removal as a separate stage
-* [ ] make recipes work with dark frames - not just bias frames
+* [ ] make default recipes work with dark frames - not just bias frames
+* [ ] make graxpert network check faster & expose an API
 * [ ] **second alpha release approximately here**
 * [ ] merge Processing with ProcessingContext?
 * [x] check for required/recommended tools at start.
