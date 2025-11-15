@@ -1,6 +1,6 @@
 # [Starbash](https://github.com/geeksville/starbash)
 
-<img src="https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/img/icon.png" alt="Starbash: Astrophotography workflows simplified" width="30%" align="right" style="margin-bottom: 20px;">
+<img src="https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/img/icon.jpg" alt="Starbash: Astrophotography workflows simplified" width="30%" align="right" style="margin-bottom: 20px;">
 
 [![PyPI - Version](https://img.shields.io/pypi/v/starbash)](https://pypi.org/project/starbash/)
 [![Continuous Integration](https://github.com/geeksville/starbash/actions/workflows/ci.yml/badge.svg)](https://github.com/geeksville/starbash/actions/workflows/ci.yml)
