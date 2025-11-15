@@ -14,20 +14,6 @@ from pathlib import Path
 
 import pytest
 
-# Check if xdist is being used for integration tests
-if "PYTEST_XDIST_WORKER" in os.environ:
-    # We're in a xdist worker - integration tests should not run in parallel!
-    pytest.exit(
-        "\n\n"
-        "❌ ERROR: Integration tests cannot run in parallel!\n"
-        "Integration tests build upon each other's state and must run sequentially.\n"
-        "\n"
-        "Please use: pytest -m integration -n 0\n"
-        "\n"
-        "The -n 0 flag disables parallel execution.\n",
-        returncode=1,
-    )
-
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_integration_logging():
@@ -72,8 +58,22 @@ def test_data_dir():
     """Provide path to test data directory.
 
     Checks if /test-data exists and skips tests if not available.
+    Also checks if integration tests are being run in parallel and fails if so.
     This is a session-scoped fixture since the test data location doesn't change.
     """
+    # Check for parallel execution (only runs when integration tests are actually executed)
+    if "PYTEST_XDIST_WORKER" in os.environ:
+        pytest.fail(
+            "\n\n"
+            "❌ ERROR: Integration tests cannot run in parallel!\n"
+            "Integration tests build upon each other's state and must run sequentially.\n"
+            "\n"
+            "Please use: pytest -m integration -n 0\n"
+            "\n"
+            "The -n 0 flag disables parallel execution.\n",
+            pytrace=False,
+        )
+
     test_data_path = Path("/test-data")
 
     if not test_data_path.exists():
