@@ -18,6 +18,41 @@ Tests are organized into three sequential test classes:
 
 Each test class builds upon the state created by previous classes, so test order matters.
 
+## Troubleshooting
+
+### Error: "Integration tests cannot run in parallel!"
+
+If you see this error message:
+
+```
+❌ ERROR: Integration tests cannot run in parallel!
+Please use: pytest -m integration -n 0
+```
+
+This means you forgot to add the `-n 0` flag. Integration tests **must** run sequentially because they build upon each other's state. Simply add `-n 0` to your command:
+
+```bash
+pytest -m integration -n 0
+```
+
+## Log Output
+
+Integration tests automatically capture all log messages (DEBUG level and higher) to `/tmp/sb-integration-log.txt`. This file is created fresh each time you run integration tests and contains detailed logging information that can be helpful for debugging test failures or understanding the workflow.
+
+To view the log output after running tests:
+
+```bash
+# View the entire log file
+cat /tmp/integration-logout.txt
+
+# View the last 50 lines
+tail -50 /tmp/integration-logout.txt
+
+# Search for specific errors or warnings
+grep -i error /tmp/integration-logout.txt
+grep -i warning /tmp/integration-logout.txt
+```
+
 ## Prerequisites
 
 ### Test Data Setup
@@ -44,22 +79,24 @@ poetry install --with dev
 
 ## Running Integration Tests
 
+**IMPORTANT**: Integration tests **must** run sequentially (not in parallel) because they build upon each other's state. If you forget to add `-n 0`, you'll see a clear error message instructing you to add it.
+
 ### Run All Integration Tests
 
 Integration tests are marked with `@pytest.mark.integration` and **excluded by default** because they are slow. These tests must run **sequentially** (not in parallel) because they build upon each other's state:
 
 ```bash
 # Run only integration tests (sequentially)
-pytest -m integration -n 0 tests/integration/
+pytest -m integration -n 0
 
 # Or with verbose output
-pytest -m integration -n 0 -v tests/integration/
+pytest -m integration -n 0 -v
 
 # Run specific test file
 pytest -m integration -n 0 tests/integration/test_workflow.py
 ```
 
-**Important**: The `-n 0` flag disables parallel execution, which is required because tests build upon accumulated state from previous tests.
+**Important**: The `-n 0` flag disables parallel execution, which is **required** because tests build upon accumulated state from previous tests. If you run `pytest -m integration` without `-n 0`, you will get a helpful error message telling you to add it.
 
 ### Run Specific Test Classes
 

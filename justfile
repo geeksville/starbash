@@ -157,3 +157,6 @@ test:
 # a slow through test
 test-slow: test process-one
 
+test-integration:
+    poetry run pytest -m integration -n 0
+

@@ -3,11 +3,68 @@
 Note: Common fixtures like setup_test_environment and mock_analytics
 are defined in tests/conftest.py and shared across all tests.
 This file contains only integration-specific fixtures.
+
+IMPORTANT: Integration tests must run sequentially (not in parallel) because
+they build upon each other's state. Always use: pytest -m integration -n 0
 """
 
+import logging
+import os
 from pathlib import Path
 
 import pytest
+
+# Check if xdist is being used for integration tests
+if "PYTEST_XDIST_WORKER" in os.environ:
+    # We're in a xdist worker - integration tests should not run in parallel!
+    pytest.exit(
+        "\n\n"
+        "❌ ERROR: Integration tests cannot run in parallel!\n"
+        "Integration tests build upon each other's state and must run sequentially.\n"
+        "\n"
+        "Please use: pytest -m integration -n 0\n"
+        "\n"
+        "The -n 0 flag disables parallel execution.\n",
+        returncode=1,
+    )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_integration_logging():
+    """Configure logging for integration tests to write to /tmp/integration-logout.txt.
+
+    This fixture runs automatically for all integration tests (autouse=True) and
+    captures all log messages at DEBUG level and higher to a file.
+    """
+    log_file = Path("/tmp/sb-integration-log.txt")
+
+    # Create a file handler for the log file
+    file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+
+    # Create a formatter
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    file_handler.setFormatter(formatter)
+
+    # Get the root logger and add our handler
+    root_logger = logging.getLogger()
+    original_level = root_logger.level
+    root_logger.setLevel(logging.DEBUG)
+    root_logger.addHandler(file_handler)
+
+    # Also ensure starbash logger is at DEBUG level
+    starbash_logger = logging.getLogger("starbash")
+    starbash_logger.setLevel(logging.DEBUG)
+
+    yield
+
+    # Clean up: remove the handler and restore original level
+    root_logger.removeHandler(file_handler)
+    root_logger.setLevel(original_level)
+    file_handler.close()
 
 
 @pytest.fixture(scope="session")
