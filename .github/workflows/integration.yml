@@ -110,6 +110,8 @@ jobs:
           sudo mkdir -p /test-data
           # Copy data from the container to /test-data
           docker cp test-data-container:/test-data/. /test-data/
+          # Fix ownership so the runner can access files copied from the container
+          sudo chown -R $(id -u):$(id -g) /test-data
           # Remove the container
           docker rm test-data-container
           # Verify the data was extracted
