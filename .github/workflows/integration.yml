@@ -1,0 +1,125 @@
+name: Integration Tests
+
+on:
+  workflow_dispatch:  # Allows manual triggering from GitHub UI
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    environment: ci
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 2.2.1
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          virtualenvs-path: .venv
+          installer-parallel: true
+
+      #----------------------------------------------
+      # Load cached venv if cache exists
+      #----------------------------------------------
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-ubuntu-latest-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+
+      #----------------------------------------------
+      # Install dependencies if cache does not exist
+      #----------------------------------------------
+      - name: Install dependencies
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction --with dev
+
+      #----------------------------------------------
+      # Cache pipx installations
+      #----------------------------------------------
+      - name: Load cached pipx
+        id: cached-pipx
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/pipx
+            ~/.local/bin
+          key: pipx-ubuntu-latest-${{ hashFiles('.github/workflows/integration.yml') }}
+
+      #----------------------------------------------
+      # Cache Flatpak installations
+      #----------------------------------------------
+      - name: Load cached Flatpak
+        id: cached-flatpak
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/flatpak
+          key: flatpak-ubuntu-latest-${{ hashFiles('.github/workflows/integration.yml') }}
+
+      #----------------------------------------------
+      # Install GraXpert and Siril
+      #----------------------------------------------
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flatpak pipx
+
+      - name: Install GraXpert
+        if: steps.cached-pipx.outputs.cache-hit != 'true'
+        run: |
+          pipx install graxpert[cpuonly]
+
+      - name: Add pipx to PATH
+        run: |
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Install Siril via Flatpak
+        if: steps.cached-flatpak.outputs.cache-hit != 'true'
+        run: |
+          # Add flathub remote
+          flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          # Install Siril
+          flatpak install --user -y flathub org.siril.Siril
+
+      - name: Configure Flatpak and add to PATH
+        run: |
+          # Let siril see /tmp
+          flatpak --user override --filesystem=/tmp org.siril.Siril
+
+      #----------------------------------------------
+      # Extract test-data from Docker image
+      #----------------------------------------------
+      - name: Extract test-data from Docker image
+        run: |
+          # Pull the image
+          docker pull ghcr.io/geeksville/starbash/test-data:latest
+          # Create a container (doesn't need to run)
+          docker create --name test-data-container ghcr.io/geeksville/starbash/test-data:latest
+          # Create mount point
+          sudo mkdir -p /test-data
+          # Copy data from the container to /test-data
+          docker cp test-data-container:/test-data/. /test-data/
+          # Remove the container
+          docker rm test-data-container
+          # Verify the data was extracted
+          ls -la /test-data/
+          echo "Test data extracted successfully"
+
+      #----------------------------------------------
+      # Run integration tests
+      #----------------------------------------------
+      - name: Run integration tests
+        env:
+          SENTRY_ENVIRONMENT: ci
+        run: poetry run pytest -m integration -n 0 -v
