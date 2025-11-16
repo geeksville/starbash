@@ -14,7 +14,17 @@ def setup_test_environment(tmp_path):
     This fixture is used by both unit and integration tests to provide
     isolated temporary directories for config and data, preventing tests
     from interfering with real user data or with each other.
+
+    Also saves and restores global starbash state variables
+    (verbose_output, force_regen, log_filter_level) to prevent test pollution.
     """
+    import starbash
+
+    # Save original global state
+    original_verbose = starbash.verbose_output
+    original_force_regen = starbash.force_regen
+    original_log_level = starbash.log_filter_level
+
     config_dir = tmp_path / "config"
     data_dir = tmp_path / "data"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -27,6 +37,11 @@ def setup_test_environment(tmp_path):
 
     # Clean up: reset to None after test
     paths.set_test_directories(None, None)
+
+    # Restore original global state to prevent test pollution
+    starbash.verbose_output = original_verbose
+    starbash.force_regen = original_force_regen
+    starbash.log_filter_level = original_log_level
 
 
 @pytest.fixture

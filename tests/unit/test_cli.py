@@ -1,7 +1,5 @@
 """Tests for CLI commands to ensure they don't crash on invocation."""
 
-from pathlib import Path
-
 import pytest
 from typer.testing import CliRunner
 
@@ -9,58 +7,9 @@ from starbash import paths
 from starbash.database import Database, get_column_name
 from starbash.main import app
 
-# Rich formatting is automatically disabled when PYTEST_CURRENT_TEST is set
-# (see src/starbash/__init__.py), so test output is plain text without ANSI codes
-runner = CliRunner()
-
-import re
-from pathlib import Path
-
-import pytest
-from typer.testing import CliRunner
-
-from starbash import paths
-from starbash.database import Database
-from starbash.main import app
-
 # Configure CliRunner to disable Rich formatting by setting NO_COLOR env var
 # This makes Rich automatically disable all ANSI codes and formatting
 runner = CliRunner(env={"NO_COLOR": "1"})
-
-
-@pytest.fixture
-def setup_test_environment(tmp_path):
-    """Setup a test environment with isolated config and data directories.
-
-    This is a specialized version of the shared setup_test_environment fixture
-    that additionally saves and restores global starbash state variables
-    (verbose_output, force_regen, log_filter_level) to prevent test pollution.
-    """
-    import starbash
-
-    # Save original global state
-    original_verbose = starbash.verbose_output
-    original_force_regen = starbash.force_regen
-    original_log_level = starbash.log_filter_level
-
-    # Create isolated directories for testing
-    config_dir = tmp_path / "config"
-    data_dir = tmp_path / "data"
-    config_dir.mkdir(parents=True, exist_ok=True)
-    data_dir.mkdir(parents=True, exist_ok=True)
-
-    # Set the override directories for this test
-    paths.set_test_directories(config_dir, data_dir)
-
-    yield {"config_dir": config_dir, "data_dir": data_dir}
-
-    # Clean up: reset to None after test
-    paths.set_test_directories(None, None)
-
-    # Restore original global state to prevent test pollution
-    starbash.verbose_output = original_verbose
-    starbash.force_regen = original_force_regen
-    starbash.log_filter_level = original_log_level
 
 
 def test_session_command_no_data(setup_test_environment):
@@ -201,9 +150,9 @@ def test_repo_list_verbose(setup_test_environment):
         stripped = line.strip()
         if stripped:
             # Should start with pkg:// or file://, not a number
-            assert stripped.startswith("pkg://") or stripped.startswith(
-                "file://"
-            ), f"Verbose mode should not show numbers, but got: {stripped}"
+            assert stripped.startswith("pkg://") or stripped.startswith("file://"), (
+                f"Verbose mode should not show numbers, but got: {stripped}"
+            )
 
 
 def test_repo_add_command(setup_test_environment, tmp_path):
