@@ -143,3 +143,6 @@ class Aliases:
         norm1 = self.normalize(name1.strip())
         norm2 = self.normalize(name2.strip())
         return norm1 == norm2
+
+
+instance: Aliases = Aliases({})  # Global singleton instance (normally reinitialized by app)
