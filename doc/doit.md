@@ -25,7 +25,8 @@ stages would be selected based on what stages are permitted by auto.require?
 
 any way to link these stages based on the output files also?
 
-## typical graph'
+## Notes
+
 When doing processing we have as inputs:
 * a set of **possible** recipes
 * a set of **possible** raw darks, flats and biases
@@ -34,13 +35,50 @@ When doing processing we have as inputs:
 Based on the targets in the selected light sessions we can build a set of required outputs:
 * a set of output targetdirs with a glob showing mininum set of files for success?
 
-A typical (after culling) set of tasks is something like this (dual duo band OSC filter shown):
-
 FIXME: explain culling and how it fits into the workflow.
 
 The single boxes are one once, the stacked boxes (like in 'calibrate_lights') are run once per session.
 
 Tasks are only run if they are needed by a downstream task.  i.e. most times raws_to_master_flat will not need to run at all.  Because the graph will capture the input file to output file dependencies.
+
+Each of the tasks are implemented by a single Tool (currently Siril, Graxpert or python).  As an optimization before execution any adjacent Siril tasks will be merged into a **single** Siril invocation.
+
+Initially use the current master-gen code, but plan for possibly using dependencies for that as well.
+
+## doit concepts
+
+Create a custom task loader to create (programmatically) my tree of tasks: https://pydoit.org/extending.html#example-pre-defined-task
+
+A Task dict has:
+* name
+* help
+* actions
+* (optional) file_dep: list[str]
+* (optional) targets: list[str]
+Note: if file_dep and targets are equal between two different tasks (as a str cmp), doit will automatically realize there is a dependency there
+
+Possibly the main entrypoint to start dependency processing would be (after creating and culling tasks) would be something like "doit graxpert_noise_elim:{targetdir}/no-noise.fits. https://pydoit.org/tasks.html#sub-task-selection?
+Stages could force doit to be invoked by having a line something like:
+default_outputs = [ "{taskdir}/nonoise.fits" ]
+which would cause the corresponding created task to be referenced by our doit code?
+
+Or instead/in-addition doit supports wildcard resolution so "doit graxpert_noise_elim:{taskdir}/*.fits" would match against any fits file the corrsponding task lists as its "targets"
+
+
+Make a custom ToolAction that uses our tool concept.
+
+tasks are passed source, sinks and targets.  These are the key links for dependencies?
+https://pydoit.org/tutorial-1.html
+
+task can return task-groups (with yield).  Use this for stuff like multisession image calibration? https://pydoit.org/tutorial-1.html#package-imports
+
+Use "uptodate" to create extra dependencies on the recipes that were used to make particular tasks.  https://pydoit.org/dependencies.html
+
+
+
+## typical graph
+
+A typical (after culling) set of tasks is something like this (dual duo band OSC filter shown):
 
 ```mermaid
 %% to experiment with mermaid GUI go here:
@@ -73,8 +111,12 @@ flowchart
     update_fits_metadata --> save_ha
     update_fits_metadata --> save_s2
 
-    save_o3 --> t1["{targdir}/o3.fits"]@{ shape: das}
-    save_ha --> t2["{targdir}/ha.fits"]@{ shape: das}
-    save_s2 --> t3["{targdir}/s2.fits"]@{ shape: das}
+    save_o3 --> |"{targdir}/o3.fits"|pixmath_combine
+    save_ha --> |"{targdir}/ha.fits"|pixmath_combine
+    save_s2 --> |"{targdir}/s2.fits"|pixmath_combine
+
+    pixmath_combine --> |"{targdir}/combined.fits"| graxpert_bkg_removal
+    graxpert_bkg_removal --> |"{targdir}/no_bkg.fits"|graxpert_noise_elim
+    graxpert_noise_elim --> g1["{targetdir}/no_noise.fits"]@{ shape: das}
 ```
 
