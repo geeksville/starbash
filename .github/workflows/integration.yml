@@ -105,24 +105,21 @@ jobs:
           echo "::group::Pull test-data Docker image"
           docker pull ghcr.io/geeksville/starbash/test-data:latest
           echo "::endgroup::"
-          
+
           echo "::group::Create container from image"
           docker create --name test-data-container ghcr.io/geeksville/starbash/test-data:latest
           echo "::endgroup::"
-          
+
           echo "::group::Create mount point and copy data"
           sudo mkdir -p /test-data
-          docker cp test-data-container:/test-data/. /test-data/
-          echo "::endgroup::"
-          
-          echo "::group::Fix file ownership"
           sudo chown -R $(id -u):$(id -g) /test-data
+          docker cp test-data-container:/test-data/. /test-data
           echo "::endgroup::"
-          
+
           echo "::group::Clean up container"
           docker rm test-data-container
           echo "::endgroup::"
-          
+
           echo "::group::Verify extracted data"
           ls -la /test-data/
           echo "Test data extracted successfully"
