@@ -84,6 +84,7 @@
 				"github.copilot",
 				"skellock.just",
 				"detachhead.basedpyright",
+				"bierner.markdown-mermaid"
 				// "google.geminicodeassist"
 			],
 			"settings": {

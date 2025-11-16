@@ -127,6 +127,8 @@ def make_renormalize(channel_num: int):
             # -transf=shift fails sometimes, which I guess is possible because we have multiple sessions with possible different camera rotation
             # -interp=none also fails sometimes, so let default interp happen
             # -drizzle is required for success on many images
+            # FIXME - I don't thing this register is required anymore
+            # we do it in earlier stages.  But leaving now until I can test
             register results -drizzle
             pm {pm_oiii}
             update_key FILTER Oiii "OSC Duo filter extracted"
