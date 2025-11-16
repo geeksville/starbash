@@ -77,7 +77,9 @@ To do culling we'd build a list of targets.  If we ever have multiple stages (pr
 
 Masters could be disambigated the same way, because there would be a stage that has an output of "{procdir}/master-dark.fits".  Presumably there could be multiple master-raw sessions all mapping to the same final master-dark.fits filename.  That conflict would result in the exact same (shared code and everything) resolution for master Candidates and just picking one.
 
-All stages would have a unique well known name, for instance com.geeksville.osc_dual_duo.  There would be a few standard kind (so that stackers could be compared to stackers etc) [ "gen.master.dark", "gen.calibrate.lights", "gen.stack.final" ]?
+All stages would have a unique well known long_name, for instance com.geeksville.osc_dual_duo_stack.  In fact, we can auto construct this from the recipe url.  The short name would just be osc_dual_duo_stack in this case (assuming the recipe file was osc_dual_duo and the name entry in that file was "stack")
+
+There would be a few standard kind (so that stackers could be compared to stackers etc) [ "gen.master.dark", "gen.calibrate.lights", "gen.stack.final" ]?
 
 How would kind work for things like the possibly 1 to 5 different substages of light pipelnes? FIXME how to let that mixand match?
 * consider calibrate_lights stage?  it would input from {session_lights}/*.fits.  It would output to "{procdir}/lights_.seq"
