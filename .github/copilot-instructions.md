@@ -19,7 +19,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 - **User directories** (via platformdirs):
   - Config: `~/.config/starbash/` (or platform equivalent) — stores `starbash.toml` user preferences
   - Data: `~/.local/share/starbash/` (or platform equivalent) — stores `db.sqlite3` and `selection.json`
-- **Test isolation**: `paths.set_test_directories(config_dir, data_dir)` overrides paths for test fixtures
+- **Test isolation**: `paths.set_test_directories(config_dir, data_dir, documents_dir_override=documents_dir)` overrides paths for test fixtures
 - **Database schema**:
   - `images` table: stores FITS metadata as JSON in `metadata` column, indexed by `path`
   - `sessions` table: aggregates images by (start, end, filter, imagetyp, object, num_images, exptime_total)
@@ -100,7 +100,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 - **Run**: `sb [command]` (which is provided by poetry's venv)
 - **Test**: `poetry run pytest` (auto-deselects slow tests via marker)
   - **300 tests total** across 10 test modules, comprehensive coverage
-  - Tests use isolated directories via `paths.set_test_directories()`
+  - Tests use isolated directories via `paths.set_test_directories(config_dir, data_dir, documents_dir_override=documents_dir)`
   - `tests/test_cli.py` — CLI invocation tests (select, repo, user commands)
   - `tests/test_database.py` — SQLite operations and schema
   - `tests/test_repo_manager.py` — repo loading and precedence

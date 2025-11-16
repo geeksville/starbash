@@ -39,15 +39,18 @@ def workflow_environment(tmp_path_factory, test_data_dir):
     test_root = tmp_path_factory.mktemp("workflow")
     config_dir = test_root / "config"
     data_dir = test_root / "data"
+    documents_dir = test_root / "documents"
     config_dir.mkdir(parents=True, exist_ok=True)
     data_dir.mkdir(parents=True, exist_ok=True)
+    documents_dir.mkdir(parents=True, exist_ok=True)
 
-    # Set the override directories
-    paths.set_test_directories(config_dir, data_dir)
+    # Set the override directories (including documents_dir to prevent writing to real user Documents)
+    paths.set_test_directories(config_dir, data_dir, documents_dir_override=documents_dir)
 
     yield {
         "config_dir": config_dir,
         "data_dir": data_dir,
+        "documents_dir": documents_dir,
         "test_data_dir": test_data_dir,
         "test_root": test_root,
     }
