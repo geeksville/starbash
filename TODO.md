@@ -68,6 +68,7 @@
 * [ ] make OSC options user customizable per target
 * [ ] do auto star removal as a separate stage
 * [ ] add "darkorbias" as an input type.  make default recipes work with dark frames - not just bias frames - REQUIRED for dwarf3
+* [ ] find a way to run the integration tests on a Windows VM (for #1 testing)
 * [x] make "repo list" only show user repos
 * [ ] make graxpert network check faster & expose an API
 * [ ] cleanup how different stages dependencies work together: bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
