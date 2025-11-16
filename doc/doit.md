@@ -45,11 +45,25 @@ Each of the tasks are implemented by a single Tool (currently Siril, Graxpert or
 
 Initially use the current master-gen code, but plan for possibly using dependencies for that as well.
 
+Eventually support 'watch' by setting the watch entry for source repos. https://pydoit.org/cmd-other.html#auto-watch
+
 ## Stages -> tasks
 
 Possibly a 1:1 relationship between recipe stages and doit tasks?  Each stage would be quite a bit smaller than the current implementation.  But a stage would be required to specify outputfiles in the output direction.  It would also be required to specify either input files or input-stages for dependency linking.
 
 Stages could have auto.requires directives to determine if they are candidates.
+
+Stages would have a multiplex? option.  two are are supported "per-session" (used for light calibration or making dark frames).  This kind of stage will have multiple tasks created - one per session (for the current target).  and "post-session" - which will create one task per target (for things like stacking etc...).  In the future it would be easy to add stages like "pre-session" (once per target before sessions) and even something like "on-app-start"?
+
+Remove the existing master-stages and stages arrays.  they are not needed.
+
+make a make_tasks(stage: stage, sessions: list[SessionRow]) -> list[tasks] method in processing?
+
+## master generation
+
+could it be as simple as using the regular make_tasks() but passing in all the dark sessions and expecting them to output to {targetdir}/mastername-but-generated-from-session-info?
+
+FIXME test writing a new make masters and a new osc preprocess script...
 
 ## Culling
 
@@ -63,9 +77,20 @@ To do culling we'd build a list of targets.  If we ever have multiple stages (pr
 
 Masters could be disambigated the same way, because there would be a stage that has an output of "{procdir}/master-dark.fits".  Presumably there could be multiple master-raw sessions all mapping to the same final master-dark.fits filename.  That conflict would result in the exact same (shared code and everything) resolution for master Candidates and just picking one.
 
-All stages would have a unique well known name, for instance com.geeksville.osc_dual_duo.  There would be a few standard kind (so that stackers could be compared to stackers etc) [ "gen.master.dark", "gen.calibrate.lights", "gen.stack.final" ].
+All stages would have a unique well known name, for instance com.geeksville.osc_dual_duo.  There would be a few standard kind (so that stackers could be compared to stackers etc) [ "gen.master.dark", "gen.calibrate.lights", "gen.stack.final" ]?
 
-How would kind work for things like the possibly 1 to 5 different substages of light pipelnes? FIXME how to let that mixand match
+How would kind work for things like the possibly 1 to 5 different substages of light pipelnes? FIXME how to let that mixand match?
+* consider calibrate_lights stage?  it would input from {session_lights}/*.fits.  It would output to "{procdir}/lights_.seq"
+* the pp_lights stage would input from "{procdir}/lights_.seq" and output to "{procdir}pp_lights_.seq".
+* seqextract_hao3 inputs from pp_lights.seq and outputs to pp_final.seq.
+
+**pp_final.seq** would be considered the required standard output of the entire "gen.calibrate.lights" 'kind'.  In the duo filter case there is a "seqextract_hao3" stage to generate that.  How do we handle the more common "just OSC" case?
+
+I think we handle it by including (lower priority?) stages called "osc_cal_final" which depends on pp_lights.seq and outputs pp_final.seq (by just creating a symlink?  or somehow otherwise coupling without a file in doit dependencies? FIXME)
+
+If that results in a conflict we could handle it like any other?  I'm not yet suer FIXME
+
+btw: I think this would nicely allow Nina lights sessions to be nicely stackable with Seestar lights.
 
 ## doit concepts
 
