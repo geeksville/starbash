@@ -102,19 +102,31 @@ jobs:
       #----------------------------------------------
       - name: Extract test-data from Docker image
         run: |
-          # Pull the image
+          echo "::group::Pull test-data Docker image"
           docker pull ghcr.io/geeksville/starbash/test-data:latest
-          # Create a container (doesn't need to run)
+          echo "::endgroup::"
+          
+          echo "::group::Create container from image"
           docker create --name test-data-container ghcr.io/geeksville/starbash/test-data:latest
-          # Create mount point
+          echo "::endgroup::"
+          
+          echo "::group::Create mount point and copy data"
           sudo mkdir -p /test-data
-          # Copy data from the container to /test-data
           docker cp test-data-container:/test-data/. /test-data/
-          # Remove the container
+          echo "::endgroup::"
+          
+          echo "::group::Fix file ownership"
+          sudo chown -R $(id -u):$(id -g) /test-data
+          echo "::endgroup::"
+          
+          echo "::group::Clean up container"
           docker rm test-data-container
-          # Verify the data was extracted
+          echo "::endgroup::"
+          
+          echo "::group::Verify extracted data"
           ls -la /test-data/
           echo "Test data extracted successfully"
+          echo "::endgroup::"
 
       #----------------------------------------------
       # Run integration tests
