@@ -45,6 +45,28 @@ Each of the tasks are implemented by a single Tool (currently Siril, Graxpert or
 
 Initially use the current master-gen code, but plan for possibly using dependencies for that as well.
 
+## Stages -> tasks
+
+Possibly a 1:1 relationship between recipe stages and doit tasks?  Each stage would be quite a bit smaller than the current implementation.  But a stage would be required to specify outputfiles in the output direction.  It would also be required to specify either input files or input-stages for dependency linking.
+
+Stages could have auto.requires directives to determine if they are candidates.
+
+## Culling
+
+Note: two different tasks can not have the same (typically a file) target.  Therefore before creating the tasks for stuff like stacking etc (which will be outputing to {targetdir}/somefile.fits) we need to know **which** tasks we will be using on this run.  So I think that means we need to do our culling in advance of passing the list of task objects into doit. See https://pydoit.org/tasks.html#targets
+
+Perhaps that means we could build our initial set of task dicts from our complete set of recipes/stages and selected input files.
+
+This would allow us to known {targetdir} etc... very early in the process - so we could load the (possibly customized starbash.toml) file from that directory.
+
+To do culling we'd build a list of targets.  If we ever have multiple stages (probably from different recipes) building the same target path, one of those stages has to be culled.  Generate a list of Candidates sorted by stage.priority.  Default to pick the first one, but for the rest just put them in the toml.  stage.kind would have to match for all those conflicts (i.e. in this case 'gen-stacked'?)  Then we'd store the choices in options.gen_stacked = [ foo ].
+
+Masters could be disambigated the same way, because there would be a stage that has an output of "{procdir}/master-dark.fits".  Presumably there could be multiple master-raw sessions all mapping to the same final master-dark.fits filename.  That conflict would result in the exact same (shared code and everything) resolution for master Candidates and just picking one.
+
+All stages would have a unique well known name, for instance com.geeksville.osc_dual_duo.  There would be a few standard kind (so that stackers could be compared to stackers etc) [ "gen.master.dark", "gen.calibrate.lights", "gen.stack.final" ].
+
+How would kind work for things like the possibly 1 to 5 different substages of light pipelnes? FIXME how to let that mixand match
+
 ## doit concepts
 
 Create a custom task loader to create (programmatically) my tree of tasks: https://pydoit.org/extending.html#example-pre-defined-task

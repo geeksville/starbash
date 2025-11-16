@@ -24,6 +24,7 @@ typer = "^0.20.0"
 sentry-sdk = "^2.42.1"
 update-checker = "^0.18.0"
 requests-cache = "^1.2.1"
+doit = "^0.36.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.4.2,<9.0.0"
