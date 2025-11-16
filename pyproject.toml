@@ -45,7 +45,17 @@ markers = [
 ]
 # -n auto enables parallel test execution plugin
 # By default, exclude slow and integration tests
-addopts = "-m 'not slow and not integration' -n auto"
+# --tb=line shows minimal tracebacks (just one line per failure)
+# --tb=short shows shorter tracebacks
+# -rA shows summary of all test outcomes at end
+addopts = "-m 'not slow and not integration' -n auto --tb=short -rA"
+
+# Note: To limit captured output further, you can:
+# 1. Use --tb=line for minimal tracebacks
+# 2. Use --show-capture=no to hide captured output entirely
+# 3. Use -p no:warnings to hide warnings
+# The conftest.py plugin attempts to truncate output but pytest's architecture
+# makes this difficult. Use --tb=line for minimal output on failures.
 
 [tool.coverage.run]
 source = ["src"]
