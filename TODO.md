@@ -67,15 +67,15 @@
 * [ ] generate an auto-stretched output as fits and jpg.
 * [ ] make OSC options user customizable per target
 * [ ] do auto star removal as a separate stage
-* [ ] make default recipes work with dark frames - not just bias frames - REQUIRED for dwarf3
+* [ ] add "darkorbias" as an input type.  make default recipes work with dark frames - not just bias frames - REQUIRED for dwarf3
 * [x] make "repo list" only show user repos
 * [ ] make graxpert network check faster & expose an API
+* [ ] cleanup how different stages dependencies work together: bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
 * [ ] **second alpha release approximately here**
 * [ ] make test data even smaller
 * [ ] merge Processing with ProcessingContext?
 * [x] check for required/recommended tools at start.
 * [ ] for debugging purposes generate a mastername.sb.toml file per master - to see input selection choices
-* [ ] bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
 * [ ] include temperature in bias filenames.
 * [ ] name the progess dirs so they can be semi-persistent (speed up reruns)
 * [ ] let user spec a max cache size, if we exceed that just delete older build dirs from that cache as needed.  This would allow quick rebuilds for the last N targets rendered.

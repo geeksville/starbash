@@ -42,6 +42,10 @@ class Repo:
 
         self.url: str = url
         self.config: TOMLDocument = self._load_config()
+        self._as_read = (
+            self.config.as_string()
+        )  # the contents of the toml as we originally read from disk
+
         self._monkey_patch()
 
     def _monkey_patch(self, o: Any | None = None) -> None:
@@ -133,9 +137,12 @@ class Repo:
             raise ValueError("Cannot resolve path for non-local repository")
 
         config_path = base_path / repo_suffix
-        # FIXME, be more careful to write the file atomically (by writing to a temp file and renaming)
-        TOMLFile(config_path).write(self.config)
-        logging.debug(f"Wrote config to {config_path}")
+        if self.config.as_string() == self._as_read:
+            logging.debug(f"Config unchanged, not writing: {config_path}")
+        else:
+            # FIXME, be more careful to write the file atomically (by writing to a temp file and renaming)
+            TOMLFile(config_path).write(self.config)
+            logging.debug(f"Wrote config to {config_path}")
 
     def is_scheme(self, scheme: str = "file") -> bool:
         """
