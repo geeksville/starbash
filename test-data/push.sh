@@ -24,6 +24,7 @@ source .env
 # cp ~/.docker/config.json ~/.docker/config.json.backup && echo '{}' > ~/.docker/config.json
 podman login ghcr.io -u geeksville --password-stdin <<< $GHCR_GH_TOKEN
 
-# Push your data to the ghcr
+# Push your data to the ghcr (NOTE: if this is the first push, you'll need to use the
+# web UI to make it public afterwards)
 podman push ghcr.io/geeksville/starbash/test-data:latest
 
