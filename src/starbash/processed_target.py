@@ -17,7 +17,7 @@ class ProcessingLike(Protocol):
 
     context: dict[str, Any]
     sessions: list[SessionRow]
-    recipes_considered: list[Any]
+    recipes_considered: list[Repo]
 
 
 class ProcessedTarget:
@@ -25,6 +25,10 @@ class ProcessedTarget:
 
     The backing store for this class is a .toml file located in the output directory
     for the processed target.
+
+    FIXME: currently this only works for 'targets'.  eventually it should be generalized so
+    it also works for masters.  In the case of a generated master instead of a starbash.toml file in the directory with the 'target'...
+    The generated master will be something like 'foo_blah_bias_master.fits' and in that same directory there will be a 'foo_blah_bias_master.toml'
     """
 
     def __init__(self, p: ProcessingLike) -> None:

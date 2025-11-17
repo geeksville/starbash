@@ -51,7 +51,6 @@ class ProcessingClassic(Processing):
 
         self.sessions: list[SessionRow] = []  # The list of sessions we are currently processing
         self.recipe: Repo | None = None  # the recipe we are using for processing
-        self.recipes_considered: list[Repo] = []  # all recipes considered for this processing run
 
     def __enter__(self) -> "ProcessingClassic":
         return self

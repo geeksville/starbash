@@ -25,6 +25,8 @@ stages would be selected based on what stages are permitted by auto.require?
 
 any way to link these stages based on the output files also?
 
+Change the convention for recipe files to match the example in /workspaces/starbash/starbash-recipes/osc_dual_duo2/starbash.toml.
+
 ## Notes
 
 When doing processing we have as inputs:
@@ -100,7 +102,7 @@ btw: I think this would nicely allow Nina lights sessions to be nicely stackable
 Create a custom task loader to create (programmatically) my tree of tasks: https://pydoit.org/extending.html#example-pre-defined-task
 
 A Task dict has:
-* name
+* name - MUST BE UNIQUE - be careful when generating from multiplex stages
 * help
 * actions: list
 * (optional) file_dep: list[str]

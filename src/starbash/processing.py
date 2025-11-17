@@ -9,6 +9,7 @@ from typing import Any
 from rich.progress import Progress
 
 import starbash
+from repo import Repo
 from starbash.aliases import normalize_target_name
 from starbash.app import Starbash
 from starbash.database import (
@@ -96,6 +97,7 @@ class Processing:
         self.context: dict[str, Any] = {}
 
         self.sessions: list[SessionRow] = []  # The list of sessions we are currently processing
+        self.recipes_considered: list[Repo] = []  # all recipes considered for this processing run
 
         # We create one top-level progress context so that when various subtasks are created
         # the progress bars stack and don't mess up our logging.
