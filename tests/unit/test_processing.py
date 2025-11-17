@@ -6,7 +6,7 @@ import pytest
 
 from starbash.app import Starbash
 from starbash.database import Database
-from starbash.processing import Processing
+from starbash.processing_classic import ProcessingClassic
 
 
 class TestGetRecipeForSession:
@@ -15,7 +15,7 @@ class TestGetRecipeForSession:
     def test_get_recipe_no_recipes(self, setup_test_environment, mock_analytics):
         """Test that get_recipe_for_session returns None when no recipe repos exist."""
         with Starbash() as app:
-            with Processing(app) as processing:
+            with ProcessingClassic(app) as processing:
                 # Create a mock session
                 session = {
                     "metadata": {
@@ -32,7 +32,7 @@ class TestGetRecipeForSession:
     def test_get_recipe_no_matching_stage(self, setup_test_environment, mock_analytics):
         """Test that recipes without the requested stage are skipped."""
         with Starbash() as app:
-            with Processing(app) as processing:
+            with ProcessingClassic(app) as processing:
                 # Create a mock recipe repo without the requested stage
                 mock_recipe = MagicMock()
                 mock_recipe.kind.return_value = "recipe"
@@ -56,7 +56,7 @@ class TestGetRecipeForSession:
     def test_get_recipe_filter_mismatch(self, setup_test_environment, mock_analytics):
         """Test that recipes with mismatched filter requirements are skipped."""
         with Starbash() as app:
-            with Processing(app) as processing:
+            with ProcessingClassic(app) as processing:
                 # Create a mock recipe repo that requires a different filter
                 mock_recipe = MagicMock()
                 mock_recipe.kind.return_value = "recipe"
@@ -93,7 +93,7 @@ class TestGetRecipeForSession:
     def test_get_recipe_camera_mismatch(self, setup_test_environment, mock_analytics):
         """Test that recipes with mismatched camera requirements are skipped."""
         with Starbash() as app:
-            with Processing(app) as processing:
+            with ProcessingClassic(app) as processing:
                 mock_recipe = MagicMock()
                 mock_recipe.kind.return_value = "recipe"
                 mock_recipe.url = "file:///test/recipe"
@@ -129,7 +129,7 @@ class TestGetRecipeForSession:
     def test_get_recipe_successful_match(self, setup_test_environment, mock_analytics):
         """Test successful recipe matching with all requirements met."""
         with Starbash() as app:
-            with Processing(app) as processing:
+            with ProcessingClassic(app) as processing:
                 mock_recipe = MagicMock()
                 mock_recipe.kind.return_value = "recipe"
                 mock_recipe.url = "file:///test/recipe"
@@ -165,7 +165,7 @@ class TestGetRecipeForSession:
     def test_get_recipe_no_requirements(self, setup_test_environment, mock_analytics):
         """Test that recipes without requirements match any session."""
         with Starbash() as app:
-            with Processing(app) as processing:
+            with ProcessingClassic(app) as processing:
                 mock_recipe = MagicMock()
                 mock_recipe.kind.return_value = "recipe"
                 mock_recipe.url = "file:///test/recipe"
@@ -201,7 +201,7 @@ class TestGetRecipeForSession:
     def test_get_recipe_first_match_wins(self, setup_test_environment, mock_analytics):
         """Test that the first matching recipe is returned."""
         with Starbash() as app:
-            with Processing(app) as processing:
+            with ProcessingClassic(app) as processing:
                 # Create two matching recipes
                 mock_recipe1 = MagicMock()
                 mock_recipe1.kind.return_value = "recipe"
@@ -248,7 +248,7 @@ class TestGetRecipeForSession:
     def test_get_recipe_session_without_metadata(self, setup_test_environment, mock_analytics):
         """Test handling of sessions without metadata field."""
         with Starbash() as app:
-            with Processing(app) as processing:
+            with ProcessingClassic(app) as processing:
                 mock_recipe = MagicMock()
                 mock_recipe.kind.return_value = "recipe"
                 mock_recipe.url = "file:///test/recipe"

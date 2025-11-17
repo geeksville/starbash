@@ -13,7 +13,8 @@ from starbash.commands.__init__ import (
 )
 from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
-from starbash.processing import Processing, ProcessingResult
+from starbash.processing import ProcessingResult
+from starbash.processing_classic import ProcessingClassic
 
 app = typer.Typer()
 
@@ -157,7 +158,7 @@ def auto(
     The output will be saved according to the configured recipes.
     """
     with Starbash("process.auto") as sb:
-        with Processing(sb) as proc:
+        with ProcessingClassic(sb) as proc:
             from starbash import console
 
             if session_num is not None:
@@ -182,7 +183,7 @@ def masters():
     and will be automatically used for future processing operations.
     """
     with Starbash("process.masters") as sb:
-        with Processing(sb) as proc:
+        with ProcessingClassic(sb) as proc:
             from starbash import console
 
             console.print("[yellow]Generating master frames...[/yellow]")
