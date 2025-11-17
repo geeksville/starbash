@@ -53,7 +53,8 @@ Possibly a 1:1 relationship between recipe stages and doit tasks?  Each stage wo
 
 Stages could have auto.requires directives to determine if they are candidates.
 
-Stages would have a multiplex? option.  two are are supported "per-session" (used for light calibration or making dark frames).  This kind of stage will have multiple tasks created - one per session (for the current target).  and "post-session" - which will create one task per target (for things like stacking etc...).  In the future it would be easy to add stages like "pre-session" (once per target before sessions) and even something like "on-app-start"?
+Stages would have a stage.multiplex? option.  two are are supported "session" (used for light calibration or making dark frames).  This kind of stage will have multiple tasks created - one per session (for the current target).  and "post-session" - which will create one task per target (for things like stacking etc...).  In the future it would be easy to add stages like "pre-session" (once per target before sessions) and even something like "on-app-start"?
+Note: stage.multiplex usually doesn't need to be manually set in recipes.  If a particular stage has **any** "session" inputs it will automatically set to "session".  And if not multiplex will be set to "single".
 
 Remove the existing master-stages and stages arrays.  they are not needed.
 
