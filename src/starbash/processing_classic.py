@@ -89,14 +89,8 @@ class ProcessingClassic(Processing):
     def close(self) -> None:
         self.progress.stop()
 
-    # Context manager support
     def __enter__(self) -> "ProcessingClassic":
         return self
-
-    def __exit__(self, exc_type, exc, tb) -> bool:
-        handled = False
-        self.close()
-        return handled
 
     def _get_stages(self, name: str) -> list[dict[str, Any]]:
         """Get all pipeline stages defined in the merged configuration.

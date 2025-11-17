@@ -15,6 +15,7 @@ from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
 from starbash.processing import ProcessingResult
 from starbash.processing_classic import ProcessingClassic
+from starbash.processing_new import ProcessingNew
 
 app = typer.Typer()
 
@@ -162,13 +163,34 @@ def auto(
             from starbash import console
 
             if session_num is not None:
-                console.print(f"[yellow]Auto-processing session {session_num}...[/yellow]")
+                console.print(
+                    f"[read]Session number base filtering not yet implemented: {session_num}...[/red]"
+                )
             else:
                 console.print("[yellow]Auto-processing all selected sessions...[/yellow]")
 
             results = proc.run_all_stages()
 
             print_results("Autoprocessed", results, console)
+
+
+@app.command(
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    add_help_option=False,
+)
+def doit(
+    ctx: typer.Context,
+):
+    """(private) for developer debugging of the underlying 'doit' dependency system.
+
+    You probably don't need to use this - unless you are a starbash developer.
+    Arguments are passed directly to doit.  For more information run: sb process doit help"""
+    with Starbash("process.doit") as sb:
+        with ProcessingNew(sb) as proc:
+            from starbash import console
+
+            console.print("[red]ProcessingNew command is not yet supported.[/red]")
+            proc.doit.run(ctx.args)
 
 
 @app.command()

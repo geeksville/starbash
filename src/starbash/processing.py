@@ -1,7 +1,7 @@
 """Base class for processing operations in starbash."""
 
 import logging
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass, field
 
 from starbash.database import SessionRow
@@ -41,7 +41,7 @@ def update_processing_result(result: ProcessingResult, e: Exception | None = Non
             raise e
 
 
-class Processing(ABC):
+class Processing:
     """Abstract base class for processing operations.
 
     Implementations must provide:
@@ -66,3 +66,15 @@ class Processing(ABC):
             List of ProcessingResult objects, one per master frame generated.
         """
         pass
+
+    # --- Lifecycle ---
+    def close(self) -> None:
+        pass
+
+    # Context manager support
+    def __enter__(self) -> "Processing":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        self.close()
+        return False

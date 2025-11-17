@@ -1,5 +1,7 @@
 """New processing implementation for starbash (under development)."""
 
+from starbash.app import Starbash
+from starbash.doit import StarbashDoit
 from starbash.processing import Processing, ProcessingResult
 
 
@@ -8,6 +10,13 @@ class ProcessingNew(Processing):
 
     This is a placeholder for the refactored processing architecture.
     """
+
+    def __init__(self, sb: Starbash) -> None:
+        self.sb: Starbash = sb
+        self.doit: StarbashDoit = StarbashDoit()
+
+    def __enter__(self) -> "ProcessingNew":
+        return self
 
     def run_all_stages(self) -> list[ProcessingResult]:
         """Run all processing stages on currently selected sessions.
