@@ -5,12 +5,11 @@ import itertools
 import logging
 import os
 import shutil
-import tempfile
 import textwrap
 from pathlib import Path
 from typing import Any
 
-from rich.progress import Progress, track
+from rich.progress import track
 
 import starbash
 from repo import Repo
@@ -25,41 +24,15 @@ from starbash.database import (
     metadata_to_instrument_id,
 )
 from starbash.exception import UserHandledError
-from starbash.paths import get_user_cache_dir
 from starbash.processed_target import ProcessedTarget
-from starbash.processing import Processing, ProcessingResult, update_processing_result
+from starbash.processing import (
+    Processing,
+    ProcessingContext,
+    ProcessingResult,
+    update_processing_result,
+)
 from starbash.score import score_candidates
 from starbash.tool import expand_context_unsafe, tools
-
-
-class ProcessingContext(tempfile.TemporaryDirectory):
-    """For processing a set of sessions for a particular target.
-
-    Keeps a shared temporary directory for intermediate files.  We expose the path to that
-    directory in context["process_dir"].
-    """
-
-    def __init__(self, p: "ProcessingClassic"):
-        cache_dir = get_user_cache_dir()
-        super().__init__(prefix="sbprocessing_", dir=cache_dir)
-        self.p = p
-        logging.debug(f"Created processing context at {self.name}")
-
-        self.p.init_context()
-        self.p.context["process_dir"] = self.name
-
-    def __enter__(self) -> "ProcessingContext":
-        return super().__enter__()
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        """Returns true if exceptions were handled"""
-        logging.debug(f"Cleaning up processing context at {self.name}")
-
-        # unregister our process dir
-        self.p.context.pop("process_dir", None)
-
-        super().__exit__(exc_type, exc_value, traceback)
-        # return handled
 
 
 class NotEnoughFilesError(UserHandledError):
@@ -74,20 +47,11 @@ class ProcessingClassic(Processing):
     """Does all heavyweight processing operations for starbash"""
 
     def __init__(self, sb: Starbash) -> None:
-        self.sb = sb
+        super().__init__(sb)
 
         self.sessions: list[SessionRow] = []  # The list of sessions we are currently processing
         self.recipe: Repo | None = None  # the recipe we are using for processing
         self.recipes_considered: list[Repo] = []  # all recipes considered for this processing run
-
-        # We create one top-level progress context so that when various subtasks are created
-        # the progress bars stack and don't mess up our logging.
-        self.progress = Progress(console=starbash.console, refresh_per_second=2)
-        self.progress.start()
-
-    # --- Lifecycle ---
-    def close(self) -> None:
-        self.progress.stop()
 
     def __enter__(self) -> "ProcessingClassic":
         return self
@@ -126,7 +90,7 @@ class ProcessingClassic(Processing):
         for task in tasks_to_run:
             self.run_stage(task)
 
-    def process_target(self, target: str, sessions: list[SessionRow]) -> ProcessingResult:
+    def process_target(self, target: str) -> ProcessingResult:
         """Do processing for a particular target (i.e. all sessions for a particular object)."""
 
         pipeline = self._get_stages("stages")
@@ -137,9 +101,7 @@ class ProcessingClassic(Processing):
         stack_step = pipeline[1]
         task_exception: Exception | None = None
 
-        self.sessions = sessions
-
-        result = ProcessingResult(target=target, sessions=sessions)
+        result = ProcessingResult(target=target, sessions=self.sessions)
 
         with ProcessingContext(self):
             try:
@@ -150,12 +112,14 @@ class ProcessingClassic(Processing):
 
                 # process all light frames
                 step = lights_step
-                lights_task = self.progress.add_task("Processing session...", total=len(sessions))
+                lights_task = self.progress.add_task(
+                    "Processing session...", total=len(self.sessions)
+                )
                 try:
                     lights_processed = False  # for better reporting
                     stack_processed = False
 
-                    for session in sessions:
+                    for session in self.sessions:
                         step_name = step["name"]
                         if not recipe:
                             # for the time being: The first step in the pipeline MUST be "light"
@@ -229,51 +193,6 @@ class ProcessingClassic(Processing):
                 update_processing_result(result, task_exception)
 
         return result
-
-    def run_all_stages(self) -> list[ProcessingResult]:
-        """On the currently active session, run all processing stages
-
-        * for each target in the current selection:
-        *   select ONE recipe for processing that target (check recipe.auto.require.* conditions)
-        *   init session context (it will be shared for all following steps) - via ProcessingContext
-        *   create a temporary processing directory (for intermediate files - shared by all stages)
-        *   create a processed output directory (for high value final files) - via run_stage()
-        *   iterate over all light frame sessions in the current selection
-        *     for each session:
-        *       update context input and output files
-        *       run session.light stages
-        *   after all sessions are processed, run final.stack stages (using the shared context and temp dir)
-
-        """
-        sessions = self.sb.search_session()
-        targets = {
-            normalize_target_name(obj)
-            for s in sessions
-            if (obj := s.get(get_column_name(Database.OBJECT_KEY))) is not None
-        }
-
-        target_task = self.progress.add_task("Processing targets...", total=len(targets))
-
-        results: list[ProcessingResult] = []
-        try:
-            for target in targets:
-                self.progress.update(target_task, description=f"Processing target {target}...")
-                # select sessions for this target
-                target_sessions = self.sb.filter_sessions_by_target(sessions, target)
-
-                # we only want sessions with light frames
-                target_sessions = self.sb.filter_sessions_with_lights(target_sessions)
-
-                if target_sessions:
-                    result = self.process_target(target, target_sessions)
-                    results.append(result)
-
-                # We made progress - call once per iteration ;-)
-                self.progress.advance(target_task)
-        finally:
-            self.progress.remove_task(target_task)
-
-        return results
 
     def run_master_stages(self) -> list[ProcessingResult]:
         """Generate any missing master frames
@@ -424,18 +343,6 @@ class ProcessingClassic(Processing):
 
         # No matching recipe found
         return None
-
-    def init_context(self) -> None:
-        """Do common session init"""
-
-        # Context is preserved through all stages, so each stage can add new symbols to it for use by later stages
-        self.context = {}
-
-        # Update the context with runtime values.
-        runtime_context = {
-            # "masters": "/workspaces/starbash/images/masters",  # FIXME find this the correct way
-        }
-        self.context.update(runtime_context)
 
     def set_session_in_context(self, session: SessionRow) -> None:
         """adds to context from the indicated session:

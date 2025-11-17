@@ -1,8 +1,11 @@
 from typing import Any
 
+from doit.action import BaseAction
 from doit.cmd_base import TaskLoader2
 from doit.doit_cmd import DoitMain
 from doit.task import dict_to_task
+
+from starbash.tool import tools
 
 # for early testing
 my_builtin_task = {
@@ -10,6 +13,25 @@ my_builtin_task = {
     "actions": ["echo hello from built in"],
     "doc": "sample doc",
 }
+
+
+class ToolAction(BaseAction):
+    """An action that runs a starbash tool with given commands and context."""
+
+    def __init__(self, tool_name: str, commands: str, context: dict = {}, cwd: str | None = None):
+        t = tools.get(tool_name)
+        assert t is not None, f"Tool '{tool_name}' not found"
+        self.tool = t
+
+        self.commands: str = commands
+        self.context: dict[Any, Any] = context
+        self.cwd: str | None = cwd
+
+    def execute(self, out=None, err=None):
+        self.tool.run(self.commands, context=self.context, cwd=self.cwd)
+
+    def __str__(self) -> str:
+        return f"ToolAction(tool={self.tool.name}, commands={self.commands})"
 
 
 class StarbashDoit(TaskLoader2):

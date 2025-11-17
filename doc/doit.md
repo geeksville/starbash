@@ -102,7 +102,7 @@ Create a custom task loader to create (programmatically) my tree of tasks: https
 A Task dict has:
 * name
 * help
-* actions
+* actions: list
 * (optional) file_dep: list[str]
 * (optional) targets: list[str]
 Note: if file_dep and targets are equal between two different tasks (as a str cmp), doit will automatically realize there is a dependency there
@@ -114,8 +114,7 @@ which would cause the corresponding created task to be referenced by our doit co
 
 Or instead/in-addition doit supports wildcard resolution so "doit graxpert_noise_elim:{taskdir}/*.fits" would match against any fits file the corrsponding task lists as its "targets"
 
-
-Make a custom ToolAction that uses our tool concept.
+Make a custom ToolAction(tool_name: str, commands: str, context: dict = {}, cwd: str | None = None)) that uses our tool concept.  Use instances of that class as 'actions' in our constructed task dictionaries.
 
 tasks are passed source, sinks and targets.  These are the key links for dependencies?
 https://pydoit.org/tutorial-1.html

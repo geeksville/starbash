@@ -141,7 +141,7 @@ _typecheck:
     poetry run basedpyright src/
 
 # Run all linting checks (ruff + basedpyright)
-check: _lint _typecheck
+lint: _lint _typecheck
 
 format:
     poetry run ruff format src/ tests/

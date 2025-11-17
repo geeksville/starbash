@@ -12,22 +12,15 @@ class ProcessingNew(Processing):
     """
 
     def __init__(self, sb: Starbash) -> None:
-        self.sb: Starbash = sb
+        super().__init__(sb)
         self.doit: StarbashDoit = StarbashDoit()
 
     def __enter__(self) -> "ProcessingNew":
         return self
 
-    def run_all_stages(self) -> list[ProcessingResult]:
-        """Run all processing stages on currently selected sessions.
-
-        Returns:
-            List of ProcessingResult objects, one per target processed.
-
-        Raises:
-            NotImplementedError: This method is not yet implemented.
-        """
-        raise NotImplementedError("ProcessingNew.run_all_stages() is not yet implemented")
+    def process_target(self, target: str) -> ProcessingResult:
+        """Do processing for a particular target (i.e. all sessions for a particular object)."""
+        raise NotImplementedError("ProcessingNew.process_target() is not yet implemented")
 
     def run_master_stages(self) -> list[ProcessingResult]:
         """Generate master calibration frames (bias, dark, flat).
