@@ -13,6 +13,7 @@ from rich.progress import Progress, track
 
 import starbash
 from repo import Repo
+from starbash.aliases import get_instance as get_aliases_instance
 from starbash.aliases import normalize_target_name
 from starbash.app import Starbash
 from starbash.database import (
@@ -25,6 +26,7 @@ from starbash.database import (
 from starbash.exception import UserHandledError
 from starbash.paths import get_user_cache_dir
 from starbash.processed_target import ProcessedTarget
+from starbash.score import score_candidates
 from starbash.tool import expand_context_unsafe, tools
 
 
@@ -394,7 +396,7 @@ class Processing:
         if input_name != "recipe":
             imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
 
-            if not imagetyp or input_name != self.sb.aliases.normalize(imagetyp):
+            if not imagetyp or input_name != get_aliases_instance().normalize(imagetyp):
                 logging.debug(
                     f"Session imagetyp '{imagetyp}' does not match step input '{input_name}', skipping"
                 )
@@ -415,7 +417,7 @@ class Processing:
             # If requirements are specified, check if session matches
             required_filters = repo.get("recipe.auto.require.filter", [])
             if required_filters:
-                session_filter = self.sb.aliases.normalize(
+                session_filter = get_aliases_instance().normalize(
                     session_metadata.get(Database.FILTER_KEY), lenient=True
                 )
 
@@ -441,7 +443,7 @@ class Processing:
 
             required_cameras = repo.get("recipe.auto.require.camera", [])
             if required_cameras:
-                session_camera = self.sb.aliases.normalize(
+                session_camera = get_aliases_instance().normalize(
                     session_metadata.get(Database.INSTRUME_KEY), lenient=True
                 )  # Camera identifier
 
@@ -511,7 +513,7 @@ class Processing:
         # The type of images in this session
         imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
         if imagetyp:
-            imagetyp = self.sb.aliases.normalize(imagetyp)
+            imagetyp = get_aliases_instance().normalize(imagetyp)
             self.context["imagetyp"] = imagetyp
 
             # add a short human readable description of the session - suitable for logs or in filenames
@@ -558,7 +560,7 @@ class Processing:
             context_master = self.context.setdefault("master", {})
 
             # Try to rank the images by desirability
-            scored_masters = self.sb.score_candidates(masters, session)
+            scored_masters = score_candidates(masters, session)
             session_masters = session.setdefault("masters", {})
             session_masters[master_type] = scored_masters  # for reporting purposes
 

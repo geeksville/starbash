@@ -10,11 +10,16 @@ from rich.logging import RichHandler
 from rich.progress import track
 
 import starbash
-import starbash.aliases
 from repo import Repo, RepoManager, repo_suffix
 from starbash.aliases import (
     Aliases,
     normalize_target_name,
+)
+from starbash.aliases import (
+    get_instance as get_aliases_instance,
+)
+from starbash.aliases import (
+    set_instance as set_aliases_instance,
 )
 from starbash.analytics import (
     NopAnalytics,
@@ -189,8 +194,8 @@ class Starbash:
     def _init_aliases(self) -> None:
         alias_dict = self.repo_manager.get("aliases", {})
         assert isinstance(alias_dict, dict), "Aliases config must be a dictionary"
-        self.aliases = a = Aliases(alias_dict)
-        starbash.aliases.instance = a  # set global singleton instance
+        a = Aliases(alias_dict)
+        set_aliases_instance(a)  # set global singleton instance
 
     @property
     def db(self) -> Database:
@@ -717,7 +722,7 @@ class Starbash:
             imagetyp_val = s.get(get_column_name(Database.IMAGETYP_KEY))
             if imagetyp_val is None:
                 continue
-            if self.aliases.normalize(str(imagetyp_val)) == "light":
+            if get_aliases_instance().normalize(str(imagetyp_val)) == "light":
                 filtered_sessions.append(s)
         return filtered_sessions
 

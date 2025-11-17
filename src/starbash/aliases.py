@@ -145,4 +145,29 @@ class Aliases:
         return norm1 == norm2
 
 
-instance: Aliases = Aliases({})  # Global singleton instance (normally reinitialized by app)
+# Module-level singleton instance
+_instance: Aliases | None = None
+
+
+def get_instance() -> Aliases:
+    """Get the global Aliases singleton instance.
+
+    Returns:
+        The global Aliases instance
+
+    Raises:
+        RuntimeError: If the instance hasn't been initialized yet
+    """
+    if _instance is None:
+        raise RuntimeError("Aliases instance not initialized. Call set_instance() first.")
+    return _instance
+
+
+def set_instance(aliases: Aliases) -> None:
+    """Set the global Aliases singleton instance.
+
+    Args:
+        aliases: The Aliases instance to use as the global singleton
+    """
+    global _instance
+    _instance = aliases
