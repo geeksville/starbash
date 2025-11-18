@@ -13,13 +13,9 @@ import starbash
 from repo import Repo, RepoManager, repo_suffix
 from starbash.aliases import (
     Aliases,
+    get_aliases,
     normalize_target_name,
-)
-from starbash.aliases import (
-    get_instance as get_aliases_instance,
-)
-from starbash.aliases import (
-    set_instance as set_aliases_instance,
+    set_aliases,
 )
 from starbash.analytics import (
     NopAnalytics,
@@ -195,7 +191,7 @@ class Starbash:
         alias_dict = self.repo_manager.get("aliases", {})
         assert isinstance(alias_dict, dict), "Aliases config must be a dictionary"
         a = Aliases(alias_dict)
-        set_aliases_instance(a)  # set global singleton instance
+        set_aliases(a)  # set global singleton instance
 
     @property
     def db(self) -> Database:
@@ -722,7 +718,7 @@ class Starbash:
             imagetyp_val = s.get(get_column_name(Database.IMAGETYP_KEY))
             if imagetyp_val is None:
                 continue
-            if get_aliases_instance().normalize(str(imagetyp_val)) == "light":
+            if get_aliases().normalize(str(imagetyp_val)) == "light":
                 filtered_sessions.append(s)
         return filtered_sessions
 

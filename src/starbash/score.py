@@ -64,7 +64,7 @@ def score_candidates(
                 to add new ranking dimensions by appending another function to the list.
 
     """
-    from starbash.aliases import get_instance as get_aliases_instance
+    from starbash.aliases import get_aliases
 
     metadata: dict = ref_session.get("metadata", {})
 
@@ -177,14 +177,14 @@ def score_candidates(
 
                 Only applies if the candidate imagetyp is FLAT. Missing filter values are treated as None
                 and do not cause a penalty (neutral)."""
-                imagetyp = get_aliases_instance().normalize(
+                imagetyp = get_aliases().normalize(
                     candidate_image.get(Database.IMAGETYP_KEY), lenient=True
                 )
                 if imagetyp and imagetyp == "flat":
-                    ref_filter = get_aliases_instance().normalize(
+                    ref_filter = get_aliases().normalize(
                         metadata.get(Database.FILTER_KEY, "None"), lenient=True
                     )
-                    candidate_filter = get_aliases_instance().normalize(
+                    candidate_filter = get_aliases().normalize(
                         candidate_image.get(Database.FILTER_KEY, "None"), lenient=True
                     )
                     if ref_filter != candidate_filter:

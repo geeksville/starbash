@@ -6,7 +6,7 @@ from typing import Annotated
 import typer
 from rich.table import Table
 
-from starbash.aliases import get_instance as get_aliases_instance
+from starbash.aliases import get_aliases
 from starbash.app import Starbash
 from starbash.commands import (
     TABLE_COLUMN_STYLE,
@@ -132,7 +132,7 @@ def master(
 
             kind = image.get(Database.IMAGETYP_KEY)
             if kind:
-                kind = get_aliases_instance().normalize(kind)
+                kind = get_aliases().normalize(kind)
             filename = image.get("path") or "Unknown"
 
             table.add_row(date, kind, filename)

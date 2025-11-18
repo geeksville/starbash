@@ -12,6 +12,8 @@ __all__ = [
     "UnrecognizedAliasError",
     "normalize_target_name",
     "pre_normalize",
+    "get_aliases",
+    "set_aliases",
 ]
 
 
@@ -149,7 +151,7 @@ class Aliases:
 _instance: Aliases | None = None
 
 
-def get_instance() -> Aliases:
+def get_aliases() -> Aliases:
     """Get the global Aliases singleton instance.
 
     Returns:
@@ -159,11 +161,11 @@ def get_instance() -> Aliases:
         RuntimeError: If the instance hasn't been initialized yet
     """
     if _instance is None:
-        raise RuntimeError("Aliases instance not initialized. Call set_instance() first.")
+        raise RuntimeError("Aliases instance not initialized. Call set_aliases() first.")
     return _instance
 
 
-def set_instance(aliases: Aliases) -> None:
+def set_aliases(aliases: Aliases) -> None:
     """Set the global Aliases singleton instance.
 
     Args:

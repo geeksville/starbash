@@ -10,10 +10,7 @@ from rich.progress import Progress
 
 import starbash
 from repo import Repo
-from starbash.aliases import (
-    get_instance as get_aliases_instance,
-)
-from starbash.aliases import normalize_target_name
+from starbash.aliases import get_aliases, normalize_target_name
 from starbash.app import Starbash
 from starbash.database import (
     Database,
@@ -229,7 +226,7 @@ class Processing:
         # The type of images in this session
         imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
         if imagetyp:
-            imagetyp = get_aliases_instance().normalize(imagetyp)
+            imagetyp = get_aliases().normalize(imagetyp)
             self.context["imagetyp"] = imagetyp
 
             # add a short human readable description of the session - suitable for logs or in filenames

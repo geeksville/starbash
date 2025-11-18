@@ -13,7 +13,7 @@ from rich.progress import track
 
 import starbash
 from repo import Repo
-from starbash.aliases import get_instance as get_aliases_instance
+from starbash.aliases import get_aliases
 from starbash.app import Starbash
 from starbash.database import (
     Database,
@@ -274,7 +274,7 @@ class ProcessingClassic(Processing):
         if input_name != "recipe":
             imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
 
-            if not imagetyp or input_name != get_aliases_instance().normalize(imagetyp):
+            if not imagetyp or input_name != get_aliases().normalize(imagetyp):
                 logging.debug(
                     f"Session imagetyp '{imagetyp}' does not match step input '{input_name}', skipping"
                 )
@@ -295,7 +295,7 @@ class ProcessingClassic(Processing):
             # If requirements are specified, check if session matches
             required_filters = repo.get("recipe.auto.require.filter", [])
             if required_filters:
-                session_filter = get_aliases_instance().normalize(
+                session_filter = get_aliases().normalize(
                     session_metadata.get(Database.FILTER_KEY), lenient=True
                 )
 
@@ -321,7 +321,7 @@ class ProcessingClassic(Processing):
 
             required_cameras = repo.get("recipe.auto.require.camera", [])
             if required_cameras:
-                session_camera = get_aliases_instance().normalize(
+                session_camera = get_aliases().normalize(
                     session_metadata.get(Database.INSTRUME_KEY), lenient=True
                 )  # Camera identifier
 
