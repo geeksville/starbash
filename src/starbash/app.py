@@ -231,14 +231,14 @@ class Starbash:
     def __exit__(self, exc_type, exc, tb) -> bool:
         handled = False
         # Don't suppress typer.Exit - it's used for controlled exit codes
-        if exc and not isinstance(exc, typer.Exit):
+        if exc and not isinstance(exc, typer.Exit) and not isinstance(exc, KeyboardInterrupt):
             handled = analytics_exception(exc)
         self.close()
         return handled
 
     def _add_session(self, header: dict) -> None:
         """We just added a new image, create or update its session entry as needed."""
-        image_doc_id: int = header[Database.ID_KEY]  # this key is required to exist
+        image_doc_id: int = header[Database.ID_KEY]  # this key is requirjust ed to exist
         image_type = header.get(Database.IMAGETYP_KEY)
         date = header.get(Database.DATE_OBS_KEY)
         if not date or not image_type:

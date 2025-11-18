@@ -15,8 +15,7 @@
             "args": [
                 "--debug",
                 "user",
-                "email",
-                "kevinh@geeksville.com"
+                "setup"
             ]
         },
         {
