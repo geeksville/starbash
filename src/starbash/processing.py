@@ -114,7 +114,7 @@ class Processing:
         self.progress.start()
 
     @abstractmethod
-    def process_target(self, target: str) -> ProcessingResult:
+    def _process_target(self, target: str) -> ProcessingResult:
         """Do processing for a particular target (i.e. all sessions for a particular object)."""
 
     @abstractmethod
@@ -183,9 +183,10 @@ class Processing:
                 target_sessions = self.sb.filter_sessions_with_lights(target_sessions)
 
                 if target_sessions:
-                    self.sessions = target_sessions
-                    result = self.process_target(target)
-                    results.append(result)
+                    with ProcessingContext(self):
+                        self.sessions = target_sessions
+                        result = self._process_target(target)
+                        results.append(result)
 
                 # We made progress - call once per iteration ;-)
                 self.progress.advance(target_task)

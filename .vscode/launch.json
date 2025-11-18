@@ -76,7 +76,7 @@
             "args": [
                 "--debug",
                 "process",
-                "auto"
+                "new"
             ]
         },
         {

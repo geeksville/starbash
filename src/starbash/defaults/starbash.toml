@@ -59,8 +59,9 @@ SiiHb = ["SiiHb", "S2Hb"]
 # our python blob)
 # url = "pkg://recipes"
 # We now (finally) fetch our recipes from the sister github repo via http
-# FIXME until doit is merged into main, pull recipes from the corresponding branch
-url = "https://raw.githubusercontent.com/geeksville/starbash-recipes/refs/heads/doit"
+# FIXME until doit is merged into main, pull recipes from the the git submodule
+# url = "https://raw.githubusercontent.com/geeksville/starbash-recipes/refs/main/doit"
+url = "file:///workspaces/starbash/starbash-recipes"
 
 # [[repo-ref]]
 

@@ -86,7 +86,7 @@ class ProcessingClassic(Processing):
         for task in tasks_to_run:
             self.run_stage(task)
 
-    def process_target(self, target: str) -> ProcessingResult:
+    def _process_target(self, target: str) -> ProcessingResult:
         """Do processing for a particular target (i.e. all sessions for a particular object)."""
 
         pipeline = self._get_stages("stages")
@@ -99,94 +99,91 @@ class ProcessingClassic(Processing):
 
         result = ProcessingResult(target=target, sessions=self.sessions)
 
-        with ProcessingContext(self):
+        try:
+            # target specific processing here
+
+            # we find our recipe while processing our first light frame session
+            recipe = None
+
+            # process all light frames
+            step = lights_step
+            lights_task = self.progress.add_task("Processing session...", total=len(self.sessions))
             try:
-                # target specific processing here
+                lights_processed = False  # for better reporting
+                stack_processed = False
 
-                # we find our recipe while processing our first light frame session
-                recipe = None
-
-                # process all light frames
-                step = lights_step
-                lights_task = self.progress.add_task(
-                    "Processing session...", total=len(self.sessions)
-                )
-                try:
-                    lights_processed = False  # for better reporting
-                    stack_processed = False
-
-                    for session in self.sessions:
-                        step_name = step["name"]
+                for session in self.sessions:
+                    step_name = step["name"]
+                    if not recipe:
+                        # for the time being: The first step in the pipeline MUST be "light"
+                        recipe = self.get_recipe_for_session(session, step)
                         if not recipe:
-                            # for the time being: The first step in the pipeline MUST be "light"
-                            recipe = self.get_recipe_for_session(session, step)
-                            if not recipe:
-                                continue  # No recipe found for this target/session
+                            continue  # No recipe found for this target/session
 
-                            self.recipe = recipe
-                            self.recipes_considered = [
-                                recipe
-                            ]  # FIXME: we should let the user pick if needed
+                        self.recipe = recipe
+                        self.recipes_considered = [
+                            recipe
+                        ]  # FIXME: we should let the user pick if needed
 
-                        # find the task for this step
-                        task = None
-                        if recipe:
-                            task = recipe.get("recipe.stage." + step_name)
-
-                        if task:
-                            # put all relevant session info into context
-                            self._set_session_in_context(session)
-
-                            # The following operation might take a long time, so give the user some more info...
-                            self.progress.update(
-                                lights_task,
-                                description=f"Processing {step_name} {self.context['date']}...",
-                            )
-                            try:
-                                self.run_stage(task)
-                                lights_processed = True
-                            except NotEnoughFilesError:
-                                logging.warning(
-                                    "Skipping session, siril requires at least two frames per session..."
-                                )
-
-                        # We made progress - call once per iteration ;-)
-                        self.progress.advance(lights_task)
-                finally:
-                    self.progress.remove_task(lights_task)
-
-                # after all light frames are processed, do the stacking
-                step = stack_step
-                if recipe:
-                    task = recipe.get("recipe.stage." + step["name"])
+                    # find the task for this step
+                    task = None
+                    if recipe:
+                        task = recipe.get("recipe.stage." + step_name)
 
                     if task:
-                        #
-                        # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
-                        # dirs for particular targets?
+                        # put all relevant session info into context
+                        self._set_session_in_context(session)
+
+                        # The following operation might take a long time, so give the user some more info...
+                        self.progress.update(
+                            lights_task,
+                            description=f"Processing {step_name} {self.context['date']}...",
+                        )
                         try:
                             self.run_stage(task)
-
-                            # FIXME create this earlier - but for now I want to assume the output
-                            # path is correct.
-                            processed_target = ProcessedTarget(self)
-                            processed_target.close()
-                            stack_processed = True
+                            lights_processed = True
                         except NotEnoughFilesError:
                             logging.warning(
-                                "Skipping stacking, siril requires at least two frames per session..."
+                                "Skipping session, siril requires at least two frames per session..."
                             )
 
-                # Success!  we processed all lights and did a stack (probably)
-                if not lights_processed:
-                    result.notes = "Skipped, no suitable recipe found for light frames..."
-                elif not stack_processed:
-                    result.notes = "Skipped, no suitable recipe found for stacking..."
-                else:
-                    update_processing_result(result)
-            except Exception as e:
-                task_exception = e
-                update_processing_result(result, task_exception)
+                    # We made progress - call once per iteration ;-)
+                    self.progress.advance(lights_task)
+            finally:
+                self.progress.remove_task(lights_task)
+
+            # after all light frames are processed, do the stacking
+            step = stack_step
+            if recipe:
+                task = recipe.get("recipe.stage." + step["name"])
+
+                if task:
+                    #
+                    # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
+                    # dirs for particular targets?
+                    try:
+                        self.run_stage(task)
+
+                        # FIXME create this earlier - but for now I want to assume the output
+                        # path is correct.
+                        processed_target = ProcessedTarget(self)
+                        processed_target.close()
+                        stack_processed = True
+                    except NotEnoughFilesError:
+                        logging.warning(
+                            "Skipping stacking, siril requires at least two frames per session..."
+                        )
+
+            # Success!  we processed all lights and did a stack (probably)
+            if not lights_processed:
+                result.notes = "Skipped, no suitable recipe found for light frames..."
+            elif not stack_processed:
+                result.notes = "Skipped, no suitable recipe found for stacking..."
+            else:
+                update_processing_result(result)
+        except Exception as e:
+            task_exception = e
+            update_processing_result(result, task_exception)
 
         return result
 

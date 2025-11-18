@@ -62,7 +62,7 @@
 * [ ] explain about PATH https://github.com/geeksville/starbash/issues/5
 * [ ] allow toml target files to be customized
 * [x] store flats in directory names based on INSTRUMENT not camera
-* [ ] move doit.db to app cache
+* [ ] doit refactoring (see below for long separate TODO list)
 * [ ] do background_removal() as a separate stage via graxpert
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] generate an auto-stretched output as fits and jpg.
@@ -183,3 +183,22 @@
 * [ ] experiment with auto generation of report text
 * [ ] experiment with telescopus upload (filling in fields of image info with backpointers requesting feedback)
 * [ ] make a "gen_test_db() function that can be used to generate either a huge or a tiny DB with 'real looking' test data (for performance tesing and CI).  Have it use a couple of real stripped FITS files.
+
+## Doit dependency TODOs
+* [ ] get the input files
+* [ ] get the output files
+* [ ] build and look at the list of doit tasks
+* [ ] populate the context
+* [ ] create the ProcessedTarget by referring to the processed repo path info (need context first)
+* [ ] store the various ScoredCandiates in the toml file
+* [ ] use user selected values from the toml file
+* [ ] try a test run on just a dual duo filter set
+* [ ] change masters over to using this same mechanism - hook together via dependencies
+* [ ] switch old scripts over to new system
+* [ ] have AI change asserts to raise ValueError (or something better?)
+* [ ] try test run on the small dataset
+* [ ] move doit.db to app cache
+* [ ] test integration on big dataset
+* [ ] verify build takes zero time if no changes
+* [ ] add depenencies on the generated toml files
+* [ ] add graxpert

@@ -174,6 +174,31 @@ def auto(
             print_results("Autoprocessed", results, console)
 
 
+@app.command()
+def new():
+    """Automatic processing with sensible defaults.
+
+    If session number is specified, processes only that session.
+    Otherwise, all currently selected sessions will be processed automatically
+    using the configured recipes and default settings.
+
+    This command handles:
+    - Automatic master frame selection (bias, dark, flat)
+    - Calibration of light frames
+    - Registration and stacking
+    - Basic post-processing
+
+    The output will be saved according to the configured recipes.
+    """
+    with Starbash("process.auto") as sb:
+        with ProcessingNew(sb) as proc:
+            from starbash import console
+
+            results = proc.run_all_stages()
+
+            print_results("Autoprocessed", results, console)
+
+
 @app.command(
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
     add_help_option=False,
