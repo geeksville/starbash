@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+from pathlib import Path
 from typing import Any
 
 import RestrictedPython
@@ -87,6 +88,11 @@ def expand_context(s: str, context: dict) -> str:
         raise KeyError("Missing context variable(s): " + ", ".join(unexpanded_vars))
 
     return expanded
+
+
+def expand_context_list(strings: list[str] | list[Path], context: dict) -> list[str]:
+    """Expand a list of strings with context variables."""
+    return [expand_context_unsafe(str(s), context) for s in strings]
 
 
 def expand_context_unsafe(s: str, context: dict) -> str:

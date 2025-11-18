@@ -1,6 +1,7 @@
 """New processing implementation for starbash (under development)."""
 
 import logging
+import os
 import textwrap
 from pathlib import Path
 from typing import Any
@@ -12,7 +13,7 @@ from starbash.database import ImageRow
 from starbash.doit import StarbashDoit
 from starbash.processing import Processing, ProcessingResult
 from starbash.score import score_candidates
-from starbash.tool import tools
+from starbash.tool import expand_context_list, expand_context_unsafe, tools
 
 # some type aliases for clarity
 
@@ -76,6 +77,12 @@ class ProcessingNew(Processing):
         d = self.context["process_dir"]  # FIXME change this to be named "job".base
         return Path(d)
 
+    @property
+    def output_dir(self) -> Path:
+        """Get the current output directory (for working/temp files) from the context."""
+        d = self.context["output"]["base"]  # FIXME change this to use dataclass
+        return Path(d)
+
     def __init__(self, sb: Starbash) -> None:
         super().__init__(sb)
         self.doit: StarbashDoit = StarbashDoit()
@@ -84,7 +91,7 @@ class ProcessingNew(Processing):
         return self
 
     def _process_target(self, target: str) -> ProcessingResult:
-        """Do processing for a particular target (i.e. all sessions for a particular object)."""
+        """Do processing for a particular target (i.e. all selected sessions for a particular object)."""
 
         stages = self._get_stages()
         self._stages_to_tasks(stages)
@@ -173,6 +180,16 @@ class ProcessingNew(Processing):
         action = ToolAction(tool, commands=script, context=self.context, cwd=cwd)
         task["actions"] = [action]
 
+    def _add_stage_context_defs(self, stage: StageDict) -> None:
+        """Add any context definitions specified in the stage to our processing context.
+
+        Args:
+            stage: The stage definition from TOML
+        """
+        context_defs: dict[str, Any] = stage.get("context", {})
+        for key, value in context_defs.items():
+            self.context[key] = value
+
     def _stage_to_tasks(self, stage: StageDict) -> None:
         """Convert the given stage to doit task(s) and add them to our doit task list.
 
@@ -187,15 +204,27 @@ class ProcessingNew(Processing):
 
         assert len(session_in) <= 1, "A maximum of one 'session' input is supported per stage"
 
+        self._add_stage_context_defs(stage)
+
         # If we have any session inputs, this stage is multiplexed (one task per session)
         need_multiplex = len(session_in) > 0
         if need_multiplex:
+            has_set_output = False
+
             # Create one task per session
             for s in self.sessions:
                 # FIXME, right now we have a single context instance and we set session inside it
                 # later when we go to actually RUN the tasks we need to make sure each task is either
                 # redoing _set_session_in_context (or if we want parallism?) the context should live in the task instead?
                 self._set_session_in_context(s)
+
+                # Note: we can't set the output directory until we know at least one session (so we can find 'target' name)
+                # so we do it here.
+                if not has_set_output:
+                    self._set_output_by_kind("processed")
+                    # FIXME this is the earliest place we can create/read the output toml file
+                    has_set_output = True
+
                 task_dict = self._create_task_dict(stage)
                 self.doit.add_task(task_dict)
         else:
@@ -227,8 +256,9 @@ class ProcessingNew(Processing):
 
         task_dict: TaskDict = {
             "name": task_name,
-            "file_dep": file_deps,
-            "targets": targets,
+            "file_dep": expand_context_list(file_deps, self.context),
+            # FIXME, we should probably be using something more structured than bare filenames - so we can pass base source and confidence scores
+            "targets": expand_context_list(targets, self.context),
         }
 
         self._stage_to_action(task_dict, stage)  # add the actions
@@ -244,11 +274,10 @@ class ProcessingNew(Processing):
             candidates: List of candidate ImageRow objects to filter (we will modify this list in place)"""
         pass
 
-    def _resolve_job(self, input: InputDef) -> list[Path]:
-        """combine the job directory with the input/output name(s) to get paths.
+    def _resolve_files(self, input: InputDef, dir: Path) -> list[Path]:
+        """combine the directory with the input/output name(s) to get paths.
 
         We can share this function because input/output sections have the same rules for jobs"""
-        dir = self.job_dir
         filenames = get_list_of_strings(input, "name")
         return [dir / filename for filename in filenames]
 
@@ -271,7 +300,7 @@ class ProcessingNew(Processing):
         # - Return list of actual file paths
 
         def _resolve_input_job() -> list[Path]:
-            return self._resolve_job(input)
+            return self._resolve_files(input, self.job_dir)
 
         def _resolve_input_session() -> list[Path]:
             images = self.sb.get_session_images(self.session)
@@ -323,6 +352,8 @@ class ProcessingNew(Processing):
         kind: str = get_safe(input, "kind")
         resolver = get_safe(resolvers, kind)
         r = resolver()
+
+        # FIXME: we also need to add ["input"][type] to the context so that scripts can find .base etc... off of it
         return r
 
     def _stage_input_files(self, stage: StageDict) -> list[Path]:
@@ -354,10 +385,10 @@ class ProcessingNew(Processing):
         # - Return list of actual file paths
 
         def _resolve_output_job() -> list[Path]:
-            return self._resolve_job(output)
+            return self._resolve_files(output, self.job_dir)
 
         def _resolve_processed() -> list[Path]:
-            raise NotImplementedError()
+            return self._resolve_files(output, self.output_dir)
 
         resolvers = {
             "job": _resolve_output_job,
@@ -395,3 +426,57 @@ class ProcessingNew(Processing):
             NotImplementedError: This method is not yet implemented.
         """
         raise NotImplementedError("ProcessingNew.run_master_stages() is not yet implemented")
+
+    def _set_output_by_kind(self, kind: str) -> None:
+        """Set output paths in the context based on their kind.
+
+        Args:
+            kind: The kind of output ("job", "processed", etc.)
+            paths: List of Path objects for the outputs
+        """
+        # Find the repo with matching kind
+        dest_repo = self.sb.repo_manager.get_repo_by_kind(kind)
+        if not dest_repo:
+            raise ValueError(f"No repository found with kind '{kind}' for output destination")
+
+        repo_base = dest_repo.get_path()
+        if not repo_base:
+            raise ValueError(f"Repository '{dest_repo.url}' has no filesystem path")
+
+        # try to find repo.relative.<imagetyp> first, fallback to repo.relative.default
+        # Note: we are guaranteed imagetyp is already normalized
+        imagetyp = self.context.get("imagetyp", "unspecified")
+        repo_relative: str | None = dest_repo.get(
+            f"repo.relative.{imagetyp}", dest_repo.get("repo.relative.default")
+        )
+        if not repo_relative:
+            raise ValueError(
+                f"Repository '{dest_repo.url}' is missing 'repo.relative.default' configuration"
+            )
+
+        # we support context variables in the relative path
+        repo_relative = expand_context_unsafe(repo_relative, self.context)
+        full_path = repo_base / repo_relative
+
+        # base_path but without spaces - because Siril doesn't like that
+        full_path = Path(str(full_path).replace(" ", r"_"))
+
+        base_path = full_path.parent / full_path.stem
+        if str(base_path).endswith("*"):
+            # The relative path must be of the form foo/blah/*.fits or somesuch.  In that case we want the base
+            # path to just point to that directory prefix.
+            base_path = Path(str(base_path)[:-1])
+
+        # create output directory if needed
+        os.makedirs(base_path.parent, exist_ok=True)
+
+        # Set context variables as documented in the TOML
+        # FIXME, change this type from a dict to a dataclass?!? so foo.base works in the context expanson strings
+        self.context["output"] = {
+            # "root_path": repo_relative, not needed I think
+            "base": base_path,
+            # "suffix": full_path.suffix, not needed I think
+            "full": full_path,
+            "relative": repo_relative,
+            "repo": dest_repo,
+        }

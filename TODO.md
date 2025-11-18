@@ -195,6 +195,7 @@
 * [ ] try a test run on just a dual duo filter set
 * [ ] change masters over to using this same mechanism - hook together via dependencies
 * [ ] implement _filter_by_requires
+* [ ] change context["output"] to be a dataclass rather than a dict
 * [ ] use get_safe more pervasively, pass in a help string to it (to indicate source of failure)
 * [ ] switch old scripts over to new system
 * [ ] have AI change asserts to raise ValueError (or something better?)
