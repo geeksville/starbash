@@ -8,6 +8,10 @@ from tomlkit.toml_file import TOMLFile
 
 from starbash import url
 
+__all__ = [
+    "toml_from_template",
+]
+
 
 def toml_from_template(
     template_name: str, dest_path: Path, overrides: dict[str, Any] = {}

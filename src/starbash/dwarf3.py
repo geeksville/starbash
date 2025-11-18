@@ -8,6 +8,10 @@ from typing import Any
 
 from starbash.database import Database
 
+__all__ = [
+    "extend_dwarf3_headers",
+]
+
 
 def _extract_temperature(filename: str) -> float | None:
     """Extract temperature from filename in format like '16C' or '20C'.

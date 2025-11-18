@@ -18,6 +18,15 @@ from starbash.exception import UserHandledError
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "Tool",
+    "ToolError",
+    "expand_context",
+    "expand_context_unsafe",
+    "tools",
+    "preflight_tools",
+]
+
 
 class ToolError(UserHandledError):
     """Exception raised when a tool fails to execute properly."""

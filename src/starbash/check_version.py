@@ -3,6 +3,10 @@ from importlib.metadata import PackageNotFoundError, version
 
 from update_checker import UpdateChecker
 
+__all__ = [
+    "check_version",
+]
+
 
 def check_version():
     """Check if a newer version of starbash is available on PyPI."""

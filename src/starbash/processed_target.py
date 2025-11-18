@@ -8,6 +8,10 @@ from starbash.app import ScoredCandidate
 from starbash.database import SessionRow
 from starbash.toml import toml_from_template
 
+__all__ = [
+    "ProcessedTarget",
+]
+
 
 class ProcessingLike(Protocol):
     """Minimal protocol to avoid importing Processing and creating cycles.

@@ -13,6 +13,11 @@ from starbash.database import (
     metadata_to_instrument_id,
 )
 
+__all__ = [
+    "ScoredCandidate",
+    "score_candidates",
+]
+
 
 @dataclass
 class ScoredCandidate:

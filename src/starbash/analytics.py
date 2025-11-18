@@ -11,6 +11,16 @@ from starbash import _is_test_env
 # Default to no analytics/auto crash reports
 analytics_allowed = False
 
+__all__ = [
+    "analytics_setup",
+    "analytics_shutdown",
+    "analytics_start_transaction",
+    "analytics_start_span",
+    "analytics_exception",
+    "is_development_environment",
+    "NopAnalytics",
+]
+
 
 def analytics_setup(allowed: bool = False, user_email: str | None = None) -> None:
     global analytics_allowed

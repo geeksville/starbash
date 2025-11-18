@@ -17,6 +17,15 @@ _override_data_dir: Path | None = None
 _override_cache_dir: Path | None = None
 _override_documents_dir: Path | None = None
 
+__all__ = [
+    "set_test_directories",
+    "get_user_config_dir",
+    "get_user_config_path",
+    "get_user_data_dir",
+    "get_user_cache_dir",
+    "get_user_documents_dir",
+]
+
 
 def set_test_directories(
     config_dir_override: Path | None = None,

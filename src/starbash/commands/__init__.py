@@ -8,6 +8,14 @@ TABLE_VALUE_STYLE = Style(color="green")
 TABLE_HEADER_STYLE = Style(color="magenta", bold=True)
 SPINNER_STYLE = Style(color="magenta", bold=True)
 
+__all__ = [
+    "TABLE_COLUMN_STYLE",
+    "TABLE_VALUE_STYLE",
+    "TABLE_HEADER_STYLE",
+    "SPINNER_STYLE",
+    "format_duration",
+]
+
 
 def format_duration(seconds: int | float) -> str:
     """Format seconds as a human-readable duration string."""

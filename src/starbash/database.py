@@ -13,6 +13,16 @@ from .paths import get_user_data_dir
 type SessionRow = dict[str, Any]
 type ImageRow = dict[str, Any]
 
+__all__ = [
+    "Database",
+    "SearchCondition",
+    "SessionRow",
+    "ImageRow",
+    "get_column_name",
+    "metadata_to_instrument_id",
+    "metadata_to_camera_id",
+]
+
 
 @dataclass(frozen=True)
 class SearchCondition:

@@ -22,6 +22,13 @@ from starbash.database import (
 from starbash.exception import UserHandledError
 from starbash.paths import get_user_cache_dir
 
+__all__ = [
+    "Processing",
+    "ProcessingResult",
+    "ProcessingContext",
+    "update_processing_result",
+]
+
 
 @dataclass
 class ProcessingResult:

@@ -14,6 +14,12 @@ my_builtin_task = {
     "doc": "sample doc",
 }
 
+__all__ = [
+    "StarbashDoit",
+    "ToolAction",
+    "my_builtin_task",
+]
+
 
 class ToolAction(BaseAction):
     """An action that runs a starbash tool with given commands and context."""
