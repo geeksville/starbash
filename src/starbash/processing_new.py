@@ -240,7 +240,9 @@ class ProcessingNew(Processing):
             "session": _resolve_input_session,
             "master": _resolve_input_master,
         }
-        kind = input.get("kind")
+        kind: str | None = input.get("kind")
+        if not kind:
+            raise ValueError("Input definition is missing 'kind' field")
         resolver = resolvers.get(kind)
         if not resolver:
             raise ValueError(f"Unknown input kind '{kind}'")
