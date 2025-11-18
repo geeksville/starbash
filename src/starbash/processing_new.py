@@ -294,7 +294,10 @@ class ProcessingNew(Processing):
             # FIXME - do reporting and use the user selected master if specified
             # FIXME make a special doit task that just provides a very large set of possible masters - so that doit can do the resolution
             # /selection of inputs?  The INPUT for a master kind would just make its choice based on the toml user preferences (or pick the first
-            # if no other specified)
+            # if no other specified).  Perhaps no need for a special master task, just use the regular depdency mechanism and port over the
+            # master scripts as well!!!
+            # Use the ScoredCandidate data during the cullling!  In fact, delay DOING the scoring until that step.
+            #
             # session_masters = session.setdefault("masters", {})
             # session_masters[master_type] = scored_masters  # for reporting purposes
 
@@ -317,13 +320,8 @@ class ProcessingNew(Processing):
             "session": _resolve_input_session,
             "master": _resolve_input_master,
         }
-        kind: str | None = input.get("kind")
-        if not kind:
-            raise ValueError("Input definition is missing 'kind' field")
-        resolver = resolvers.get(kind)
-        if not resolver:
-            raise ValueError(f"Unknown input kind '{kind}'")
-
+        kind: str = get_safe(input, "kind")
+        resolver = get_safe(resolvers, kind)
         r = resolver()
         return r
 
@@ -339,7 +337,7 @@ class ProcessingNew(Processing):
             all_input_files.extend(input_files)
         return all_input_files
 
-    def _resolve_output_files(self, stage: OutputDef) -> list[Path]:
+    def _resolve_output_files(self, output: OutputDef) -> list[Path]:
         """Resolve output file paths for a stage.
 
         Args:
@@ -353,10 +351,22 @@ class ProcessingNew(Processing):
         # - For each output, based on its "kind":
         #   - "job": construct path in shared processing temp dir
         #   - "processed": construct path in target-specific results dir
-        # - Expand context variables in output names (e.g., {light_base})
-        # - Handle both single names and lists of names
         # - Return list of actual file paths
-        raise NotImplementedError("ProcessingNew._resolve_output_files() is not yet implemented")
+
+        def _resolve_output_job() -> list[Path]:
+            return self._resolve_job(output)
+
+        def _resolve_processed() -> list[Path]:
+            raise NotImplementedError()
+
+        resolvers = {
+            "job": _resolve_output_job,
+            "processed": _resolve_processed,
+        }
+        kind: str = get_safe(output, "kind")
+        resolver = get_safe(resolvers, kind)
+        r = resolver()
+        return r
 
     def _stage_output_files(self, stage: StageDict) -> list[Path]:
         """Get all output file paths for the given stage.
