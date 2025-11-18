@@ -244,6 +244,14 @@ class ProcessingNew(Processing):
             candidates: List of candidate ImageRow objects to filter (we will modify this list in place)"""
         pass
 
+    def _resolve_job(self, input: InputDef) -> list[Path]:
+        """combine the job directory with the input/output name(s) to get paths.
+
+        We can share this function because input/output sections have the same rules for jobs"""
+        dir = self.job_dir
+        filenames = get_list_of_strings(input, "name")
+        return [dir / filename for filename in filenames]
+
     def _resolve_input_files(self, input: InputDef) -> list[Path]:
         """Resolve input file paths for a stage.
 
@@ -263,10 +271,7 @@ class ProcessingNew(Processing):
         # - Return list of actual file paths
 
         def _resolve_input_job() -> list[Path]:
-            """combine the job directory with the input name(s) to get paths."""
-            dir = self.job_dir
-            filenames = get_list_of_strings(input, "name")
-            return [dir / filename for filename in filenames]
+            return self._resolve_job(input)
 
         def _resolve_input_session() -> list[Path]:
             images = self.sb.get_session_images(self.session)
@@ -287,6 +292,9 @@ class ProcessingNew(Processing):
             scored_masters = score_candidates(masters, self.session)
 
             # FIXME - do reporting and use the user selected master if specified
+            # FIXME make a special doit task that just provides a very large set of possible masters - so that doit can do the resolution
+            # /selection of inputs?  The INPUT for a master kind would just make its choice based on the toml user preferences (or pick the first
+            # if no other specified)
             # session_masters = session.setdefault("masters", {})
             # session_masters[master_type] = scored_masters  # for reporting purposes
 
@@ -348,7 +356,7 @@ class ProcessingNew(Processing):
         # - Expand context variables in output names (e.g., {light_base})
         # - Handle both single names and lists of names
         # - Return list of actual file paths
-        return []
+        raise NotImplementedError("ProcessingNew._resolve_output_files() is not yet implemented")
 
     def _stage_output_files(self, stage: StageDict) -> list[Path]:
         """Get all output file paths for the given stage.
