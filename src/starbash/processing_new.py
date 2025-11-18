@@ -114,8 +114,15 @@ class ProcessingNew(Processing):
         try:
             stages = self._get_stages()
             self._stages_to_tasks(stages)
-            # FIXME - fire up doit to run the tasks
-            # have those tasks store into a ProcessingResults object somehow
+            # fire up doit to run the tasks
+            # FIXME, perhaps we could run doit one level higher, so that all targets are processed by doit
+            # for parallism etc...?
+            self.doit.run(["list"])
+            # self.doit.run(["dumpdb"])
+            logging.info("Running doit tasks...")
+            self.doit.run(["strace", "light_s35"])  # "stack_s36"])
+
+            # have doit tasks store into a ProcessingResults object somehow
 
         except Exception as e:
             task_exception = e
@@ -325,6 +332,8 @@ class ProcessingNew(Processing):
         # - Apply input.requires filters (metadata, min_count, camera)
         # - Return list of actual file paths
 
+        ci = self.context.setdefault("input", {})
+
         def _resolve_input_job() -> list[Path]:
             return self._resolve_files(input, self.job_dir)
 
@@ -338,7 +347,6 @@ class ProcessingNew(Processing):
             filepaths = [img["abspath"] for img in images]
             # FIMXEMove elsewhere.
             # we also need to add ["input"][type] to the context so that scripts can find .base etc... o
-            ci = self.context.setdefault("input", {})
             imagetyp = get_safe(input, "type")
             ci[imagetyp] = FileInfo(files=filepaths, base=f"{imagetyp}_s{self.session['id']}")
 
@@ -376,6 +384,10 @@ class ProcessingNew(Processing):
             logging.info(
                 f"For master '{imagetyp}', using: {selected_master} (score={scored_masters[0].score:.1f}, {scored_masters[0].reason})"
             )
+
+            # so scripts can find input["bias"].base etc...
+            ci[imagetyp] = FileInfo(full=selected_master)
+
             return [selected_master]
 
         resolvers = {

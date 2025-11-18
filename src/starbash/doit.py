@@ -45,7 +45,7 @@ class StarbashDoit(TaskLoader2):
         self.dicts: list[dict[str, Any]] = []
 
         # For early testing
-        self.add_task(my_builtin_task)
+        # self.add_task(my_builtin_task)
 
     def add_task(self, task_dict: dict[str, Any]) -> None:
         """Add a task defined as a dictionary to the list of tasks.

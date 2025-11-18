@@ -215,7 +215,6 @@ def doit(
             from starbash import console
 
             console.print("[red]ProcessingNew command is not yet supported.[/red]")
-            proc.run_all_stages()
             proc.doit.run(ctx.args)
 
 
