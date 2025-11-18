@@ -13,7 +13,7 @@ from repo import Repo
 from starbash.app import Starbash
 from starbash.database import ImageRow
 from starbash.doit import StarbashDoit
-from starbash.processing import Processing, ProcessingResult
+from starbash.processing import Processing, ProcessingResult, update_processing_result
 from starbash.score import score_candidates
 from starbash.tool import expand_context_list, expand_context_unsafe, tools
 
@@ -109,10 +109,19 @@ class ProcessingNew(Processing):
     def _process_target(self, target: str) -> ProcessingResult:
         """Do processing for a particular target (i.e. all selected sessions for a particular object)."""
 
-        stages = self._get_stages()
-        self._stages_to_tasks(stages)
-        # FIXME - fire up doit to run the tasks
-        # have those tasks store into a ProcessingResults object somehow
+        result = ProcessingResult(target=target, sessions=self.sessions)
+
+        try:
+            stages = self._get_stages()
+            self._stages_to_tasks(stages)
+            # FIXME - fire up doit to run the tasks
+            # have those tasks store into a ProcessingResults object somehow
+
+        except Exception as e:
+            task_exception = e
+            update_processing_result(result, task_exception)
+
+        return result
 
     def _get_stages(self, name: str = "stages2") -> list[StageDict]:
         """Get all pipeline stages defined in the merged configuration."""

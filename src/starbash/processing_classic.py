@@ -98,7 +98,6 @@ class ProcessingClassic(Processing):
         task_exception: Exception | None = None
 
         result = ProcessingResult(target=target, sessions=self.sessions)
-
         try:
             # target specific processing here
 
