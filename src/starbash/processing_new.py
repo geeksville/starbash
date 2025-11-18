@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 from starbash.app import Starbash
-from starbash.database import SessionRow
 from starbash.doit import StarbashDoit
 from starbash.processing import Processing, ProcessingResult
 from starbash.tool import tools
@@ -27,6 +26,24 @@ def _inputs_by_kind(stage: StageDict, kind: str) -> list[InputDef]:
     """Returns all imputs of a particular kind from the given stage definition."""
     inputs: list[InputDef] = stage.get("inputs", [])
     return [inp for inp in inputs if inp.get("kind") == kind]
+
+
+# FIXME remaining TODO for first implementation:
+# * get the input files
+# * get the output files
+# * build and look at the list of doit tasks
+# * populate the context
+# * create the ProcessedTarget by referring to the processed repo path info (need context first)
+# * store the various ScoredCandiates in the toml file
+# * use user selected values from the toml file
+# * try a test run on just a dual duo filter set
+# * change masters over to using this same mechanism - hook together via dependencies
+# * switch old scripts over to new system
+# * try test run on the small dataset
+# * test integration on big dataset
+# * verify build takes zero time if no changes
+# * add depenencies on the generated toml files
+# * add graxpert
 
 
 class ProcessingNew(Processing):
@@ -147,14 +164,18 @@ class ProcessingNew(Processing):
         if need_multiplex:
             # Create one task per session
             for session in self.sessions:
-                task_dict = self._create_task_dict(stage, session)
+                # FIXME, right now we have a single context instance and we set session inside it
+                # later when we go to actually RUN the tasks we need to make sure each task is either
+                # redoing _set_session_in_context (or if we want parallism?) the context should live in the task instead?
+                self._set_session_in_context(session)
+                task_dict = self._create_task_dict(stage)
                 self.doit.add_task(task_dict)
         else:
             # Single task (no multiplexing) - e.g., final stacking or post-processing
             task_dict = self._create_task_dict(stage)
             self.doit.add_task(task_dict)
 
-    def _create_task_dict(self, stage: StageDict, session: SessionRow | None = None) -> TaskDict:
+    def _create_task_dict(self, stage: StageDict) -> TaskDict:
         """Create a doit task dictionary for a single session in a multiplexed stage.
 
         Args:
@@ -167,14 +188,15 @@ class ProcessingNew(Processing):
         task_name = stage.get("name", "unnamed_stage")
 
         # FIXME - might need to further uniquify the task name
+        session = self.context["session"]
         if session:
             session_id = session["id"]
 
             # Make unique task name by combining stage name and session ID
             task_name += f"_s{session_id}"
 
-        file_deps = self._resolve_input_files(stage, session)
-        targets = self._resolve_output_files(stage, session)
+        file_deps = self._resolve_input_files(stage)
+        targets = self._resolve_output_files(stage)
 
         task_dict: TaskDict = {
             "name": task_name,
@@ -187,12 +209,11 @@ class ProcessingNew(Processing):
 
         return task_dict
 
-    def _resolve_input_files(self, stage: StageDict, session: SessionRow | None) -> list[Path]:
+    def _resolve_input_files(self, stage: StageDict) -> list[Path]:
         """Resolve input file paths for a stage.
 
         Args:
             stage: The stage definition from TOML
-            session: Session row if this is a multiplexed stage, None otherwise
 
         Returns:
             List of absolute file paths that are inputs to this stage
@@ -207,12 +228,11 @@ class ProcessingNew(Processing):
         # - Return list of actual file paths
         return []
 
-    def _resolve_output_files(self, stage: StageDict, session: SessionRow | None) -> list[Path]:
+    def _resolve_output_files(self, stage: StageDict) -> list[Path]:
         """Resolve output file paths for a stage.
 
         Args:
             stage: The stage definition from TOML
-            session: Session row if this is a multiplexed stage, None otherwise
 
         Returns:
             List of absolute file paths that are outputs/targets of this stage

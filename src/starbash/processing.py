@@ -10,12 +10,17 @@ from rich.progress import Progress
 
 import starbash
 from repo import Repo
+from starbash.aliases import (
+    get_instance as get_aliases_instance,
+)
 from starbash.aliases import normalize_target_name
 from starbash.app import Starbash
 from starbash.database import (
     Database,
     SessionRow,
     get_column_name,
+    metadata_to_camera_id,
+    metadata_to_instrument_id,
 )
 from starbash.exception import UserHandledError
 from starbash.paths import get_user_cache_dir
@@ -184,3 +189,72 @@ class Processing:
             self.progress.remove_task(target_task)
 
         return results
+
+    def _set_session_in_context(self, session: SessionRow) -> None:
+        """adds to context from the indicated session:
+
+        Sets the following context variables based on the provided session:
+        * target - the normalized target name of the session
+        * instrument - the telescope ID for this session
+        * camera_id - the camera ID for this session (cameras might be moved between telescopes by users)
+        * date - the localtimezone date of the session
+        * imagetyp - the imagetyp of the session
+        * session - the current session row (joined with a typical image) (can be used to
+        find things like telescope, temperature ...)
+        * session_config - a short human readable description of the session - suitable for logs or filenames
+        """
+        # it is okay to give them the actual session row, because we're never using it again
+        self.context["session"] = session
+
+        target = session.get(get_column_name(Database.OBJECT_KEY))
+        if target:
+            self.context["target"] = normalize_target_name(target)
+
+        metadata = session.get("metadata", {})
+        # the telescope name is our instrument id
+        instrument = metadata_to_instrument_id(metadata)
+        if instrument:
+            self.context["instrument"] = instrument
+
+        # the FITS INSTRUMEN keyword is the closest thing we have to a default camera ID.  FIXME, let user override
+        # if needed?
+        # It isn't in the main session columns, so we look in metadata blob
+
+        camera_id = metadata_to_camera_id(metadata)
+        if camera_id:
+            self.context["camera_id"] = camera_id
+
+        logging.debug(f"Using camera_id={camera_id}")
+
+        # The type of images in this session
+        imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
+        if imagetyp:
+            imagetyp = get_aliases_instance().normalize(imagetyp)
+            self.context["imagetyp"] = imagetyp
+
+            # add a short human readable description of the session - suitable for logs or in filenames
+            session_config = f"{imagetyp}"
+
+            metadata = session.get("metadata", {})
+            filter = metadata.get(Database.FILTER_KEY)
+            if (imagetyp == "flat" or imagetyp == "light") and filter:
+                # we only care about filters in these cases
+                session_config += f"_{filter}"
+            if imagetyp == "dark":
+                exptime = session.get(get_column_name(Database.EXPTIME_KEY))
+                if exptime:
+                    session_config += f"_{int(float(exptime))}s"
+            gain = metadata.get(Database.GAIN_KEY)
+            if gain is not None:  # gain values can be zero
+                session_config += f"_gain{gain}"
+
+            self.context["session_config"] = session_config
+
+        # a short user friendly date for this session
+        date = session.get(get_column_name(Database.START_KEY))
+        if date:
+            from starbash import (
+                to_shortdate,
+            )  # Lazy import to avoid circular dependency
+
+            self.context["date"] = to_shortdate(date)
