@@ -160,6 +160,14 @@ class ProcessingNew(Processing):
         # - Return list of Path objects
         return []
 
+    def _clone_context(self) -> dict[str, Any]:
+        """Create a shallow copy of the current processing context.
+
+        Returns:
+            A shallow copy of the current context dictionary.
+        """
+        return self.context.copy()
+
     def _stage_to_action(self, task: TaskDict, stage: StageDict) -> None:
         """Given a stage definition, populate the "actions" list of the task dictionary.
 
@@ -210,7 +218,7 @@ class ProcessingNew(Processing):
         cwd = None
 
         # Create the ToolAction and add to task
-        action = ToolAction(tool, commands=script, context=self.context, cwd=cwd)
+        action = ToolAction(tool, commands=script, context=self._clone_context(), cwd=cwd)
         task["actions"] = [action]
 
     def _add_stage_context_defs(self, stage: StageDict) -> None:
@@ -246,9 +254,16 @@ class ProcessingNew(Processing):
 
             # Create one task per session
             for s in self.sessions:
-                # FIXME, right now we have a single context instance and we set session inside it
-                # later when we go to actually RUN the tasks we need to make sure each task is either
-                # redoing _set_session_in_context (or if we want parallism?) the context should live in the task instead?
+                # Note we have a single context instance and we set session inside it
+                # later when we go to actually RUN the tasks we need to make sure each task is using a clone
+                # from _clone_context().  So that task will be seeing the correct context data we are building here.
+
+                # since 'inputs' are session specific we erase them here, so that _create_task_dict can reinit with
+                # the correct session specific files
+                self.context.pop("input", None)
+                self.context.pop(
+                    "input_files", None
+                )  # also nuke our temporary old-school way of finding input files
                 self._set_session_in_context(s)
 
                 # Note: we can't set the output directory until we know at least one session (so we can find 'target' name)
@@ -294,7 +309,8 @@ class ProcessingNew(Processing):
             "targets": expand_context_list(targets, self.context),
         }
 
-        self._stage_to_action(task_dict, stage)  # add the actions
+        # add the actions THIS will store a SNAPSHOT of the context AT THIS TIME for use if the task/action is later executed
+        self._stage_to_action(task_dict, stage)
         _stage_to_doc(task_dict, stage)  # add the doc string
 
         return task_dict
@@ -349,6 +365,10 @@ class ProcessingNew(Processing):
             # we also need to add ["input"][type] to the context so that scripts can find .base etc... o
             imagetyp = get_safe(input, "type")
             ci[imagetyp] = FileInfo(files=filepaths, base=f"{imagetyp}_s{self.session['id']}")
+
+            # FIXME, we temporarily (until the processing_classic is removed) use the old style input_files
+            # context variable - so that existing scripts can keep working.
+            self.context["input_files"] = filepaths
 
             return filepaths
 

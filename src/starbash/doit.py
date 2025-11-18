@@ -31,7 +31,9 @@ class ToolAction(BaseAction):
         self.cwd: str | None = cwd
 
     def execute(self, out=None, err=None):
-        self.tool.run(self.commands, context=self.context, cwd=self.cwd)
+        # Doit requires that we set result to **something**. None is fine, though returning TaskFailed or a dictionary or a string.
+        self.result = self.tool.run(self.commands, context=self.context, cwd=self.cwd)
+        self.values = {}  # doit requires this attribute to be set
 
     def __str__(self) -> str:
         return f"ToolAction(tool={self.tool.name}, commands={self.commands})"
