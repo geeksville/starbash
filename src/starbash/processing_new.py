@@ -8,8 +8,10 @@ from typing import Any
 from tomlkit.items import AoT
 
 from starbash.app import Starbash
+from starbash.database import ImageRow
 from starbash.doit import StarbashDoit
 from starbash.processing import Processing, ProcessingResult
+from starbash.score import score_candidates
 from starbash.tool import tools
 
 # some type aliases for clarity
@@ -206,6 +208,14 @@ class ProcessingNew(Processing):
 
         return task_dict
 
+    def _filter_by_requires(self, input: InputDef, candidates: list[ImageRow]) -> None:
+        """Filter candidate images based on the 'requires' conditions in the input definition.
+
+        Args:
+            input: The input definition from the stage TOML
+            candidates: List of candidate ImageRow objects to filter (we will modify this list in place)"""
+        pass
+
     def _resolve_input_files(self, input: InputDef) -> list[Path]:
         """Resolve input file paths for a stage.
 
@@ -229,11 +239,40 @@ class ProcessingNew(Processing):
 
         def _resolve_input_session() -> list[Path]:
             images = self.sb.get_session_images(self.session)
+
+            self._filter_by_requires(input, images)
+
             logging.debug(f"Using {len(images)} files as input_files")
             return [img["abspath"] for img in images]
 
         def _resolve_input_master() -> list[Path]:
-            raise NotImplementedError("Master input resolution not yet implemented")
+            imagetyp = input.get("type")
+            if not imagetyp:
+                raise ValueError("Master input definition is missing 'type' field")
+            masters = self.sb.get_master_images(imagetyp=imagetyp, reference_session=self.session)
+            if not masters:
+                raise RuntimeError(f"No master frames of type '{imagetyp}' found for stage")
+
+            # Try to rank the images by desirability
+            scored_masters = score_candidates(masters, self.session)
+
+            # FIXME - do reporting and use the user selected master if specified
+            # session_masters = session.setdefault("masters", {})
+            # session_masters[master_type] = scored_masters  # for reporting purposes
+
+            if len(scored_masters) == 0:
+                logging.warning(f"No suitable master frames of type '{imagetyp}' found.")
+                return []
+
+            self.sb._add_image_abspath(
+                scored_masters[0].candidate
+            )  # make sure abspath is populated, we need it
+
+            selected_master = scored_masters[0].candidate["abspath"]
+            logging.info(
+                f"For master '{imagetyp}', using: {selected_master} (score={scored_masters[0].score:.1f}, {scored_masters[0].reason})"
+            )
+            return [selected_master]
 
         resolvers = {
             "job": _resolve_input_job,

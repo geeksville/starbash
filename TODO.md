@@ -194,6 +194,7 @@
 * [ ] use user selected values from the toml file
 * [ ] try a test run on just a dual duo filter set
 * [ ] change masters over to using this same mechanism - hook together via dependencies
+* [ ] implement _filter_by_requires
 * [ ] switch old scripts over to new system
 * [ ] have AI change asserts to raise ValueError (or something better?)
 * [ ] try test run on the small dataset
