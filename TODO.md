@@ -185,7 +185,7 @@
 * [ ] make a "gen_test_db() function that can be used to generate either a huge or a tiny DB with 'real looking' test data (for performance tesing and CI).  Have it use a couple of real stripped FITS files.
 
 ## Doit dependency TODOs
-* [ ] get the input files
+* [x] get the input files
 * [ ] get the output files
 * [ ] build and look at the list of doit tasks
 * [ ] populate the context
@@ -195,6 +195,7 @@
 * [ ] try a test run on just a dual duo filter set
 * [ ] change masters over to using this same mechanism - hook together via dependencies
 * [ ] implement _filter_by_requires
+* [ ] use get_safe more pervasively, pass in a help string to it (to indicate source of failure)
 * [ ] switch old scripts over to new system
 * [ ] have AI change asserts to raise ValueError (or something better?)
 * [ ] try test run on the small dataset

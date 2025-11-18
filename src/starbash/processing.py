@@ -77,7 +77,7 @@ class ProcessingContext(tempfile.TemporaryDirectory):
         logging.debug(f"Created processing context at {self.name}")
 
         self.p.init_context()
-        self.p.context["process_dir"] = self.name
+        self.p.context["process_dir"] = self.name  # FIXME change the name of this to "job".base
 
     def __enter__(self) -> "ProcessingContext":
         return super().__enter__()

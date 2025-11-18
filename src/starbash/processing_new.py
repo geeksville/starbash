@@ -33,6 +33,32 @@ def _inputs_by_kind(stage: StageDict, kind: str) -> list[InputDef]:
     return [inp for inp in inputs if inp.get("kind") == kind]
 
 
+def get_safe(d: dict[str, Any], key: str) -> Any:
+    """Get a value from the given dictionary key, raising an error if missing."""
+    names: Any | None = d.get(key)
+    if not names:
+        raise ValueError(f"Config is missing '{key}' field")
+    return names
+
+
+def get_list_of_strings(d: dict[str, Any], key: str) -> list[str]:
+    """Get a list of strings from the given dictionary key.
+
+    If the value is a single string, it is wrapped in a list.
+    If the value is already a list of strings, it is returned as is.
+    If the key does not exist, an empty list is returned.
+
+    Args:
+        d: The dictionary to extract from
+        key: The key to look for"""
+    names: str | list[str] | None = get_safe(d, key)
+    if isinstance(names, str):
+        names = [names]
+    elif not isinstance(names, list):
+        raise ValueError(f"Expected string or list of strings for key '{key}', got {type(names)}")
+    return names
+
+
 class ProcessingNew(Processing):
     """New processing implementation (work in progress).
 
@@ -43,6 +69,12 @@ class ProcessingNew(Processing):
     def session(self) -> dict[str, Any]:
         """Get the current session from the context."""
         return self.context["session"]
+
+    @property
+    def job_dir(self) -> Path:
+        """Get the current job directory (for working/temp files) from the context."""
+        d = self.context["process_dir"]  # FIXME change this to be named "job".base
+        return Path(d)
 
     def __init__(self, sb: Starbash) -> None:
         super().__init__(sb)
@@ -99,12 +131,8 @@ class ProcessingNew(Processing):
         """
         from starbash.doit import ToolAction
 
-        tool_dict = stage.get("tool")
-        if not tool_dict:
-            raise ValueError(f"Stage '{stage.get('name')}' is missing a 'tool' definition.")
-        tool_name = tool_dict.get("name")
-        if not tool_name:
-            raise ValueError(f"Stage '{stage.get('name')}' is missing a 'tool.name' definition.")
+        tool_dict = get_safe(stage, "tool")
+        tool_name = get_safe(tool_dict, "name")
         tool = tools.get(tool_name)
         if not tool:
             raise ValueError(f"Tool '{tool_name}' for stage '{stage.get('name')}' not found.")
@@ -235,7 +263,10 @@ class ProcessingNew(Processing):
         # - Return list of actual file paths
 
         def _resolve_input_job() -> list[Path]:
-            raise NotImplementedError("Job input resolution not yet implemented")
+            """combine the job directory with the input name(s) to get paths."""
+            dir = self.job_dir
+            filenames = get_list_of_strings(input, "name")
+            return [dir / filename for filename in filenames]
 
         def _resolve_input_session() -> list[Path]:
             images = self.sb.get_session_images(self.session)
@@ -246,12 +277,11 @@ class ProcessingNew(Processing):
             return [img["abspath"] for img in images]
 
         def _resolve_input_master() -> list[Path]:
-            imagetyp = input.get("type")
-            if not imagetyp:
-                raise ValueError("Master input definition is missing 'type' field")
+            imagetyp = get_safe(input, "type")
             masters = self.sb.get_master_images(imagetyp=imagetyp, reference_session=self.session)
             if not masters:
-                raise RuntimeError(f"No master frames of type '{imagetyp}' found for stage")
+                logging.warning(f"No master frames of type '{imagetyp}' found for stage")
+                return []
 
             # Try to rank the images by desirability
             scored_masters = score_candidates(masters, self.session)
