@@ -34,6 +34,8 @@ class TestStarbashDoit:
     def test_load_tasks(self):
         """Test that load_tasks returns a list of tasks."""
         doit = StarbashDoit()
+        # Manually add the sample task since it's no longer auto-populated
+        doit.add_task(my_builtin_task)
         task_list = doit.load_tasks(None, [])
         assert isinstance(task_list, list)
         assert len(task_list) == 1
@@ -45,6 +47,8 @@ class TestStarbashDoit:
     def test_run_list_command(self, capsys):
         """Test that run method works with the 'list' command."""
         doit = StarbashDoit()
+        # Manually add the sample task since it's no longer auto-populated
+        doit.add_task(my_builtin_task)
         result = doit.run(["list"])
 
         # Check that it ran successfully (exit code 0)
@@ -69,6 +73,8 @@ class TestStarbashDoit:
     def test_run_sample_task(self, capsys):
         """Test that run method can execute the sample task."""
         doit = StarbashDoit()
+        # Manually add the sample task since it's no longer auto-populated
+        doit.add_task(my_builtin_task)
         result = doit.run(["sample_task"])
 
         # Task should execute successfully
@@ -81,6 +87,8 @@ class TestStarbashDoit:
     def test_run_list_with_status(self, capsys):
         """Test that run method works with list options."""
         doit = StarbashDoit()
+        # Manually add the sample task since it's no longer auto-populated
+        doit.add_task(my_builtin_task)
         result = doit.run(["list", "--status"])
 
         # Should run successfully
@@ -118,6 +126,8 @@ class TestDoitIntegration:
     def test_run_without_args_shows_help(self, capsys):
         """Test that running without args shows help/usage."""
         doit = StarbashDoit()
+        # Manually add the sample task since it's no longer auto-populated
+        doit.add_task(my_builtin_task)
         result = doit.run([])
 
         # Should succeed or fail gracefully
@@ -130,6 +140,8 @@ class TestDoitIntegration:
     def test_run_info_command(self, capsys):
         """Test the 'info' command."""
         doit = StarbashDoit()
+        # Manually add the sample task since it's no longer auto-populated
+        doit.add_task(my_builtin_task)
         result = doit.run(["info", "sample_task"])
 
         # Info command returns 1 but still displays info
@@ -143,6 +155,8 @@ class TestDoitIntegration:
     def test_list_shows_all_tasks(self, capsys):
         """Test that list command shows all available tasks."""
         doit = StarbashDoit()
+        # Manually add the sample task since it's no longer auto-populated
+        doit.add_task(my_builtin_task)
         result = doit.run(["list"])
 
         assert result == 0
