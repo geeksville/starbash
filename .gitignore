@@ -9,5 +9,8 @@ htmlcov/
 coverage.xml
 junit.xml
 
+# Doit database files (if created in workspace)
+.doit.db*
+
 starbash*.tar.gz
 starbash*.whl

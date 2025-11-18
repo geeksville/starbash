@@ -30,6 +30,9 @@ class TestStarbashDoit:
         assert isinstance(config, dict)
         assert "verbosity" in config
         assert config["verbosity"] == 2
+        # Should also include dep_file to store DB in cache directory
+        assert "dep_file" in config
+        assert ".doit.db" in config["dep_file"]
 
     def test_load_tasks(self):
         """Test that load_tasks returns a list of tasks."""

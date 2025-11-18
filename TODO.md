@@ -187,8 +187,8 @@
 ## Doit dependency TODOs
 * [x] get the input files
 * [ ] get the output files
-* [ ] build and look at the list of doit tasks
-* [ ] populate the context
+* [x] build and look at the list of doit tasks
+* [x] populate the context
 * [ ] create the ProcessedTarget by referring to the processed repo path info (need context first)
 * [ ] store the various ScoredCandiates in the toml file
 * [ ] use user selected values from the toml file

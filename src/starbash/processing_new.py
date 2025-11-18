@@ -120,7 +120,7 @@ class ProcessingNew(Processing):
             self.doit.run(["list"])
             # self.doit.run(["dumpdb"])
             logging.info("Running doit tasks...")
-            self.doit.run(["strace", "light_s35"])  # "stack_s36"])
+            self.doit.run(["strace", "stack_s36"])  # light_s35
 
             # have doit tasks store into a ProcessingResults object somehow
 
@@ -258,12 +258,6 @@ class ProcessingNew(Processing):
                 # later when we go to actually RUN the tasks we need to make sure each task is using a clone
                 # from _clone_context().  So that task will be seeing the correct context data we are building here.
 
-                # since 'inputs' are session specific we erase them here, so that _create_task_dict can reinit with
-                # the correct session specific files
-                self.context.pop("input", None)
-                self.context.pop(
-                    "input_files", None
-                )  # also nuke our temporary old-school way of finding input files
                 self._set_session_in_context(s)
 
                 # Note: we can't set the output directory until we know at least one session (so we can find 'target' name)
@@ -276,6 +270,9 @@ class ProcessingNew(Processing):
                 task_dict = self._create_task_dict(stage)
                 self.doit.add_task(task_dict)
         else:
+            # no session for non-multiplexed stages, FIXME, not sure if there is a better place to clean this up?
+            self.context.pop("session", None)
+
             # Single task (no multiplexing) - e.g., final stacking or post-processing
             task_dict = self._create_task_dict(stage)
             self.doit.add_task(task_dict)
@@ -293,11 +290,20 @@ class ProcessingNew(Processing):
         task_name = stage.get("name", "unnamed_stage")
 
         # FIXME - might need to further uniquify the task name
-        if self.session:
-            session_id = self.session["id"]
+        # NOTE: we intentially don't use self.session because session might be None here and thats okay
+        session = self.context.get("session")
+        if session:
+            session_id = session["id"]
 
             # Make unique task name by combining stage name and session ID
             task_name += f"_s{session_id}"
+
+        # since 'inputs' are session specific we erase them here, so that _create_task_dict can reinit with
+        # the correct session specific files
+        self.context.pop("input", None)
+        self.context.pop(
+            "input_files", None
+        )  # also nuke our temporary old-school way of finding input files
 
         file_deps = self._stage_input_files(stage)
         targets = self._stage_output_files(stage)

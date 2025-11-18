@@ -5,6 +5,7 @@ from doit.cmd_base import TaskLoader2
 from doit.doit_cmd import DoitMain
 from doit.task import dict_to_task
 
+from starbash.paths import get_user_cache_dir
 from starbash.tool import Tool
 
 # for early testing
@@ -72,7 +73,10 @@ class StarbashDoit(TaskLoader2):
 
     def load_doit_config(self) -> dict[str, Any]:
         """Required by baseclass"""
-        return {"verbosity": 2}
+        # Store the doit database in the user's cache directory instead of the workspace
+        cache_dir = get_user_cache_dir()
+        dep_file = str(cache_dir / ".doit.db")
+        return {"verbosity": 2, "dep_file": dep_file}
 
     def load_tasks(self, cmd, pos_args):
         """Load tasks for Starbash. (required by baseclass)
