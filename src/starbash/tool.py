@@ -139,8 +139,20 @@ def expand_context_unsafe(s: str, context: dict) -> str:
         except Exception as e:
             raise ValueError(f"Failed to evaluate '{expr}' in context") from e
 
-    # Replace all expressions
-    expanded = re.sub(pattern, eval_expression, s)
+    # Iteratively expand the string to handle nested placeholders.
+    # The loop continues until the string no longer changes.
+    expanded = s
+    previous = None
+    max_iterations = 10  # Safety break for infinite recursion
+    for _i in range(max_iterations):
+        if expanded == previous:
+            break  # Expansion is complete
+        previous = expanded
+        expanded = re.sub(pattern, eval_expression, expanded)
+    else:
+        logger.warning(
+            f"Template expansion reached max iterations ({max_iterations}). Possible recursive definition in '{s}'."
+        )
 
     logger.debug(f"Unsafe expanded '{s}' into '{expanded}'")
 

@@ -3,11 +3,13 @@
 import logging
 import os
 import textwrap
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from tomlkit.items import AoT
 
+from repo import Repo
 from starbash.app import Starbash
 from starbash.database import ImageRow
 from starbash.doit import StarbashDoit
@@ -21,6 +23,20 @@ type TaskDict = dict[str, Any]  # a doit task dictionary
 type StageDict = dict[str, Any]  # a processing stage definition from our toml
 type InputDef = dict[str, Any]  # an input definition within a stage
 type OutputDef = dict[str, Any]  # an output definition within a stage
+
+
+@dataclass
+class FileInfo:
+    """Dataclass to hold output context information.
+    To make for easier syntactic sugar when expanding context variables."""
+
+    base: str | None = None  # The directory name component of the path
+    full: Path | None = (
+        None  # The full filepath without spaces - because Siril doesn't like that, might contain wildcards
+    )
+    relative: str | None = None  # the relative path within the repository
+    repo: Repo | None = None  # The repo this file is within
+    files: list[Path] | None = None  # List of individual files (if applicable)
 
 
 def _stage_to_doc(task: TaskDict, stage: StageDict) -> None:
@@ -80,7 +96,7 @@ class ProcessingNew(Processing):
     @property
     def output_dir(self) -> Path:
         """Get the current output directory (for working/temp files) from the context."""
-        d = self.context["output"]["base"]  # FIXME change this to use dataclass
+        d = self.context["output"].base
         return Path(d)
 
     def __init__(self, sb: Starbash) -> None:
@@ -95,7 +111,8 @@ class ProcessingNew(Processing):
 
         stages = self._get_stages()
         self._stages_to_tasks(stages)
-        raise NotImplementedError("ProcessingNew.process_target() is not yet implemented")
+        # FIXME - fire up doit to run the tasks
+        # have those tasks store into a ProcessingResults object somehow
 
     def _get_stages(self, name: str = "stages2") -> list[StageDict]:
         """Get all pipeline stages defined in the merged configuration."""
@@ -308,7 +325,15 @@ class ProcessingNew(Processing):
             self._filter_by_requires(input, images)
 
             logging.debug(f"Using {len(images)} files as input_files")
-            return [img["abspath"] for img in images]
+
+            filepaths = [img["abspath"] for img in images]
+            # FIMXEMove elsewhere.
+            # we also need to add ["input"][type] to the context so that scripts can find .base etc... o
+            ci = self.context.setdefault("input", {})
+            imagetyp = get_safe(input, "type")
+            ci[imagetyp] = FileInfo(files=filepaths, base=f"{imagetyp}_s{self.session['id']}")
+
+            return filepaths
 
         def _resolve_input_master() -> list[Path]:
             imagetyp = get_safe(input, "type")
@@ -353,7 +378,6 @@ class ProcessingNew(Processing):
         resolver = get_safe(resolvers, kind)
         r = resolver()
 
-        # FIXME: we also need to add ["input"][type] to the context so that scripts can find .base etc... off of it
         return r
 
     def _stage_input_files(self, stage: StageDict) -> list[Path]:
@@ -472,11 +496,6 @@ class ProcessingNew(Processing):
 
         # Set context variables as documented in the TOML
         # FIXME, change this type from a dict to a dataclass?!? so foo.base works in the context expanson strings
-        self.context["output"] = {
-            # "root_path": repo_relative, not needed I think
-            "base": base_path,
-            # "suffix": full_path.suffix, not needed I think
-            "full": full_path,
-            "relative": repo_relative,
-            "repo": dest_repo,
-        }
+        self.context["output"] = FileInfo(
+            base=str(base_path), full=full_path, relative=repo_relative, repo=dest_repo
+        )

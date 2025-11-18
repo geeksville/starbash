@@ -82,5 +82,5 @@ class StarbashDoit(TaskLoader2):
         Returns:
             A list of tasks.
         """
-        task_list = [dict_to_task(my_builtin_task)]
+        task_list = [dict_to_task(t) for t in self.dicts]
         return task_list
