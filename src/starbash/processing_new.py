@@ -12,6 +12,7 @@ from tomlkit.items import AoT
 from repo import Repo
 from starbash import InputDef, OutputDef, StageDict, TaskDict
 from starbash.app import Starbash
+from starbash.database import ImageRow
 from starbash.doit import StarbashDoit
 from starbash.filtering import filter_by_requires
 from starbash.processing import (
@@ -35,7 +36,21 @@ class FileInfo:
     )
     relative: str | None = None  # the relative path within the repository
     repo: Repo | None = None  # The repo this file is within
-    files: list[Path] | None = None  # List of individual files (if applicable)
+    image_rows: list[ImageRow] | None = None  # List of individual files (if applicable)
+
+    @property
+    def files(self) -> list[Path]:
+        """Get the list of individual file paths from this FileInfo.
+
+        Returns:
+            List of Path objects for individual files.
+        """
+        if self.image_rows is not None:
+            return [img["abspath"] for img in self.image_rows]
+        elif self.full is not None:
+            return [self.full]
+        else:
+            return []
 
 
 def _stage_to_doc(task: TaskDict, stage: StageDict) -> None:
@@ -75,6 +90,9 @@ class ProcessingNew(Processing):
     def __init__(self, sb: Starbash) -> None:
         super().__init__(sb)
         self.doit: StarbashDoit = StarbashDoit()
+        self.prior_tasks: list[
+            TaskDict
+        ] = []  # Empty the list of tasks for the previous stage, we keep them for "job" imports
 
     def __enter__(self) -> "ProcessingNew":
         return self
@@ -202,6 +220,8 @@ class ProcessingNew(Processing):
 
         self._add_stage_context_defs(stage)
 
+        self.prior_tasks = []  # Reset the list of tasks for the previous stage, we keep them for "job" imports
+
         # If we have any session inputs, this stage is multiplexed (one task per session)
         need_multiplex = len(session_in) > 0
         if need_multiplex:
@@ -224,6 +244,7 @@ class ProcessingNew(Processing):
 
                 task_dict = self._create_task_dict(stage)
                 self.doit.add_task(task_dict)
+                self.prior_tasks.append(task_dict)
         else:
             # no session for non-multiplexed stages, FIXME, not sure if there is a better place to clean this up?
             self.context.pop("session", None)
@@ -231,6 +252,7 @@ class ProcessingNew(Processing):
             # Single task (no multiplexing) - e.g., final stacking or post-processing
             task_dict = self._create_task_dict(stage)
             self.doit.add_task(task_dict)
+            self.prior_tasks.append(task_dict)
 
     def _create_task_dict(self, stage: StageDict) -> TaskDict:
         """Create a doit task dictionary for a single session in a multiplexed stage.
@@ -284,6 +306,14 @@ class ProcessingNew(Processing):
         filenames = get_list_of_strings(input, "name")
         return [dir / filename for filename in filenames]
 
+    def _import_from_prior_stages(self, input: InputDef) -> FileInfo:
+        # iterate over self.prior_tasks and get their .meta.context.
+        # in each of those contexts there will be a ["input"]["light"] FileInfo.
+        # in each of those FileInfos there will be .image_rows
+        # pass those image rows to filter_by_requires (and provide our InputDef also)
+        # return those filtered files as a FileInfo
+        pass
+
     def _resolve_input_files(self, input: InputDef) -> list[Path]:
         """Resolve input file paths for a stage.
 
@@ -305,7 +335,9 @@ class ProcessingNew(Processing):
         ci = self.context.setdefault("input", {})
 
         def _resolve_input_job() -> list[Path]:
-            return self._resolve_files(input, self.job_dir)
+            # loop over input names and store FileInfos in ci[name] (using _import_from_prior_stages)
+            # collect all the file paths from those infos and return them
+            pass
 
         def _resolve_input_session() -> list[Path]:
             images = self.sb.get_session_images(self.session)
@@ -314,17 +346,17 @@ class ProcessingNew(Processing):
 
             logging.debug(f"Using {len(images)} files as input_files")
 
-            filepaths = [img["abspath"] for img in images]
-            # FIMXEMove elsewhere.
+            # FIMXE Move elsewhere.
             # we also need to add ["input"][type] to the context so that scripts can find .base etc... o
             imagetyp = get_safe(input, "type")
-            ci[imagetyp] = FileInfo(files=filepaths, base=f"{imagetyp}_s{self.session['id']}")
+            fi = FileInfo(image_rows=images, base=f"{imagetyp}_s{self.session['id']}")
+            ci[imagetyp] = fi
 
             # FIXME, we temporarily (until the processing_classic is removed) use the old style input_files
             # context variable - so that existing scripts can keep working.
-            self.context["input_files"] = filepaths
+            self.context["input_files"] = fi.files
 
-            return filepaths
+            return fi.files
 
         def _resolve_input_master() -> list[Path]:
             imagetyp = get_safe(input, "type")
