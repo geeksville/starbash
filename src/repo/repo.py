@@ -36,6 +36,18 @@ class Repo:
         Note:
             If the URL/path ends with .toml, it's treated as a direct TOML file.
             Otherwise, it's treated as a directory containing a starbash.toml file.
+
+        Import Resolution:
+            After loading the TOML config, this constructor processes any 'import' keys
+            found in the configuration. Import syntax:
+
+            [import]
+            node = "some.dotted.path"  # required: which node to import
+            file = "path/to/file.toml"  # optional: source file (default: current file)
+            repo = "url_or_path"        # optional: source repo (default: current repo)
+
+            The import key is replaced with the contents of the referenced node.
+            Files are cached during import resolution to avoid redundant reads.
         """
         if isinstance(url_or_path, Path):
             # Always resolve to an absolute path to avoid ambiguity
@@ -45,14 +57,14 @@ class Repo:
             url = str(url_or_path)
 
         self.url: str = url
+        self._import_cache: dict[str, TOMLDocument] = {}  # Cache for imported files
         self.config: TOMLDocument = self._load_config()
         self._as_read = (
             self.config.as_string()
         )  # the contents of the toml as we originally read from disk
 
         self._monkey_patch()
-        # not yet implemented
-        # self._resolve_imports()
+        self._resolve_imports()
 
     def _monkey_patch(self, o: Any | None = None) -> None:
         """Add a 'source' back-ptr to all child items in the config.
@@ -82,6 +94,178 @@ class Repo:
                     pass
         except AttributeError:
             pass  # simple types like int, str, float, etc. can't have attributes set on them
+
+    def _resolve_imports_in_doc(self, doc: TOMLDocument) -> None:
+        """Helper to resolve imports in a standalone TOML document."""
+        self._resolve_imports(doc, None, None)
+
+    def _resolve_imports(
+        self, o: Any | None = None, parent: dict | None = None, key: str | None = None
+    ) -> None:
+        """Recursively resolve 'import' keys in the TOML structure.
+
+        Searches through the config dictionary tree looking for tables with an 'import' key.
+        When found, loads the referenced node from the specified file/repo and replaces
+        the entire table containing the import key with the imported content.
+
+        Args:
+            o: The current object being processed (None = start at root config)
+            parent: Parent dict containing the current object
+            key: Key in parent dict that references the current object
+
+        Import table structure:
+            [import]
+            node = "some.dotted.path"  # required: which node to import
+            file = "path/to/file.toml"  # optional: relative or absolute path
+            repo = "url_or_path"        # optional: repo URL or path
+
+        Raises:
+            ValueError: If import is malformed or referenced content not found
+        """
+        # Base case - start recursion at root
+        if o is None:
+            self._resolve_imports(self.config, None, None)
+            return
+
+        # Check if this is a dict with an 'import' key
+        if isinstance(o, dict):
+            if "import" in o:
+                # Found an import directive - resolve it
+                import_spec = o["import"]
+                if not isinstance(import_spec, dict):
+                    raise ValueError(
+                        f"Import specification must be a table, got {type(import_spec)}"
+                    )
+
+                # Extract import parameters
+                node_path = import_spec.get("node")
+                if not node_path:
+                    raise ValueError("Import must specify a 'node' key")
+
+                file_path = import_spec.get("file")
+                repo_spec = import_spec.get("repo")
+
+                # Resolve the imported content
+                imported_content = self._resolve_import_node(node_path, file_path, repo_spec)
+
+                # Replace the entire parent table with the imported content
+                if parent is not None and key is not None:
+                    parent[key] = imported_content
+                    # Monkey patch the imported content to indicate its source
+                    self._monkey_patch(parent[key])
+                else:
+                    # Can't replace root config with an import
+                    raise ValueError("Cannot use import at the root level of config")
+
+                # Don't recurse into the import spec - we've replaced it
+                return
+
+            # Not an import table, recurse into children
+            # We need to iterate over a copy because we might modify the dict
+            for k, v in list(o.items()):
+                self._resolve_imports(v, o, k)
+
+        # Recursively process list-like objects (including AoT)
+        elif hasattr(o, "__iter__") and not isinstance(o, str | bytes):
+            try:
+                # For lists, we need to iterate and process each item
+                # We can't easily replace items in tomlkit AoT structures,
+                # so we recurse into each item which should be a dict
+                for item in o:
+                    # Each item in an AoT is a table (dict)
+                    if isinstance(item, dict):
+                        # Check for import at the table level
+                        if "import" in item:
+                            import_spec = item["import"]
+                            if not isinstance(import_spec, dict):
+                                raise ValueError(
+                                    f"Import specification must be a table, got {type(import_spec)}"
+                                )
+                            node_path = import_spec.get("node")
+                            if not node_path:
+                                raise ValueError("Import must specify a 'node' key")
+                            file_path = import_spec.get("file")
+                            repo_spec = import_spec.get("repo")
+
+                            # Get imported content
+                            imported_content = self._resolve_import_node(
+                                node_path, file_path, repo_spec
+                            )
+
+                            # Merge imported content into this item (preserving other keys)
+                            # First remove the import key
+                            del item["import"]
+                            # Then merge in the imported content
+                            if isinstance(imported_content, dict):
+                                for k, v in imported_content.items():
+                                    if k not in item:  # Don't override existing keys
+                                        item[k] = v
+                            self._monkey_patch(item)
+                        else:
+                            # No import, just recurse normally
+                            self._resolve_imports(item, o, None)
+            except TypeError:
+                # Not actually iterable, skip
+                pass
+
+    def _resolve_import_node(
+        self, node_path: str, file_path: str | None, repo_spec: str | None
+    ) -> Any:
+        """Resolve and return the content of an imported node.
+
+        Args:
+            node_path: Dot-separated path to the node (e.g., "recipe.stage.light")
+            file_path: Optional path to TOML file (relative or absolute)
+            repo_spec: Optional repo URL or path
+
+        Returns:
+            The imported content (deep copy to avoid reference issues)
+
+        Raises:
+            ValueError: If the import cannot be resolved
+        """
+        import copy
+
+        # Determine which repo to use
+        if repo_spec:
+            # Import from a different repo - create a temporary repo instance
+            source_repo = Repo(repo_spec)
+        else:
+            # Import from current repo
+            source_repo = self
+
+        # Determine which file to load
+        if file_path:
+            # Load a different TOML file from the source repo
+            cache_key = f"{source_repo.url}::{file_path}"
+
+            if cache_key not in self._import_cache:
+                # Load and parse the TOML file
+                toml_content = source_repo.read(file_path)
+                parsed_doc = tomlkit.parse(toml_content)
+                # Process imports in the cached file recursively
+                self._resolve_imports_in_doc(parsed_doc)
+                self._import_cache[cache_key] = parsed_doc
+
+            source_doc = self._import_cache[cache_key]
+        else:
+            # Use the current file's config
+            source_doc = source_repo.config
+
+        # Navigate to the specified node
+        current = source_doc
+        for key in node_path.split("."):
+            if not isinstance(current, dict):
+                raise ValueError(f"Cannot navigate to '{key}' in path '{node_path}' - not a dict")
+            if key not in current:
+                raise ValueError(
+                    f"Node '{key}' not found in path '{node_path}' while resolving import"
+                )
+            current = current[key]
+
+        # Return a deep copy to avoid reference issues
+        # Note: tomlkit objects need special handling for deep copy
+        return copy.deepcopy(current)
 
     def __str__(self) -> str:
         """Return a concise one-line description of this repo.

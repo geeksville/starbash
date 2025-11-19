@@ -67,6 +67,15 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
   - `union()` returns MultiDict of all top-level keys
   - `get(key, default)` returns value from highest-precedence repo
   - TOML items monkey-patched with `source` (Repo instance) for relative file resolution
+- **TOML Imports** (for config reuse and inheritance):
+  - Repos support `[import]` tables to import nodes from other TOML files
+  - Import syntax: `[target.import]` with required `node = "path.to.source"`, optional `file = "path/to/file.toml"`, optional `repo = "url"`
+  - Imports are resolved during repo loading, replacing import tables with deep copies of referenced content
+  - Files are cached during import resolution (stored in `Repo._import_cache`)
+  - Enables stage template reuse: define common configs once, import with variations
+  - Works in array-of-tables: imports merge into existing table items (preserves other keys)
+  - See `doc/toml/example/imports/` for usage examples and patterns
+  - Tests in `tests/unit/test_repo_imports.py` cover all import scenarios
 
 ## Stages, tasks, and context (recipe processing)
 - Pipeline stages defined in TOML with `[[stages]]` having `name` and `priority`
@@ -129,6 +138,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 - **Add selection filter**: Extend `Selection` class properties, update `get_query_conditions()`, modify `Database.search_session()` filtering logic
 - **Add external tool**: Subclass `Tool` in `starbash.tool`, implement `run()`, register in `tools` dict
 - **Add recipe**: Create repo dir with `starbash.toml`, define `[[stage]]` entries with `tool`/`when`/`script-file`
+- **Use TOML imports**: For reusable stage templates, create library files and use `[stage.import]` syntax to reduce duplication
 - **Test new feature**: Add test fixture using `setup_test_environment`, ensure `paths.set_test_directories()` called for isolation
 - **When adding/changing code**: Update or add docstrings, maintain typing hints, follow existing code style.  Ensure that you don't introduce new linter warnings. Add new or update unit tests as appropriate.
 
@@ -146,6 +156,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 - **Repo schemes**: Only `file://` and `pkg://` supported; HTTP repos are aspirational
 - **Date filtering**: Uses ISO 8601 strings (`YYYY-MM-DD`) stored in SQLite TEXT columns
 - **Analytics**: Auto-disabled in development environments (VS Code detection)
+- **TOML imports**: Import replaces entire table; in AoT imports merge with existing keys; cannot rewrite files with imports after resolution
 
 ## Image data examples
 - Sample data under `images/from_astroboy/`, `images/from_seestar/`, `images/from_asiair/`
