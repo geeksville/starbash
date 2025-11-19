@@ -115,24 +115,6 @@ class ProcessingNew(Processing):
             s_unwrapped.extend(stage.unwrap())
         return s_unwrapped
 
-    def _session_to_filepaths(self, input_def: InputDef) -> list[Path]:
-        """Find actual filepaths that we can provide as inputs.
-
-        This resolution will also check things like input.requires.camera/metadata
-        etc... and filter responses based on that.
-
-        Args:
-            input_def: Input definition from the stage TOML
-
-        Returns:
-            List of Path objects for the matched input files
-        """
-        # FIXME: Implement session-to-filepath resolution
-        # - Query database for session images based on input_def
-        # - Apply filters from input_def.requires (metadata, min_count, camera)
-        # - Return list of Path objects
-        return []
-
     def _clone_context(self) -> dict[str, Any]:
         """Create a shallow copy of the current processing context.
 
@@ -191,7 +173,7 @@ class ProcessingNew(Processing):
         cwd = None
 
         # Create the ToolAction and add to task
-        action = ToolAction(tool, commands=script, context=self._clone_context(), cwd=cwd)
+        action = ToolAction(tool, commands=script, task=task, cwd=cwd)
         task["actions"] = [action]
 
     def _add_stage_context_defs(self, stage: StageDict) -> None:
@@ -286,6 +268,7 @@ class ProcessingNew(Processing):
             "file_dep": expand_context_list(file_deps, self.context),
             # FIXME, we should probably be using something more structured than bare filenames - so we can pass base source and confidence scores
             "targets": expand_context_list(targets, self.context),
+            "meta": {"context": self._clone_context()},
         }
 
         # add the actions THIS will store a SNAPSHOT of the context AT THIS TIME for use if the task/action is later executed

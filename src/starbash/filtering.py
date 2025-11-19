@@ -1,11 +1,12 @@
-from typing import Any
+import logging
 
-from starbash import InputDef, RequireDef
+from starbash import InputDef, Metadata, RequireDef
+from starbash.aliases import get_aliases
 from starbash.database import (
     ImageRow,
 )
 from starbash.exception import NotEnoughFilesError
-from starbash.safety import get_safe
+from starbash.safety import get_list_of_strings, get_safe
 
 
 def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[ImageRow]:
@@ -17,27 +18,37 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
     Returns:
         The filtered list of candidate ImageRow objects"""
 
-    kind: str | None = get_safe(requires, "kind")
-    value: Any | None = get_safe(requires, "value")
+    kind = get_safe(requires, "kind")
+    value = get_safe(requires, "value")
 
     # Stage 1: Filter candidates using kind-specific filter functions
-    def _filter_metadata(img: ImageRow) -> bool:
+    def _filter_metadata(metadata: Metadata) -> bool:
         """Return True if image should be kept based on metadata filter."""
-        name: str | None = requires.get("name")
-        if not name:
-            raise ValueError("Metadata filter requires 'name' field")
+        name = get_safe(requires, "name")
+        value_list = get_list_of_strings(requires, "value")
 
-        # Value can be a single item or a list (OR condition)
-        if isinstance(value, list):
-            return img.get(name) in value
-        else:
-            return img.get(name) == value
+        # kinda yucky - we assume that the keys in metadata are uppercase
+        metadata_value = get_aliases().normalize(metadata.get(name.upper(), ""))
 
-    def _filter_camera(img: ImageRow) -> bool:
+        # we want to do an 'or' match - if any of the names in the list match we claim success
+        return metadata_value in value_list
+
+    def _filter_camera(metadata: Metadata) -> bool:
         """Return True if image should be kept based on camera filter."""
-        return img.get("camera") == value
 
-    def _filter_min_count(img: ImageRow) -> bool:
+        if value == "color":
+            session_bayer = metadata.get("BAYERPAT")
+
+            # Session must be color (i.e. have a BAYERPAT header)
+            if not session_bayer:
+                logging.debug(
+                    "Recipe requires a color camera, but session has no BAYERPAT header, skipping"
+                )
+            return bool(session_bayer)
+        else:
+            raise ValueError(f"Unknown camera value: {value}")
+
+    def _filter_min_count(metadata: Metadata) -> bool:
         """Min_count is handled in stage 2, so always return True here."""
         return True
 
@@ -56,7 +67,7 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
         raise ValueError(f"Unknown requires kind: {kind}")
 
     # Apply the filter function to all candidates
-    filtered_candidates = [img for img in candidates if filter_func(img)]
+    filtered_candidates = [img for img in candidates if filter_func(img.get("metadata", {}))]
 
     # Stage 2: Handle min_count check after filtering
     if kind == "min_count":

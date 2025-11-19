@@ -25,15 +25,15 @@ __all__ = [
 class ToolAction(BaseAction):
     """An action that runs a starbash tool with given commands and context."""
 
-    def __init__(self, tool: Tool, commands: str, context: dict = {}, cwd: str | None = None):
+    def __init__(self, tool: Tool, commands: str, task: dict, cwd: str | None = None):
         self.tool: Tool = tool
         self.commands: str = commands
-        self.context: dict[Any, Any] = context
+        self.task: dict[Any, Any] = task
         self.cwd: str | None = cwd
 
     def execute(self, out=None, err=None):
         # Doit requires that we set result to **something**. None is fine, though returning TaskFailed or a dictionary or a string.
-        self.result = self.tool.run(self.commands, context=self.context, cwd=self.cwd)
+        self.result = self.tool.run(self.commands, context=self.task["context"], cwd=self.cwd)
         self.values = {}  # doit requires this attribute to be set
 
     def __str__(self) -> str:
