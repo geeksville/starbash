@@ -20,7 +20,6 @@ from starbash.database import (
     SessionRow,
     get_column_name,
 )
-from starbash.exception import UserHandledError
 from starbash.processed_target import ProcessedTarget
 from starbash.processing import (
     Processing,
@@ -30,14 +29,6 @@ from starbash.processing import (
 )
 from starbash.score import score_candidates
 from starbash.tool import expand_context_unsafe, tools
-
-
-class NotEnoughFilesError(UserHandledError):
-    """Exception raised when not enough input files are provided for a processing stage."""
-
-    def __init__(self, message: str, files: list[str]):
-        super().__init__(message)
-        self.files = files
 
 
 class ProcessingClassic(Processing):

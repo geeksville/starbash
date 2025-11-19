@@ -13,7 +13,12 @@ from repo import Repo
 from starbash.app import Starbash
 from starbash.database import ImageRow
 from starbash.doit import StarbashDoit
-from starbash.processing import Processing, ProcessingResult, update_processing_result
+from starbash.processing import (
+    NotEnoughFilesError,
+    Processing,
+    ProcessingResult,
+    update_processing_result,
+)
 from starbash.score import score_candidates
 from starbash.tool import expand_context_list, expand_context_unsafe, tools
 
@@ -23,6 +28,7 @@ type TaskDict = dict[str, Any]  # a doit task dictionary
 type StageDict = dict[str, Any]  # a processing stage definition from our toml
 type InputDef = dict[str, Any]  # an input definition within a stage
 type OutputDef = dict[str, Any]  # an output definition within a stage
+type RequireDef = dict[str, Any]  # a requires definition within an input
 
 
 @dataclass
@@ -321,13 +327,59 @@ class ProcessingNew(Processing):
 
         return task_dict
 
-    def _filter_by_requires(self, input: InputDef, candidates: list[ImageRow]) -> None:
+    def _apply_filter(self, requires: RequireDef, candidates: list[ImageRow]) -> list[ImageRow]:
+        """Filter candidate images based on the 'requires' conditions in the input definition.
+
+        Args:
+            requires: a requires clause from the stage TOML
+            candidates: List of candidate ImageRow objects to filter
+        Returns:
+            The filtered list of candidate ImageRow objects"""
+
+        kind: str | None = get_safe(requires, "kind")
+        value: Any | None = get_safe(requires, "value")
+
+        if kind == "metadata":
+            # For metadata kind, 'name' specifies the metadata key and 'value' is the expected value(s)
+            name: str | None = requires.get("name")
+            if not name:
+                raise ValueError("Metadata filter requires 'name' field")
+
+            # Value can be a single item or a list (OR condition)
+            if isinstance(value, list):
+                candidates[:] = [img for img in candidates if img.get(name) in value]
+            else:
+                candidates[:] = [img for img in candidates if img.get(name) == value]
+
+        elif kind == "camera":
+            # Filter by camera type
+            candidates[:] = [img for img in candidates if img.get("camera") == value]
+
+        elif kind == "min_count":
+            # Enforce minimum count
+            if value is not None and len(candidates) < value:
+                raise NotEnoughFilesError(
+                    f"Stage requires >{value} input files ({len(candidates)} found)",
+                    ["FIXMEneedfile"],
+                )
+
+        else:
+            raise ValueError(f"Unknown requires kind: {kind}")
+
+        return candidates
+
+    def _filter_by_requires(self, input: InputDef, candidates: list[ImageRow]) -> list[ImageRow]:
         """Filter candidate images based on the 'requires' conditions in the input definition.
 
         Args:
             input: The input definition from the stage TOML
-            candidates: List of candidate ImageRow objects to filter (we will modify this list in place)"""
-        pass
+            candidates: List of candidate ImageRow objects to filter
+        Returns:
+            The filtered list of candidate ImageRow objects"""
+        requires_list: list[RequireDef] = input.get("requires", [])
+        for requires in requires_list:
+            candidates = self._apply_filter(requires, candidates)
+        return candidates
 
     def _resolve_files(self, input: InputDef, dir: Path) -> list[Path]:
         """combine the directory with the input/output name(s) to get paths.
