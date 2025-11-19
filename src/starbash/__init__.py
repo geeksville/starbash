@@ -1,8 +1,16 @@
 import logging
 import os
 from datetime import datetime
+from typing import Any
 
 from rich.console import Console
+
+# Common type aliases for clarity
+type TaskDict = dict[str, Any]  # a doit task dictionary
+type StageDict = dict[str, Any]  # a processing stage definition from our toml
+type InputDef = dict[str, Any]  # an input definition within a stage
+type OutputDef = dict[str, Any]  # an output definition within a stage
+type RequireDef = dict[str, Any]  # a requires definition within an input
 
 # Disable Rich formatting in test environments (pytest or NO_COLOR set)
 # This prevents ANSI escape codes and line wrapping in test output for more reliable test parsing.

@@ -18,4 +18,12 @@ class UserHandledError(ValueError):
         return self.__str__()  # At least this is something readable...
 
 
-__all__ = ["UserHandledError"]
+class NotEnoughFilesError(UserHandledError):
+    """Exception raised when not enough input files are provided for a processing stage."""
+
+    def __init__(self, message: str, files: list[str]):
+        super().__init__(message)
+        self.files = files
+
+
+__all__ = ["UserHandledError", "NotEnoughFilesError"]

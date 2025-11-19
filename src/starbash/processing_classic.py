@@ -20,6 +20,7 @@ from starbash.database import (
     SessionRow,
     get_column_name,
 )
+from starbash.exception import NotEnoughFilesError
 from starbash.processed_target import ProcessedTarget
 from starbash.processing import (
     Processing,

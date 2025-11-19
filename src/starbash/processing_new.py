@@ -10,25 +10,18 @@ from typing import Any
 from tomlkit.items import AoT
 
 from repo import Repo
+from starbash import InputDef, OutputDef, StageDict, TaskDict
 from starbash.app import Starbash
-from starbash.database import ImageRow
 from starbash.doit import StarbashDoit
+from starbash.filtering import filter_by_requires
 from starbash.processing import (
-    NotEnoughFilesError,
     Processing,
     ProcessingResult,
     update_processing_result,
 )
+from starbash.safety import get_list_of_strings, get_safe
 from starbash.score import score_candidates
 from starbash.tool import expand_context_list, expand_context_unsafe, tools
-
-# some type aliases for clarity
-
-type TaskDict = dict[str, Any]  # a doit task dictionary
-type StageDict = dict[str, Any]  # a processing stage definition from our toml
-type InputDef = dict[str, Any]  # an input definition within a stage
-type OutputDef = dict[str, Any]  # an output definition within a stage
-type RequireDef = dict[str, Any]  # a requires definition within an input
 
 
 @dataclass
@@ -54,32 +47,6 @@ def _inputs_by_kind(stage: StageDict, kind: str) -> list[InputDef]:
     """Returns all imputs of a particular kind from the given stage definition."""
     inputs: list[InputDef] = stage.get("inputs", [])
     return [inp for inp in inputs if inp.get("kind") == kind]
-
-
-def get_safe(d: dict[str, Any], key: str) -> Any:
-    """Get a value from the given dictionary key, raising an error if missing."""
-    names: Any | None = d.get(key)
-    if not names:
-        raise ValueError(f"Config is missing '{key}' field")
-    return names
-
-
-def get_list_of_strings(d: dict[str, Any], key: str) -> list[str]:
-    """Get a list of strings from the given dictionary key.
-
-    If the value is a single string, it is wrapped in a list.
-    If the value is already a list of strings, it is returned as is.
-    If the key does not exist, an empty list is returned.
-
-    Args:
-        d: The dictionary to extract from
-        key: The key to look for"""
-    names: str | list[str] | None = get_safe(d, key)
-    if isinstance(names, str):
-        names = [names]
-    elif not isinstance(names, list):
-        raise ValueError(f"Expected string or list of strings for key '{key}', got {type(names)}")
-    return names
 
 
 class ProcessingNew(Processing):
@@ -327,60 +294,6 @@ class ProcessingNew(Processing):
 
         return task_dict
 
-    def _apply_filter(self, requires: RequireDef, candidates: list[ImageRow]) -> list[ImageRow]:
-        """Filter candidate images based on the 'requires' conditions in the input definition.
-
-        Args:
-            requires: a requires clause from the stage TOML
-            candidates: List of candidate ImageRow objects to filter
-        Returns:
-            The filtered list of candidate ImageRow objects"""
-
-        kind: str | None = get_safe(requires, "kind")
-        value: Any | None = get_safe(requires, "value")
-
-        if kind == "metadata":
-            # For metadata kind, 'name' specifies the metadata key and 'value' is the expected value(s)
-            name: str | None = requires.get("name")
-            if not name:
-                raise ValueError("Metadata filter requires 'name' field")
-
-            # Value can be a single item or a list (OR condition)
-            if isinstance(value, list):
-                candidates[:] = [img for img in candidates if img.get(name) in value]
-            else:
-                candidates[:] = [img for img in candidates if img.get(name) == value]
-
-        elif kind == "camera":
-            # Filter by camera type
-            candidates[:] = [img for img in candidates if img.get("camera") == value]
-
-        elif kind == "min_count":
-            # Enforce minimum count
-            if value is not None and len(candidates) < value:
-                raise NotEnoughFilesError(
-                    f"Stage requires >{value} input files ({len(candidates)} found)",
-                    ["FIXMEneedfile"],
-                )
-
-        else:
-            raise ValueError(f"Unknown requires kind: {kind}")
-
-        return candidates
-
-    def _filter_by_requires(self, input: InputDef, candidates: list[ImageRow]) -> list[ImageRow]:
-        """Filter candidate images based on the 'requires' conditions in the input definition.
-
-        Args:
-            input: The input definition from the stage TOML
-            candidates: List of candidate ImageRow objects to filter
-        Returns:
-            The filtered list of candidate ImageRow objects"""
-        requires_list: list[RequireDef] = input.get("requires", [])
-        for requires in requires_list:
-            candidates = self._apply_filter(requires, candidates)
-        return candidates
-
     def _resolve_files(self, input: InputDef, dir: Path) -> list[Path]:
         """combine the directory with the input/output name(s) to get paths.
 
@@ -414,7 +327,7 @@ class ProcessingNew(Processing):
         def _resolve_input_session() -> list[Path]:
             images = self.sb.get_session_images(self.session)
 
-            self._filter_by_requires(input, images)
+            filter_by_requires(input, images)
 
             logging.debug(f"Using {len(images)} files as input_files")
 

@@ -41,14 +41,6 @@ class ProcessingResult:
     # FIXME, someday we will add information about masters/flats that were used?
 
 
-class NotEnoughFilesError(UserHandledError):
-    """Exception raised when not enough input files are provided for a processing stage."""
-
-    def __init__(self, message: str, files: list[str]):
-        super().__init__(message)
-        self.files = files
-
-
 def update_processing_result(result: ProcessingResult, e: Exception | None = None) -> None:
     """Handle exceptions during processing and update the ProcessingResult accordingly."""
 
