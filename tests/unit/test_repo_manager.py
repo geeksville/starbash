@@ -105,3 +105,105 @@ def test_repo_manager_get_with_real_repos(tmp_path: Path):
     assert repo_manager.get("user.name") == "default-user"
     assert repo_manager.get("user.email") == "user@example.com"
     assert repo_manager.get("non.existent.key", "default") == "default"
+
+
+def test_repo_with_direct_toml_file(tmp_path: Path):
+    """
+    Tests that a Repo can be initialized with a direct .toml file URL
+    instead of a directory containing starbash.toml.
+    """
+    # Create a custom named TOML file
+    custom_toml = tmp_path / "my-custom-config.toml"
+    custom_toml.write_text(
+        """
+        [repo]
+        kind = "custom"
+        [settings]
+        value = "from-direct-file"
+        """
+    )
+
+    # Initialize RepoManager and add the direct .toml file
+    repo_manager = RepoManager()
+    repo_manager.add_repo(f"file://{custom_toml}")
+
+    # Verify the repo was loaded correctly
+    assert len(repo_manager.repos) >= 1
+    urls = [r.url for r in repo_manager.repos]
+    assert f"file://{custom_toml}" in urls
+
+    # Verify we can get values from the directly loaded .toml file
+    assert repo_manager.get("repo.kind") == "custom"
+    assert repo_manager.get("settings.value") == "from-direct-file"
+
+
+def test_repo_direct_toml_vs_directory(tmp_path: Path):
+    """
+    Tests that both directory-based and direct .toml file repos work correctly
+    and can coexist in the same RepoManager.
+    """
+    # Create a directory-based repo
+    dir_repo_path = tmp_path / "dir-repo"
+    dir_repo_path.mkdir()
+    (dir_repo_path / "starbash.toml").write_text(
+        """
+        [repo]
+        kind = "directory"
+        [settings]
+        source = "dir"
+        """
+    )
+
+    # Create a direct .toml file repo
+    file_repo_path = tmp_path / "file-repo.toml"
+    file_repo_path.write_text(
+        """
+        [repo]
+        kind = "file"
+        [settings]
+        source = "file"
+        """
+    )
+
+    # Initialize RepoManager and add both repos
+    repo_manager = RepoManager()
+    repo_manager.add_repo(f"file://{dir_repo_path}")
+    repo_manager.add_repo(f"file://{file_repo_path}")
+
+    # Verify both repos are loaded
+    assert len(repo_manager.repos) >= 2
+    kinds = [r.kind() for r in repo_manager.repos]
+    assert "directory" in kinds
+    assert "file" in kinds
+
+    # Verify precedence - last added (file-based) should win
+    assert repo_manager.get("repo.kind") == "file"
+    assert repo_manager.get("settings.source") == "file"
+
+
+def test_repo_direct_toml_resolve_path(tmp_path: Path):
+    """
+    Tests that resolve_path() works correctly for direct .toml file repos,
+    resolving paths relative to the parent directory of the .toml file.
+    """
+    # Create a direct .toml file repo with a sibling file
+    config_file = tmp_path / "config.toml"
+    config_file.write_text(
+        """
+        [repo]
+        kind = "test"
+        """
+    )
+
+    sibling_file = tmp_path / "data.txt"
+    sibling_file.write_text("test data")
+
+    # Create a repo from the direct .toml file
+    from repo.repo import Repo
+
+    repo = Repo(f"file://{config_file}")
+
+    # Verify that resolve_path resolves relative to the parent directory
+    resolved = repo.resolve_path("data.txt")
+    assert resolved == sibling_file
+    assert resolved.read_text() == "test data"

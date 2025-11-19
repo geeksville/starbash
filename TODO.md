@@ -186,17 +186,18 @@
 
 ## Doit dependency TODOs
 * [x] get the input files
-* [ ] get the output files
+* [x] get the output files
 * [x] build and look at the list of doit tasks
 * [x] populate the context
 * [ ] include target name in task names
+* [ ] fix multichannel input in osc2
 * [ ] create the ProcessedTarget by referring to the processed repo path info (need context first)
 * [ ] store the various ScoredCandiates in the toml file
 * [ ] use user selected values from the toml file
 * [ ] try a test run on just a dual duo filter set
 * [ ] change masters over to using this same mechanism - hook together via dependencies
-* [ ] implement _filter_by_requires
-* [ ] change context["output"] to be a dataclass rather than a dict
+* [x] implement _filter_by_requires
+* [x] change context["output"] to be a dataclass rather than a dict
 * [ ] use get_safe more pervasively, pass in a help string to it (to indicate source of failure)
 * [ ] switch old scripts over to new system
 * [ ] have AI change asserts to raise ValueError (or something better?)

@@ -32,6 +32,10 @@ class Repo:
             url_or_path: Either a string URL (e.g. file://, pkg://, http://...) or a Path.
                 If a Path is provided it will be converted to a file:// URL using its
                 absolute, resolved form.
+
+        Note:
+            If the URL/path ends with .toml, it's treated as a direct TOML file.
+            Otherwise, it's treated as a directory containing a starbash.toml file.
         """
         if isinstance(url_or_path, Path):
             # Always resolve to an absolute path to avoid ambiguity
@@ -47,6 +51,8 @@ class Repo:
         )  # the contents of the toml as we originally read from disk
 
         self._monkey_patch()
+        # not yet implemented
+        # self._resolve_imports()
 
     def _monkey_patch(self, o: Any | None = None) -> None:
         """Add a 'source' back-ptr to all child items in the config.
@@ -132,17 +138,32 @@ class Repo:
         Raises:
             ValueError: If the repository is not a local file repository.
         """
-        base_path = self.get_path()
-        if base_path is None:
-            raise ValueError("Cannot resolve path for non-local repository")
+        if not self.is_scheme("file"):
+            raise ValueError("Cannot write config for non-local repository")
 
-        config_path = base_path / repo_suffix
+        if self._is_direct_toml_file():
+            config_path = Path(self.url[len("file://") :])
+        else:
+            base_path = self.get_path()
+            if base_path is None:
+                raise ValueError("Cannot resolve path for non-local repository")
+            config_path = base_path / repo_suffix
+
         if self.config.as_string() == self._as_read:
             logging.debug(f"Config unchanged, not writing: {config_path}")
         else:
             # FIXME, be more careful to write the file atomically (by writing to a temp file and renaming)
             TOMLFile(config_path).write(self.config)
             logging.debug(f"Wrote config to {config_path}")
+
+    def _is_direct_toml_file(self) -> bool:
+        """
+        Check if the URL points directly to a .toml file.
+
+        Returns:
+            bool: True if the URL ends with .toml, False otherwise.
+        """
+        return self.url.endswith(".toml")
 
     def is_scheme(self, scheme: str = "file") -> bool:
         """
@@ -158,14 +179,17 @@ class Repo:
         """
         Resolves the URL to a local file system path if it's a file URI.
 
-        Args:
-            url: The repository URL.
+        For directory URLs, returns the directory path.
+        For .toml file URLs, returns the parent directory path.
 
         Returns:
             A Path object if the URL is a local file, otherwise None.
         """
         if self.is_scheme("file"):
-            return Path(self.url[len("file://") :])
+            path = Path(self.url[len("file://") :])
+            if self._is_direct_toml_file():
+                return path.parent
+            return path
 
         return None
 
@@ -205,6 +229,9 @@ class Repo:
     def resolve_path(self, filepath: str) -> Path:
         """
         Resolve a filepath relative to the base of this repo.
+
+        For directory URLs, resolves relative to the directory.
+        For .toml file URLs, resolves relative to the parent directory.
 
         Args:
             filepath: The path to the file, relative to the repository root.
@@ -291,22 +318,55 @@ class Repo:
         res = resources.files("starbash").joinpath(subpath).joinpath(filepath)
         return res.read_text()
 
+    def _read_direct_url(self) -> str:
+        """
+        Read content directly from the URL (for .toml file URLs).
+
+        Returns:
+            The content of the file as a string.
+
+        Raises:
+            ValueError: If the URL scheme is not supported.
+        """
+        if self.is_scheme("file"):
+            path = Path(self.url[len("file://") :])
+            return path.read_text()
+        elif self.is_scheme("pkg"):
+            subpath = self.url[len("pkg://") :].strip("/")
+            res = resources.files("starbash").joinpath(subpath)
+            return res.read_text()
+        elif self.is_scheme("http") or self.is_scheme("https"):
+            response = http_session.get(self.url)
+            response.raise_for_status()
+            return response.text
+        else:
+            raise ValueError(f"Unsupported URL scheme for repo: {self.url}")
+
     def _load_config(self) -> tomlkit.TOMLDocument:
         """
-        Loads the repository's configuration file (e.g., repo.sb.toml).
+        Loads the repository's configuration file.
+
+        For URLs ending with .toml, reads that file directly.
+        Otherwise, reads starbash.toml from the directory.
 
         If the config file does not exist, it logs a warning and returns an empty dict.
 
         Returns:
-            A dictionary containing the parsed configuration.
+            A TOMLDocument containing the parsed configuration.
         """
         try:
-            config_content = self.read(repo_suffix)
-            logging.debug(f"Loading repo config from {repo_suffix}")
+            if self._is_direct_toml_file():
+                # Read the .toml file directly from the URL
+                config_content = self._read_direct_url()
+                logging.debug(f"Loading repo config from {self.url}")
+            else:
+                # Read starbash.toml from the directory
+                config_content = self.read(repo_suffix)
+                logging.debug(f"Loading repo config from {repo_suffix}")
             return tomlkit.parse(config_content)
         except FileNotFoundError:
             logging.debug(
-                f"No {repo_suffix} found"
+                f"No config file found for {self.url}"
             )  # we currently make it optional to have the config file at root
             return tomlkit.TOMLDocument()  # empty placeholder
 
