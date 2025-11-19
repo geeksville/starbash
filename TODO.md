@@ -189,6 +189,7 @@
 * [ ] get the output files
 * [x] build and look at the list of doit tasks
 * [x] populate the context
+* [ ] include target name in task names
 * [ ] create the ProcessedTarget by referring to the processed repo path info (need context first)
 * [ ] store the various ScoredCandiates in the toml file
 * [ ] use user selected values from the toml file

@@ -53,6 +53,11 @@ class FileInfo:
             return []
 
 
+def _make_imagerow(abspath: str) -> ImageRow:
+    """Make a stub imagerow definition with just an abspath (no metadata or other standard columns)"""
+    return {"abspath": abspath}
+
+
 def _stage_to_doc(task: TaskDict, stage: StageDict) -> None:
     """Given a stage definition, populate the "doc" string of the task dictionary."""
     task["doc"] = stage.get("description", "No description provided")
@@ -84,7 +89,7 @@ class ProcessingNew(Processing):
     @property
     def output_dir(self) -> Path:
         """Get the current output directory (for working/temp files) from the context."""
-        d = self.context["output"].base
+        d = self.context["final_output"].base
         return Path(d)
 
     def __init__(self, sb: Starbash) -> None:
@@ -111,7 +116,7 @@ class ProcessingNew(Processing):
             self.doit.run(["list"])
             # self.doit.run(["dumpdb"])
             logging.info("Running doit tasks...")
-            self.doit.run(["strace", "stack_s36"])  # light_s35
+            self.doit.run(["strace", "stack"])  # light_s35
 
             # have doit tasks store into a ProcessingResults object somehow
 
@@ -191,7 +196,7 @@ class ProcessingNew(Processing):
         cwd = None
 
         # Create the ToolAction and add to task
-        action = ToolAction(tool, commands=script, task=task, cwd=cwd)
+        action = ToolAction(tool, commands=script, cwd=cwd)
         task["actions"] = [action]
 
     def _add_stage_context_defs(self, stage: StageDict) -> None:
@@ -220,7 +225,7 @@ class ProcessingNew(Processing):
 
         self._add_stage_context_defs(stage)
 
-        self.prior_tasks = []  # Reset the list of tasks for the previous stage, we keep them for "job" imports
+        current_tasks = []  # Reset the list of tasks for the previous stage, we keep them for "job" imports
 
         # If we have any session inputs, this stage is multiplexed (one task per session)
         need_multiplex = len(session_in) > 0
@@ -238,13 +243,16 @@ class ProcessingNew(Processing):
                 # Note: we can't set the output directory until we know at least one session (so we can find 'target' name)
                 # so we do it here.
                 if not has_set_output:
-                    self._set_output_by_kind("processed")
+                    self._set_output_by_kind(
+                        "processed"
+                    )  # for the time being we plug in a "processed" out so that at least we know a final output dir
+
                     # FIXME this is the earliest place we can create/read the output toml file
                     has_set_output = True
 
                 task_dict = self._create_task_dict(stage)
                 self.doit.add_task(task_dict)
-                self.prior_tasks.append(task_dict)
+                current_tasks.append(task_dict)
         else:
             # no session for non-multiplexed stages, FIXME, not sure if there is a better place to clean this up?
             self.context.pop("session", None)
@@ -252,7 +260,10 @@ class ProcessingNew(Processing):
             # Single task (no multiplexing) - e.g., final stacking or post-processing
             task_dict = self._create_task_dict(stage)
             self.doit.add_task(task_dict)
-            self.prior_tasks.append(task_dict)
+            current_tasks.append(task_dict)
+
+        # let the next stage after us, refer to our task(s) if necessary
+        self.prior_tasks = current_tasks
 
     def _create_task_dict(self, stage: StageDict) -> TaskDict:
         """Create a doit task dictionary for a single session in a multiplexed stage.
@@ -299,20 +310,52 @@ class ProcessingNew(Processing):
 
         return task_dict
 
-    def _resolve_files(self, input: InputDef, dir: Path) -> list[Path]:
+    def _resolve_files(self, input: InputDef, dir: Path) -> FileInfo:
         """combine the directory with the input/output name(s) to get paths.
 
         We can share this function because input/output sections have the same rules for jobs"""
         filenames = get_list_of_strings(input, "name")
-        return [dir / filename for filename in filenames]
+        # filenames might have had {} variables, we must expand them before going to the actual file
+        filenames = [expand_context_unsafe(f, self.context) for f in filenames]
+        return FileInfo(base=str(dir), image_rows=[_make_imagerow(str(dir / f)) for f in filenames])
 
     def _import_from_prior_stages(self, input: InputDef) -> FileInfo:
-        # iterate over self.prior_tasks and get their .meta.context.
-        # in each of those contexts there will be a ["input"]["light"] FileInfo.
-        # in each of those FileInfos there will be .image_rows
-        # pass those image rows to filter_by_requires (and provide our InputDef also)
-        # return those filtered files as a FileInfo
-        pass
+        """Import and filter image data from prior stage outputs.
+
+        This function collects image rows from the outputs of previous stages in the pipeline,
+        applies any filtering requirements specified in the input definition.  If that prior stage
+        had matching unfiltered inputs, we assume that stage generated **outputs** that we want.
+
+        Args:
+            input: The input definition from the stage TOML, which may contain 'requires'
+                   filters to apply to the collected image rows.
+
+        Returns:
+            The FileInfo object we found a matching stage.  (from task["meta"]["context"]["output"])
+
+        Raises:
+            ValueError: If no prior tasks have image_rows in their context, or if the
+                       input definition is missing required fields.
+        """
+        image_rows: list[ImageRow] = []
+
+        # Collect all image rows from prior stage outputs
+        for task in self.prior_tasks:
+            task_context = task["meta"]["context"]
+            task_inputs = task_context.get("input", {})
+
+            # Look through all input types in the task context for image_rows
+            for _input_type, file_info in task_inputs.items():
+                if isinstance(file_info, FileInfo) and file_info.image_rows:
+                    task_filtered_input = filter_by_requires(input, file_info.image_rows)
+                    if (
+                        task_filtered_input
+                    ):  # This task had matching inputs for us, so therefore we want its outputs
+                        task_output: FileInfo = task_context.get("output")
+                        if task_output and task_output.image_rows:
+                            image_rows.extend(task_output.image_rows)
+
+        return FileInfo(image_rows=image_rows)
 
     def _resolve_input_files(self, input: InputDef) -> list[Path]:
         """Resolve input file paths for a stage.
@@ -335,9 +378,31 @@ class ProcessingNew(Processing):
         ci = self.context.setdefault("input", {})
 
         def _resolve_input_job() -> list[Path]:
-            # loop over input names and store FileInfos in ci[name] (using _import_from_prior_stages)
-            # collect all the file paths from those infos and return them
-            pass
+            """Resolve job-type inputs by importing data from prior stage outputs.
+
+            For each input name specified in the input definition, this function:
+            1. Imports and filters image rows from prior stages using _import_from_prior_stages
+            2. Stores the resulting FileInfo in the context under context["input"][name]
+            3. Collects all file paths from all imported FileInfos
+
+            Returns:
+                List of Path objects for all files imported from prior stages.
+            """
+            all_files: list[Path] = []
+            input_names = get_list_of_strings(input, "name")
+
+            for name in input_names:
+                # Import and filter data from prior stages
+                file_info = self._import_from_prior_stages(input)
+
+                # Store in context for script access
+                ci[name] = file_info
+
+                # Collect file paths
+                all_files.extend(file_info.files)
+
+            logging.debug(f"Resolved {len(all_files)} job input files from prior stages")
+            return all_files
 
         def _resolve_input_session() -> list[Path]:
             images = self.sb.get_session_images(self.session)
@@ -435,10 +500,10 @@ class ProcessingNew(Processing):
         #   - "processed": construct path in target-specific results dir
         # - Return list of actual file paths
 
-        def _resolve_output_job() -> list[Path]:
+        def _resolve_output_job() -> FileInfo:
             return self._resolve_files(output, self.job_dir)
 
-        def _resolve_processed() -> list[Path]:
+        def _resolve_processed() -> FileInfo:
             return self._resolve_files(output, self.output_dir)
 
         resolvers = {
@@ -448,7 +513,9 @@ class ProcessingNew(Processing):
         kind: str = get_safe(output, "kind")
         resolver = get_safe(resolvers, kind)
         r = resolver()
-        return r
+
+        self.context["output"] = r
+        return r.files
 
     def _stage_output_files(self, stage: StageDict) -> list[Path]:
         """Get all output file paths for the given stage.
@@ -478,7 +545,7 @@ class ProcessingNew(Processing):
         """
         raise NotImplementedError("ProcessingNew.run_master_stages() is not yet implemented")
 
-    def _set_output_by_kind(self, kind: str) -> None:
+    def _set_output_to_repo(self, kind: str) -> None:
         """Set output paths in the context based on their kind.
 
         Args:
@@ -526,3 +593,21 @@ class ProcessingNew(Processing):
         self.context["output"] = FileInfo(
             base=str(base_path), full=full_path, relative=repo_relative, repo=dest_repo
         )
+
+    def _set_output_by_kind(self, kind: str) -> None:
+        """Set output paths in the context based on their kind.
+
+        Args:
+            kind: The kind of output ("job", "processed", etc.)
+            paths: List of Path objects for the outputs
+        """
+        if kind == "processed":
+            self._set_output_to_repo(kind)
+
+            # Store that FileInfo so that any task that needs to know our final output dir can find it.  This is useful
+            # so we can read/write our per target starbash.toml file for instance...
+            self.context["final_output"] = self.context["output"]
+        elif kind == "job":
+            raise NotImplementedError("Setting 'job' output kind is not yet implemented")
+        else:
+            raise ValueError(f"Unknown output kind: {kind}")

@@ -3,7 +3,7 @@ from typing import Any
 from doit.action import BaseAction
 from doit.cmd_base import TaskLoader2
 from doit.doit_cmd import DoitMain
-from doit.task import dict_to_task
+from doit.task import Task, dict_to_task
 
 from starbash.paths import get_user_cache_dir
 from starbash.tool import Tool
@@ -25,15 +25,18 @@ __all__ = [
 class ToolAction(BaseAction):
     """An action that runs a starbash tool with given commands and context."""
 
-    def __init__(self, tool: Tool, commands: str, task: dict, cwd: str | None = None):
+    def __init__(self, tool: Tool, commands: str, cwd: str | None = None):
         self.tool: Tool = tool
         self.commands: str = commands
-        self.task: dict[Any, Any] = task
+        self.task: Task | None = None  # Magically filled in by doit
         self.cwd: str | None = cwd
 
     def execute(self, out=None, err=None):
         # Doit requires that we set result to **something**. None is fine, though returning TaskFailed or a dictionary or a string.
-        self.result = self.tool.run(self.commands, context=self.task["context"], cwd=self.cwd)
+        assert self.task and self.task.meta  # We always set this to context
+        context: dict[str, Any] = self.task.meta["context"]
+
+        self.result = self.tool.run(self.commands, context=context, cwd=self.cwd)
         self.values = {}  # doit requires this attribute to be set
 
     def __str__(self) -> str:

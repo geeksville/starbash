@@ -67,11 +67,11 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
         raise ValueError(f"Unknown requires kind: {kind}")
 
     # Apply the filter function to all candidates
-    filtered_candidates = [img for img in candidates if filter_func(img.get("metadata", {}))]
+    filtered_candidates = [img for img in candidates if filter_func(img)]
 
     # Stage 2: Handle min_count check after filtering
     if kind == "min_count":
-        if value is not None and len(filtered_candidates) < value:
+        if len(filtered_candidates) < value:
             raise NotEnoughFilesError(
                 f"Stage requires >{value} input files ({len(filtered_candidates)} found)",
                 ["FIXMEneedfile"],
