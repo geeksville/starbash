@@ -39,7 +39,7 @@ class FileInfo:
     image_rows: list[ImageRow] | None = None  # List of individual files (if applicable)
 
     @property
-    def short_paths(self) -> list[Path]:
+    def short_paths(self) -> list[str]:
         """Get the list of individual file paths from this FileInfo.
 
         Returns:
