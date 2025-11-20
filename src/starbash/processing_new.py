@@ -90,6 +90,11 @@ class ProcessingNew(Processing):
     """
 
     @property
+    def target(self) -> dict[str, Any]:
+        """Get the current target from the context."""
+        return self.context["target"]
+
+    @property
     def session(self) -> dict[str, Any]:
         """Get the current session from the context."""
         return self.context["session"]
@@ -131,10 +136,11 @@ class ProcessingNew(Processing):
             self.doit.run(["list"])
             # self.doit.run(["dumpdb"])
             logging.info("Running doit tasks...")
-            self.doit.run(["strace", "stack"])  # light_s35
+            self.doit.run(["strace", f"stack_{self.target}"])  # light_{self.target}_s35
 
-            # have doit tasks store into a ProcessingResults object somehow
-
+            # FIXME have doit tasks store into a ProcessingResults object somehow
+            # declare success
+            update_processing_result(result)
         except Exception as e:
             task_exception = e
             update_processing_result(result, task_exception)
@@ -293,6 +299,10 @@ class ProcessingNew(Processing):
         task_name = stage.get("name", "unnamed_stage")
 
         # FIXME - might need to further uniquify the task name
+
+        # include target name in the task
+        task_name += f"_{self.target}"
+
         # NOTE: we intentially don't use self.session because session might be None here and thats okay
         session = self.context.get("session")
         if session:

@@ -189,8 +189,11 @@
 * [x] get the output files
 * [x] build and look at the list of doit tasks
 * [x] populate the context
-* [ ] include target name in task names
-* [ ] fix multichannel input in osc2
+* [x] include target name in task names
+* [x] fix multichannel input in osc2
+* [x] return real result codes from "process auto"
+* [ ] make single channel OSC work
+* [ ] share OSC code between dual duo and single channel OSC
 * [ ] create the ProcessedTarget by referring to the processed repo path info (need context first)
 * [ ] store the various ScoredCandiates in the toml file
 * [ ] use user selected values from the toml file
@@ -205,6 +208,7 @@
 * [ ] try test run on the small dataset
 * [ ] move doit.db to app cache
 * [ ] test integration on big dataset
+* [ ] rexport the small test dataset (I've added a few files)
 * [ ] verify build takes zero time if no changes
 * [ ] add depenencies on the generated toml files
 * [ ] add graxpert
