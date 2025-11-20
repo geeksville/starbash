@@ -241,6 +241,21 @@ def tool_run(cmd: str, cwd: str, commands: str | None = None, timeout: float | N
 
     returncode = process.returncode
 
+    # print stdout BEFORE stderr so the user can more easily see error message near the exception
+    if returncode != 0:
+        # log stdout with warn priority because the tool failed
+        logger.warning(f"[tool] {stdout_lines}")
+    else:
+        logger.debug(f"[tool] {stdout_lines}")
+
+    # Check stdout for "Aborting" messages and append them to stderr (because the only useful Siril error messages appear on such a line)
+    abort_lines = [line for line in stdout_lines.splitlines() if "Aborting" in line]
+    stderr_level = logging.ERROR if returncode != 0 else logging.WARNING
+    if abort_lines:
+        stderr_lines = (
+            stderr_lines + "\n" + "\n".join(abort_lines) if stderr_lines else "\n".join(abort_lines)
+        )
+
     if stderr_lines:
         # drop any line that contains "Reading sequence failed, file cannot be opened"
         # because it is a bogus harmless message from siril and confuses users.
@@ -250,16 +265,14 @@ def tool_run(cmd: str, cwd: str, commands: str | None = None, timeout: float | N
             if "Reading sequence failed, file cannot be opened" not in line
         ]
         if filtered_lines:
-            logger.warning(f"[tool-warnings] {'\n'.join(filtered_lines)}")
+            logger.log(stderr_level, f"[tool-warnings] {'\n'.join(filtered_lines)}")
 
     if returncode != 0:
         # log stdout with warn priority because the tool failed
-        logger.warning(f"[tool] {stdout_lines}")
         raise ToolError(
             f"{cmd} failed with exit code {returncode}", command=cmd, arguments=commands
         )
     else:
-        logger.debug(f"[tool] {stdout_lines}")
         logger.debug("Tool command successful.")
 
 
