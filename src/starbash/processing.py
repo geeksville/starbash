@@ -1,9 +1,11 @@
 """Base class for processing operations in starbash."""
 
 import logging
+import shutil
 import tempfile
 from abc import abstractmethod
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from rich.progress import Progress
@@ -63,24 +65,57 @@ def update_processing_result(result: ProcessingResult, e: Exception | None = Non
             raise e
 
 
-class ProcessingContext(tempfile.TemporaryDirectory):
+max_contexts = 3  # FIXME, make customizable
+
+
+class ProcessingContext:
     """For processing a set of sessions for a particular target.
 
     Keeps a shared temporary directory for intermediate files.  We expose the path to that
     directory in context["process_dir"].
+
+    We keep the processing directory in our cache directory, so that the most recent contexts can be reprocessed
+    quickly.
+
+    Arguments:
+    p: The Processing instance
+    target: The target name (used to name the processing directory - MUST BE PRE normalized), or None to create a temporary
     """
 
-    def __init__(self, p: "Processing"):
+    def __init__(self, p: "Processing", target: str | None = None):
         cache_dir = get_user_cache_dir()
-        super().__init__(prefix="sbprocessing_", dir=cache_dir)
+        processing_dir = cache_dir / "processing"
+        processing_dir.mkdir(parents=True, exist_ok=True)
+
+        # Set self.name to be target (if specified) otherwise use a tempname
+        if target:
+            self.name = processing_dir / target
+            self.is_temp = False
+        else:
+            # Create a temporary directory name
+            temp_name = tempfile.mkdtemp(prefix="temp_", dir=processing_dir)
+            self.name = Path(temp_name)
+            self.is_temp = True
+
+        exists = self.name.exists()
+        if not exists:
+            self.name.mkdir(parents=True, exist_ok=True)
+            logging.info(f"Creating processing context at {self.name}")
+        else:
+            logging.info(f"Reusing existing processing context at {self.name}")
+
+        # Clean up old contexts if we exceed max_contexts
+        self._cleanup_old_contexts(processing_dir)
+
         self.p = p
-        logging.debug(f"Created processing context at {self.name}")
 
         self.p.init_context()
-        self.p.context["process_dir"] = self.name  # FIXME change the name of this to "job".base
+        self.p.context["process_dir"] = str(self.name)
+        if target:  # Set it in the context so we can do things like find our output dir
+            self.p.context["target"] = target
 
     def __enter__(self) -> "ProcessingContext":
-        return super().__enter__()
+        return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Returns true if exceptions were handled"""
@@ -89,8 +124,31 @@ class ProcessingContext(tempfile.TemporaryDirectory):
         # unregister our process dir
         self.p.context.pop("process_dir", None)
 
-        super().__exit__(exc_type, exc_value, traceback)
-        # return handled
+        # Delete temporary directories
+        if self.is_temp and self.name.exists():
+            logging.debug(f"Removing temporary processing directory: {self.name}")
+            shutil.rmtree(self.name, ignore_errors=True)
+
+    def _cleanup_old_contexts(self, processing_dir: Path) -> None:
+        """Remove oldest context directories if we exceed max_contexts."""
+        if not processing_dir.exists():
+            return
+
+        # Get all subdirectories in processing_dir
+        contexts = [d for d in processing_dir.iterdir() if d.is_dir()]
+
+        # If we have more than max_contexts, delete the oldest ones
+        if len(contexts) > max_contexts:
+            # Sort by modification time (oldest first)
+            contexts.sort(key=lambda d: d.stat().st_mtime)
+
+            # Calculate how many to delete
+            num_to_delete = len(contexts) - max_contexts
+
+            # Delete the oldest directories
+            for context_dir in contexts[:num_to_delete]:
+                logging.debug(f"Removing old processing context: {context_dir}")
+                shutil.rmtree(context_dir, ignore_errors=True)
 
 
 class Processing:
@@ -183,7 +241,7 @@ class Processing:
                 target_sessions = self.sb.filter_sessions_with_lights(target_sessions)
 
                 if target_sessions:
-                    with ProcessingContext(self):
+                    with ProcessingContext(self, target):
                         self.sessions = target_sessions
                         result = self._process_target(target)
                         results.append(result)

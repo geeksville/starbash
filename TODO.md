@@ -74,7 +74,7 @@
 * [ ] make graxpert network check faster & expose an API
 * [ ] cleanup how different stages dependencies work together: bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
 * [ ] **second alpha release approximately here**
-* [ ] make test data even smaller
+* [x] make test data even smaller
 * [ ] merge Processing with ProcessingContext?
 * [x] check for required/recommended tools at start.
 * [ ] for debugging purposes generate a mastername.sb.toml file per master - to see input selection choices
@@ -200,6 +200,7 @@
 * [x] change context["output"] to be a dataclass rather than a dict
 * [ ] use get_safe more pervasively, pass in a help string to it (to indicate source of failure)
 * [ ] switch old scripts over to new system
+* [ ] use task name dependencies to join stages
 * [ ] have AI change asserts to raise ValueError (or something better?)
 * [ ] try test run on the small dataset
 * [ ] move doit.db to app cache
@@ -207,3 +208,4 @@
 * [ ] verify build takes zero time if no changes
 * [ ] add depenencies on the generated toml files
 * [ ] add graxpert
+* [ ] cleanup Repo import code
