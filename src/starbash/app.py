@@ -381,7 +381,10 @@ class Starbash:
                 repo = self.repo_manager.get_repo_by_url(repo_url)
                 if repo:
                     absolute_path = repo.resolve_path(relative_path)
+                    image["repo"] = repo  # cache the repo object as well
                     image["abspath"] = str(absolute_path)
+                else:
+                    logging.error(f"Repo not found for URL: {repo_url}, skipping image...")
 
         return image
 

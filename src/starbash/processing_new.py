@@ -124,6 +124,7 @@ class ProcessingNew(Processing):
         try:
             stages = self._get_stages()
             self._stages_to_tasks(stages)
+            logging.debug(f"Doit tasks: {self.doit.dicts}")
             # fire up doit to run the tasks
             # FIXME, perhaps we could run doit one level higher, so that all targets are processed by doit
             # for parallism etc...?
@@ -425,10 +426,17 @@ class ProcessingNew(Processing):
 
             logging.debug(f"Using {len(images)} files as input_files")
 
-            # FIMXE Move elsewhere.
+            # FIXME Move elsewhere.
             # we also need to add ["input"][type] to the context so that scripts can find .base etc... o
             imagetyp = get_safe(input, "type")
-            fi = FileInfo(image_rows=images, base=f"{imagetyp}_s{self.session['id']}")
+            repo = (
+                images[0].get("repo") if images else None
+            )  # all images will be from the same repo
+            fi = FileInfo(
+                image_rows=images,
+                repo=repo,
+                base=f"{imagetyp}_s{self.session['id']}",  # it is VERY important that the base name include the session ID, because it is used to construct unique filenames
+            )
             ci[imagetyp] = fi
 
             # FIXME, we temporarily (until the processing_classic is removed) use the old style input_files
@@ -441,8 +449,7 @@ class ProcessingNew(Processing):
             imagetyp = get_safe(input, "type")
             masters = self.sb.get_master_images(imagetyp=imagetyp, reference_session=self.session)
             if not masters:
-                logging.warning(f"No master frames of type '{imagetyp}' found for stage")
-                return []
+                raise ValueError(f"No master frames of type '{imagetyp}' found for stage")
 
             # Try to rank the images by desirability
             scored_masters = score_candidates(masters, self.session)
@@ -458,8 +465,7 @@ class ProcessingNew(Processing):
             # session_masters[master_type] = scored_masters  # for reporting purposes
 
             if len(scored_masters) == 0:
-                logging.warning(f"No suitable master frames of type '{imagetyp}' found.")
-                return []
+                raise ValueError(f"No suitable master frames of type '{imagetyp}' found.")
 
             self.sb._add_image_abspath(
                 scored_masters[0].candidate

@@ -21,7 +21,7 @@ class UserHandledError(ValueError):
 class NotEnoughFilesError(UserHandledError):
     """Exception raised when not enough input files are provided for a processing stage."""
 
-    def __init__(self, message: str, files: list[str]):
+    def __init__(self, message: str, files: list[str] = []):
         super().__init__(message)
         self.files = files
 

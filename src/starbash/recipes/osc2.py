@@ -50,7 +50,7 @@ def make_stacked(inputs_to_use: list[str], variant: str | None, output_file: str
     merged_seq_base = f"all_{input_base}"
 
     # Absolute path for the output stacked file
-    stacked_output_path = glob(f"{context['process_dir']}/{output_file}.fit*")
+    stacked_output_path = f"{context['output'].base}/{output_file}.fit"
 
     # Merge all frames (from multiple sessions and configs) use those for stacking
     seqs_to_merge = []
