@@ -39,11 +39,25 @@ class FileInfo:
     image_rows: list[ImageRow] | None = None  # List of individual files (if applicable)
 
     @property
-    def files(self) -> list[Path]:
+    def short_paths(self) -> list[Path]:
         """Get the list of individual file paths from this FileInfo.
 
         Returns:
-            List of Path objects for individual files.
+            List of Path objects for individual files. (relative to the base directory)
+        """
+        if self.image_rows is not None:
+            return [img["path"] for img in self.image_rows]
+        elif self.base is not None:
+            return [self.base]
+        else:
+            return []
+
+    @property
+    def full_paths(self) -> list[Path]:
+        """Get the list of individual file paths from this FileInfo.
+
+        Returns:
+            List of Path objects for individual files. (full abs paths)
         """
         if self.image_rows is not None:
             return [img["abspath"] for img in self.image_rows]
@@ -53,9 +67,9 @@ class FileInfo:
             return []
 
 
-def _make_imagerow(abspath: str) -> ImageRow:
+def _make_imagerow(dir: Path, path: str) -> ImageRow:
     """Make a stub imagerow definition with just an abspath (no metadata or other standard columns)"""
-    return {"abspath": abspath}
+    return {"abspath": str(dir / path), "path": path}
 
 
 def _stage_to_doc(task: TaskDict, stage: StageDict) -> None:
@@ -317,7 +331,7 @@ class ProcessingNew(Processing):
         filenames = get_list_of_strings(input, "name")
         # filenames might have had {} variables, we must expand them before going to the actual file
         filenames = [expand_context_unsafe(f, self.context) for f in filenames]
-        return FileInfo(base=str(dir), image_rows=[_make_imagerow(str(dir / f)) for f in filenames])
+        return FileInfo(base=str(dir), image_rows=[_make_imagerow(dir, f) for f in filenames])
 
     def _import_from_prior_stages(self, input: InputDef) -> FileInfo:
         """Import and filter image data from prior stage outputs.
@@ -399,7 +413,7 @@ class ProcessingNew(Processing):
                 ci[name] = file_info
 
                 # Collect file paths
-                all_files.extend(file_info.files)
+                all_files.extend(file_info.full_paths)
 
             logging.debug(f"Resolved {len(all_files)} job input files from prior stages")
             return all_files
@@ -419,9 +433,9 @@ class ProcessingNew(Processing):
 
             # FIXME, we temporarily (until the processing_classic is removed) use the old style input_files
             # context variable - so that existing scripts can keep working.
-            self.context["input_files"] = fi.files
+            self.context["input_files"] = fi.full_paths
 
-            return fi.files
+            return fi.full_paths
 
         def _resolve_input_master() -> list[Path]:
             imagetyp = get_safe(input, "type")
@@ -512,10 +526,10 @@ class ProcessingNew(Processing):
         }
         kind: str = get_safe(output, "kind")
         resolver = get_safe(resolvers, kind)
-        r = resolver()
+        r: FileInfo = resolver()
 
         self.context["output"] = r
-        return r.files
+        return r.full_paths
 
     def _stage_output_files(self, stage: StageDict) -> list[Path]:
         """Get all output file paths for the given stage.
