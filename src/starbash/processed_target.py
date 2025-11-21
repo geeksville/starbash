@@ -42,7 +42,7 @@ class ProcessedTarget:
             context: The processing context dictionary containing output paths and metadata.
         """
         self.p = p
-        dir = Path(self.p.context["output"]["base_path"])
+        dir = Path(self.p.context["output"].base)
 
         # Get the path to the starbash.toml file
         config_path = dir / repo_suffix

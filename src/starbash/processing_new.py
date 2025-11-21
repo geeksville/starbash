@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from multidict import MultiDict
+from multidict._multidict_py import MultiDict
 from tomlkit.items import AoT
 
 from repo import Repo
@@ -16,6 +18,7 @@ from starbash.app import Starbash
 from starbash.database import ImageRow
 from starbash.doit import StarbashDoit
 from starbash.filtering import filter_by_requires
+from starbash.processed_target import ProcessedTarget
 from starbash.processing import (
     Processing,
     ProcessingResult,
@@ -131,33 +134,44 @@ class ProcessingNew(Processing):
 
         result = ProcessingResult(target=target, sessions=self.sessions)
 
-        try:
-            stages = self._get_stages()
-            self._stages_to_tasks(stages)
-            tree = to_tree(self.doit.dicts.values())
-            from starbash import console
+        self._set_output_by_kind(
+            "processed"
+        )  # for the time being we plug in a "processed" out so that at least we know a final output dir
 
-            console.print(tree)
-            # fire up doit to run the tasks
-            # FIXME, perhaps we could run doit one level higher, so that all targets are processed by doit
-            # for parallism etc...?
-            self.doit.run(["list", "--all", "--status"])
-            self.doit.run(
-                [
-                    "info",
-                    "stack_m20",  # seqextract_haoiii_m20_s35
-                ]
-            )
-            # self.doit.run(["dumpdb"])
-            logging.info("Running doit tasks...")
-            self.doit.run([f"stack_{self.target}"])  # light_{self.target}_s35
+        with ProcessedTarget(self) as processed_target:
+            try:
+                stages = self._get_stages()
+                self._stages_to_tasks(stages)
+                tree = to_tree(self.doit.dicts.values())
+                from starbash import console
 
-            # FIXME have doit tasks store into a ProcessingResults object somehow
-            # declare success
-            update_processing_result(result)
-        except Exception as e:
-            task_exception = e
-            update_processing_result(result, task_exception)
+                console.print(tree)
+                self.preflight_tasks()
+                # fire up doit to run the tasks
+                # FIXME, perhaps we could run doit one level higher, so that all targets are processed by doit
+                # for parallism etc...?
+                self.doit.run(["list", "--all", "--status"])
+                self.doit.run(
+                    [
+                        "info",
+                        "stack_m20",  # seqextract_haoiii_m20_s35
+                    ]
+                )
+                # self.doit.run(["dumpdb"])
+                logging.info("Running doit tasks...")
+                result_code = self.doit.run(
+                    [f"stack_single_duo_{self.target}"]
+                )  # light_{self.target}_s35
+                # FIXME - it would be better to call a doit entrypoint that lets us catch the actual Doit exception directly
+                if result_code != 0:
+                    raise RuntimeError(f"doit processing failed with exit code {result_code}")
+
+                # FIXME have doit tasks store into a ProcessingResults object somehow
+                # declare success
+                update_processing_result(result)
+            except Exception as e:
+                task_exception = e
+                update_processing_result(result, task_exception)
 
         return result
 
@@ -166,11 +180,13 @@ class ProcessingNew(Processing):
         # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
 
         # FIXME this is kinda yucky.  The 'merged' repo_manage doesn't know how to merge AoT types, so we get back a list of AoT
-        # we need to flatten that out into one list of normal dicts
+        # we need to flatten that out into one list of dict like objects
         stages: list[AoT] = self.sb.repo_manager.merged.getall(name)
         s_unwrapped: list[StageDict] = []
         for stage in stages:
-            s_unwrapped.extend(stage.unwrap())
+            # .unwrap() - I'm trying an experiment of not unwrapping stage - which would be nice because
+            # stage has a useful 'source' backpointer.
+            s_unwrapped.extend(stage)
         return s_unwrapped
 
     def _clone_context(self) -> dict[str, Any]:
@@ -287,8 +303,6 @@ class ProcessingNew(Processing):
         # If we have any session inputs, this stage is multiplexed (one task per session)
         need_multiplex = has_session_in or has_session_extra_in
         if need_multiplex:
-            has_set_output = False
-
             # Create one task per session
             for s in self.sessions:
                 # Note we have a single context instance and we set session inside it
@@ -303,15 +317,6 @@ class ProcessingNew(Processing):
                     self._set_context_from_prior_stage(stage)
                 else:
                     self._clear_context()
-                    # Note: we can't set the output directory until we know at least one session (so we can find 'target' name)
-                    # so we do it here.
-                    if not has_set_output:
-                        self._set_output_by_kind(
-                            "processed"
-                        )  # for the time being we plug in a "processed" out so that at least we know a final output dir
-
-                        # FIXME this is the earliest place we can create/read the output toml file
-                        has_set_output = True
 
                 t = self._create_task_dict(stage)
                 current_tasks.append(t)
@@ -364,7 +369,10 @@ class ProcessingNew(Processing):
             "file_dep": expand_context_list(file_deps, self.context),
             # FIXME, we should probably be using something more structured than bare filenames - so we can pass base source and confidence scores
             "targets": expand_context_list(targets, self.context),
-            "meta": {"context": self._clone_context()},
+            "meta": {
+                "context": self._clone_context(),
+                "stage": stage,  # The stage we came from - used later in culling/handling conflicts
+            },
         }
 
         # add the actions THIS will store a SNAPSHOT of the context AT THIS TIME for use if the task/action is later executed
@@ -421,6 +429,34 @@ class ProcessingNew(Processing):
                             image_rows.extend(task_output.image_rows)
 
         return FileInfo(image_rows=image_rows)
+
+    def preflight_tasks(self) -> None:
+        tasks = self.doit.dicts.values()  # all our tasks
+        stages: dict[str, StageDict] = {}  # The stages we ended up using
+
+        # multimap from target file to tasks that produce it
+        target_to_tasks = MultiDict[TaskDict]()
+        for task in tasks:
+            logging.debug(f"Preflighting task: {task['name']}")
+            for target in task.get("targets", []):
+                target_to_tasks.add(target, task)
+            stage = task["meta"]["stage"]
+            stages[stage.name] = stage
+
+        # Sort stages by priority (if priority not present assume 0)
+        sorted_stages = sorted(stages.values(), key=lambda s: s.get("priority", 0))
+        logging.debug(f"Stages in priority order: {[s.get('name') for s in sorted_stages]}")
+
+        # check for tasks that are writing to the same target (which is not allowed).  If we
+        # find such tasks we'll have to pick ONE based on priority and let the user know in the future
+        # they could pick something else.
+        for target in target_to_tasks.keys():
+            producing_tasks = target_to_tasks.getall(target)
+            if len(producing_tasks) > 1:
+                task_names = [t["name"] for t in producing_tasks]
+                raise ValueError(
+                    f"Multiple tasks are producing the same target file '{target}': {task_names}"
+                )
 
     def _resolve_input_files(self, input: InputDef) -> list[Path]:
         """Resolve input file paths for a stage.
