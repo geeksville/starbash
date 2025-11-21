@@ -1,5 +1,6 @@
 """New processing implementation for starbash (under development)."""
 
+import copy
 import logging
 import os
 import textwrap
@@ -20,6 +21,7 @@ from starbash.processing import (
     ProcessingResult,
     update_processing_result,
 )
+from starbash.rich import to_tree
 from starbash.safety import get_list_of_strings, get_safe
 from starbash.score import score_candidates
 from starbash.tool import expand_context_list, expand_context_unsafe, tools
@@ -129,7 +131,10 @@ class ProcessingNew(Processing):
         try:
             stages = self._get_stages()
             self._stages_to_tasks(stages)
-            logging.debug(f"Doit tasks: {self.doit.dicts}")
+            tree = to_tree(self.doit.dicts.values())
+            from starbash import console
+
+            console.print(tree)
             # fire up doit to run the tasks
             # FIXME, perhaps we could run doit one level higher, so that all targets are processed by doit
             # for parallism etc...?
@@ -160,12 +165,12 @@ class ProcessingNew(Processing):
         return s_unwrapped
 
     def _clone_context(self) -> dict[str, Any]:
-        """Create a shallow copy of the current processing context.
+        """Create a deep copy of the current processing context.
 
         Returns:
-            A shallow copy of the current context dictionary.
+            A deep copy of the current context dictionary.
         """
-        return self.context.copy()
+        return copy.deepcopy(self.context)
 
     def _stage_to_action(self, task: TaskDict, stage: StageDict) -> None:
         """Given a stage definition, populate the "actions" list of the task dictionary.
@@ -230,6 +235,25 @@ class ProcessingNew(Processing):
         for key, value in context_defs.items():
             self.context[key] = value
 
+    def _clear_context(self) -> None:
+        """Clear out any session-specific context variables."""
+        # since 'inputs' are session specific we erase them here, so that _create_task_dict can reinit with
+        # the correct session specific files
+        self.context.pop("input", None)
+        self.context.pop(
+            "input_files", None
+        )  # also nuke our temporary old-school way of finding input files
+
+    def _set_context_from_prior_stage(self, stage: StageDict) -> None:
+        input = _inputs_by_kind(stage, "session-extra")[0]  # guaranteed to exist
+        after = get_safe(input, "after")
+        prior_task_name = self._get_unique_task_name(
+            after
+        )  # find the right task for our stage and multiplex
+        prior_task = get_safe(self.doit.dicts, prior_task_name)
+        context = prior_task["meta"]["context"]
+        self.context = copy.deepcopy(context)
+
     def _stage_to_tasks(self, stage: StageDict) -> None:
         """Convert the given stage to doit task(s) and add them to our doit task list.
 
@@ -239,17 +263,20 @@ class ProcessingNew(Processing):
 
         # Find what kinds of inputs the stage is REQUESTING
         # masters_in = _inputs_by_kind(stage, "master")  # TODO: Use for input resolution
-        session_in = _inputs_by_kind(stage, "session")
+        has_session_in = len(_inputs_by_kind(stage, "session")) > 0
+        has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert len(session_in) <= 1, "A maximum of one 'session' input is supported per stage"
+        assert (not has_session_in) or (
+            not has_session_extra_in
+        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
 
         self._add_stage_context_defs(stage)
 
         current_tasks = []  # Reset the list of tasks for the previous stage, we keep them for "job" imports
 
         # If we have any session inputs, this stage is multiplexed (one task per session)
-        need_multiplex = len(session_in) > 0
+        need_multiplex = has_session_in or has_session_extra_in
         if need_multiplex:
             has_set_output = False
 
@@ -258,47 +285,41 @@ class ProcessingNew(Processing):
                 # Note we have a single context instance and we set session inside it
                 # later when we go to actually RUN the tasks we need to make sure each task is using a clone
                 # from _clone_context().  So that task will be seeing the correct context data we are building here.
-
+                # Note: we do this even in the "session_extra" case because that code needs to know the current
+                # session to find the 'previous' stage.
                 self._set_session_in_context(s)
 
-                # Note: we can't set the output directory until we know at least one session (so we can find 'target' name)
-                # so we do it here.
-                if not has_set_output:
-                    self._set_output_by_kind(
-                        "processed"
-                    )  # for the time being we plug in a "processed" out so that at least we know a final output dir
+                if has_session_extra_in:
+                    # We need to init our context from whatever the prior stage was using.
+                    self._set_context_from_prior_stage(stage)
+                else:
+                    self._clear_context()
+                    # Note: we can't set the output directory until we know at least one session (so we can find 'target' name)
+                    # so we do it here.
+                    if not has_set_output:
+                        self._set_output_by_kind(
+                            "processed"
+                        )  # for the time being we plug in a "processed" out so that at least we know a final output dir
 
-                    # FIXME this is the earliest place we can create/read the output toml file
-                    has_set_output = True
+                        # FIXME this is the earliest place we can create/read the output toml file
+                        has_set_output = True
 
-                task_dict = self._create_task_dict(stage)
-                self.doit.add_task(task_dict)
-                current_tasks.append(task_dict)
+                t = self._create_task_dict(stage)
+                current_tasks.append(t)
         else:
             # no session for non-multiplexed stages, FIXME, not sure if there is a better place to clean this up?
             self.context.pop("session", None)
+            self._clear_context()
 
             # Single task (no multiplexing) - e.g., final stacking or post-processing
-            task_dict = self._create_task_dict(stage)
-            self.doit.add_task(task_dict)
-            current_tasks.append(task_dict)
+            t = self._create_task_dict(stage)
+            current_tasks.append(t)
 
         # let the next stage after us, refer to our task(s) if necessary
         self.prior_tasks = current_tasks
 
-    def _create_task_dict(self, stage: StageDict) -> TaskDict:
-        """Create a doit task dictionary for a single session in a multiplexed stage.
-
-        Args:
-            stage: The stage definition from TOML
-            session: The session row from the database
-
-        Returns:
-            Task dictionary suitable for doit
-        """
-        task_name = stage.get("name", "unnamed_stage")
-
-        # FIXME - might need to further uniquify the task name
+    def _get_unique_task_name(self, task_name: str) -> str:
+        """Generate a unique task name for the given stage and current session."""
 
         # include target name in the task
         task_name += f"_{self.target}"
@@ -310,13 +331,19 @@ class ProcessingNew(Processing):
 
             # Make unique task name by combining stage name and session ID
             task_name += f"_s{session_id}"
+        return task_name
 
-        # since 'inputs' are session specific we erase them here, so that _create_task_dict can reinit with
-        # the correct session specific files
-        self.context.pop("input", None)
-        self.context.pop(
-            "input_files", None
-        )  # also nuke our temporary old-school way of finding input files
+    def _create_task_dict(self, stage: StageDict) -> TaskDict:
+        """Create a doit task dictionary for a single session in a multiplexed stage.
+
+        Args:
+            stage: The stage definition from TOML
+            session: The session row from the database
+
+        Returns:
+            Task dictionary suitable for doit
+        """
+        task_name = self._get_unique_task_name(stage.get("name", "unnamed_stage"))
 
         file_deps = self._stage_input_files(stage)
         targets = self._stage_output_files(stage)
@@ -332,6 +359,8 @@ class ProcessingNew(Processing):
         # add the actions THIS will store a SNAPSHOT of the context AT THIS TIME for use if the task/action is later executed
         self._stage_to_action(task_dict, stage)
         _stage_to_doc(task_dict, stage)  # add the doc string
+
+        self.doit.add_task(task_dict)
 
         return task_dict
 
@@ -400,7 +429,7 @@ class ProcessingNew(Processing):
         # - Apply input.requires filters (metadata, min_count, camera)
         # - Return list of actual file paths
 
-        ci = self.context.setdefault("input", {})
+        ci: dict = self.context.setdefault("input", {})
 
         def _resolve_input_job() -> list[Path]:
             """Resolve job-type inputs by importing data from prior stage outputs.
@@ -428,6 +457,23 @@ class ProcessingNew(Processing):
 
             logging.debug(f"Resolved {len(all_files)} job input files from prior stages")
             return all_files
+
+        def _resolve_session_extra() -> list[Path]:
+            # In this case our context was preinited by cloning from the stage that preceeded us in processing
+            # To clean things up (before importing our real imports) we could clobber the old input section
+            # ci.clear()
+            # HOWEVER, I think it is useful to let later stages optionally refer to prior stage inputs (because inputs have names we can
+            # use to prevent colisions).
+            # In particular the "lights" input is useful to find our raw source files.
+
+            # currently our 'output' is really just the FileInfo from the prior stage output.  Repurpose that as
+            # our new input.
+            file_info: FileInfo = get_safe(self.context, "output")
+            ci["extra"] = (
+                file_info  # FIXME, change inputs to optionally use incrementing numeric keys instead of "default""
+            )
+            self.context.pop("output", None)  # remove the bogus output
+            return file_info.full_paths
 
         def _resolve_input_session() -> list[Path]:
             images = self.sb.get_session_images(self.session)
@@ -495,6 +541,7 @@ class ProcessingNew(Processing):
             "job": _resolve_input_job,
             "session": _resolve_input_session,
             "master": _resolve_input_master,
+            "session-extra": _resolve_session_extra,
         }
         kind: str = get_safe(input, "kind")
         resolver = get_safe(resolvers, kind)

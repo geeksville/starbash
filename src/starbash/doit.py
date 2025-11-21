@@ -48,7 +48,7 @@ class StarbashDoit(TaskLoader2):
 
     def __init__(self):
         super().__init__()
-        self.dicts: list[dict[str, Any]] = []
+        self.dicts: dict[str, dict[str, Any]] = {}
 
         # For early testing
         # self.add_task(my_builtin_task)
@@ -59,7 +59,9 @@ class StarbashDoit(TaskLoader2):
         Args:
             task_dict: The task definition as a dictionary.
         """
-        self.dicts.append(task_dict)
+        if task_dict["name"] in self.dicts:
+            raise ValueError(f"Task with name {task_dict['name']} already exists.")
+        self.dicts[task_dict["name"]] = task_dict
 
     def run(self, args: list[str] = []) -> int:
         """Run the doit command using our currently loaded tasks
@@ -91,5 +93,5 @@ class StarbashDoit(TaskLoader2):
         Returns:
             A list of tasks.
         """
-        task_list = [dict_to_task(t) for t in self.dicts]
+        task_list = [dict_to_task(t) for t in self.dicts.values()]
         return task_list

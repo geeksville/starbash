@@ -5,9 +5,9 @@ from typing import Any
 # FIXME: have users pass in an optional human-friendly string to make nice error messages.
 
 
-def get_safe(d: dict[str, Any], key: str) -> Any:
+def get_safe[T](d: dict[str, T], key: str) -> T:
     """Get a value from the given dictionary key, raising an error if missing."""
-    names: Any | None = d.get(key)
+    names: T | None = d.get(key)
     if not names:
         raise ValueError(f"Config is missing '{key}' field")
     return names

@@ -276,6 +276,10 @@ class Repo:
 
     __repr__ = __str__
 
+    def __deepcopy__(self, memo):
+        # Supress deepcopy because users almost certainly don't want to deepcopy repos
+        return self
+
     def kind(self, unknown_kind: str = "unknown") -> str:
         """
         Read-only attribute for the repository kind (e.g., "recipe", "data", etc.).

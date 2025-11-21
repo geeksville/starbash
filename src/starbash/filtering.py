@@ -28,7 +28,9 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
         value_list = get_list_of_strings(requires, "value")
 
         # kinda yucky - we assume that the keys in metadata are uppercase
-        metadata_value = get_aliases().normalize(metadata.get(name.upper(), ""))
+        metadata_value = metadata.get(name.upper())
+        if metadata_value:  # Normalize if found
+            metadata_value = get_aliases().normalize(metadata_value)
 
         # we want to do an 'or' match - if any of the names in the list match we claim success
         return metadata_value in value_list
