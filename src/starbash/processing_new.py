@@ -120,6 +120,9 @@ class ProcessingNew(Processing):
             TaskDict
         ] = []  # Empty the list of tasks for the previous stage, we keep them for "job" imports
 
+        # Normally we will use the "process_dir", but if we are importing new images from a session we place those images
+        self.use_temp_cwd = False
+
     def __enter__(self) -> "ProcessingNew":
         return self
 
@@ -222,10 +225,10 @@ class ProcessingNew(Processing):
                 f"Stage '{stage.get('name')}' is missing a 'script' or 'script-file' definition."
             )
 
-        # FIXME: Need to determine the working directory (cwd)
-        # - For session stages: typically process_dir
-        # - For final stages: typically results_dir or process_dir
-        cwd = None
+        # Need to determine the working directory (cwd)
+        # If we are 'importing' session files, use None so that the script is initially in a disposable temp dir
+        # otherwise use process_dir
+        cwd = self.context.get("process_dir") if not self.use_temp_cwd else None
 
         # Create the ToolAction and add to task
         action = ToolAction(tool, commands=script, cwd=cwd)
@@ -350,6 +353,8 @@ class ProcessingNew(Processing):
             Task dictionary suitable for doit
         """
         task_name = self._get_unique_task_name(stage.get("name", "unnamed_stage"))
+
+        self.use_temp_cwd = False
 
         file_deps = self._stage_input_files(stage)
         targets = self._stage_output_files(stage)
@@ -487,6 +492,7 @@ class ProcessingNew(Processing):
             filter_by_requires(input, images)
 
             logging.debug(f"Using {len(images)} files as input_files")
+            self.use_temp_cwd = True
 
             # FIXME Move elsewhere.
             # we also need to add ["input"][type] to the context so that scripts can find .base etc... o

@@ -63,8 +63,7 @@ def make_stacked(inputs_to_use: list[str], variant: str | None, output_file: str
     if len(seqs_to_merge) < 1:
         raise NotEnoughFilesError("Need at one sequence to merge")
 
-    commands = f"""
-        cd {context["process_dir"]}
+    commands = """
         """
 
     if len(seqs_to_merge) == 1:
