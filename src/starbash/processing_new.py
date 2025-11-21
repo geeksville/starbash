@@ -138,10 +138,16 @@ class ProcessingNew(Processing):
             # fire up doit to run the tasks
             # FIXME, perhaps we could run doit one level higher, so that all targets are processed by doit
             # for parallism etc...?
-            self.doit.run(["list"])
+            self.doit.run(["list", "--all", "--status"])
+            self.doit.run(
+                [
+                    "info",
+                    "stack_m20",  # seqextract_haoiii_m20_s35
+                ]
+            )
             # self.doit.run(["dumpdb"])
             logging.info("Running doit tasks...")
-            self.doit.run(["strace", f"stack_{self.target}"])  # light_{self.target}_s35
+            self.doit.run([f"stack_{self.target}"])  # light_{self.target}_s35
 
             # FIXME have doit tasks store into a ProcessingResults object somehow
             # declare success
@@ -267,9 +273,9 @@ class ProcessingNew(Processing):
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (
-            not has_session_extra_in
-        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        assert (not has_session_in) or (not has_session_extra_in), (
+            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        )
 
         self._add_stage_context_defs(stage)
 
