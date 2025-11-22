@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from doit.action import BaseAction
@@ -38,6 +39,7 @@ class ToolAction(BaseAction):
         assert self.task and self.task.meta  # We always set this to context
         context: dict[str, Any] = self.task.meta["context"]
 
+        logging.debug(f"Running ToolAction for {self.task}")
         self.result = self.tool.run(self.commands, context=context, cwd=self.cwd)
         self.values = {}  # doit requires this attribute to be set
 

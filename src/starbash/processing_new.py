@@ -208,12 +208,12 @@ class ProcessingNew(Processing):
                 # FIXME, perhaps we could run doit one level higher, so that all targets are processed by doit
                 # for parallism etc...?
                 self.doit.run(["list", "--all", "--status"])
-                # self.doit.run(
-                #    [
-                #        "info",
-                #        "process_all",  # "stack_m20",  # seqextract_haoiii_m20_s35
-                #    ]
-                # )
+                self.doit.run(
+                    [
+                        "info",
+                        "stack_dual_duo_m20",  # "stack_m20",  # seqextract_haoiii_m20_s35
+                    ]
+                )
                 # self.doit.run(["dumpdb"])
                 logging.info("Running doit tasks...")
                 result_code = self.doit.run(["process_all"])  # light_{self.target}_s35
@@ -327,14 +327,21 @@ class ProcessingNew(Processing):
         )  # also nuke our temporary old-school way of finding input files
 
     def _set_context_from_prior_stage(self, stage: StageDict) -> None:
-        input = _inputs_by_kind(stage, "session-extra")[0]  # guaranteed to exist
-        after = get_safe(input, "after")
-        prior_task_name = self._get_unique_task_name(
-            after
-        )  # find the right task for our stage and multiplex
-        prior_task = get_safe(self.doit.dicts, prior_task_name)
-        context = prior_task["meta"]["context"]
-        self.context = copy.deepcopy(context)
+        """If we have an input section marked to be "after" some other session, try to respect that."""
+        inputs: list[InputDef] = stage.get("inputs", [])
+        input_with_after = next((inp for inp in inputs if "after" in inp), None)
+
+        if not input_with_after:
+            # We aren't after anything - just plug in some correct defaults
+            self._clear_context()
+        else:
+            after = get_safe(input_with_after, "after")
+            prior_task_name = self._get_unique_task_name(
+                after
+            )  # find the right task for our stage and multiplex
+            prior_task = get_safe(self.doit.dicts, prior_task_name)
+            context = prior_task["meta"]["context"]
+            self.context = copy.deepcopy(context)
 
     def _stage_to_tasks(self, stage: StageDict) -> None:
         """Convert the given stage to doit task(s) and add them to our doit task list.
@@ -349,9 +356,9 @@ class ProcessingNew(Processing):
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (
-            not has_session_extra_in
-        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        assert (not has_session_in) or (not has_session_extra_in), (
+            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        )
 
         self._add_stage_context_defs(stage)
 
@@ -369,18 +376,15 @@ class ProcessingNew(Processing):
                 # session to find the 'previous' stage.
                 self._set_session_in_context(s)
 
-                if has_session_extra_in:
-                    # We need to init our context from whatever the prior stage was using.
-                    self._set_context_from_prior_stage(stage)
-                else:
-                    self._clear_context()
+                # We need to init our context from whatever the prior stage was using.
+                self._set_context_from_prior_stage(stage)
 
                 t = self._create_task_dict(stage)
                 current_tasks.append(t)
         else:
             # no session for non-multiplexed stages, FIXME, not sure if there is a better place to clean this up?
             self.context.pop("session", None)
-            self._clear_context()
+            self._clear_context()  # self._set_context_from_prior_stage(stage)
 
             # Single task (no multiplexing) - e.g., final stacking or post-processing
             t = self._create_task_dict(stage)
@@ -449,6 +453,18 @@ class ProcessingNew(Processing):
         filenames = [expand_context_unsafe(f, self.context) for f in filenames]
         return FileInfo(base=str(dir), image_rows=[_make_imagerow(dir, f) for f in filenames])
 
+    def _with_defaults(self, img: ImageRow) -> ImageRow:
+        """Try to provide missing metadata for image rows.  Some imagerows are 'sparse'
+        with just a filename and minor other info.  In that case try to assume the metadata matches
+        the input metadata for this single pipeline of images."""
+        r = self.context.get("default_metadata", {}).copy()
+
+        # values from the passed in img override our defaults
+        for key, value in img.items():
+            r[key] = value
+
+        return r
+
     def _import_from_prior_stages(self, input: InputDef) -> FileInfo:
         """Import and filter image data from prior stage outputs.
 
@@ -477,7 +493,9 @@ class ProcessingNew(Processing):
             # Look through all input types in the task context for image_rows
             for _input_type, file_info in task_inputs.items():
                 if isinstance(file_info, FileInfo) and file_info.image_rows:
-                    task_filtered_input = filter_by_requires(input, file_info.image_rows)
+                    images = file_info.image_rows
+                    images = [self._with_defaults(img) for img in images]
+                    task_filtered_input = filter_by_requires(input, images)
                     if (
                         task_filtered_input
                     ):  # This task had matching inputs for us, so therefore we want its outputs
@@ -513,9 +531,9 @@ class ProcessingNew(Processing):
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
                 conflicting_stages = tasks_to_stages(producing_tasks)
-                assert (
-                    len(conflicting_stages) > 1
-                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
+                assert len(conflicting_stages) > 1, (
+                    "Multiple conflicting tasks must imply multiple conflicting stages?"
+                )
 
                 names = [t["name"] for t in conflicting_stages]
                 logging.warning(
@@ -526,10 +544,12 @@ class ProcessingNew(Processing):
                 pt.set_excluded("stages", [stage_with_comment(s) for s in stages_to_exclude])
                 tasks = remove_tasks_by_stage_name(tasks, pt.get_excluded("stages"))
                 self.doit.set_tasks(tasks)
+                break  # We can exit the loop now because we've culled down to only non conflicting stages
 
         # update our toml with what we used
         pt.set_used("stages", [stage_with_comment(s) for s in tasks_to_stages(tasks)])
 
+        # add a default task to run all the other tasks
         self.doit.add_task(create_default_task(tasks))
 
     def _resolve_input_files(self, input: InputDef) -> list[Path]:
@@ -604,12 +624,18 @@ class ProcessingNew(Processing):
             logging.debug(f"Using {len(images)} files as input_files")
             self.use_temp_cwd = True
 
+            repo: Repo | None = None
+            if len(images) > 0:
+                ref_image = images[0]
+                repo = ref_image.get("repo")  # all images will be from the same repo
+                self.context["default_metadata"] = (
+                    ref_image  # To allow later stage scripts info about the current script pipeline
+                )
+
             # FIXME Move elsewhere.
             # we also need to add ["input"][type] to the context so that scripts can find .base etc... o
             imagetyp = get_safe(input, "type")
-            repo = (
-                images[0].get("repo") if images else None
-            )  # all images will be from the same repo
+
             fi = FileInfo(
                 image_rows=images,
                 repo=repo,
