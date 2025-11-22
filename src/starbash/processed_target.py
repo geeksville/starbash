@@ -6,7 +6,7 @@ import tomlkit
 from repo import Repo, repo_suffix
 from starbash.app import ScoredCandidate
 from starbash.database import SessionRow
-from starbash.toml import toml_from_template
+from starbash.toml import CommentedString, toml_from_template
 
 __all__ = [
     "ProcessedTarget",
@@ -50,6 +50,22 @@ class ProcessedTarget:
         self._init_from_template(config_path)
         self.repo = Repo(dir)  # a structured Repo object for reading/writing this config
         self._update_from_context()
+
+    def set_used(self, name: str, used: list[CommentedString]) -> None:
+        """Set the used lists for the given section."""
+        node = self.repo.get(name, {}, do_create=True)
+        node["used"] = used
+
+    def set_excluded(self, name: str, excluded: list[CommentedString]) -> None:
+        """Set the excluded lists for the given section."""
+        node = self.repo.get(name, {}, do_create=True)
+        node["excluded"] = excluded
+
+    def get_excluded(self, name: str) -> list[str]:
+        """Any consumers of this function probably just want the raw string"""
+        node = self.repo.get(name, {})
+        excluded: list[CommentedString] = node.get("excluded", [])
+        return [a.value for a in excluded]
 
     def _init_from_template(self, config_path: Path) -> None:
         """Create a default starbash.toml file from template.
@@ -98,8 +114,7 @@ class ProcessedTarget:
 
             proc_sessions.append(t)
 
-        proc_options = self.repo.get("processing.recipe.options")
-        assert proc_options is not None, "processing.recipe.options must exist in the repo config"
+        proc_options = self.repo.get("processing.recipe.options", {})
 
         # populate the list of recipes considered
         proc_options["url"] = [recipe.url for recipe in self.p.recipes_considered]

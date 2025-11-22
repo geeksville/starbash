@@ -27,6 +27,7 @@ from starbash.processing import (
 from starbash.rich import to_tree
 from starbash.safety import get_list_of_strings, get_safe
 from starbash.score import score_candidates
+from starbash.toml import CommentedString
 from starbash.tool import expand_context_list, expand_context_unsafe, tools
 
 
@@ -88,6 +89,30 @@ def _inputs_by_kind(stage: StageDict, kind: str) -> list[InputDef]:
     return [inp for inp in inputs if inp.get("kind") == kind]
 
 
+def tasks_to_stages(tasks: list[TaskDict]) -> list[StageDict]:
+    """Extract unique stages from the given list of tasks, sorted by priority."""
+    stage_dict: dict[str, StageDict] = {}
+    for task in tasks:
+        stage = task["meta"]["stage"]
+        stage_dict[stage["name"]] = stage
+
+    # Sort stages by priority (if priority not present assume 0)
+    stages = sorted(stage_dict.values(), key=lambda s: s.get("priority", 0))
+    logging.debug(f"Stages in priority order: {[s.get('name') for s in stages]}")
+    return stages
+
+
+def remove_tasks_by_stage_name(tasks: list[TaskDict], excluded: list[str]) -> list[TaskDict]:
+    return [t for t in tasks if t["meta"]["stage"].get("name") not in excluded]
+
+
+def stage_with_comment(stage: StageDict) -> CommentedString:
+    """Create a CommentedString for the given stage."""
+    name = stage.get("name", "unnamed_stage")
+    description = stage.get("description", None)
+    return CommentedString(value=name, comment=description)
+
+
 class ProcessingNew(Processing):
     """New processing implementation (work in progress).
 
@@ -126,6 +151,10 @@ class ProcessingNew(Processing):
         # Normally we will use the "process_dir", but if we are importing new images from a session we place those images
         self.use_temp_cwd = False
 
+        self.processed_target: ProcessedTarget | None = (
+            None  # The target we are currently processing (with extra runtime metadata)
+        )
+
     def __enter__(self) -> "ProcessingNew":
         return self
 
@@ -138,7 +167,8 @@ class ProcessingNew(Processing):
             "processed"
         )  # for the time being we plug in a "processed" out so that at least we know a final output dir
 
-        with ProcessedTarget(self) as processed_target:
+        with ProcessedTarget(self) as pt:
+            self.processed_target = pt
             try:
                 stages = self._get_stages()
                 self._stages_to_tasks(stages)
@@ -154,7 +184,7 @@ class ProcessingNew(Processing):
                 self.doit.run(
                     [
                         "info",
-                        "stack_m20",  # seqextract_haoiii_m20_s35
+                        "process_all",  # "stack_m20",  # seqextract_haoiii_m20_s35
                     ]
                 )
                 # self.doit.run(["dumpdb"])
@@ -172,6 +202,8 @@ class ProcessingNew(Processing):
             except Exception as e:
                 task_exception = e
                 update_processing_result(result, task_exception)
+            finally:
+                self.processed_target = None
 
         return result
 
@@ -431,8 +463,7 @@ class ProcessingNew(Processing):
         return FileInfo(image_rows=image_rows)
 
     def preflight_tasks(self) -> None:
-        tasks = self.doit.dicts.values()  # all our tasks
-        stages: dict[str, StageDict] = {}  # The stages we ended up using
+        tasks: list[TaskDict] = list[TaskDict](self.doit.dicts.values())  # all our tasks
 
         # multimap from target file to tasks that produce it
         target_to_tasks = MultiDict[TaskDict]()
@@ -440,23 +471,38 @@ class ProcessingNew(Processing):
             logging.debug(f"Preflighting task: {task['name']}")
             for target in task.get("targets", []):
                 target_to_tasks.add(target, task)
-            stage = task["meta"]["stage"]
-            stages[stage.name] = stage
 
-        # Sort stages by priority (if priority not present assume 0)
-        sorted_stages = sorted(stages.values(), key=lambda s: s.get("priority", 0))
-        logging.debug(f"Stages in priority order: {[s.get('name') for s in sorted_stages]}")
+        pt = self.processed_target
+        assert pt  # should be set by now
 
+        # if user has excluded any stages, we need to respect that (remove matching stages)
+        excluded = pt.get_excluded("stages")
+
+        tasks = remove_tasks_by_stage_name(tasks, excluded)
+
+        # pt.set_used("stages", stages, excluded)
         # check for tasks that are writing to the same target (which is not allowed).  If we
         # find such tasks we'll have to pick ONE based on priority and let the user know in the future
         # they could pick something else.
         for target in target_to_tasks.keys():
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
-                task_names = [t["name"] for t in producing_tasks]
-                raise ValueError(
-                    f"Multiple tasks are producing the same target file '{target}': {task_names}"
+                conflicting_stages = tasks_to_stages(producing_tasks)
+                assert len(conflicting_stages) > 1, (
+                    "Multiple conflicting tasks must imply multiple conflicting stages?"
                 )
+
+                names = [t["name"] for t in conflicting_stages]
+                logging.warning(
+                    f"Multiple stages could produce the same target '{target}': {names}, picking a default for now..."
+                )
+                # exclude all but the first one (highest priority)
+                stages_to_exclude = conflicting_stages[1:]
+                pt.set_excluded("stages", [stage_with_comment(s) for s in stages_to_exclude])
+                tasks = remove_tasks_by_stage_name(tasks, pt.get_excluded("stages"))
+
+        # update our toml with what we used
+        pt.set_used("stages", [stage_with_comment(s) for s in tasks_to_stages(tasks)])
 
     def _resolve_input_files(self, input: InputDef) -> list[Path]:
         """Resolve input file paths for a stage.

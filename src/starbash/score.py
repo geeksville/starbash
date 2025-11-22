@@ -3,15 +3,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-import tomlkit
-from tomlkit.items import Item
-
 from starbash.database import (
     Database,
     SessionRow,
     metadata_to_camera_id,
     metadata_to_instrument_id,
 )
+from starbash.toml import AsTomlMixin
 
 __all__ = [
     "ScoredCandidate",
@@ -20,7 +18,7 @@ __all__ = [
 
 
 @dataclass
-class ScoredCandidate:
+class ScoredCandidate(AsTomlMixin):
     """Our helper structure for scoring candidate sessions will return lists of these."""
 
     candidate: dict[str, Any]  # the scored candidate
@@ -28,17 +26,14 @@ class ScoredCandidate:
     reason: str  # short explanation of why this score
 
     @property
-    def comment(self) -> str:
+    def get_comment(self) -> str:
         """Generate a comment string for this candidate."""
         return f"{round(self.score)} {self.reason}"
 
-    @property
-    def as_toml(self) -> Item:
+    def __str__(self) -> str:
         """As a formatted toml node with documentation comment"""
         s: str = self.candidate["path"]  # Must be defined by now, FIXME, use abspath instead?
-        result = tomlkit.string(s)
-        result.comment(self.comment)
-        return result
+        return s
 
 
 def score_candidates(

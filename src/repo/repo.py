@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import MutableMapping
 from importlib import resources
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, overload
 
 import tomlkit
 from tomlkit.items import AoT
@@ -577,7 +578,13 @@ class Repo:
         else:
             raise ValueError(f"Unsupported URL scheme for repo: {self.url}")
 
-    def get(self, key: str, default: Any | None = None) -> Any | None:
+    @overload
+    def get(self, key: str) -> Any | None: ...
+
+    @overload
+    def get[T](self, key: str, default: T, do_create: bool = False) -> T: ...
+
+    def get(self, key: str, default: Any | None = None, do_create: bool = False) -> Any | None:
         """
         Gets a value from this repo's config for a given key.
         The key can be a dot-separated string for nested values.
@@ -590,11 +597,30 @@ class Repo:
             The found value or the default.
         """
         value = self.config
+        parent: MutableMapping = value  # track our dict parent in case we need to add to it
+        last_name = key
         for k in key.split("."):
+            if value is None and default is not None:
+                # If we are here that means the node above us in the dot path was missing, make it as a table
+                value = tomlkit.table()
+                parent[last_name] = value
+
             if not isinstance(value, dict):
-                return default
+                raise ValueError(f"Malformed TOML file - {key} is not inside a table")
+                # was return default
+
+            parent = value
             value = value.get(k)
-        return value if value is not None else default
+            last_name = k
+
+        if value is None and default is not None:
+            value = default
+
+            # We might add the default value into the config when not found, because client might mutate it and then want to save the file
+            if do_create:
+                parent[last_name] = value
+
+        return value
 
     def set(self, key: str, value: Any) -> None:
         """
