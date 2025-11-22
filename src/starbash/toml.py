@@ -29,9 +29,9 @@ class AsTomlMixin(ABC):
     @property
     def as_toml(self) -> Item:
         """As a formatted toml node with documentation comment"""
-        s = str(self)
+        s = self.__str__()
         result = tomlkit.string(s)
-        c = self.comment
+        c = self.get_comment
         if c:
             result.comment(c)
         return result

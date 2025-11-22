@@ -103,7 +103,7 @@ class ProcessedTarget:
                 for k, vlist in masters.items():
                     array_out = tomlkit.array()
                     for v in vlist:
-                        array_out.add_line(v.candidate["path"], comment=v.comment)
+                        array_out.add_line(v.candidate["path"], comment=v.get_comment)
                     array_out.add_line()  # MUST add a trailing line so the closing ] is on its own line
                     masters_out.append(k, array_out)
 

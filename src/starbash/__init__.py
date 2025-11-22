@@ -6,7 +6,6 @@ from typing import Any
 from rich.console import Console
 
 # Common type aliases for clarity
-type TaskDict = dict[str, Any]  # a doit task dictionary
 type StageDict = dict[str, Any]  # a processing stage definition from our toml
 type InputDef = dict[str, Any]  # an input definition within a stage
 type OutputDef = dict[str, Any]  # an output definition within a stage

@@ -9,14 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from multidict import MultiDict
-from multidict._multidict_py import MultiDict
 from tomlkit.items import AoT
 
 from repo import Repo
-from starbash import InputDef, OutputDef, StageDict, TaskDict
+from starbash import InputDef, OutputDef, StageDict
 from starbash.app import Starbash
 from starbash.database import ImageRow
-from starbash.doit import StarbashDoit
+from starbash.doit import StarbashDoit, TaskDict
 from starbash.filtering import filter_by_requires
 from starbash.processed_target import ProcessedTarget
 from starbash.processing import (
@@ -96,8 +95,8 @@ def tasks_to_stages(tasks: list[TaskDict]) -> list[StageDict]:
         stage = task["meta"]["stage"]
         stage_dict[stage["name"]] = stage
 
-    # Sort stages by priority (if priority not present assume 0)
-    stages = sorted(stage_dict.values(), key=lambda s: s.get("priority", 0))
+    # Sort stages by priority (if priority not present assume 0), higher priority first
+    stages = sorted(stage_dict.values(), key=lambda s: s.get("priority", 0), reverse=True)
     logging.debug(f"Stages in priority order: {[s.get('name') for s in stages]}")
     return stages
 
@@ -111,6 +110,34 @@ def stage_with_comment(stage: StageDict) -> CommentedString:
     name = stage.get("name", "unnamed_stage")
     description = stage.get("description", None)
     return CommentedString(value=name, comment=description)
+
+
+def create_default_task(tasks: list[TaskDict]) -> TaskDict:
+    """Create a default task that depends on all given tasks.
+
+    This task can be used to represent the overall processing of a target.
+
+    Args:
+        tasks: List of TaskDict objects to depend on.
+
+    Returns:
+        A TaskDict representing the default task.
+    """
+    default_task_name = "process_all"
+    task_deps = []
+    for task in tasks:
+        if task["name"].startswith(
+            "stack"
+        ):  # FIXME, there is probably a more elegant way instead of just looking for "stack-foo"
+            task_deps.append(task["name"])
+
+    task_dict: TaskDict = {
+        "name": default_task_name,
+        "task_dep": task_deps,
+        "actions": None,  # No actions, just depends on other tasks
+        "doc": "Top level task to process all stages for all targets",
+    }
+    return task_dict
 
 
 class ProcessingNew(Processing):
@@ -181,17 +208,15 @@ class ProcessingNew(Processing):
                 # FIXME, perhaps we could run doit one level higher, so that all targets are processed by doit
                 # for parallism etc...?
                 self.doit.run(["list", "--all", "--status"])
-                self.doit.run(
-                    [
-                        "info",
-                        "process_all",  # "stack_m20",  # seqextract_haoiii_m20_s35
-                    ]
-                )
+                # self.doit.run(
+                #    [
+                #        "info",
+                #        "process_all",  # "stack_m20",  # seqextract_haoiii_m20_s35
+                #    ]
+                # )
                 # self.doit.run(["dumpdb"])
                 logging.info("Running doit tasks...")
-                result_code = self.doit.run(
-                    [f"stack_single_duo_{self.target}"]
-                )  # light_{self.target}_s35
+                result_code = self.doit.run(["process_all"])  # light_{self.target}_s35
                 # FIXME - it would be better to call a doit entrypoint that lets us catch the actual Doit exception directly
                 if result_code != 0:
                     raise RuntimeError(f"doit processing failed with exit code {result_code}")
@@ -324,9 +349,9 @@ class ProcessingNew(Processing):
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (not has_session_extra_in), (
-            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
-        )
+        assert (not has_session_in) or (
+            not has_session_extra_in
+        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
 
         self._add_stage_context_defs(stage)
 
@@ -488,9 +513,9 @@ class ProcessingNew(Processing):
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
                 conflicting_stages = tasks_to_stages(producing_tasks)
-                assert len(conflicting_stages) > 1, (
-                    "Multiple conflicting tasks must imply multiple conflicting stages?"
-                )
+                assert (
+                    len(conflicting_stages) > 1
+                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
 
                 names = [t["name"] for t in conflicting_stages]
                 logging.warning(
@@ -500,9 +525,12 @@ class ProcessingNew(Processing):
                 stages_to_exclude = conflicting_stages[1:]
                 pt.set_excluded("stages", [stage_with_comment(s) for s in stages_to_exclude])
                 tasks = remove_tasks_by_stage_name(tasks, pt.get_excluded("stages"))
+                self.doit.set_tasks(tasks)
 
         # update our toml with what we used
         pt.set_used("stages", [stage_with_comment(s) for s in tasks_to_stages(tasks)])
+
+        self.doit.add_task(create_default_task(tasks))
 
     def _resolve_input_files(self, input: InputDef) -> list[Path]:
         """Resolve input file paths for a stage.

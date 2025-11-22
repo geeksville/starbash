@@ -21,6 +21,8 @@ __all__ = [
     "my_builtin_task",
 ]
 
+type TaskDict = dict[str, Any]  # a doit task dictionary
+
 
 class ToolAction(BaseAction):
     """An action that runs a starbash tool with given commands and context."""
@@ -48,12 +50,18 @@ class StarbashDoit(TaskLoader2):
 
     def __init__(self):
         super().__init__()
-        self.dicts: dict[str, dict[str, Any]] = {}
+        self.dicts: dict[str, TaskDict] = {}
 
         # For early testing
         # self.add_task(my_builtin_task)
 
-    def add_task(self, task_dict: dict[str, Any]) -> None:
+    def set_tasks(self, tasks: list[TaskDict]) -> None:
+        """Replace the current list of tasks with the given list."""
+        self.dicts = {}
+        for task in tasks:
+            self.add_task(task)
+
+    def add_task(self, task_dict: TaskDict) -> None:
         """Add a task defined as a dictionary to the list of tasks.
 
         Args:
