@@ -192,24 +192,25 @@
 * [x] include target name in task names
 * [x] fix multichannel input in osc2
 * [x] return real result codes from "process auto"
-* [ ] make single channel OSC work
-* [ ] share OSC code between dual duo and single channel OSC
-* [ ] create the ProcessedTarget by referring to the processed repo path info (need context first)
+* [x] make single channel OSC work
+* [x] share OSC code between dual duo and single channel OSC
+* [x] create the ProcessedTarget by referring to the processed repo path info (need context first)
 * [ ] store the various ScoredCandiates in the toml file
-* [ ] use user selected values from the toml file
-* [ ] try a test run on just a dual duo filter set
+* [x] use user selected values from the toml file
+* [x] try a test run on just a dual duo filter set
 * [ ] change masters over to using this same mechanism - hook together via dependencies
 * [x] implement _filter_by_requires
 * [x] change context["output"] to be a dataclass rather than a dict
 * [ ] use get_safe more pervasively, pass in a help string to it (to indicate source of failure)
-* [ ] switch old scripts over to new system
-* [ ] use task name dependencies to join stages
+* [ ] remove nasty osc2.py file - move into toml
+* [x] use task name dependencies to join stages
 * [ ] have AI change asserts to raise ValueError (or something better?)
 * [ ] try test run on the small dataset
-* [ ] move doit.db to app cache
+* [x] move doit.db to app cache
 * [ ] test integration on big dataset
-* [ ] rexport the small test dataset (I've added a few files)
-* [ ] verify build takes zero time if no changes
+* [x] rexport the small test dataset (I've added a few files)
+* [x] verify build takes zero time if no changes
 * [ ] add depenencies on the generated toml files
+* [ ] add dependencies on the recipe files
 * [ ] add graxpert
 * [ ] cleanup Repo import code

@@ -209,7 +209,7 @@ class ProcessingNew(Processing):
                 self.doit.run(
                     [
                         "info",
-                        "stack_dual_duo_m20",  # "stack_m20",  # seqextract_haoiii_m20_s35
+                        "process_all",  # "stack_m20",  # seqextract_haoiii_m20_s35
                     ]
                 )
                 # self.doit.run(["dumpdb"])
@@ -529,7 +529,7 @@ class ProcessingNew(Processing):
             raise ValueError("Input definition with 'after' must refer to a valid prior stage.")
 
         # Collect all image rows from prior stage outputs
-        for task in self.prior_tasks:
+        for task in prior_tasks:
             task_context: dict[str, Any] = task["meta"]["context"]  # type: ignore
             task_inputs = task_context.get("input", {})
 
@@ -555,20 +555,19 @@ class ProcessingNew(Processing):
     def preflight_tasks(self) -> None:
         tasks: list[TaskDict] = list[TaskDict](self.doit.dicts.values())  # all our tasks
 
+        pt = self.processed_target
+        assert pt  # should be set by now
+
+        # if user has excluded any stages, we need to respect that (remove matching stages)
+        excluded = pt.get_excluded("stages")
+        tasks = remove_tasks_by_stage_name(tasks, excluded)
+
         # multimap from target file to tasks that produce it
         target_to_tasks = MultiDict[TaskDict]()
         for task in tasks:
             logging.debug(f"Preflighting task: {task['name']}")
             for target in task.get("targets", []):
                 target_to_tasks.add(target, task)
-
-        pt = self.processed_target
-        assert pt  # should be set by now
-
-        # if user has excluded any stages, we need to respect that (remove matching stages)
-        excluded = pt.get_excluded("stages")
-
-        tasks = remove_tasks_by_stage_name(tasks, excluded)
 
         # pt.set_used("stages", stages, excluded)
         # check for tasks that are writing to the same target (which is not allowed).  If we
@@ -590,8 +589,10 @@ class ProcessingNew(Processing):
                 stages_to_exclude = conflicting_stages[1:]
                 pt.set_excluded("stages", [stage_with_comment(s) for s in stages_to_exclude])
                 tasks = remove_tasks_by_stage_name(tasks, pt.get_excluded("stages"))
-                self.doit.set_tasks(tasks)
                 break  # We can exit the loop now because we've culled down to only non conflicting stages
+
+        # we might have changed tasks, so update doit
+        self.doit.set_tasks(tasks)
 
         # update our toml with what we used
         pt.set_used("stages", [stage_with_comment(s) for s in tasks_to_stages(tasks)])
