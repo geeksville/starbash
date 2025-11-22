@@ -171,9 +171,6 @@ class ProcessingNew(Processing):
     def __init__(self, sb: Starbash) -> None:
         super().__init__(sb)
         self.doit: StarbashDoit = StarbashDoit()
-        self.prior_tasks: list[
-            TaskDict
-        ] = []  # Empty the list of tasks for the previous stage, we keep them for "job" imports
 
         # Normally we will use the "process_dir", but if we are importing new images from a session we place those images
         self.use_temp_cwd = False
@@ -181,6 +178,7 @@ class ProcessingNew(Processing):
         self.processed_target: ProcessedTarget | None = (
             None  # The target we are currently processing (with extra runtime metadata)
         )
+        self.stage: StageDict | None = None  # the stage we are currently processing
 
     def __enter__(self) -> "ProcessingNew":
         return self
@@ -326,22 +324,61 @@ class ProcessingNew(Processing):
             "input_files", None
         )  # also nuke our temporary old-school way of finding input files
 
-    def _set_context_from_prior_stage(self, stage: StageDict) -> None:
-        """If we have an input section marked to be "after" some other session, try to respect that."""
+    def _get_prior_tasks(self, stage: StageDict) -> TaskDict | list[TaskDict] | None:
+        """Get the prior tasks for the given stage based on the 'after' input definition.
+
+        Args:
+            stage: The stage definition from TOML
+        Returns:
+            Note: this function will return a single TaskDict if the prior stage was not
+            multiplexed, otherwise a list of TaskDicts for each multiplexed task.
+            Or None if no "after" keyword was found."""
         inputs: list[InputDef] = stage.get("inputs", [])
         input_with_after = next((inp for inp in inputs if "after" in inp), None)
 
         if not input_with_after:
+            return None
+
+        after = get_safe(input_with_after, "after")
+        prior_task_name = self._get_unique_task_name(
+            after
+        )  # find the right task for our stage and multiplex
+        prior_task = self.doit.dicts.get(prior_task_name)
+        if prior_task:
+            return prior_task
+
+        # collect all the tasks that start with prior_task_name, in case of multiplexing
+        prior_tasks = []
+        for key in self.doit.dicts.keys():
+            if key.startswith(prior_task_name):
+                prior_tasks.append(self.doit.dicts[key])
+        if not prior_tasks:
+            raise ValueError(f"Could not find prior task '{prior_task_name}' for 'after' input.")
+        return prior_tasks
+
+    def _set_context_from_prior_stage(self, stage: StageDict) -> None:
+        """If we have an input section marked to be "after" some other session, try to respect that."""
+        prior_tasks = self._get_prior_tasks(stage)
+        if not prior_tasks:
             # We aren't after anything - just plug in some correct defaults
             self._clear_context()
         else:
-            after = get_safe(input_with_after, "after")
-            prior_task_name = self._get_unique_task_name(
-                after
-            )  # find the right task for our stage and multiplex
-            prior_task = get_safe(self.doit.dicts, prior_task_name)
+            # FIXME this is kinda nasty, but if the prior stage was multiplexed we just need a context from any of
+            # tasks in that stage (as if we were in in stage_to_tasks just after them).  So look for one by name
+            # Use the last task in the list
+            multiplexed = isinstance(prior_tasks, list)
+            if multiplexed:
+                prior_task = prior_tasks[-1]
+            else:
+                prior_task = prior_tasks
+
             context = prior_task["meta"]["context"]
             self.context = copy.deepcopy(context)
+
+            if multiplexed:
+                # since we just did a nasty thing, we don't want to inadvertently think our current
+                # (non multiplexed) stage is tied to the prior stage's session
+                self.context.pop("session", None)
 
     def _stage_to_tasks(self, stage: StageDict) -> None:
         """Convert the given stage to doit task(s) and add them to our doit task list.
@@ -349,6 +386,7 @@ class ProcessingNew(Processing):
         This method handles both single and multiplexed (per-session) stages.
         For multiplexed stages, creates one task per session with unique names.
         """
+        self.stage = stage
 
         # Find what kinds of inputs the stage is REQUESTING
         # masters_in = _inputs_by_kind(stage, "master")  # TODO: Use for input resolution
@@ -381,17 +419,17 @@ class ProcessingNew(Processing):
 
                 t = self._create_task_dict(stage)
                 current_tasks.append(t)
+                # keep a ptr to the task for this stage - note: we "tasks" vs "task" for the multiplexed case
+                # stage.setdefault("tasks", []).append(t)
         else:
             # no session for non-multiplexed stages, FIXME, not sure if there is a better place to clean this up?
             self.context.pop("session", None)
-            self._clear_context()  # self._set_context_from_prior_stage(stage)
+            self._set_context_from_prior_stage(stage)
 
             # Single task (no multiplexing) - e.g., final stacking or post-processing
             t = self._create_task_dict(stage)
             current_tasks.append(t)
-
-        # let the next stage after us, refer to our task(s) if necessary
-        self.prior_tasks = current_tasks
+            # stage["task"] = t  # keep a ptr to the task for this stage
 
     def _get_unique_task_name(self, task_name: str) -> str:
         """Generate a unique task name for the given stage and current session."""
@@ -485,8 +523,13 @@ class ProcessingNew(Processing):
         """
         image_rows: list[ImageRow] = []
 
+        assert self.stage
+        prior_tasks = self._get_prior_tasks(self.stage)
+        if not prior_tasks:
+            raise ValueError("Input definition with 'after' must refer to a valid prior stage.")
+
         # Collect all image rows from prior stage outputs
-        for task in self.prior_tasks:
+        for task in prior_tasks:
             task_context = task["meta"]["context"]
             task_inputs = task_context.get("input", {})
 
