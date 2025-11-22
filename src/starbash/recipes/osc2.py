@@ -92,7 +92,7 @@ def make_stacked(inputs_to_use: list[str], variant: str | None, output_file: str
         """
 
     # context["input_files"] = frames
-    siril.run(commands, context=context)
+    siril.run(commands, context=context, cwd=context["process_dir"])
 
     perhaps_delete_temps([merged_seq_base, f"r_{merged_seq_base}"])
 

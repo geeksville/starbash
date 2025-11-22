@@ -529,8 +529,8 @@ class ProcessingNew(Processing):
             raise ValueError("Input definition with 'after' must refer to a valid prior stage.")
 
         # Collect all image rows from prior stage outputs
-        for task in prior_tasks:
-            task_context = task["meta"]["context"]
+        for task in self.prior_tasks:
+            task_context: dict[str, Any] = task["meta"]["context"]  # type: ignore
             task_inputs = task_context.get("input", {})
 
             # Look through all input types in the task context for image_rows
@@ -542,8 +542,12 @@ class ProcessingNew(Processing):
                     if (
                         task_filtered_input
                     ):  # This task had matching inputs for us, so therefore we want its outputs
-                        task_output: FileInfo = task_context.get("output")
-                        if task_output and task_output.image_rows:
+                        task_output = task_context.get("output")
+                        if (
+                            task_output
+                            and isinstance(task_output, FileInfo)
+                            and task_output.image_rows
+                        ):
                             image_rows.extend(task_output.image_rows)
 
         return FileInfo(image_rows=image_rows)
