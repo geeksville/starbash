@@ -219,7 +219,7 @@ def doit(
 
 
 @app.command()
-def masters():
+def masters(new: bool = typer.Option(False, help="Use the new processing engine.")):
     """Generate master flats, darks, and biases from selected raw frames.
 
     Analyzes the current selection to find all available calibration frames
@@ -230,7 +230,7 @@ def masters():
     and will be automatically used for future processing operations.
     """
     with Starbash("process.masters") as sb:
-        with ProcessingClassic(sb) as proc:
+        with ProcessingNew(sb) if new else ProcessingClassic(sb) as proc:
             from starbash import console
 
             console.print("[yellow]Generating master frames...[/yellow]")

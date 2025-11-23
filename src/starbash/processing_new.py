@@ -16,6 +16,7 @@ from starbash import InputDef, OutputDef, StageDict
 from starbash.app import Starbash
 from starbash.database import ImageRow
 from starbash.doit import StarbashDoit, TaskDict
+from starbash.exception import NotEnoughFilesError
 from starbash.filtering import filter_by_requires
 from starbash.processed_target import ProcessedTarget
 from starbash.processing import (
@@ -28,6 +29,10 @@ from starbash.safety import get_list_of_strings, get_safe
 from starbash.score import score_candidates
 from starbash.toml import CommentedString
 from starbash.tool import expand_context_list, expand_context_unsafe, tools
+
+
+class NoPriorTaskException(Exception):
+    """Exception raised when a prior task specified in 'after' cannot be found."""
 
 
 @dataclass
@@ -353,7 +358,9 @@ class ProcessingNew(Processing):
             if key.startswith(prior_task_name):
                 prior_tasks.append(self.doit.dicts[key])
         if not prior_tasks:
-            raise ValueError(f"Could not find prior task '{prior_task_name}' for 'after' input.")
+            raise NoPriorTaskException(
+                f"Could not find prior task '{prior_task_name}' for 'after' input."
+            )
         return prior_tasks
 
     def _set_context_from_prior_stage(self, stage: StageDict) -> None:
@@ -407,20 +414,32 @@ class ProcessingNew(Processing):
         if need_multiplex:
             # Create one task per session
             for s in self.sessions:
-                # Note we have a single context instance and we set session inside it
-                # later when we go to actually RUN the tasks we need to make sure each task is using a clone
-                # from _clone_context().  So that task will be seeing the correct context data we are building here.
-                # Note: we do this even in the "session_extra" case because that code needs to know the current
-                # session to find the 'previous' stage.
-                self._set_session_in_context(s)
+                try:
+                    # Note we have a single context instance and we set session inside it
+                    # later when we go to actually RUN the tasks we need to make sure each task is using a clone
+                    # from _clone_context().  So that task will be seeing the correct context data we are building here.
+                    # Note: we do this even in the "session_extra" case because that code needs to know the current
+                    # session to find the 'previous' stage.
+                    self._set_session_in_context(s)
 
-                # We need to init our context from whatever the prior stage was using.
-                self._set_context_from_prior_stage(stage)
+                    # We need to init our context from whatever the prior stage was using.
+                    self._set_context_from_prior_stage(stage)
 
-                t = self._create_task_dict(stage)
-                current_tasks.append(t)
-                # keep a ptr to the task for this stage - note: we "tasks" vs "task" for the multiplexed case
-                # stage.setdefault("tasks", []).append(t)
+                    t = self._create_task_dict(stage)
+                    current_tasks.append(t)
+                    # keep a ptr to the task for this stage - note: we "tasks" vs "task" for the multiplexed case
+                    # stage.setdefault("tasks", []).append(t)
+                except NotEnoughFilesError as e:
+                    # if the session was empty that probably just means it was completely filtered as a bad match
+                    level = logging.DEBUG if len(e.files) == 0 else logging.WARNING
+                    logging.log(
+                        level,
+                        f"Skipping stage '{stage.get('name')}' for session {s.get('id')} - insufficient input files: {e}",
+                    )
+                except NoPriorTaskException as e:
+                    logging.debug(
+                        f"Skipping stage '{stage.get('name')}' for session {s.get('id')} - required prior task was skipped {e}"
+                    )
         else:
             # no session for non-multiplexed stages, FIXME, not sure if there is a better place to clean this up?
             self.context.pop("session", None)
@@ -667,6 +686,11 @@ class ProcessingNew(Processing):
         def _resolve_input_session() -> list[Path]:
             images = self.sb.get_session_images(self.session)
 
+            # FIXME Move elsewhere.
+            # we also need to add ["input"][type] to the context so that scripts can find .base etc... o
+            imagetyp = get_safe(input, "type")
+            images = self.sb.filter_images_by_imagetyp(images, imagetyp)
+
             filter_by_requires(input, images)
 
             logging.debug(f"Using {len(images)} files as input_files")
@@ -679,10 +703,6 @@ class ProcessingNew(Processing):
                 self.context["default_metadata"] = (
                     ref_image  # To allow later stage scripts info about the current script pipeline
                 )
-
-            # FIXME Move elsewhere.
-            # we also need to add ["input"][type] to the context so that scripts can find .base etc... o
-            imagetyp = get_safe(input, "type")
 
             fi = FileInfo(
                 image_rows=images,

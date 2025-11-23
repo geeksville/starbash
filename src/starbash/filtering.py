@@ -76,7 +76,7 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
         if len(filtered_candidates) < value:
             raise NotEnoughFilesError(
                 f"Stage requires >{value} input files ({len(filtered_candidates)} found)",
-                ["FIXMEneedfile"],
+                [img.get("path", "unknown") for img in filtered_candidates],
             )
 
     return filtered_candidates

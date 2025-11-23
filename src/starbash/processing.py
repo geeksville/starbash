@@ -238,7 +238,8 @@ class Processing:
                 target_sessions = self.sb.filter_sessions_by_target(sessions, target)
 
                 # we only want sessions with light frames
-                target_sessions = self.sb.filter_sessions_with_lights(target_sessions)
+                # NOT NEEDED - because the dependencies will end up ignoring sessions where all frames are filtered
+                # target_sessions = self.sb.filter_sessions_by_imagetyp(target_sessions, "light")
 
                 if target_sessions:
                     with ProcessingContext(self, target):

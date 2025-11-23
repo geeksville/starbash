@@ -714,14 +714,14 @@ class Starbash:
 
         return recipes
 
-    def filter_sessions_with_lights(self, sessions: list[SessionRow]) -> list[SessionRow]:
+    def filter_images_by_imagetyp(self, sessions: list[ImageRow], imagetyp: str) -> list[ImageRow]:
         """Filter sessions to only those that contain light frames."""
-        filtered_sessions: list[SessionRow] = []
+        filtered_sessions: list[ImageRow] = []
         for s in sessions:
-            imagetyp_val = s.get(get_column_name(Database.IMAGETYP_KEY))
+            imagetyp_val = s.get(Database.IMAGETYP_KEY)
             if imagetyp_val is None:
                 continue
-            if get_aliases().normalize(str(imagetyp_val)) == "light":
+            if get_aliases().normalize(str(imagetyp_val)) == imagetyp:
                 filtered_sessions.append(s)
         return filtered_sessions
 
