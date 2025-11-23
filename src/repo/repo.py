@@ -621,7 +621,11 @@ class Repo:
 
         if value is None and default is not None:
             # Try to convert 'dumb' list and dict defaults into tomlkit equivalents
-            if isinstance(default, list):
+            # Check for AoT first (before list) since AoT is a subclass of list
+            if isinstance(default, AoT):
+                # Preserve AoT type - don't convert it
+                value = default
+            elif isinstance(default, list):
                 value = tomlkit.array()
                 for item in default:
                     value.append(item)
