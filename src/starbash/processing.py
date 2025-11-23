@@ -172,7 +172,7 @@ class Processing:
         self.progress.start()
 
     @abstractmethod
-    def _process_target(self, target: str) -> ProcessingResult:
+    def _process_job(self, job_desc: str) -> ProcessingResult:
         """Do processing for a particular target (i.e. all sessions for a particular object)."""
 
     @abstractmethod
@@ -206,6 +206,46 @@ class Processing:
         runtime_context = {}
         self.context.update(runtime_context)
 
+    def _run_all_targets(
+        self, sessions: list[SessionRow], targets: list[str | None]
+    ) -> list[ProcessingResult]:
+        """Run all processing stages for the indicated targets.
+
+        Args:
+            targets: List of target names (normalized) to process, or None to process
+            all the master frames."""
+
+        job_task = self.progress.add_task("Processing targets...", total=len(targets))
+
+        results: list[ProcessingResult] = []
+        try:
+            for target in targets:
+                desc_str = f"Processing target {target}..." if target else "Processing masters..."
+
+                self.progress.update(job_task, description=desc_str)
+
+                if target:
+                    # select sessions for this target
+                    sessions = self.sb.filter_sessions_by_target(sessions, target)
+
+                # we only want sessions with light frames
+                # NOT NEEDED - because the dependencies will end up ignoring sessions where all frames are filtered
+                # target_sessions = self.sb.filter_sessions_by_imagetyp(target_sessions, "light")
+
+                if sessions:
+                    with ProcessingContext(self, target):
+                        self.sessions = sessions
+                        job_desc = target if target else "masters"
+                        result = self._process_job(job_desc)
+                        results.append(result)
+
+                # We made progress - call once per iteration ;-)
+                self.progress.advance(job_task)
+        finally:
+            self.progress.remove_task(job_task)
+
+        return results
+
     def run_all_stages(self) -> list[ProcessingResult]:
         """On the currently active session, run all processing stages
 
@@ -222,37 +262,15 @@ class Processing:
 
         """
         sessions = self.sb.search_session()
-        targets = {
-            normalize_target_name(obj)
-            for s in sessions
-            if (obj := s.get(get_column_name(Database.OBJECT_KEY))) is not None
-        }
+        targets = list(
+            {
+                normalize_target_name(obj)
+                for s in sessions
+                if (obj := s.get(get_column_name(Database.OBJECT_KEY))) is not None
+            }
+        )
 
-        target_task = self.progress.add_task("Processing targets...", total=len(targets))
-
-        results: list[ProcessingResult] = []
-        try:
-            for target in targets:
-                self.progress.update(target_task, description=f"Processing target {target}...")
-                # select sessions for this target
-                target_sessions = self.sb.filter_sessions_by_target(sessions, target)
-
-                # we only want sessions with light frames
-                # NOT NEEDED - because the dependencies will end up ignoring sessions where all frames are filtered
-                # target_sessions = self.sb.filter_sessions_by_imagetyp(target_sessions, "light")
-
-                if target_sessions:
-                    with ProcessingContext(self, target):
-                        self.sessions = target_sessions
-                        result = self._process_target(target)
-                        results.append(result)
-
-                # We made progress - call once per iteration ;-)
-                self.progress.advance(target_task)
-        finally:
-            self.progress.remove_task(target_task)
-
-        return results
+        return self._run_all_targets(sessions, targets)
 
     def _set_session_in_context(self, session: SessionRow) -> None:
         """adds to context from the indicated session:

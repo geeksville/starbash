@@ -188,10 +188,21 @@ class ProcessingNew(Processing):
     def __enter__(self) -> "ProcessingNew":
         return self
 
-    def _process_target(self, target: str) -> ProcessingResult:
-        """Do processing for a particular target (i.e. all selected sessions for a particular object)."""
+    def run_master_stages(self) -> list[ProcessingResult]:
+        """Generate master calibration frames (bias, dark, flat).
 
-        result = ProcessingResult(target=target, sessions=self.sessions)
+        Returns:
+            List of ProcessingResult objects, one per master frame generated.
+        """
+        sessions = self.sb.search_session([])  # for masters we always search everything
+
+        return self._run_all_targets(sessions, [None])
+
+    def _process_job(self, job_name: str) -> ProcessingResult:
+        """Do processing for a particular target/master
+        (i.e. all selected sessions for a particular complete processing run)."""
+
+        result = ProcessingResult(target=job_name, sessions=self.sessions)
 
         self._set_output_by_kind(
             "processed"
@@ -826,17 +837,6 @@ class ProcessingNew(Processing):
         """Convert the given stages to doit tasks and add them to our doit task list."""
         for stage in stages:
             self._stage_to_tasks(stage)
-
-    def run_master_stages(self) -> list[ProcessingResult]:
-        """Generate master calibration frames (bias, dark, flat).
-
-        Returns:
-            List of ProcessingResult objects, one per master frame generated.
-
-        Raises:
-            NotImplementedError: This method is not yet implemented.
-        """
-        raise NotImplementedError("ProcessingNew.run_master_stages() is not yet implemented")
 
     def _set_output_to_repo(self, kind: str) -> None:
         """Set output paths in the context based on their kind.

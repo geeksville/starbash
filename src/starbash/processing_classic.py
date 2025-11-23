@@ -78,7 +78,7 @@ class ProcessingClassic(Processing):
         for task in tasks_to_run:
             self.run_stage(task)
 
-    def _process_target(self, target: str) -> ProcessingResult:
+    def _process_job(self, target: str) -> ProcessingResult:
         """Do processing for a particular target (i.e. all sessions for a particular object)."""
 
         pipeline = self._get_stages("stages")
