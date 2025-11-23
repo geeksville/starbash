@@ -56,6 +56,11 @@ class CommentedString(AsTomlMixin):
 def _toml_encoder(obj: Any) -> Item:
     if isinstance(obj, AsTomlMixin):
         return obj.as_toml
+    if obj is None:
+        return tomlkit.string(
+            "NonePlaceholder"
+        )  # FIXME if we have Nones inside of dicts it would be better to just drop that key?
+
     raise ConvertError(f"Object of type {obj.__class__.__name__} is not TOML serializable")
 
 
@@ -63,7 +68,7 @@ tomlkit.register_encoder(_toml_encoder)
 
 
 def toml_from_template(
-    template_name: str, dest_path: Path, overrides: dict[str, Any] = {}
+    template_name: str, dest_path: Path | None = None, overrides: dict[str, Any] = {}
 ) -> tomlkit.TOMLDocument:
     """Load a TOML document from a template file.
     expand {vars} in the template using the `overrides` dictionary.
@@ -79,9 +84,10 @@ def toml_from_template(
 
     toml = tomlkit.parse(tomlstr)
 
-    # create parent dirs as needed
-    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    if dest_path is not None:
+        # create parent dirs as needed
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # write the resulting toml
-    TOMLFile(dest_path).write(toml)
+        # write the resulting toml
+        TOMLFile(dest_path).write(toml)
     return toml

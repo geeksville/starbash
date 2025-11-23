@@ -172,7 +172,7 @@ class Processing:
         self.progress.start()
 
     @abstractmethod
-    def _process_job(self, job_desc: str) -> ProcessingResult:
+    def _process_job(self, job_desc: str, output_kind: str) -> ProcessingResult:
         """Do processing for a particular target (i.e. all sessions for a particular object)."""
 
     @abstractmethod
@@ -232,12 +232,24 @@ class Processing:
                 # NOT NEEDED - because the dependencies will end up ignoring sessions where all frames are filtered
                 # target_sessions = self.sb.filter_sessions_by_imagetyp(target_sessions, "light")
 
-                if sessions:
+                if target:
+                    # We are processing a single target, so build the context around that, and process
+                    # all sessions for that target as a group
                     with ProcessingContext(self, target):
                         self.sessions = sessions
-                        job_desc = target if target else "masters"
-                        result = self._process_job(job_desc)
+                        result = self._process_job(target, "processed")
                         results.append(result)
+                else:
+                    for s in sessions:
+                        # For masters we process each session individually
+                        with ProcessingContext(self):
+                            self._set_session_in_context(s)
+                            # Note: We need to do this early because we need to get camera_id etc... from session
+
+                            self.sessions = [s]
+                            job_desc = f"master_{s.get('id', 'unknown')}"
+                            result = self._process_job(job_desc, "master")
+                            results.append(result)
 
                 # We made progress - call once per iteration ;-)
                 self.progress.advance(job_task)

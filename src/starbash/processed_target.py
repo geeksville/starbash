@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -35,7 +36,7 @@ class ProcessedTarget:
     The generated master will be something like 'foo_blah_bias_master.fits' and in that same directory there will be a 'foo_blah_bias_master.toml'
     """
 
-    def __init__(self, p: ProcessingLike) -> None:
+    def __init__(self, p: ProcessingLike, output_kind: str = "processed") -> None:
         """Initialize a ProcessedTarget with the given processing context.
 
         Args:
@@ -44,12 +45,25 @@ class ProcessedTarget:
         self.p = p
         dir = Path(self.p.context["output"].base)
 
-        # Get the path to the starbash.toml file
-        config_path = dir / repo_suffix
+        if output_kind != "master":
+            # Get the path to the starbash.toml file
+            config_path = dir / repo_suffix
+            repo_path = dir
+        else:
+            # Master file paths are just the base plus .toml
+            config_path = dir.with_suffix(".toml")
+            repo_path = config_path
 
-        self._init_from_template(config_path)
-        self.repo = Repo(dir)  # a structured Repo object for reading/writing this config
+        template_name = f"target/{output_kind}"
+        default_toml = toml_from_template(template_name, overrides=self.p.context)
+        self.repo = Repo(
+            repo_path, default_toml=default_toml
+        )  # a structured Repo object for reading/writing this config
         self._update_from_context()
+
+        self.config_valid = (
+            True  # You can set this to False if you'd like to suppress writing the toml to disk
+        )
 
     def set_used(self, name: str, used: list[CommentedString]) -> None:
         """Set the used lists for the given section."""
@@ -67,25 +81,13 @@ class ProcessedTarget:
         excluded: list[CommentedString] = node.get("excluded", [])
         return [a.value for a in excluded]
 
-    def _init_from_template(self, config_path: Path) -> None:
-        """Create a default starbash.toml file from template.
-
-        Uses the processed_target template and expands it with the current context.
-        """
-
-        # Create the config file from template
-        # If starbash.toml does not exist, create it from template
-        if not config_path.exists():
-            toml_from_template("processed_target", config_path, overrides=self.p.context)
-
     def _update_from_context(self) -> None:
         """Update the repo toml based on the current context.
 
         Call this **after** processing so that output path info etc... is in the context."""
 
         # Update the sessions list
-        proc_sessions = self.repo.get("sessions")
-        assert proc_sessions is not None, "sessions must exist in the repo config"
+        proc_sessions = self.repo.get("sessions", default=tomlkit.aot(), do_create=True)
         proc_sessions.clear()
         for sess in self.p.sessions:
             # record the masters considered
@@ -119,14 +121,13 @@ class ProcessedTarget:
         # populate the list of recipes considered
         proc_options["url"] = [recipe.url for recipe in self.p.recipes_considered]
 
-        # fixme - create earlier and add a p.set_output_dir() that can run earlier - before recipies
-
-        pass  # placeholder don't implement yet
-
     def close(self) -> None:
         """Finalize and close the ProcessedTarget, saving any updates to the config."""
         self._update_from_context()
-        self.repo.write_config()
+        if self.config_valid:
+            self.repo.write_config()
+        else:
+            logging.debug("ProcessedTarget config marked invalid, not writing to disk")
 
     # FIXME - i'm not yet sure if we want to use context manager style usage here
     def __enter__(self) -> "ProcessedTarget":

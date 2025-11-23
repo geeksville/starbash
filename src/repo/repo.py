@@ -26,7 +26,7 @@ class Repo:
     Represents a single starbash repository.
     """
 
-    def __init__(self, url_or_path: str | Path):
+    def __init__(self, url_or_path: str | Path, default_toml: TOMLDocument | None = None):
         """Initialize a Repo instance.
 
         Args:
@@ -59,7 +59,7 @@ class Repo:
 
         self.url: str = url
         self._import_cache: dict[str, TOMLDocument] = {}  # Cache for imported files
-        self.config: TOMLDocument = self._load_config()
+        self.config: TOMLDocument = self._load_config(default_toml)
         self._as_read = (
             self.config.as_string()
         )  # the contents of the toml as we originally read from disk
@@ -531,7 +531,9 @@ class Repo:
         else:
             raise ValueError(f"Unsupported URL scheme for repo: {self.url}")
 
-    def _load_config(self) -> tomlkit.TOMLDocument:
+    def _load_config(
+        self, default_toml: tomlkit.TOMLDocument | None = None
+    ) -> tomlkit.TOMLDocument:
         """
         Loads the repository's configuration file.
 
@@ -554,10 +556,14 @@ class Repo:
                 logging.debug(f"Loading repo config from {repo_suffix}")
             return tomlkit.parse(config_content)
         except FileNotFoundError:
-            logging.debug(
-                f"No config file found for {self.url}"
-            )  # we currently make it optional to have the config file at root
-            return tomlkit.TOMLDocument()  # empty placeholder
+            if default_toml is not None:
+                logging.debug(f"No config file found for {self.url}, using template...")
+                return default_toml
+            else:
+                logging.debug(
+                    f"No config file found for {self.url} - using empty config..."
+                )  # we currently make it optional to have the config file at root
+                return tomlkit.TOMLDocument()  # empty placeholder
 
     def read(self, filepath: str) -> str:
         """
@@ -614,7 +620,17 @@ class Repo:
             last_name = k
 
         if value is None and default is not None:
-            value = default
+            # Try to convert 'dumb' list and dict defaults into tomlkit equivalents
+            if isinstance(default, list):
+                value = tomlkit.array()
+                for item in default:
+                    value.append(item)
+            elif isinstance(default, dict):
+                value = tomlkit.table()
+                for k, v in default.items():
+                    value[k] = v
+            else:
+                value = default
 
             # We might add the default value into the config when not found, because client might mutate it and then want to save the file
             if do_create:

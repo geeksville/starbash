@@ -131,10 +131,15 @@ def create_default_task(tasks: list[TaskDict]) -> TaskDict:
     default_task_name = "process_all"
     task_deps = []
     for task in tasks:
-        if task["name"].startswith(
-            "stack"
-        ):  # FIXME, there is probably a more elegant way instead of just looking for "stack-foo"
-            task_deps.append(task["name"])
+        # We consider tasks that are writing to the final output repos
+        # 'high value' and what we should run by default
+        stage = task["meta"]["stage"]
+        outputs = stage.get("outputs", [])
+        for output in outputs:
+            output_kind = get_safe(output, "kind")
+            if output_kind == "master" or output_kind == "processed":
+                task_deps.append(task["name"])
+                break  # no need to check other outputs for this task
 
     task_dict: TaskDict = {
         "name": default_task_name,
@@ -152,9 +157,9 @@ class ProcessingNew(Processing):
     """
 
     @property
-    def target(self) -> dict[str, Any]:
+    def target(self) -> dict[str, Any] | None:
         """Get the current target from the context."""
-        return self.context["target"]
+        return self.context.get("target")
 
     @property
     def session(self) -> dict[str, Any]:
@@ -198,17 +203,16 @@ class ProcessingNew(Processing):
 
         return self._run_all_targets(sessions, [None])
 
-    def _process_job(self, job_name: str) -> ProcessingResult:
+    def _process_job(self, job_name: str, output_kind: str) -> ProcessingResult:
         """Do processing for a particular target/master
         (i.e. all selected sessions for a particular complete processing run)."""
 
         result = ProcessingResult(target=job_name, sessions=self.sessions)
 
-        self._set_output_by_kind(
-            "processed"
-        )  # for the time being we plug in a "processed" out so that at least we know a final output dir
+        self._set_output_by_kind(output_kind)
 
-        with ProcessedTarget(self) as pt:
+        with ProcessedTarget(self, output_kind) as pt:
+            pt.config_valid = False  # assume our config is not worth writing
             self.processed_target = pt
             try:
                 stages = self._get_stages()
@@ -222,13 +226,14 @@ class ProcessingNew(Processing):
                 # FIXME, perhaps we could run doit one level higher, so that all targets are processed by doit
                 # for parallism etc...?
                 self.doit.run(["list", "--all", "--status"])
-                self.doit.run(
-                    [
-                        "info",
-                        "process_all",  # "stack_m20",  # seqextract_haoiii_m20_s35
-                    ]
-                )
+                # self.doit.run(
+                #     [
+                #         "info",
+                #         "process_all",  # "stack_m20",  # seqextract_haoiii_m20_s35
+                #     ]
+                # )
                 # self.doit.run(["dumpdb"])
+                pt.config_valid = True  # our config is probably worth keeping
                 logging.info("Running doit tasks...")
                 result_code = self.doit.run(["process_all"])  # light_{self.target}_s35
                 # FIXME - it would be better to call a doit entrypoint that lets us catch the actual Doit exception directly
@@ -425,47 +430,34 @@ class ProcessingNew(Processing):
         if need_multiplex:
             # Create one task per session
             for s in self.sessions:
-                try:
-                    # Note we have a single context instance and we set session inside it
-                    # later when we go to actually RUN the tasks we need to make sure each task is using a clone
-                    # from _clone_context().  So that task will be seeing the correct context data we are building here.
-                    # Note: we do this even in the "session_extra" case because that code needs to know the current
-                    # session to find the 'previous' stage.
-                    self._set_session_in_context(s)
+                # Note we have a single context instance and we set session inside it
+                # later when we go to actually RUN the tasks we need to make sure each task is using a clone
+                # from _clone_context().  So that task will be seeing the correct context data we are building here.
+                # Note: we do this even in the "session_extra" case because that code needs to know the current
+                # session to find the 'previous' stage.
+                self._set_session_in_context(s)
 
-                    # We need to init our context from whatever the prior stage was using.
-                    self._set_context_from_prior_stage(stage)
-
-                    t = self._create_task_dict(stage)
+                t = self._create_task_dict(stage)
+                if t:
                     current_tasks.append(t)
                     # keep a ptr to the task for this stage - note: we "tasks" vs "task" for the multiplexed case
                     # stage.setdefault("tasks", []).append(t)
-                except NotEnoughFilesError as e:
-                    # if the session was empty that probably just means it was completely filtered as a bad match
-                    level = logging.DEBUG if len(e.files) == 0 else logging.WARNING
-                    logging.log(
-                        level,
-                        f"Skipping stage '{stage.get('name')}' for session {s.get('id')} - insufficient input files: {e}",
-                    )
-                except NoPriorTaskException as e:
-                    logging.debug(
-                        f"Skipping stage '{stage.get('name')}' for session {s.get('id')} - required prior task was skipped {e}"
-                    )
         else:
             # no session for non-multiplexed stages, FIXME, not sure if there is a better place to clean this up?
             self.context.pop("session", None)
-            self._set_context_from_prior_stage(stage)
 
             # Single task (no multiplexing) - e.g., final stacking or post-processing
             t = self._create_task_dict(stage)
-            current_tasks.append(t)
+            if t:
+                current_tasks.append(t)
             # stage["task"] = t  # keep a ptr to the task for this stage
 
     def _get_unique_task_name(self, task_name: str) -> str:
         """Generate a unique task name for the given stage and current session."""
 
-        # include target name in the task
-        task_name += f"_{self.target}"
+        # include target name in the task (if we have one)
+        if self.target:
+            task_name += f"_{self.target}"
 
         # NOTE: we intentially don't use self.session because session might be None here and thats okay
         session = self.context.get("session")
@@ -476,7 +468,7 @@ class ProcessingNew(Processing):
             task_name += f"_s{session_id}"
         return task_name
 
-    def _create_task_dict(self, stage: StageDict) -> TaskDict:
+    def _create_task_dict(self, stage: StageDict) -> TaskDict | None:
         """Create a doit task dictionary for a single session in a multiplexed stage.
 
         Args:
@@ -484,33 +476,49 @@ class ProcessingNew(Processing):
             session: The session row from the database
 
         Returns:
-            Task dictionary suitable for doit
+            Task dictionary suitable for doit (or None if stage cannot be processed).
         """
-        task_name = self._get_unique_task_name(stage.get("name", "unnamed_stage"))
+        try:
+            # We need to init our context from whatever the prior stage was using.
+            self._set_context_from_prior_stage(stage)
 
-        self.use_temp_cwd = False
+            task_name = self._get_unique_task_name(stage.get("name", "unnamed_stage"))
 
-        file_deps = self._stage_input_files(stage)
-        targets = self._stage_output_files(stage)
+            self.use_temp_cwd = False
 
-        task_dict: TaskDict = {
-            "name": task_name,
-            "file_dep": expand_context_list(file_deps, self.context),
-            # FIXME, we should probably be using something more structured than bare filenames - so we can pass base source and confidence scores
-            "targets": expand_context_list(targets, self.context),
-            "meta": {
-                "context": self._clone_context(),
-                "stage": stage,  # The stage we came from - used later in culling/handling conflicts
-            },
-        }
+            file_deps = self._stage_input_files(stage)
+            targets = self._stage_output_files(stage)
 
-        # add the actions THIS will store a SNAPSHOT of the context AT THIS TIME for use if the task/action is later executed
-        self._stage_to_action(task_dict, stage)
-        _stage_to_doc(task_dict, stage)  # add the doc string
+            task_dict: TaskDict = {
+                "name": task_name,
+                "file_dep": expand_context_list(file_deps, self.context),
+                # FIXME, we should probably be using something more structured than bare filenames - so we can pass base source and confidence scores
+                "targets": expand_context_list(targets, self.context),
+                "meta": {
+                    "context": self._clone_context(),
+                    "stage": stage,  # The stage we came from - used later in culling/handling conflicts
+                },
+            }
 
-        self.doit.add_task(task_dict)
+            # add the actions THIS will store a SNAPSHOT of the context AT THIS TIME for use if the task/action is later executed
+            self._stage_to_action(task_dict, stage)
+            _stage_to_doc(task_dict, stage)  # add the doc string
 
-        return task_dict
+            self.doit.add_task(task_dict)
+
+            return task_dict
+        except NotEnoughFilesError as e:
+            # if the session was empty that probably just means it was completely filtered as a bad match
+            level = logging.DEBUG if len(e.files) == 0 else logging.WARNING
+            logging.log(
+                level,
+                f"Skipping stage '{stage.get('name')}' - insufficient input files: {e}",
+            )
+        except NoPriorTaskException as e:
+            logging.debug(
+                f"Skipping stage '{stage.get('name')}' - required prior task was skipped {e}"
+            )
+        return None
 
     def _resolve_files(self, input: InputDef, dir: Path) -> FileInfo:
         """combine the directory with the input/output name(s) to get paths.
@@ -813,6 +821,7 @@ class ProcessingNew(Processing):
         resolvers = {
             "job": _resolve_output_job,
             "processed": _resolve_processed,
+            "master": _resolve_processed,  # FIXME - I think this should be the same handling as processed - just a different repo
         }
         kind: str = get_safe(output, "kind")
         resolver = get_safe(resolvers, kind)
@@ -891,16 +900,15 @@ class ProcessingNew(Processing):
         """Set output paths in the context based on their kind.
 
         Args:
-            kind: The kind of output ("job", "processed", etc.)
+            kind: The kind of output ("job", "processed", "master" etc...)
             paths: List of Path objects for the outputs
         """
-        if kind == "processed":
+        if kind == "job":
+            raise NotImplementedError("Setting 'job' output kind is not yet implemented")
+        else:
+            # look up the repo by kind
             self._set_output_to_repo(kind)
 
             # Store that FileInfo so that any task that needs to know our final output dir can find it.  This is useful
             # so we can read/write our per target starbash.toml file for instance...
             self.context["final_output"] = self.context["output"]
-        elif kind == "job":
-            raise NotImplementedError("Setting 'job' output kind is not yet implemented")
-        else:
-            raise ValueError(f"Unknown output kind: {kind}")
