@@ -382,10 +382,12 @@ class Repo:
 
         return None
 
-    def add_from_ref(self, manager: RepoManager, ref: dict) -> Repo:
+    def add_from_ref(self, manager: RepoManager, ref: dict) -> None:
         """
         Adds a repository based on a repo-ref dictionary.
         """
+        url: str | None = None  # assume failure
+
         if "url" in ref:
             url = ref["url"]
         elif "dir" in ref:
@@ -404,9 +406,11 @@ class Repo:
             else:
                 # construct an URL relative to this repo's URL
                 url = self.url.rstrip("/") + "/" + ref["dir"].lstrip("/")
+
+        if url:
+            manager.add_repo(url)
         else:
-            raise ValueError(f"Invalid repo reference: {ref}")
-        return manager.add_repo(url)
+            logging.warning("Skipping empty repo reference")
 
     def add_by_repo_refs(self, manager: RepoManager) -> None:
         """Add all repos mentioned by repo-refs in this repo's config."""
