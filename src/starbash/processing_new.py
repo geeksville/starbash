@@ -138,7 +138,7 @@ def create_default_task(tasks: list[TaskDict]) -> TaskDict:
         outputs = stage.get("outputs", [])
         for output in outputs:
             output_kind = get_safe(output, "kind")
-            if output_kind == "master" or output_kind == "processed":
+            if output_kind == "single" or output_kind == "processed":
                 task_deps.append(task["name"])
                 break  # no need to check other outputs for this task
 
@@ -243,7 +243,7 @@ class ProcessingNew(Processing):
                 # self.doit.run(["dumpdb"])
                 pt.config_valid = True  # our config is probably worth keeping
                 logging.info("Running doit tasks...")
-                result_code = self.doit.run(["process_all"])  # light_{self.target}_s35
+                result_code = self.doit.run(["-a", "process_all"])  # light_{self.target}_s35
 
                 # FIXME we shouldn't need to do this (because all processing jobs should be resolved with a single doit.run)
                 # but currently we call doit.run() per target/master.  So clear out the doit rules so they are ready for the
