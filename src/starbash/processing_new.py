@@ -138,7 +138,7 @@ def create_default_task(tasks: list[TaskDict]) -> TaskDict:
         outputs = stage.get("outputs", [])
         for output in outputs:
             output_kind = get_safe(output, "kind")
-            if output_kind == "single" or output_kind == "processed":
+            if output_kind == "master" or output_kind == "processed":
                 task_deps.append(task["name"])
                 break  # no need to check other outputs for this task
 
@@ -853,14 +853,16 @@ class ProcessingNew(Processing):
         def _resolve_processed() -> FileInfo:
             return self._resolve_files(output, self.output_dir)
 
-        def _resolve_single() -> FileInfo:
+        def _resolve_master() -> FileInfo:
             """Master frames and such - just a single output file in the output dir."""
-            return self._resolve_single(output, self.output_dir)
+            fi = self._get_output_by_repo("master")
+            assert fi.base, "Output FileInfo must have a base for master output"
+            return self._resolve_single(output, Path(fi.base))
 
         resolvers = {
             "job": _resolve_output_job,
             "processed": _resolve_processed,
-            "single": _resolve_single,
+            "master": _resolve_master,
         }
         kind: str = get_safe(output, "kind")
         resolver = get_safe(resolvers, kind)
@@ -886,8 +888,8 @@ class ProcessingNew(Processing):
         for stage in stages:
             self._stage_to_tasks(stage)
 
-    def _set_output_to_repo(self, kind: str) -> None:
-        """Set output paths in the context based on their kind.
+    def _get_output_by_repo(self, kind: str) -> FileInfo:
+        """Get output paths in the context based on their kind.
 
         Args:
             kind: The kind of output ("job", "processed", etc.)
@@ -930,10 +932,18 @@ class ProcessingNew(Processing):
         os.makedirs(base_path.parent, exist_ok=True)
 
         # Set context variables as documented in the TOML
+        return FileInfo(base=str(base_path), full=full_path, relative=repo_relative, repo=dest_repo)
+
+    def _set_output_to_repo(self, kind: str) -> None:
+        """Set output paths in the context based on their kind.
+
+        Args:
+            kind: The kind of output ("job", "processed", etc.)
+            paths: List of Path objects for the outputs
+        """
+        # Set context variables as documented in the TOML
         # FIXME, change this type from a dict to a dataclass?!? so foo.base works in the context expanson strings
-        self.context["output"] = FileInfo(
-            base=str(base_path), full=full_path, relative=repo_relative, repo=dest_repo
-        )
+        self.context["output"] = self._get_output_by_repo(kind)
 
     def _set_output_by_kind(self, kind: str) -> None:
         """Set output paths in the context based on their kind.
