@@ -265,7 +265,7 @@ class ProcessingNew(Processing):
 
         return result
 
-    def _get_stages(self, name: str = "stages2") -> list[StageDict]:
+    def _get_stages(self, name: str = "stages") -> list[StageDict]:
         """Get all pipeline stages defined in the merged configuration."""
         # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
 

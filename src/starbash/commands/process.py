@@ -14,7 +14,6 @@ from starbash.commands.__init__ import (
 from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
 from starbash.processing import ProcessingResult
-from starbash.processing_classic import ProcessingClassic
 from starbash.processing_new import ProcessingNew
 
 app = typer.Typer()
@@ -159,7 +158,7 @@ def auto(
     The output will be saved according to the configured recipes.
     """
     with Starbash("process.auto") as sb:
-        with ProcessingClassic(sb) as proc:
+        with ProcessingNew(sb) as proc:
             from starbash import console
 
             if session_num is not None:
@@ -168,31 +167,6 @@ def auto(
                 )
             else:
                 console.print("[yellow]Auto-processing all selected sessions...[/yellow]")
-
-            results = proc.run_all_stages()
-
-            print_results("Autoprocessed", results, console)
-
-
-@app.command()
-def new():
-    """Automatic processing with sensible defaults.
-
-    If session number is specified, processes only that session.
-    Otherwise, all currently selected sessions will be processed automatically
-    using the configured recipes and default settings.
-
-    This command handles:
-    - Automatic master frame selection (bias, dark, flat)
-    - Calibration of light frames
-    - Registration and stacking
-    - Basic post-processing
-
-    The output will be saved according to the configured recipes.
-    """
-    with Starbash("process.auto") as sb:
-        with ProcessingNew(sb) as proc:
-            from starbash import console
 
             results = proc.run_all_stages()
 
@@ -219,7 +193,7 @@ def doit(
 
 
 @app.command()
-def masters(new: bool = typer.Option(False, help="Use the new processing engine.")):
+def masters():
     """Generate master flats, darks, and biases from selected raw frames.
 
     Analyzes the current selection to find all available calibration frames
@@ -230,7 +204,7 @@ def masters(new: bool = typer.Option(False, help="Use the new processing engine.
     and will be automatically used for future processing operations.
     """
     with Starbash("process.masters") as sb:
-        with ProcessingNew(sb) if new else ProcessingClassic(sb) as proc:
+        with ProcessingNew(sb) as proc:
             from starbash import console
 
             console.print("[yellow]Generating master frames...[/yellow]")
