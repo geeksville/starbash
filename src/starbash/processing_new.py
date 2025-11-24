@@ -245,14 +245,14 @@ class ProcessingNew(Processing):
                 logging.info("Running doit tasks...")
                 result_code = self.doit.run(["-a", "process_all"])  # light_{self.target}_s35
 
+                # FIXME - it would be better to call a doit entrypoint that lets us catch the actual Doit exception directly
+                if result_code != 0:
+                    raise RuntimeError(f"doit processing failed with exit code {result_code}")
+
                 # FIXME we shouldn't need to do this (because all processing jobs should be resolved with a single doit.run)
                 # but currently we call doit.run() per target/master.  So clear out the doit rules so they are ready for the
                 # next attempt.
                 self.doit.dicts.clear()
-
-                # FIXME - it would be better to call a doit entrypoint that lets us catch the actual Doit exception directly
-                if result_code != 0:
-                    raise RuntimeError(f"doit processing failed with exit code {result_code}")
 
                 # FIXME have doit tasks store into a ProcessingResults object somehow
                 # declare success
