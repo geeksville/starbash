@@ -13,11 +13,12 @@ from tomlkit.items import AoT
 
 from repo import Repo
 from starbash import InputDef, OutputDef, StageDict
+from starbash.aliases import get_aliases
 from starbash.app import Starbash
 from starbash.database import ImageRow
-from starbash.doit import StarbashDoit, TaskDict
+from starbash.doit import StarbashDoit, TaskDict, doit_do_copy
 from starbash.exception import NotEnoughFilesError
-from starbash.filtering import filter_by_requires
+from starbash.filtering import FallbackToImageException, filter_by_requires
 from starbash.processed_target import ProcessedTarget
 from starbash.processing import (
     Processing,
@@ -201,6 +202,13 @@ class ProcessingNew(Processing):
         """
         sessions = self.sb.search_session([])  # for masters we always search everything
 
+        # FIXME: until we merge master and light processing (into one tree of dependencies), limit processing
+        # in this method not !light frames
+
+        sessions = [
+            s for s in sessions if get_aliases().normalize(s.get("imagetyp", "light")) != "light"
+        ]
+
         return self._run_all_targets(sessions, [None])
 
     def _process_job(self, job_name: str, output_kind: str) -> ProcessingResult:
@@ -236,6 +244,12 @@ class ProcessingNew(Processing):
                 pt.config_valid = True  # our config is probably worth keeping
                 logging.info("Running doit tasks...")
                 result_code = self.doit.run(["process_all"])  # light_{self.target}_s35
+
+                # FIXME we shouldn't need to do this (because all processing jobs should be resolved with a single doit.run)
+                # but currently we call doit.run() per target/master.  So clear out the doit rules so they are ready for the
+                # next attempt.
+                self.doit.dicts.clear()
+
                 # FIXME - it would be better to call a doit entrypoint that lets us catch the actual Doit exception directly
                 if result_code != 0:
                     raise RuntimeError(f"doit processing failed with exit code {result_code}")
@@ -486,7 +500,16 @@ class ProcessingNew(Processing):
 
             self.use_temp_cwd = False
 
-            file_deps = self._stage_input_files(stage)
+            fallback_output: None | ImageRow = None
+            try:
+                file_deps = self._stage_input_files(stage)
+            except FallbackToImageException as e:
+                logging.info(
+                    f"Falling back to file-based processing for stage '{stage.get('name')}' using file {e.image.get('path', 'unknown')}"
+                )
+                fallback_output = e.image
+                file_deps = [e.image["abspath"]]  # abspath is guaranteed to be present
+
             targets = self._stage_output_files(stage)
 
             task_dict: TaskDict = {
@@ -498,11 +521,16 @@ class ProcessingNew(Processing):
                     "context": self._clone_context(),
                     "stage": stage,  # The stage we came from - used later in culling/handling conflicts
                 },
+                "clean": True,  # Let the doit "clean" command auto-delete any targets we listed
             }
 
-            # add the actions THIS will store a SNAPSHOT of the context AT THIS TIME for use if the task/action is later executed
-            self._stage_to_action(task_dict, stage)
-            _stage_to_doc(task_dict, stage)  # add the doc string
+            if fallback_output:
+                doit_do_copy(task_dict)
+                task_dict["doc"] = "Simple copy of singleton input file"
+            else:
+                # add the actions THIS will store a SNAPSHOT of the context AT THIS TIME for use if the task/action is later executed
+                self._stage_to_action(task_dict, stage)
+                _stage_to_doc(task_dict, stage)  # add the doc string
 
             self.doit.add_task(task_dict)
 
@@ -796,6 +824,13 @@ class ProcessingNew(Processing):
             all_input_files.extend(input_files)
         return all_input_files
 
+    def _resolve_single(self, input: InputDef, dest_base: Path) -> FileInfo:
+        """Assume we are wiring a single fits file to dest_base.fit"""
+
+        fullname = dest_base.with_suffix(".fit")
+        imagerow = {"abspath": str(fullname), "path": fullname}
+        return FileInfo(base=str(dest_base), full=fullname, image_rows=[imagerow])
+
     def _resolve_output_files(self, output: OutputDef) -> list[Path]:
         """Resolve output file paths for a stage.
 
@@ -818,10 +853,14 @@ class ProcessingNew(Processing):
         def _resolve_processed() -> FileInfo:
             return self._resolve_files(output, self.output_dir)
 
+        def _resolve_single() -> FileInfo:
+            """Master frames and such - just a single output file in the output dir."""
+            return self._resolve_single(output, self.output_dir)
+
         resolvers = {
             "job": _resolve_output_job,
             "processed": _resolve_processed,
-            "master": _resolve_processed,  # FIXME - I think this should be the same handling as processed - just a different repo
+            "single": _resolve_single,
         }
         kind: str = get_safe(output, "kind")
         resolver = get_safe(resolvers, kind)

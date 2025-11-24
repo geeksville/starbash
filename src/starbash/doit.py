@@ -1,4 +1,5 @@
 import logging
+import shutil
 from typing import Any
 
 from doit.action import BaseAction
@@ -23,6 +24,21 @@ __all__ = [
 ]
 
 type TaskDict = dict[str, Any]  # a doit task dictionary
+
+
+def doit_do_copy(task_dict: TaskDict):
+    """Just add an action that copies files from file_dep to targets"""
+    src = task_dict["file_dep"]
+    dest = task_dict["targets"]
+
+    assert len(src) >= 1, "doit_do_copy requires at least one source file"
+
+    copy_actions = []
+    for s, d in zip(src, dest, strict=True):
+        tuple = (shutil.copy, [s, d])
+        copy_actions.append(tuple)
+
+    task_dict["actions"] = copy_actions
 
 
 class ToolAction(BaseAction):

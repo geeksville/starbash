@@ -9,6 +9,16 @@ from starbash.exception import NotEnoughFilesError
 from starbash.safety import get_list_of_strings, get_safe
 
 
+class FallbackToImageException(Exception):
+    """Exception raised to indicate that processing should fallback to using a file-based approach."""
+
+    def __init__(self, image: ImageRow):
+        super().__init__(
+            f"Falling back to file-based processing using {image.get('patth', 'unknown')}"
+        )
+        self.image = image
+
+
 def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[ImageRow]:
     """Filter candidate images based on the 'requires' conditions in the input definition.
 
@@ -19,7 +29,7 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
         The filtered list of candidate ImageRow objects"""
 
     kind = get_safe(requires, "kind")
-    value = get_safe(requires, "value")
+    value = requires.get("value")  # value is optional for some kinds
 
     # Stage 1: Filter candidates using kind-specific filter functions
     def _filter_metadata(metadata: Metadata) -> bool:
@@ -50,6 +60,10 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
         else:
             raise ValueError(f"Unknown camera value: {value}")
 
+    def _filter_unprocessed(metadata: Metadata) -> bool:
+        repo_kind = metadata["repo"].kind()  # I think repo is guaranteed to be present
+        return repo_kind != "processed" and repo_kind != "master"
+
     def _filter_min_count(metadata: Metadata) -> bool:
         """Min_count is handled in stage 2, so always return True here."""
         return True
@@ -58,6 +72,7 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
     filters = {
         "metadata": _filter_metadata,
         "camera": _filter_camera,
+        "unprocessed": _filter_unprocessed,
         "min_count": _filter_min_count,
     }
 
@@ -74,6 +89,9 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
     # Stage 2: Handle min_count check after filtering
     if kind == "min_count":
         if len(filtered_candidates) < value:
+            accept_single = requires.get("accept_single", False)
+            if accept_single and len(filtered_candidates) == 1:
+                raise FallbackToImageException(filtered_candidates[0])
             raise NotEnoughFilesError(
                 f"Stage requires >{value} input files ({len(filtered_candidates)} found)",
                 [img.get("path", "unknown") for img in filtered_candidates],
