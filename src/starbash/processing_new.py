@@ -13,7 +13,6 @@ from tomlkit.items import AoT
 
 from repo import Repo
 from starbash import InputDef, OutputDef, StageDict
-from starbash.aliases import get_aliases
 from starbash.app import Starbash
 from starbash.database import ImageRow
 from starbash.doit import StarbashDoit, TaskDict, doit_do_copy
@@ -200,14 +199,7 @@ class ProcessingNew(Processing):
         Returns:
             List of ProcessingResult objects, one per master frame generated.
         """
-        sessions = self.sb.search_session([])  # for masters we always search everything
-
-        # FIXME: until we merge master and light processing (into one tree of dependencies), limit processing
-        # in this method not !light frames
-
-        sessions = [
-            s for s in sessions if get_aliases().normalize(s.get("imagetyp", "light")) != "light"
-        ]
+        sessions = self._get_master_sessions()
 
         return self._run_all_targets(sessions, [None])
 
@@ -243,7 +235,10 @@ class ProcessingNew(Processing):
                 # self.doit.run(["dumpdb"])
                 pt.config_valid = True  # our config is probably worth keeping
                 logging.info("Running doit tasks...")
-                result_code = self.doit.run(["-a", "process_all"])  # light_{self.target}_s35
+                doit_args: list[str] = []
+                # doit_args.append("-a") # force rebuild
+                doit_args.append("process_all")
+                result_code = self.doit.run(doit_args)  # light_{self.target}_s35
 
                 # FIXME - it would be better to call a doit entrypoint that lets us catch the actual Doit exception directly
                 if result_code != 0:
@@ -384,9 +379,18 @@ class ProcessingNew(Processing):
 
         # collect all the tasks that start with prior_task_name, in case of multiplexing
         prior_tasks = []
+        cur_session_id = self.context.get("session", {}).get("id")
         for key in self.doit.dicts.keys():
             if key.startswith(prior_task_name):
-                prior_tasks.append(self.doit.dicts[key])
+                # Checking task names is a good filter, but to prevent being confused by things like:
+                # prior_task_name is 'light_m20_s3' but the key is 'light_m20_s35' we also need to
+                # confirm that the session IDs match
+                if (
+                    not cur_session_id
+                    or self.doit.dicts[key]["meta"]["context"].get("session", {}).get("id")
+                    == cur_session_id
+                ):
+                    prior_tasks.append(self.doit.dicts[key])
         if not prior_tasks:
             raise NoPriorTaskException(
                 f"Could not find prior task '{prior_task_name}' for 'after' input."
@@ -400,6 +404,7 @@ class ProcessingNew(Processing):
             # We aren't after anything - just plug in some correct defaults
             self._clear_context()
         else:
+            # old_session = self.context.get("session")
             # FIXME this is kinda nasty, but if the prior stage was multiplexed we just need a context from any of
             # tasks in that stage (as if we were in in stage_to_tasks just after them).  So look for one by name
             # Use the last task in the list
@@ -414,8 +419,10 @@ class ProcessingNew(Processing):
 
             if multiplexed:
                 # since we just did a nasty thing, we don't want to inadvertently think our current
-                # (non multiplexed) stage is tied to the prior stage's session
+                # (possibly non multiplexed) stage is tied to the prior stage's session
                 self.context.pop("session", None)
+                # if old_session:
+                #    self.context["session"] = old_session
 
     def _stage_to_tasks(self, stage: StageDict) -> None:
         """Convert the given stage to doit task(s) and add them to our doit task list.
@@ -593,6 +600,9 @@ class ProcessingNew(Processing):
         prior_tasks = self._get_prior_tasks(self.stage)
         if not prior_tasks:
             raise ValueError("Input definition with 'after' must refer to a valid prior stage.")
+
+        if not isinstance(prior_tasks, list):
+            prior_tasks = [prior_tasks]
 
         # Collect all image rows from prior stage outputs
         for task in prior_tasks:

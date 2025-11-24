@@ -75,7 +75,7 @@
             "args": [
                 "--debug",
                 "process",
-                "new"
+                "auto"
             ]
         },
         {
@@ -89,8 +89,7 @@
             "args": [
                 "--debug",
                 "process",
-                "masters",
-                "--new"
+                "masters"
             ]
         },
         {

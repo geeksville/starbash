@@ -228,6 +228,10 @@ class Processing:
                     # select sessions for this target
                     sessions = self.sb.filter_sessions_by_target(sessions, target)
 
+                    auto_process_masters = True
+                    if auto_process_masters:
+                        self._add_master_sessions(sessions)
+
                 # we only want sessions with light frames
                 # NOT NEEDED - because the dependencies will end up ignoring sessions where all frames are filtered
                 # target_sessions = self.sb.filter_sessions_by_imagetyp(target_sessions, "light")
@@ -257,6 +261,35 @@ class Processing:
             self.progress.remove_task(job_task)
 
         return results
+
+    def _get_master_sessions(self) -> list[SessionRow]:
+        """Get all sessions that are relevant for master frame generation.
+
+        Returns:
+            List of SessionRow objects for master frame sessions.
+        """
+        sessions = self.sb.search_session([])  # for masters we always search everything
+
+        # Don't return any light frame sessions
+
+        sessions = [
+            s for s in sessions if get_aliases().normalize(s.get("imagetyp", "light")) != "light"
+        ]
+
+        return sessions
+
+    def _add_master_sessions(self, sessions: list[SessionRow]) -> list[SessionRow]:
+        """Add master frame sessions to the provided list of sessions if they are not already included.
+
+        Args:
+            sessions: List of SessionRow objects to which master sessions will be added."""
+        existing_session_ids = {s["id"] for s in sessions}
+        master_sessions = self._get_master_sessions()
+        for s in master_sessions:
+            sid = s["id"]
+            if sid not in existing_session_ids:
+                sessions.append(s)
+                existing_session_ids.add(sid)
 
     def run_all_stages(self) -> list[ProcessingResult]:
         """On the currently active session, run all processing stages

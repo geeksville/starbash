@@ -196,7 +196,8 @@
 * [x] share OSC code between dual duo and single channel OSC
 * [x] create the ProcessedTarget by referring to the processed repo path info (need context first)
 * [ ] store the various ScoredCandiates in the toml file (for consider masters) - use same convention as exluded scripts
-* [ ] fix flats with new system
+* [ ] fix the results display so that tests can work again
+* [x] fix flats with new system
 * [x] use user selected values from the toml file
 * [x] try a test run on just a dual duo filter set
 * [ ] change masters over to using this same mechanism - hook together via dependencies
