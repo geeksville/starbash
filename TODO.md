@@ -216,3 +216,4 @@
 * [ ] add dependencies on the recipe files
 * [ ] add graxpert
 * [ ] cleanup Repo import code
+* [ ] remove priorities from stages where dependencies should have worked.  hack to fix "Stages in priority order: ['stack_dual_duo', 'light', 'seqextract_haoiii'"

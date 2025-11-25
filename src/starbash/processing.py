@@ -228,10 +228,6 @@ class Processing:
                     # select sessions for this target
                     sessions = self.sb.filter_sessions_by_target(sessions, target)
 
-                    auto_process_masters = True
-                    if auto_process_masters:
-                        self._add_master_sessions(sessions)
-
                 # we only want sessions with light frames
                 # NOT NEEDED - because the dependencies will end up ignoring sessions where all frames are filtered
                 # target_sessions = self.sb.filter_sessions_by_imagetyp(target_sessions, "light")
@@ -278,18 +274,10 @@ class Processing:
 
         return sessions
 
-    def _add_master_sessions(self, sessions: list[SessionRow]) -> None:
-        """Add master frame sessions to the provided list of sessions if they are not already included.
-
-        Args:
-            sessions: List of SessionRow objects to which master sessions will be added."""
-        existing_session_ids = {s["id"] for s in sessions}
-        master_sessions = self._get_master_sessions()
-        for s in master_sessions:
-            sid = s["id"]
-            if sid not in existing_session_ids:
-                sessions.append(s)
-                existing_session_ids.add(sid)
+    def _remove_duplicates(self, sessions: list[SessionRow], to_check: list[SessionRow]) -> None:
+        """Remove sessions from 'sessions' that are already in 'to_check' based on session ID."""
+        existing_ids = {s.get("id") for s in to_check if s.get("id") is not None}
+        sessions[:] = [s for s in sessions if s.get("id") not in existing_ids]
 
     def run_all_stages(self) -> list[ProcessingResult]:
         """On the currently active session, run all processing stages
@@ -314,6 +302,12 @@ class Processing:
                 if (obj := s.get(get_column_name(Database.OBJECT_KEY))) is not None
             }
         )
+
+        # FIXME - to merge master processing we need to create tasks without a target specified
+        # auto_process_masters = True
+        # master_sessions = self._get_master_sessions()
+        # if auto_process_masters:
+        #    self._remove_duplicates(master_sessions, already_processed)
 
         return self._run_all_targets(sessions, targets)
 
