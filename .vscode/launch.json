@@ -104,7 +104,7 @@
                 "--debug",
                 "repo",
                 "add",
-                "./test-data/inflated/dwarf3"
+                "/test-data/seestar"
             ]
         },
         {
