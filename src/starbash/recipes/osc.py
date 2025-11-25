@@ -65,7 +65,7 @@ def make_stacked(inputs_to_use: list[str], variant: str | None, output_file: str
 
     logger.info(f"Registering and stacking for {variant} -> {stacked_output_path}")
     if len(seqs_to_merge) < 1:
-        raise NotEnoughFilesError("Need at one sequence to merge")
+        raise NotEnoughFilesError("Need at least one sequence to merge")
 
     commands = """
         """

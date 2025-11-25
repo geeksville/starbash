@@ -26,4 +26,12 @@ class NotEnoughFilesError(UserHandledError):
         self.files = files
 
 
-__all__ = ["UserHandledError", "NotEnoughFilesError"]
+class NoSuitableMasters(UserHandledError):
+    """Exception raised when no suitable master calibration files are found."""
+
+    def __init__(self, kind: str):
+        super().__init__(f"No suitable master calibration files found for kind: {kind}")
+        self.kind = kind
+
+
+__all__ = ["UserHandledError", "NotEnoughFilesError", "NoSuitableMasters"]

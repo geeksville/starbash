@@ -28,7 +28,7 @@ from starbash.database import (
     metadata_to_instrument_id,
 )
 from starbash.doit import StarbashDoit, TaskDict, doit_do_copy, doit_post_process
-from starbash.exception import NotEnoughFilesError, UserHandledError
+from starbash.exception import NoSuitableMasters, NotEnoughFilesError, UserHandledError
 from starbash.filtering import FallbackToImageException, filter_by_requires
 from starbash.paths import get_user_cache_dir
 from starbash.processed_target import ProcessedTarget
@@ -1093,8 +1093,7 @@ class Processing:
         def _resolve_input_session() -> list[Path]:
             images = self.sb.get_session_images(self.session)
 
-            # FIXME Move elsewhere.
-            # we also need to add ["input"][type] to the context so that scripts can find .base etc... o
+            # FIXME Move elsewhere. It really just just be another "requires" clause
             imagetyp = get_safe(input, "type")
             images = self.sb.filter_images_by_imagetyp(images, imagetyp)
 
@@ -1144,7 +1143,7 @@ class Processing:
             # session_masters[master_type] = scored_masters  # for reporting purposes
 
             if len(scored_masters) == 0:
-                raise ValueError(f"No suitable master frames of type '{imagetyp}' found.")
+                raise NoSuitableMasters(imagetyp)
 
             self.sb._add_image_abspath(
                 scored_masters[0].candidate

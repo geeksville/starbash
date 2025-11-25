@@ -71,6 +71,10 @@ select-seestar:
     sb select any
     sb select target Sadr
 
+select-seestar-ir:
+    sb select any
+    sb select target m81
+
 # test target that has Si and HaOiii filters
 select-si-ha:
     sb select any
