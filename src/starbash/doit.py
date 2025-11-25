@@ -8,6 +8,7 @@ from doit.doit_cmd import DoitMain
 from doit.task import Task, dict_to_task
 
 from starbash.paths import get_user_cache_dir
+from starbash.processed_target import ProcessingLike
 from starbash.tool import Tool
 
 # for early testing
@@ -39,6 +40,40 @@ def doit_do_copy(task_dict: TaskDict):
         copy_actions.append(tuple)
 
     task_dict["actions"] = copy_actions
+
+
+def doit_post_process(task_dict: TaskDict):
+    """Do after execution processing
+
+    * Populate master output files in the DB (FIXME I think we can remove this once doit dependencies fully linked)
+    * Set result for this task (for later reporting)
+    * Advance the progress bar
+    """
+
+    def closure(targets) -> None:
+        logging.debug(f"Post processing task {task_dict['name']}")
+
+        meta = task_dict.get("meta", {})
+        context = meta.get("context", {})
+        output = context.get("output")
+
+        if output and output.repo and output.repo.kind() == "master":
+            processing: ProcessingLike = meta["processing"]  # guaranteed to be present
+            sb = processing.sb
+
+            # we add new masters to our image DB
+            # add to image DB (ONLY! we don't also create a session)
+
+            # The generated files might not have propagated all of the metadata (because we added it after FITS import)
+            extra_metadata = context.get("metadata", {})
+            sb.add_image(
+                output.repo,
+                output.full,
+                force=True,
+                extra_metadata=extra_metadata,
+            )
+
+    task_dict["actions"].append(closure)
 
 
 class ToolAction(BaseAction):

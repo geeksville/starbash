@@ -27,7 +27,7 @@ from starbash.database import (
     metadata_to_camera_id,
     metadata_to_instrument_id,
 )
-from starbash.doit import StarbashDoit, TaskDict, doit_do_copy
+from starbash.doit import StarbashDoit, TaskDict, doit_do_copy, doit_post_process
 from starbash.exception import NotEnoughFilesError, UserHandledError
 from starbash.filtering import FallbackToImageException, filter_by_requires
 from starbash.paths import get_user_cache_dir
@@ -388,7 +388,7 @@ class Processing:
 
         return results
 
-    def _get_master_sessions(self) -> list[SessionRow]:
+    def _get_sessions_by_imagetyp(self, imagetyp: str) -> list[SessionRow]:
         """Get all sessions that are relevant for master frame generation.
 
         Returns:
@@ -399,7 +399,7 @@ class Processing:
         # Don't return any light frame sessions
 
         sessions = [
-            s for s in sessions if get_aliases().normalize(s.get("imagetyp", "light")) != "light"
+            s for s in sessions if get_aliases().normalize(s.get("imagetyp", "light")) == imagetyp
         ]
 
         return sessions
@@ -538,9 +538,18 @@ class Processing:
         Returns:
             List of ProcessingResult objects, one per master frame generated.
         """
-        sessions = self._get_master_sessions()
+        # it is important that we make bias/dark **before** flats because we don't yet do all the task execution in one go
+        session_lists = [
+            self._get_sessions_by_imagetyp("bias"),
+            self._get_sessions_by_imagetyp("dark"),
+            self._get_sessions_by_imagetyp("flat"),
+        ]
 
-        return self._run_all_targets(sessions, [None])
+        results = []
+        for sessions in session_lists:
+            results.extend(self._run_all_targets(sessions, [None]))
+
+        return results
 
     def _process_job(self, job_name: str, output_kind: str) -> ProcessingResult:
         """Do processing for a particular target/master
@@ -866,6 +875,7 @@ class Processing:
                 "meta": {
                     "context": self._clone_context(),
                     "stage": stage,  # The stage we came from - used later in culling/handling conflicts
+                    "processing": self,  # so doit_post_process can update progress/write-to-db etc...
                 },
                 "clean": True,  # Let the doit "clean" command auto-delete any targets we listed
             }
@@ -878,6 +888,7 @@ class Processing:
                 self._stage_to_action(task_dict, stage)
                 _stage_to_doc(task_dict, stage)  # add the doc string
 
+            doit_post_process(task_dict)
             self.doit.add_task(task_dict)
 
             return task_dict
@@ -1173,13 +1184,6 @@ class Processing:
             all_input_files.extend(input_files)
         return all_input_files
 
-    def _resolve_single(self, input: InputDef, dest_base: Path) -> FileInfo:
-        """Assume we are wiring a single fits file to dest_base.fit"""
-
-        fullname = dest_base.with_suffix(".fit")
-        imagerow = {"abspath": str(fullname), "path": fullname}
-        return FileInfo(base=str(dest_base), full=fullname, image_rows=[imagerow])
-
     def _resolve_output_files(self, output: OutputDef) -> list[Path]:
         """Resolve output file paths for a stage.
 
@@ -1206,7 +1210,11 @@ class Processing:
             """Master frames and such - just a single output file in the output dir."""
             fi = self._get_output_by_repo("master")
             assert fi.base, "Output FileInfo must have a base for master output"
-            return self._resolve_single(output, Path(fi.base))
+            assert fi.full, "Should be inited by now"
+            assert fi.relative
+            imagerow = {"abspath": str(fi.full), "path": fi.relative}
+            fi.image_rows = [imagerow]
+            return fi
 
         resolvers = {
             "job": _resolve_output_job,

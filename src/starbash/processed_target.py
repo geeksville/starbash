@@ -5,7 +5,7 @@ from typing import Any, Protocol
 import tomlkit
 
 from repo import Repo, repo_suffix
-from starbash.app import ScoredCandidate
+from starbash.app import ScoredCandidate, Starbash
 from starbash.database import SessionRow
 from starbash.toml import CommentedString, toml_from_template
 
@@ -23,6 +23,7 @@ class ProcessingLike(Protocol):
     context: dict[str, Any]
     sessions: list[SessionRow]
     recipes_considered: list[Repo]
+    sb: Starbash
 
 
 class ProcessedTarget:
