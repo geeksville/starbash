@@ -2,9 +2,7 @@ import logging
 
 from starbash import InputDef, Metadata, RequireDef
 from starbash.aliases import get_aliases
-from starbash.database import (
-    ImageRow,
-)
+from starbash.database import ImageRow
 from starbash.exception import NotEnoughFilesError
 from starbash.safety import get_list_of_strings, get_safe
 
@@ -88,6 +86,8 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
 
     # Stage 2: Handle min_count check after filtering
     if kind == "min_count":
+        if value is None:
+            raise ValueError("min_count requires a 'value' field")
         if len(filtered_candidates) < value:
             accept_single = requires.get("accept_single", False)
             if accept_single and len(filtered_candidates) == 1:

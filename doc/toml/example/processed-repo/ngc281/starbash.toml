@@ -22,13 +22,13 @@ target.id = "NGC281"
 # excluded.
 # Whenever stabash is rerun it will update these arrays based on what was actually used for this run.
 used = [
-    "osc2/dual_duo.toml",
+    "osc/dual_duo.toml",
     "master_bias",
     "master_flat",
     "master_dark",
 ]
 excluded = [
-    "osc2/single_duo.toml",
+    "osc/single_duo.toml",
 ]
 
 [[sessions]]

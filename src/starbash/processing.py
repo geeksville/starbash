@@ -278,7 +278,7 @@ class Processing:
 
         return sessions
 
-    def _add_master_sessions(self, sessions: list[SessionRow]) -> list[SessionRow]:
+    def _add_master_sessions(self, sessions: list[SessionRow]) -> None:
         """Add master frame sessions to the provided list of sessions if they are not already included.
 
         Args:

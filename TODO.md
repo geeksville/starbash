@@ -190,7 +190,7 @@
 * [x] build and look at the list of doit tasks
 * [x] populate the context
 * [x] include target name in task names
-* [x] fix multichannel input in osc2
+* [x] fix multichannel input in osc
 * [x] return real result codes from "process auto"
 * [x] make single channel OSC work
 * [x] share OSC code between dual duo and single channel OSC
@@ -204,7 +204,7 @@
 * [x] implement _filter_by_requires
 * [x] change context["output"] to be a dataclass rather than a dict
 * [ ] use get_safe more pervasively, pass in a help string to it (to indicate source of failure)
-* [ ] remove nasty osc2.py file - move into toml
+* [ ] remove nasty osc.py file - move into toml
 * [x] use task name dependencies to join stages
 * [ ] have AI change asserts to raise ValueError (or something better?)
 * [ ] try test run on the small dataset
