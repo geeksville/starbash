@@ -13,8 +13,7 @@ from starbash.commands.__init__ import (
 )
 from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
-from starbash.processing import ProcessingResult
-from starbash.processing_new import ProcessingNew
+from starbash.processing import Processing, ProcessingResult
 
 app = typer.Typer()
 
@@ -158,7 +157,7 @@ def auto(
     The output will be saved according to the configured recipes.
     """
     with Starbash("process.auto") as sb:
-        with ProcessingNew(sb) as proc:
+        with Processing(sb) as proc:
             from starbash import console
 
             if session_num is not None:
@@ -185,10 +184,10 @@ def doit(
     You probably don't need to use this - unless you are a starbash developer.
     Arguments are passed directly to doit.  For more information run: sb process doit help"""
     with Starbash("process.doit") as sb:
-        with ProcessingNew(sb) as proc:
+        with Processing(sb) as proc:
             from starbash import console
 
-            console.print("[red]ProcessingNew command is not yet supported.[/red]")
+            console.print("[red]This command is currently for developers only...[/red]")
             proc.doit.run(ctx.args)
 
 
@@ -204,7 +203,7 @@ def masters():
     and will be automatically used for future processing operations.
     """
     with Starbash("process.masters") as sb:
-        with ProcessingNew(sb) as proc:
+        with Processing(sb) as proc:
             from starbash import console
 
             console.print("[yellow]Generating master frames...[/yellow]")
