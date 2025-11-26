@@ -11,10 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from multidict import MultiDict
-from rich.progress import Progress
 from tomlkit.items import AoT
 
-import starbash
 from repo import Repo
 from starbash import InputDef, OutputDef, StageDict
 from starbash.aliases import get_aliases, normalize_target_name
@@ -109,18 +107,18 @@ class ProcessingContext:
         if target:
             self.name = processing_dir / target
             self.is_temp = False
+
+            exists = self.name.exists()
+            if not exists:
+                self.name.mkdir(parents=True, exist_ok=True)
+                logging.info(f"Creating processing context at {self.name}")
+            else:
+                logging.info(f"Reusing existing processing context at {self.name}")
         else:
             # Create a temporary directory name
             temp_name = tempfile.mkdtemp(prefix="temp_", dir=processing_dir)
             self.name = Path(temp_name)
             self.is_temp = True
-
-        exists = self.name.exists()
-        if not exists:
-            self.name.mkdir(parents=True, exist_ok=True)
-            logging.info(f"Creating processing context at {self.name}")
-        else:
-            logging.info(f"Reusing existing processing context at {self.name}")
 
         # Clean up old contexts if we exceed max_contexts
         self._cleanup_old_contexts(processing_dir)
@@ -303,11 +301,6 @@ class Processing:
         self.sessions: list[SessionRow] = []  # The list of sessions we are currently processing
         self.recipes_considered: list[Repo] = []  # all recipes considered for this processing run
 
-        # We create one top-level progress context so that when various subtasks are created
-        # the progress bars stack and don't mess up our logging.
-        self.progress = Progress(console=starbash.console, refresh_per_second=2)
-        self.progress.start()
-
         self.doit: StarbashDoit = StarbashDoit()
 
         # Normally we will use the "process_dir", but if we are importing new images from a session we place those images
@@ -320,7 +313,7 @@ class Processing:
 
     # --- Lifecycle ---
     def close(self) -> None:
-        self.progress.stop()
+        pass
 
     # Context manager support
     def __enter__(self) -> "Processing":
@@ -349,44 +342,31 @@ class Processing:
             targets: List of target names (normalized) to process, or None to process
             all the master frames."""
 
-        # job_task = self.progress.add_task("Processing targets...", total=len(targets))
+        for target in targets:
+            if target:
+                # select sessions for this target
+                sessions = self.sb.filter_sessions_by_target(sessions, target)
 
-        try:
-            for target in targets:
-                # desc_str = f"Processing target {target}..." if target else "Processing masters..."
+            # we only want sessions with light frames
+            # NOT NEEDED - because the dependencies will end up ignoring sessions where all frames are filtered
+            # target_sessions = self.sb.filter_sessions_by_imagetyp(target_sessions, "light")
 
-                # self.progress.update(job_task, description=desc_str)
+            if target:
+                # We are processing a single target, so build the context around that, and process
+                # all sessions for that target as a group
+                with ProcessingContext(self, target):
+                    self.sessions = sessions
+                    self._job_to_tasks(target, "processed")
+            else:
+                for s in sessions:
+                    # For masters we process each session individually
+                    with ProcessingContext(self):
+                        self._set_session_in_context(s)
+                        # Note: We need to do this early because we need to get camera_id etc... from session
 
-                if target:
-                    # select sessions for this target
-                    sessions = self.sb.filter_sessions_by_target(sessions, target)
-
-                # we only want sessions with light frames
-                # NOT NEEDED - because the dependencies will end up ignoring sessions where all frames are filtered
-                # target_sessions = self.sb.filter_sessions_by_imagetyp(target_sessions, "light")
-
-                if target:
-                    # We are processing a single target, so build the context around that, and process
-                    # all sessions for that target as a group
-                    with ProcessingContext(self, target):
-                        self.sessions = sessions
-                        self._job_to_tasks(target, "processed")
-                else:
-                    for s in sessions:
-                        # For masters we process each session individually
-                        with ProcessingContext(self):
-                            self._set_session_in_context(s)
-                            # Note: We need to do this early because we need to get camera_id etc... from session
-
-                            self.sessions = [s]
-                            job_desc = f"master_{s.get('id', 'unknown')}"
-                            self._job_to_tasks(job_desc, "master")
-
-                # We made progress - call once per iteration ;-)
-                # self.progress.advance(job_task)
-        finally:
-            # self.progress.remove_task(job_task)
-            pass
+                        self.sessions = [s]
+                        job_desc = f"master_{s.get('id', 'unknown')}"
+                        self._job_to_tasks(job_desc, "master")
 
         results: list[ProcessingResult] = []
         self._run_jobs()

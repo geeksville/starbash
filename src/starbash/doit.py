@@ -5,9 +5,12 @@ from typing import Any
 from doit.action import BaseAction
 from doit.cmd_base import TaskLoader2
 from doit.doit_cmd import DoitMain
+from doit.exceptions import BaseFail
 from doit.reporter import ConsoleReporter
 from doit.task import Task, dict_to_task
+from rich.progress import Progress, TaskID
 
+import starbash
 from starbash.paths import get_user_cache_dir
 from starbash.processed_target import ProcessingLike
 from starbash.tool import Tool
@@ -100,15 +103,49 @@ class ToolAction(BaseAction):
 
 
 class MyReporter(ConsoleReporter):
-    # def __init__(self, outstream, options):
-    #     from starbash import console
+    """A custom reporter that uses rich progress bars to show task progress."""
 
-    #     # instead of stdout, have it go to our rich console
-    #     outstream = console
-    #     super().__init__(outstream, options)
+    def __init__(self, outstream, options):
+        super().__init__(outstream, options)
+        self.progress = Progress(console=starbash.console, refresh_per_second=2)
+        self.job_task = TaskID(0)
 
     def execute_task(self, task):
-        self.outstream.write("MyReporter --> %s\n" % task.title())
+        """Called just before running a task"""
+        # self.outstream.write("MyReporter --> %s\n" % task.title())
+        self.progress.update(self.job_task, description=task.title())
+
+    def add_success(self, task):
+        """called when execution finishes successfully (either this or add_failure is guaranteed to be called)"""
+        super().add_success(task)
+
+        # We made progress - call once per iteration ;-)
+        self.progress.advance(self.job_task)
+
+    def add_failure(self, task, fail: BaseFail):
+        """called when execution finishes with a failure"""
+        super().add_failure(task, fail)
+
+        # We made progress - call once per iteration ;-)
+        assert self.progress and self.job_task
+        self.progress.advance(self.job_task)
+
+    def initialize(self, tasks, selected_tasks):
+        """called just after tasks have been loaded before execution starts
+
+        tasks will be the full list of tasks we might run
+        """
+        super().initialize(tasks, selected_tasks)
+
+        self.progress.start()
+        self.job_task = self.progress.add_task("Processing targets...", total=len(tasks))
+
+    def complete_run(self):
+        """called when finished running all tasks"""
+        super().complete_run()
+
+        self.progress.remove_task(self.job_task)
+        self.progress.stop()
 
 
 class StarbashDoit(TaskLoader2):
