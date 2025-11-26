@@ -611,14 +611,14 @@ class Repo:
         parent: MutableMapping = value  # track our dict parent in case we need to add to it
         last_name = key
         for k in key.split("."):
-            if value is None and default is not None:
+            if value is None and do_create and default is not None:
                 # If we are here that means the node above us in the dot path was missing, make it as a table
                 value = tomlkit.table()
                 parent[last_name] = value
 
             if not isinstance(value, dict):
-                raise ValueError(f"Malformed TOML file - {key} is not inside a table")
-                # was return default
+                # Key path traverses through a non-dict value (including None), return default
+                return default
 
             parent = value
             value = value.get(k)

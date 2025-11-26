@@ -73,7 +73,7 @@ class TestStarbashDoit:
         captured = capsys.readouterr()
         assert "help" in captured.out.lower() or "usage" in captured.out.lower()
 
-    def test_run_sample_task(self, capsys):
+    def test_run_sample_task(self, capfd):
         """Test that run method can execute the sample task."""
         doit = StarbashDoit()
         # Manually add the sample task since it's no longer auto-populated
@@ -84,7 +84,8 @@ class TestStarbashDoit:
         assert result == 0
 
         # Capture output and verify the echo command ran
-        captured = capsys.readouterr()
+        # Use capfd (file descriptor capture) instead of capsys because doit writes directly to stdout
+        captured = capfd.readouterr()
         assert "hello from built in" in captured.out
 
     def test_run_list_with_status(self, capsys):
@@ -126,7 +127,7 @@ class TestBuiltinTask:
 class TestDoitIntegration:
     """Integration tests running actual doit commands."""
 
-    def test_run_without_args_shows_help(self, capsys):
+    def test_run_without_args_shows_help(self, capfd):
         """Test that running without args shows help/usage."""
         doit = StarbashDoit()
         # Manually add the sample task since it's no longer auto-populated
@@ -136,7 +137,8 @@ class TestDoitIntegration:
         # Should succeed or fail gracefully
         assert result in [0, 2, 3]  # Various help exit codes
 
-        captured = capsys.readouterr()
+        # Use capfd (file descriptor capture) instead of capsys because doit writes directly to stdout
+        captured = capfd.readouterr()
         # Should show some usage information
         assert len(captured.out) > 0 or len(captured.err) > 0
 
