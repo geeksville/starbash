@@ -5,6 +5,7 @@ from typing import Any
 from doit.action import BaseAction
 from doit.cmd_base import TaskLoader2
 from doit.doit_cmd import DoitMain
+from doit.reporter import ConsoleReporter
 from doit.task import Task, dict_to_task
 
 from starbash.paths import get_user_cache_dir
@@ -98,6 +99,18 @@ class ToolAction(BaseAction):
         return f"ToolAction(tool={self.tool.name}, commands={self.commands})"
 
 
+class MyReporter(ConsoleReporter):
+    # def __init__(self, outstream, options):
+    #     from starbash import console
+
+    #     # instead of stdout, have it go to our rich console
+    #     outstream = console
+    #     super().__init__(outstream, options)
+
+    def execute_task(self, task):
+        self.outstream.write("MyReporter --> %s\n" % task.title())
+
+
 class StarbashDoit(TaskLoader2):
     """The starbash wrapper for doit invocation."""
 
@@ -147,7 +160,7 @@ class StarbashDoit(TaskLoader2):
         # Store the doit database in the user's cache directory instead of the workspace
         cache_dir = get_user_cache_dir()
         dep_file = str(cache_dir / ".doit.db")
-        return {"verbosity": 2, "dep_file": dep_file}
+        return {"verbosity": 2, "dep_file": dep_file, "reporter": MyReporter}
 
     def load_tasks(self, cmd, pos_args):
         """Load tasks for Starbash. (required by baseclass)

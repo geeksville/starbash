@@ -592,14 +592,14 @@ class Processing:
                 doit_args.append("process_all")
                 result_code = self.doit.run(doit_args)  # light_{self.target}_s35
 
-                # FIXME - it would be better to call a doit entrypoint that lets us catch the actual Doit exception directly
-                if result_code != 0:
-                    raise RuntimeError(f"doit processing failed with exit code {result_code}")
-
                 # FIXME we shouldn't need to do this (because all processing jobs should be resolved with a single doit.run)
                 # but currently we call doit.run() per target/master.  So clear out the doit rules so they are ready for the
                 # next attempt.
                 self.doit.dicts.clear()
+
+                # FIXME - it would be better to call a doit entrypoint that lets us catch the actual Doit exception directly
+                if result_code != 0:
+                    raise RuntimeError(f"doit processing failed with exit code {result_code}")
 
                 # FIXME have doit tasks store into a ProcessingResults object somehow
                 # declare success
@@ -802,9 +802,9 @@ class Processing:
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (
-            not has_session_extra_in
-        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        assert (not has_session_in) or (not has_session_extra_in), (
+            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        )
 
         self._add_stage_context_defs(stage)
 
@@ -1021,9 +1021,9 @@ class Processing:
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
                 conflicting_stages = tasks_to_stages(producing_tasks)
-                assert (
-                    len(conflicting_stages) > 1
-                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
+                assert len(conflicting_stages) > 1, (
+                    "Multiple conflicting tasks must imply multiple conflicting stages?"
+                )
 
                 names = [t["name"] for t in conflicting_stages]
                 logging.warning(
