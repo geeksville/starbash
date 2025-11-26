@@ -34,4 +34,4 @@ class NoSuitableMastersException(UserHandledError):
         self.kind = kind
 
 
-__all__ = ["UserHandledError", "NotEnoughFilesError", "NoSuitableMasters"]
+__all__ = ["UserHandledError", "NotEnoughFilesError", "NoSuitableMastersException"]
