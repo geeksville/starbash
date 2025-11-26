@@ -149,12 +149,13 @@ class Starbash:
 
         starbash.console = console  # Update the global console to use the progress version
 
+        # Must be **after** _init_analytics otherwise we can get mutex locks later while emitting logs
+        setup_logging(starbash.console)
+
         # Load app defaults and initialize the repository manager
         self._init_repos()
         self._init_analytics(cmd)  # after init repos so we have user prefs
 
-        # Must be **after** _init_analytics otherwise we can get mutex locks later while emitting logs
-        setup_logging(starbash.console)
         logging.info("Starbash starting...")
 
         check_version()

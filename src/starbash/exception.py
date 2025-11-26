@@ -26,7 +26,7 @@ class NotEnoughFilesError(UserHandledError):
         self.files = files
 
 
-class NoSuitableMasters(UserHandledError):
+class NoSuitableMastersException(UserHandledError):
     """Exception raised when no suitable master calibration files are found."""
 
     def __init__(self, kind: str):

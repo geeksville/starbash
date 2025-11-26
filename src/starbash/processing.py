@@ -28,7 +28,11 @@ from starbash.database import (
     metadata_to_instrument_id,
 )
 from starbash.doit import StarbashDoit, TaskDict, doit_do_copy, doit_post_process
-from starbash.exception import NoSuitableMasters, NotEnoughFilesError, UserHandledError
+from starbash.exception import (
+    NoSuitableMastersException,
+    NotEnoughFilesError,
+    UserHandledError,
+)
 from starbash.filtering import FallbackToImageException, filter_by_requires
 from starbash.paths import get_user_cache_dir
 from starbash.processed_target import ProcessedTarget
@@ -584,7 +588,7 @@ class Processing:
                 pt.config_valid = True  # our config is probably worth keeping
                 logging.info("Running doit tasks...")
                 doit_args: list[str] = []
-                # doit_args.append("-a") # force rebuild
+                doit_args.append("-a")  # force rebuild
                 doit_args.append("process_all")
                 result_code = self.doit.run(doit_args)  # light_{self.target}_s35
 
@@ -721,24 +725,36 @@ class Processing:
         prior_task_name = self._get_unique_task_name(
             after
         )  # find the right task for our stage and multiplex
-        prior_task = self.doit.dicts.get(prior_task_name)
-        if prior_task:
-            return prior_task
 
-        # collect all the tasks that start with prior_task_name, in case of multiplexing
+        # Compile the prior_task_name into a regex pattern for prefix matching.
+        # The pattern from TOML may contain wildcards like "light.*" which should match
+        # task names like "light_m20_s35". We anchor the pattern to match the start of the task name.
+        import re
+
+        prior_starting_pattern = re.compile(f"^{prior_task_name}")
+        prior_exact_pattern = re.compile(f"^{prior_task_name}$")
+
+        # Handle the easier 'non-multiplexed' case - the name will exactly match
+        keys = self.doit.dicts.keys()
+        matching_keys = [k for k in keys if prior_exact_pattern.match(k)]
+        if len(matching_keys) == 1:
+            return self.doit.dicts[matching_keys[0]]
+
+        # collect all the tasks that match prior_task_pattern, in case of multiplexing
         prior_tasks = []
         cur_session_id = self.context.get("session", {}).get("id")
-        for key in self.doit.dicts.keys():
-            if key.startswith(prior_task_name):
-                # Checking task names is a good filter, but to prevent being confused by things like:
-                # prior_task_name is 'light_m20_s3' but the key is 'light_m20_s35' we also need to
-                # confirm that the session IDs match
-                if (
-                    not cur_session_id
-                    or self.doit.dicts[key]["meta"]["context"].get("session", {}).get("id")
-                    == cur_session_id
-                ):
-                    prior_tasks.append(self.doit.dicts[key])
+        matching_keys = [k for k in keys if prior_starting_pattern.match(k)]
+        for key in matching_keys:
+            # Checking task names is a good filter, but to prevent being confused by things like:
+            # prior_task_name is 'light_m20_s3' but the key is 'light_m20_s35' we also need to
+            # confirm that the session IDs match
+            if (
+                not cur_session_id
+                or self.doit.dicts[key]["meta"]["context"].get("session", {}).get("id")
+                == cur_session_id
+            ):
+                prior_tasks.append(self.doit.dicts[key])
+
         if not prior_tasks:
             raise NoPriorTaskException(
                 f"Could not find prior task '{prior_task_name}' for 'after' input."
@@ -903,6 +919,8 @@ class Processing:
             logging.debug(
                 f"Skipping stage '{stage.get('name')}' - required prior task was skipped {e}"
             )
+        except UserHandledError as e:
+            logging.warning(f"Skipping stage '{stage.get('name')}' - {e}")
         return None
 
     def _resolve_files(self, input: InputDef, dir: Path) -> FileInfo:
@@ -1143,7 +1161,7 @@ class Processing:
             # session_masters[master_type] = scored_masters  # for reporting purposes
 
             if len(scored_masters) == 0:
-                raise NoSuitableMasters(imagetyp)
+                raise NoSuitableMastersException(imagetyp)
 
             self.sb._add_image_abspath(
                 scored_masters[0].candidate
