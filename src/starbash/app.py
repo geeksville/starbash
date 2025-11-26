@@ -57,7 +57,7 @@ def setup_logging(console: rich.console.Console):
         level=starbash.log_filter_level,  # use the global log filter level
         format="%(message)s",
         datefmt="[%X]",
-        handlers=handlers,
+        handlers=handlers,  # if this is included it hangs while spinners/liveviews if doit capture is also enabled
     )
 
 

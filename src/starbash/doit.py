@@ -122,6 +122,11 @@ class StarbashDoit(TaskLoader2):
         """
         if task_dict["name"] in self.dicts:
             raise ValueError(f"Task with name {task_dict['name']} already exists.")
+
+        task_dict["io"] = {
+            "capture": False
+        }  # Important to turn off doit iocapture - it breaks rich logging
+
         self.dicts[task_dict["name"]] = task_dict
 
     def run(self, args: list[str] = []) -> int:

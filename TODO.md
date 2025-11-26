@@ -195,8 +195,8 @@
 * [x] make single channel OSC work
 * [x] share OSC code between dual duo and single channel OSC
 * [x] create the ProcessedTarget by referring to the processed repo path info (need context first)
-* [ ] debug logs are busted!
-* [ ] fix Seestar m81 (no bias or flat cal frames)
+* [x] debug logs are busted!
+* [x] fix Seestar m81 (no bias or flat cal frames)
 * [ ] store the various ScoredCandiates in the toml file (for consider masters) - use same convention as exluded scripts
 * [ ] fix the results display so that tests can work again
 * [x] fix flats with new system
