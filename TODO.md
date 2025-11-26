@@ -198,11 +198,12 @@
 * [x] debug logs are busted!
 * [x] fix Seestar m81 (no bias or flat cal frames)
 * [ ] store the various ScoredCandiates in the toml file (for consider masters) - use same convention as exluded scripts
-* [ ] fix the results display so that tests can work again
+* [ ] Fix processing results display
+* [ ] make integration test robust again
 * [x] fix flats with new system
 * [x] use user selected values from the toml file
 * [x] try a test run on just a dual duo filter set
-* [ ] change masters over to using this same mechanism - hook together via dependencies
+* [ ] make master gen fully automatic as needed - hook together via dependencies
 * [x] implement _filter_by_requires
 * [x] change context["output"] to be a dataclass rather than a dict
 * [ ] use get_safe more pervasively, pass in a help string to it (to indicate source of failure)

@@ -349,14 +349,13 @@ class Processing:
             targets: List of target names (normalized) to process, or None to process
             all the master frames."""
 
-        job_task = self.progress.add_task("Processing targets...", total=len(targets))
+        # job_task = self.progress.add_task("Processing targets...", total=len(targets))
 
-        results: list[ProcessingResult] = []
         try:
             for target in targets:
-                desc_str = f"Processing target {target}..." if target else "Processing masters..."
+                # desc_str = f"Processing target {target}..." if target else "Processing masters..."
 
-                self.progress.update(job_task, description=desc_str)
+                # self.progress.update(job_task, description=desc_str)
 
                 if target:
                     # select sessions for this target
@@ -371,8 +370,7 @@ class Processing:
                     # all sessions for that target as a group
                     with ProcessingContext(self, target):
                         self.sessions = sessions
-                        result = self._process_job(target, "processed")
-                        results.append(result)
+                        self._job_to_tasks(target, "processed")
                 else:
                     for s in sessions:
                         # For masters we process each session individually
@@ -382,14 +380,16 @@ class Processing:
 
                             self.sessions = [s]
                             job_desc = f"master_{s.get('id', 'unknown')}"
-                            result = self._process_job(job_desc, "master")
-                            results.append(result)
+                            self._job_to_tasks(job_desc, "master")
 
                 # We made progress - call once per iteration ;-)
-                self.progress.advance(job_task)
+                # self.progress.advance(job_task)
         finally:
-            self.progress.remove_task(job_task)
+            # self.progress.remove_task(job_task)
+            pass
 
+        results: list[ProcessingResult] = []
+        self._run_jobs()
         return results
 
     def _get_sessions_by_imagetyp(self, imagetyp: str) -> list[SessionRow]:
@@ -555,62 +555,72 @@ class Processing:
 
         return results
 
-    def _process_job(self, job_name: str, output_kind: str) -> ProcessingResult:
+    @property
+    def tasks(self) -> list[TaskDict]:
+        """Get the list of tasks generated for the current processing run."""
+        return list[TaskDict](self.doit.dicts.values())
+
+    def _add_task(self, task: TaskDict) -> None:
+        """Add a task to the doit task list."""
+        self.doit.add_task(task)
+
+    def _run_jobs(self) -> None:
+        # add a default task to run all the other tasks
+        self._add_task(create_default_task(self.tasks))
+
+        tree = to_tree(self.tasks)
+        from starbash import console
+
+        console.print(tree)
+
+        # fire up doit to run the tasks
+        # FIXME, perhaps we could run doit one level higher, so that all targets are processed by doit
+        # for parallism etc...?
+        self.doit.run(["list", "--all", "--status"])
+
+        logging.info("Running doit tasks...")
+        doit_args: list[str] = []
+        doit_args.append("-a")  # force rebuild
+        doit_args.append("process_all")
+        result_code = self.doit.run(doit_args)  # light_{self.target}_s35
+
+        # Start with a blank task list next time
+        self.doit.dicts.clear()
+
+        # FIXME - it would be better to call a doit entrypoint that lets us catch the actual Doit exception directly
+        if result_code != 0:
+            raise RuntimeError(f"doit processing failed with exit code {result_code}")
+
+    def _job_to_tasks(self, job_name: str, output_kind: str) -> None:
         """Do processing for a particular target/master
         (i.e. all selected sessions for a particular complete processing run)."""
 
-        result = ProcessingResult(target=job_name, sessions=self.sessions)
+        # result = ProcessingResult(target=job_name, sessions=self.sessions)
 
         self._set_output_by_kind(output_kind)
 
         with ProcessedTarget(self, output_kind) as pt:
             pt.config_valid = False  # assume our config is not worth writing
-            self.processed_target = pt
-            try:
-                stages = self._get_stages()
-                self._stages_to_tasks(stages)
-                tree = to_tree(self.doit.dicts.values())
-                from starbash import console
 
-                console.print(tree)
-                self.preflight_tasks()
-                # fire up doit to run the tasks
-                # FIXME, perhaps we could run doit one level higher, so that all targets are processed by doit
-                # for parallism etc...?
-                self.doit.run(["list", "--all", "--status"])
-                # self.doit.run(
-                #     [
-                #         "info",
-                #         "process_all",  # "stack_m20",  # seqextract_haoiii_m20_s35
-                #     ]
-                # )
-                # self.doit.run(["dumpdb"])
-                pt.config_valid = True  # our config is probably worth keeping
-                logging.info("Running doit tasks...")
-                doit_args: list[str] = []
-                doit_args.append("-a")  # force rebuild
-                doit_args.append("process_all")
-                result_code = self.doit.run(doit_args)  # light_{self.target}_s35
+            stages = self._get_stages()
+            self._stages_to_tasks(stages)
 
-                # FIXME we shouldn't need to do this (because all processing jobs should be resolved with a single doit.run)
-                # but currently we call doit.run() per target/master.  So clear out the doit rules so they are ready for the
-                # next attempt.
-                self.doit.dicts.clear()
+            self.doit.set_tasks(self.preflight_tasks(pt, self.tasks))
+            # self.doit.run(
+            #     [
+            #         "info",
+            #         "process_all",  # "stack_m20",  # seqextract_haoiii_m20_s35
+            #     ]
+            # )
+            # self.doit.run(["dumpdb"])
+            pt.config_valid = True  # our config is probably worth keeping
 
-                # FIXME - it would be better to call a doit entrypoint that lets us catch the actual Doit exception directly
-                if result_code != 0:
-                    raise RuntimeError(f"doit processing failed with exit code {result_code}")
-
-                # FIXME have doit tasks store into a ProcessingResults object somehow
-                # declare success
-                update_processing_result(result)
-            except Exception as e:
-                task_exception = e
-                update_processing_result(result, task_exception)
-            finally:
-                self.processed_target = None
-
-        return result
+            # FIXME have doit tasks store into a ProcessingResults object somehow
+            # declare success
+            # update_processing_result(result)
+            # except Exception as e:
+            # task_exception = e
+            # update_processing_result(result, task_exception)
 
     def _get_stages(self, name: str = "stages") -> list[StageDict]:
         """Get all pipeline stages defined in the merged configuration."""
@@ -808,8 +818,6 @@ class Processing:
 
         self._add_stage_context_defs(stage)
 
-        current_tasks = []  # Reset the list of tasks for the previous stage, we keep them for "job" imports
-
         # If we have any session inputs, this stage is multiplexed (one task per session)
         need_multiplex = has_session_in or has_session_extra_in
         if need_multiplex:
@@ -824,7 +832,7 @@ class Processing:
 
                 t = self._create_task_dict(stage)
                 if t:
-                    current_tasks.append(t)
+                    self._add_task(t)
                     # keep a ptr to the task for this stage - note: we "tasks" vs "task" for the multiplexed case
                     # stage.setdefault("tasks", []).append(t)
         else:
@@ -834,7 +842,7 @@ class Processing:
             # Single task (no multiplexing) - e.g., final stacking or post-processing
             t = self._create_task_dict(stage)
             if t:
-                current_tasks.append(t)
+                self._add_task(t)
             # stage["task"] = t  # keep a ptr to the task for this stage
 
     def _get_unique_task_name(self, task_name: str) -> str:
@@ -905,9 +913,9 @@ class Processing:
                 _stage_to_doc(task_dict, stage)  # add the doc string
 
             doit_post_process(task_dict)
-            self.doit.add_task(task_dict)
 
             return task_dict
+
         except NotEnoughFilesError as e:
             # if the session was empty that probably just means it was completely filtered as a bad match
             level = logging.DEBUG if len(e.files) == 0 else logging.WARNING
@@ -996,12 +1004,7 @@ class Processing:
 
         return FileInfo(image_rows=image_rows)
 
-    def preflight_tasks(self) -> None:
-        tasks: list[TaskDict] = list[TaskDict](self.doit.dicts.values())  # all our tasks
-
-        pt = self.processed_target
-        assert pt  # should be set by now
-
+    def preflight_tasks(self, pt: ProcessedTarget, tasks: list[TaskDict]) -> list[TaskDict]:
         # if user has excluded any stages, we need to respect that (remove matching stages)
         excluded = pt.get_excluded("stages")
         tasks = remove_tasks_by_stage_name(tasks, excluded)
@@ -1035,14 +1038,10 @@ class Processing:
                 tasks = remove_tasks_by_stage_name(tasks, pt.get_excluded("stages"))
                 break  # We can exit the loop now because we've culled down to only non conflicting stages
 
-        # we might have changed tasks, so update doit
-        self.doit.set_tasks(tasks)
-
         # update our toml with what we used
         pt.set_used("stages", [stage_with_comment(s) for s in tasks_to_stages(tasks)])
 
-        # add a default task to run all the other tasks
-        self.doit.add_task(create_default_task(tasks))
+        return tasks
 
     def _resolve_input_files(self, input: InputDef) -> list[Path]:
         """Resolve input file paths for a stage.
