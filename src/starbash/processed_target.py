@@ -25,6 +25,8 @@ class ProcessingLike(Protocol):
     recipes_considered: list[Repo]
     sb: Starbash
 
+    def add_result(self, result: Any) -> None: ...
+
 
 class ProcessedTarget:
     """The repo file based config for a single processed target.

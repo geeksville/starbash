@@ -6,7 +6,6 @@ import os
 import shutil
 import tempfile
 import textwrap
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +24,14 @@ from starbash.database import (
     metadata_to_camera_id,
     metadata_to_instrument_id,
 )
-from starbash.doit import StarbashDoit, TaskDict, doit_do_copy, doit_post_process
+from starbash.doit import (
+    FileInfo,
+    ProcessingResult,
+    StarbashDoit,
+    TaskDict,
+    doit_do_copy,
+    doit_post_process,
+)
 from starbash.exception import (
     NoSuitableMastersException,
     NotEnoughFilesError,
@@ -42,43 +48,8 @@ from starbash.tool import expand_context_list, expand_context_unsafe, tools
 
 __all__ = [
     "Processing",
-    "ProcessingResult",
     "ProcessingContext",
-    "update_processing_result",
 ]
-
-
-@dataclass
-class ProcessingResult:
-    target: str  # normalized target name, or in the case of masters the camera or instrument id
-    sessions: list[SessionRow] = field(
-        default_factory=list
-    )  # the input sessions processed to make this result
-    success: bool | None = None  # false if we had an error, None if skipped
-    notes: str | None = None  # notes about what happened
-    # FIXME, someday we will add information about masters/flats that were used?
-
-
-def update_processing_result(result: ProcessingResult, e: Exception | None = None) -> None:
-    """Handle exceptions during processing and update the ProcessingResult accordingly."""
-
-    result.success = True  # assume success
-    if e:
-        result.success = False
-
-        if isinstance(e, UserHandledError):
-            if e.ask_user_handled():
-                logging.debug("UserHandledError was handled.")
-            result.notes = e.__rich__()  # No matter what we want to show the fault in our results
-
-        elif isinstance(e, RuntimeError):
-            # Print errors for runtimeerrors but keep processing other runs...
-            logging.error(f"Skipping run due to: {e}")
-            result.notes = f"Aborted due to possible error in (alpha) code, please file bug on our github: {str(e)}"
-        else:
-            # Unexpected exception - log it and re-raise
-            logging.exception("Unexpected error during processing:")
-            raise e
 
 
 max_contexts = 3  # FIXME, make customizable
@@ -169,48 +140,6 @@ class ProcessingContext:
 
 class NoPriorTaskException(Exception):
     """Exception raised when a prior task specified in 'after' cannot be found."""
-
-
-@dataclass
-class FileInfo:
-    """Dataclass to hold output context information.
-    To make for easier syntactic sugar when expanding context variables."""
-
-    base: str | None = None  # The directory name component of the path
-    full: Path | None = (
-        None  # The full filepath without spaces - because Siril doesn't like that, might contain wildcards
-    )
-    relative: str | None = None  # the relative path within the repository
-    repo: Repo | None = None  # The repo this file is within
-    image_rows: list[ImageRow] | None = None  # List of individual files (if applicable)
-
-    @property
-    def short_paths(self) -> list[str]:
-        """Get the list of individual file paths from this FileInfo.
-
-        Returns:
-            List of Path objects for individual files. (relative to the base directory)
-        """
-        if self.image_rows is not None:
-            return [img["path"] for img in self.image_rows]
-        elif self.base is not None:
-            return [self.base]
-        else:
-            return []
-
-    @property
-    def full_paths(self) -> list[Path]:
-        """Get the list of individual file paths from this FileInfo.
-
-        Returns:
-            List of Path objects for individual files. (full abs paths)
-        """
-        if self.image_rows is not None:
-            return [img["abspath"] for img in self.image_rows]
-        elif self.full is not None:
-            return [self.full]
-        else:
-            return []
 
 
 def _make_imagerow(dir: Path, path: str) -> ImageRow:
@@ -311,6 +240,8 @@ class Processing:
         )
         self.stage: StageDict | None = None  # the stage we are currently processing
 
+        self.results: list[ProcessingResult] = []
+
     # --- Lifecycle ---
     def close(self) -> None:
         pass
@@ -332,6 +263,10 @@ class Processing:
         # Update the context with runtime values.
         runtime_context = {}
         self.context.update(runtime_context)
+
+    def add_result(self, result: ProcessingResult) -> None:
+        """Add a processing result to the list of results."""
+        self.results.append(result)
 
     def _run_all_targets(
         self, sessions: list[SessionRow], targets: list[str | None]
@@ -368,9 +303,9 @@ class Processing:
                         job_desc = f"master_{s.get('id', 'unknown')}"
                         self._job_to_tasks(job_desc, "master")
 
-        results: list[ProcessingResult] = []
+        self.results.clear()
         self._run_jobs()
-        return results
+        return self.results
 
     def _get_sessions_by_imagetyp(self, imagetyp: str) -> list[SessionRow]:
         """Get all sessions that are relevant for master frame generation.
@@ -595,13 +530,6 @@ class Processing:
             # self.doit.run(["dumpdb"])
             pt.config_valid = True  # our config is probably worth keeping
 
-            # FIXME have doit tasks store into a ProcessingResults object somehow
-            # declare success
-            # update_processing_result(result)
-            # except Exception as e:
-            # task_exception = e
-            # update_processing_result(result, task_exception)
-
     def _get_stages(self, name: str = "stages") -> list[StageDict]:
         """Get all pipeline stages defined in the merged configuration."""
         # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
@@ -792,9 +720,9 @@ class Processing:
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (not has_session_extra_in), (
-            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
-        )
+        assert (not has_session_in) or (
+            not has_session_extra_in
+        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
 
         self._add_stage_context_defs(stage)
 
@@ -1004,9 +932,9 @@ class Processing:
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
                 conflicting_stages = tasks_to_stages(producing_tasks)
-                assert len(conflicting_stages) > 1, (
-                    "Multiple conflicting tasks must imply multiple conflicting stages?"
-                )
+                assert (
+                    len(conflicting_stages) > 1
+                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
 
                 names = [t["name"] for t in conflicting_stages]
                 logging.warning(

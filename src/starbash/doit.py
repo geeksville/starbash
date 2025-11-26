@@ -1,5 +1,7 @@
 import logging
 import shutil
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from doit.action import BaseAction
@@ -11,6 +13,9 @@ from doit.task import Task, dict_to_task
 from rich.progress import Progress, TaskID
 
 import starbash
+from repo import Repo
+from starbash.database import ImageRow, SessionRow
+from starbash.exception import UserHandledError
 from starbash.paths import get_user_cache_dir
 from starbash.processed_target import ProcessingLike
 from starbash.tool import Tool
@@ -29,6 +34,48 @@ __all__ = [
 ]
 
 type TaskDict = dict[str, Any]  # a doit task dictionary
+
+
+@dataclass
+class FileInfo:
+    """Dataclass to hold output context information.
+    To make for easier syntactic sugar when expanding context variables."""
+
+    base: str | None = None  # The directory name component of the path
+    full: Path | None = (
+        None  # The full filepath without spaces - because Siril doesn't like that, might contain wildcards
+    )
+    relative: str | None = None  # the relative path within the repository
+    repo: Repo | None = None  # The repo this file is within
+    image_rows: list[ImageRow] | None = None  # List of individual files (if applicable)
+
+    @property
+    def short_paths(self) -> list[str]:
+        """Get the list of individual file paths from this FileInfo.
+
+        Returns:
+            List of Path objects for individual files. (relative to the base directory)
+        """
+        if self.image_rows is not None:
+            return [img["path"] for img in self.image_rows]
+        elif self.base is not None:
+            return [self.base]
+        else:
+            return []
+
+    @property
+    def full_paths(self) -> list[Path]:
+        """Get the list of individual file paths from this FileInfo.
+
+        Returns:
+            List of Path objects for individual files. (full abs paths)
+        """
+        if self.image_rows is not None:
+            return [img["abspath"] for img in self.image_rows]
+        elif self.full is not None:
+            return [self.full]
+        else:
+            return []
 
 
 def doit_do_copy(task_dict: TaskDict):
@@ -102,6 +149,38 @@ class ToolAction(BaseAction):
         return f"ToolAction(tool={self.tool.name}, commands={self.commands})"
 
 
+@dataclass
+class ProcessingResult:
+    target: str  # normalized target name, or in the case of masters the camera or instrument id
+    sessions: list[SessionRow] = field(
+        default_factory=list
+    )  # the input sessions processed to make this result
+    success: bool | None = None  # false if we had an error, None if skipped
+    notes: str | None = None  # notes about what happened
+    # FIXME, someday we will add information about masters/flats that were used?
+
+    def update(self, e: Exception | None = None) -> None:
+        """Handle exceptions during processing and update the ProcessingResult accordingly."""
+
+        self.success = True  # assume success
+        if e:
+            self.success = False
+
+            if isinstance(e, UserHandledError):
+                if e.ask_user_handled():
+                    logging.debug("UserHandledError was handled.")
+                self.notes = e.__rich__()  # No matter what we want to show the fault in our results
+
+            elif isinstance(e, RuntimeError):
+                # Print errors for runtimeerrors but keep processing other runs...
+                logging.error(f"Skipping run due to: {e}")
+                self.notes = f"Aborted due to possible error in (alpha) code, please file bug on our github: {str(e)}"
+            else:
+                # Unexpected exception - log it and re-raise
+                logging.exception("Unexpected error during processing:")
+                raise e
+
+
 class MyReporter(ConsoleReporter):
     """A custom reporter that uses rich progress bars to show task progress."""
 
@@ -113,22 +192,33 @@ class MyReporter(ConsoleReporter):
     def execute_task(self, task):
         """Called just before running a task"""
         # self.outstream.write("MyReporter --> %s\n" % task.title())
-        self.progress.update(self.job_task, description=task.title())
+        self.progress.update(self.job_task, description=task.title(), refresh=True)
+
+    def _handle_completion(self, task: Task, fail: BaseFail | None = None) -> None:
+        # We made progress - call once per iteration ;-)
+        self.progress.advance(self.job_task)
+
+        processing: ProcessingLike | None = task.meta and task.meta.get("processing")
+        if task.meta and processing:
+            context: dict[str, Any] = task.meta.get("context", {})
+            output: FileInfo | None = context.get("output")
+            target = context.get("target")
+            if not target and output and output.relative:
+                target = output.relative
+
+            result = ProcessingResult(target=target or "unknown")
+            result.update(fail)
+            processing.add_result(result)
 
     def add_success(self, task):
         """called when execution finishes successfully (either this or add_failure is guaranteed to be called)"""
         super().add_success(task)
-
-        # We made progress - call once per iteration ;-)
-        self.progress.advance(self.job_task)
+        self._handle_completion(task)
 
     def add_failure(self, task, fail: BaseFail):
         """called when execution finishes with a failure"""
         super().add_failure(task, fail)
-
-        # We made progress - call once per iteration ;-)
-        assert self.progress and self.job_task
-        self.progress.advance(self.job_task)
+        self._handle_completion(task, fail)
 
     def initialize(self, tasks, selected_tasks):
         """called just after tasks have been loaded before execution starts
