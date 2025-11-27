@@ -121,6 +121,7 @@
 * [x] implement setup command (including username selection and analytics)
 * [x] include instrument name in session list (for seestar,asiair,etc)
 * [x] select default output should show summary info for current target & telescope.
+* [x] REVLOCK the recipies repo so old builds keep working!
 * [ ] sort the masters list display
 * [x] fix auto generation of processed directory paths
 * [ ] track image quality on a per frame basis
