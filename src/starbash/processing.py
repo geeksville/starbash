@@ -367,15 +367,13 @@ class Processing:
 
         targets_list: list[str | None] = list(targets)
 
-        # FIXME - to merge master processing we need to create tasks without a target specified
-        # auto_process_masters = True
-        # master_sessions = self._get_master_sessions()
-        # if auto_process_masters:
-        #    self._remove_duplicates(master_sessions, already_processed)
+        tasks = []
+        auto_process_masters = True
+        if auto_process_masters:
+            tasks.extend(self._create_master_tasks())
 
-        master_tasks = self._create_master_tasks()
-        target_tasks = self._create_tasks(sessions, targets_list)
-        return self._run_all_tasks(master_tasks + target_tasks)
+        tasks.extend(self._create_tasks(sessions, targets_list))
+        return self._run_all_tasks(tasks)
 
     def _set_session_in_context(self, session: SessionRow) -> None:
         """adds to context from the indicated session:
@@ -928,17 +926,21 @@ class Processing:
                 if isinstance(file_info, FileInfo) and file_info.image_rows:
                     images = file_info.image_rows
                     images = [self._with_defaults(img) for img in images]
-                    task_filtered_input = filter_by_requires(input, images)
-                    if (
-                        task_filtered_input
-                    ):  # This task had matching inputs for us, so therefore we want its outputs
-                        task_output = task_context.get("output")
+                    try:
+                        task_filtered_input = filter_by_requires(input, images)
                         if (
-                            task_output
-                            and isinstance(task_output, FileInfo)
-                            and task_output.image_rows
-                        ):
-                            image_rows.extend(task_output.image_rows)
+                            task_filtered_input
+                        ):  # This task had matching inputs for us, so therefore we want its outputs
+                            task_output = task_context.get("output")
+                            if (
+                                task_output
+                                and isinstance(task_output, FileInfo)
+                                and task_output.image_rows
+                            ):
+                                image_rows.extend(task_output.image_rows)
+                    except NotEnoughFilesError as e:
+                        # just because one prior task doesn't have what we need, we shouldn't stop looking
+                        logging.debug(f"Prior task '{task['name']}' skipped, still looking...S {e}")
 
         return FileInfo(image_rows=image_rows)
 

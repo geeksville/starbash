@@ -200,10 +200,10 @@
 * [x] create the ProcessedTarget by referring to the processed repo path info (need context first)
 * [x] debug logs are busted!
 * [x] fix Seestar m81 (no bias or flat cal frames)
-* [ ] why is process all not processing all?
-* [ ] m20 should pick dual duo but it isn't
+* [x] why is process all not processing all?
+* [x] m20 should pick dual duo but it isn't
 * [ ] store the various ScoredCandiates in the toml file (for considered masters) - use same convention as exluded scripts
-* [ ] Fix processing results display
+* [x] Fix processing results display
 * [ ] make integration test robust again
 * [x] fix flats with new system
 * [x] use user selected values from the toml file

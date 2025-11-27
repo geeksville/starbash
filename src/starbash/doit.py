@@ -1,6 +1,6 @@
 import logging
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +14,7 @@ from rich.progress import Progress, TaskID
 
 import starbash
 from repo import Repo
-from starbash.database import ImageRow, SessionRow
+from starbash.database import ImageRow
 from starbash.exception import UserHandledError
 from starbash.paths import get_user_cache_dir
 from starbash.processed_target import ProcessingLike
@@ -159,17 +159,16 @@ class ToolAction(BaseAction):
 @dataclass
 class ProcessingResult:
     target: str  # normalized target name, or in the case of masters the camera or instrument id
-    sessions: list[SessionRow] = field(
-        default_factory=list
-    )  # the input sessions processed to make this result
+    session_desc: str = ""  # the input sessions processed to make this result
     success: bool | None = None  # false if we had an error, None if skipped
+    reason: str | None = (
+        None  # reason for failure/skipping (either "processed", "skipped", "ignored", "failed")
+    )
     notes: str | None = None  # notes about what happened
     # FIXME, someday we will add information about masters/flats that were used?
 
     def update(self, e: Exception | BaseFail | None = None) -> None:
         """Handle exceptions during processing and update the ProcessingResult accordingly."""
-
-        self.success = True  # assume success
         if e:
             self.success = False
 
@@ -202,7 +201,13 @@ class MyReporter(ConsoleReporter):
         # self.outstream.write("MyReporter --> %s\n" % task.title())
         self.progress.update(self.job_task, description=task.title(), refresh=True)
 
-    def _handle_completion(self, task: Task, fail: BaseFail | None = None) -> None:
+    def _handle_completion(
+        self,
+        task: Task,
+        fail: BaseFail | None = None,
+        reason: str | None = None,
+        success: bool | None = True,
+    ) -> None:
         # We made progress - call once per iteration ;-)
         self.progress.advance(self.job_task)
 
@@ -214,10 +219,21 @@ class MyReporter(ConsoleReporter):
             if not target and output and output.relative:
                 target = output.relative
 
-            result = ProcessingResult(target=target or "unknown")
+            result = ProcessingResult(target=target or "unknown", reason=reason, success=success)
             e = task.meta.get("exception")  # try to pass our raw exception if possible
+            result.session_desc = f"{context.get('date', '')}:{context.get('session_config', '')}"
+
+            result.notes = task.name  # default nodes just show the task name
             result.update(e or fail)
             processing.add_result(result)
+
+    def skip_uptodate(self, task):
+        """skipped up-to-date task"""
+        self._handle_completion(task, reason="Current", success=None)
+
+    def skip_ignore(self, task):
+        """skipped ignored task"""
+        self._handle_completion(task, reason="Ignored", success=None)
 
     def add_success(self, task):
         """called when execution finishes successfully (either this or add_failure is guaranteed to be called)"""

@@ -109,26 +109,23 @@ def print_results(
 
     table = Table(title=title, show_header=True, header_style=TABLE_HEADER_STYLE)
     table.add_column("Target", style=TABLE_COLUMN_STYLE, no_wrap=True)
-    table.add_column("Sessions", justify="right", style=TABLE_COLUMN_STYLE)
+    table.add_column("Session", justify="right", style=TABLE_COLUMN_STYLE)
     table.add_column("Status", justify="center", style=TABLE_COLUMN_STYLE)
     table.add_column("Notes", style=TABLE_COLUMN_STYLE)
 
     for result in results:
         # Format status with color
         if result.success is True:
-            status = "[green]✓ Success[/green]"
+            status = f"[green]✓ {result.reason or 'Success'}[/green]"
         elif result.success is False:
-            status = "[red]✗ Failed[/red]"
+            status = f"[red]✗ {result.reason or 'Failed'}[/red]"
         else:
-            status = "[yellow]⊘ Skipped[/yellow]"
-
-        # Format session count
-        session_count = str(len(result.sessions))
+            status = f"[yellow]⊘ {result.reason or 'Skipped'}[/yellow]"
 
         # Format notes (truncate if too long)
         notes = result.notes or ""
 
-        table.add_row(result.target, session_count, status, notes)
+        table.add_row(result.target, result.session_desc, status, notes)
 
     console.print(table)
 

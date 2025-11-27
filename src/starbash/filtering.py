@@ -93,7 +93,7 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
             if accept_single and len(filtered_candidates) == 1:
                 raise FallbackToImageException(filtered_candidates[0])
             raise NotEnoughFilesError(
-                f"Stage requires >{value} input files ({len(filtered_candidates)} found)",
+                f"Stage requires >={value} input files ({len(filtered_candidates)} found)",
                 [img.get("path", "unknown") for img in filtered_candidates],
             )
 
