@@ -751,9 +751,9 @@ class Processing:
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (
-            not has_session_extra_in
-        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        assert (not has_session_in) or (not has_session_extra_in), (
+            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        )
 
         self._add_stage_context_defs(stage)
 
@@ -967,9 +967,9 @@ class Processing:
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
                 conflicting_stages = tasks_to_stages(producing_tasks)
-                assert (
-                    len(conflicting_stages) > 1
-                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
+                assert len(conflicting_stages) > 1, (
+                    "Multiple conflicting tasks must imply multiple conflicting stages?"
+                )
 
                 names = [t["name"] for t in conflicting_stages]
                 logging.warning(
@@ -1105,17 +1105,27 @@ class Processing:
             if len(scored_masters) == 0:
                 raise NoSuitableMastersException(imagetyp)
 
+            used_candidates = [scored_masters[0]]  # FIXME, for now we just pick the top one
+            excluded_candidates = scored_masters[1:]
+
             self.sb._add_image_abspath(
-                scored_masters[0].candidate
+                used_candidates[0].candidate
             )  # make sure abspath is populated, we need it
 
-            selected_master = scored_masters[0].candidate["abspath"]
+            selected_master = used_candidates[0].candidate["abspath"]
             logging.info(
-                f"For master '{imagetyp}', using: {selected_master} (score={scored_masters[0].score:.1f}, {scored_masters[0].reason})"
+                f"For master '{imagetyp}', using: {selected_master} (score={used_candidates[0].score:.1f}, {used_candidates[0].reason})"
             )
 
             # so scripts can find input["bias"].base etc...
-            ci[imagetyp] = FileInfo(full=selected_master)
+            info = FileInfo(full=selected_master)
+            # Store the canidates we considered so they eventually end up in the toml fole
+            session_masters = self.session.setdefault("masters", {})
+            session_masters[imagetyp] = {
+                "used": used_candidates,
+                "excluded": excluded_candidates,
+            }
+            ci[imagetyp] = info
 
             return [selected_master]
 

@@ -7,7 +7,7 @@ import tomlkit
 from repo import Repo, repo_suffix
 from starbash.app import ScoredCandidate, Starbash
 from starbash.database import SessionRow
-from starbash.toml import CommentedString, toml_from_template
+from starbash.toml import AsTomlMixin, CommentedString, toml_from_template
 
 __all__ = [
     "ProcessedTarget",
@@ -68,12 +68,12 @@ class ProcessedTarget:
             True  # You can set this to False if you'd like to suppress writing the toml to disk
         )
 
-    def set_used(self, name: str, used: list[CommentedString]) -> None:
+    def set_used(self, name: str, used: list[AsTomlMixin]) -> None:
         """Set the used lists for the given section."""
         node = self.repo.get(name, {}, do_create=True)
         node["used"] = used
 
-    def set_excluded(self, name: str, excluded: list[CommentedString]) -> None:
+    def set_excluded(self, name: str, excluded: list[AsTomlMixin]) -> None:
         """Set the excluded lists for the given section."""
         node = self.repo.get(name, {}, do_create=True)
         node["excluded"] = excluded
@@ -97,27 +97,29 @@ class ProcessedTarget:
             masters: dict[str, list[ScoredCandidate]] | None = sess.get("masters")
 
             to_add = sess.copy()
-            to_add.pop("masters", None)  # masters is not serializable
+            if False:  # auto serialization works?
+                to_add.pop("masters", None)  # masters is not serializable
 
-            # session_options = self.repo.get("processing.session.options")
-            t = tomlkit.item(to_add)
+                # session_options = self.repo.get("processing.session.options")
+                t = tomlkit.item(to_add)
 
-            if masters:
-                # a dict from masters k to as_toml values
-                masters_out = tomlkit.table()
-                for k, vlist in masters.items():
-                    array_out = tomlkit.array()
-                    for v in vlist:
-                        array_out.add_line(v.candidate["path"], comment=v.get_comment)
-                    array_out.add_line()  # MUST add a trailing line so the closing ] is on its own line
-                    masters_out.append(k, array_out)
+                if masters:
+                    # a dict from masters k to as_toml values
+                    masters_out = tomlkit.table()
+                    for k, vlist in masters.items():
+                        array_out = tomlkit.array()
+                        for v in vlist:
+                            array_out.add_line(v.candidate["path"], comment=v.get_comment)
+                        array_out.add_line()  # MUST add a trailing line so the closing ] is on its own line
+                        masters_out.append(k, array_out)
 
-                options_out = tomlkit.table()
-                options_out.append("master", masters_out)
+                    options_out = tomlkit.table()
+                    options_out.append("master", masters_out)
 
-                t.append("options", options_out)
-
-            proc_sessions.append(t)
+                    t.append("options", options_out)
+                    proc_sessions.append(t)
+            else:
+                proc_sessions.append(sess)
 
         proc_options = self.repo.get("processing.recipe.options", {})
 

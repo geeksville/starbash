@@ -41,11 +41,16 @@ exposure = 120                 # Average exposure in seconds
 filter = "HaOiii"              # all images of a session are guaranteed to have the same filter
 metadata.FOO = "blah"
 
-# if masters were SPECIFICALLY selected for use processing this session they will be listed here
-# Set this to override the auto selection from sessions.options (below)
-master.flat = "/blag/blah.fits"
-master.dark = ""
-master.bias = ""
+[sessions.masters.flat]
+excluded = [
+    "foo/blah/blah2.fits", # this is a scored candidate
+    "foo/blah/blah3.fits"
+]
+used = [
+    "foo/blah/blah.fits",
+]
+
+# master.bias, master.dark would be similar if needed
 
 # either images.url or images.dir must be present
 

@@ -211,7 +211,7 @@
 * [x] fix Seestar m81 (no bias or flat cal frames)
 * [x] why is process all not processing all?
 * [x] m20 should pick dual duo but it isn't
-* [ ] store the various ScoredCandiates in the toml file (for considered masters) - use same convention as exluded scripts
+* [x] store the various ScoredCandiates in the toml file (for considered masters) - use same convention as exluded scripts
 * [x] Fix processing results display
 * [ ] make integration test robust again
 * [x] fix flats with new system
