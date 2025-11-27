@@ -59,7 +59,7 @@ SiiHb = ["SiiHb", "S2Hb"]
 # our python blob)
 # url = "pkg://recipes"
 # We now (finally) fetch our recipes from the sister github repo via http
-url = "https://raw.githubusercontent.com/geeksville/starbash-recipes/refs/heads/main"
+url = "https://raw.githubusercontent.com/geeksville/starbash-recipes/refs/heads/v0.1.21"
 
 # [[repo-ref]]
 
