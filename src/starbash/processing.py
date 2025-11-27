@@ -705,7 +705,7 @@ class Processing:
                 prior_task = prior_tasks
 
             context = prior_task["meta"]["context"]
-            old_session = context.get("session")
+            old_session = self.context.get("session")
             self.context = copy.deepcopy(context)
 
             if multiplexed:
@@ -714,8 +714,6 @@ class Processing:
                 self.context.pop("session", None)  # remove the just added session
                 if old_session:
                     self.context["session"] = old_session  # restore our old session
-                # if old_session:
-                #    self.context["session"] = old_session
 
     def _stage_to_tasks(self, stage: StageDict) -> None:
         """Convert the given stage to doit task(s) and add them to our doit task list.

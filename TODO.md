@@ -122,6 +122,8 @@
 * [x] include instrument name in session list (for seestar,asiair,etc)
 * [x] select default output should show summary info for current target & telescope.
 * [x] REVLOCK the recipies repo so old builds keep working!
+* [x] dependencies should auto skip rebuilds - though only within the 3 build cache limit
+* [x] fix remaining failure in m20 target - the final stack_dual_duo is missing dependencies on the s35 prior stage outputs and has 2x dependencies on s36
 * [ ] sort the masters list display
 * [x] fix auto generation of processed directory paths
 * [ ] track image quality on a per frame basis
