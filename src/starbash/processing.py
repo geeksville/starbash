@@ -12,6 +12,7 @@ from typing import Any
 from multidict import MultiDict
 from tomlkit.items import AoT
 
+import starbash
 from repo import Repo
 from starbash import InputDef, OutputDef, StageDict
 from starbash.aliases import get_aliases, normalize_target_name
@@ -277,21 +278,24 @@ class Processing:
             targets: List of target names (normalized) to process, or None to process
             all the master frames."""
 
+        all_tasks: list[
+            TaskDict
+        ] = []  # We merge all the tasks into this list - because we regenerate sb.doit.dicts each iteration
         for target in targets:
-            if target:
-                # select sessions for this target
-                sessions = self.sb.filter_sessions_by_target(sessions, target)
-
             # we only want sessions with light frames
             # NOT NEEDED - because the dependencies will end up ignoring sessions where all frames are filtered
             # target_sessions = self.sb.filter_sessions_by_imagetyp(target_sessions, "light")
-
             if target:
+                # select sessions for this target
+                sessions_this_target = self.sb.filter_sessions_by_target(sessions, target)
+
                 # We are processing a single target, so build the context around that, and process
                 # all sessions for that target as a group
                 with ProcessingContext(self, target):
-                    self.sessions = sessions
+                    self.sessions = sessions_this_target
                     self._job_to_tasks(target, "processed")
+                    all_tasks.extend(self.tasks)
+                    self.doit.set_tasks([])
             else:
                 for s in sessions:
                     # For masters we process each session individually
@@ -302,7 +306,10 @@ class Processing:
                         self.sessions = [s]
                         job_desc = f"master_{s.get('id', 'unknown')}"
                         self._job_to_tasks(job_desc, "master")
+                        all_tasks.extend(self.tasks)
+                        self.doit.set_tasks([])
 
+        self.doit.set_tasks(all_tasks)
         self.results.clear()
         self._run_jobs()
         return self.results
@@ -495,7 +502,8 @@ class Processing:
 
         logging.info("Running doit tasks...")
         doit_args: list[str] = []
-        doit_args.append("-a")  # force rebuild
+        if starbash.force_regen:
+            doit_args.append("-a")  # force rebuild
         doit_args.append("process_all")
         result_code = self.doit.run(doit_args)  # light_{self.target}_s35
 
@@ -697,12 +705,15 @@ class Processing:
                 prior_task = prior_tasks
 
             context = prior_task["meta"]["context"]
+            old_session = context.get("session")
             self.context = copy.deepcopy(context)
 
             if multiplexed:
                 # since we just did a nasty thing, we don't want to inadvertently think our current
                 # (possibly non multiplexed) stage is tied to the prior stage's session
-                self.context.pop("session", None)
+                self.context.pop("session", None)  # remove the just added session
+                if old_session:
+                    self.context["session"] = old_session  # restore our old session
                 # if old_session:
                 #    self.context["session"] = old_session
 
@@ -720,9 +731,9 @@ class Processing:
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (
-            not has_session_extra_in
-        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        assert (not has_session_in) or (not has_session_extra_in), (
+            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        )
 
         self._add_stage_context_defs(stage)
 
@@ -932,9 +943,9 @@ class Processing:
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
                 conflicting_stages = tasks_to_stages(producing_tasks)
-                assert (
-                    len(conflicting_stages) > 1
-                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
+                assert len(conflicting_stages) > 1, (
+                    "Multiple conflicting tasks must imply multiple conflicting stages?"
+                )
 
                 names = [t["name"] for t in conflicting_stages]
                 logging.warning(

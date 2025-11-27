@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from doit.action import BaseAction
+from doit.action import BaseAction, TaskFailed
 from doit.cmd_base import TaskLoader2
 from doit.doit_cmd import DoitMain
 from doit.exceptions import BaseFail
@@ -142,7 +142,14 @@ class ToolAction(BaseAction):
         context: dict[str, Any] = self.task.meta["context"]
 
         logging.debug(f"Running ToolAction for {self.task}")
-        self.result = self.tool.run(self.commands, context=context, cwd=self.cwd)
+        try:
+            self.result = self.tool.run(self.commands, context=context, cwd=self.cwd)
+        except ValueError as e:
+            # We pass back any exceptions in task.meta - so that our ConsoleReporter can pick them up (doit normally strips exceptions)
+            self.task.meta["exception"] = e
+            self.result = TaskFailed("tool failed")
+            # raise e  # Let doit do its normal exception handling though
+
         self.values = {}  # doit requires this attribute to be set
 
     def __str__(self) -> str:
@@ -159,18 +166,19 @@ class ProcessingResult:
     notes: str | None = None  # notes about what happened
     # FIXME, someday we will add information about masters/flats that were used?
 
-    def update(self, e: Exception | None = None) -> None:
+    def update(self, e: Exception | BaseFail | None = None) -> None:
         """Handle exceptions during processing and update the ProcessingResult accordingly."""
 
         self.success = True  # assume success
         if e:
             self.success = False
 
-            if isinstance(e, UserHandledError):
+            if isinstance(e, BaseFail):
+                self.notes = "Task failed: " + str(e)
+            elif isinstance(e, UserHandledError):
                 if e.ask_user_handled():
                     logging.debug("UserHandledError was handled.")
                 self.notes = e.__rich__()  # No matter what we want to show the fault in our results
-
             elif isinstance(e, RuntimeError):
                 # Print errors for runtimeerrors but keep processing other runs...
                 logging.error(f"Skipping run due to: {e}")
@@ -207,7 +215,8 @@ class MyReporter(ConsoleReporter):
                 target = output.relative
 
             result = ProcessingResult(target=target or "unknown")
-            result.update(fail)
+            e = task.meta.get("exception")  # try to pass our raw exception if possible
+            result.update(e or fail)
             processing.add_result(result)
 
     def add_success(self, task):

@@ -197,7 +197,8 @@
 * [x] create the ProcessedTarget by referring to the processed repo path info (need context first)
 * [x] debug logs are busted!
 * [x] fix Seestar m81 (no bias or flat cal frames)
-* [ ] store the various ScoredCandiates in the toml file (for consider masters) - use same convention as exluded scripts
+* [ ] why is process all not processing all?
+* [ ] store the various ScoredCandiates in the toml file (for considered masters) - use same convention as exluded scripts
 * [ ] Fix processing results display
 * [ ] make integration test robust again
 * [x] fix flats with new system
