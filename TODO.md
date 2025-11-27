@@ -54,7 +54,7 @@
 * [x] **first public alpha (reddit)** at approximately this point
 * [ ] fix dwarf3 (bug #1) investigation by @codegistics
 * [x] osx path finding fixes by @jmachuca77 (bug #2)
-* [ ] always regen masters after adding a repo
+* [x] always regen masters after adding a repo
 * [x] don't warn for "[tool-warnings] Reading sequence failed, file cannot be opened: *.seq. Reading sequence failed, file cannot be opened: *.seq." because harmless
 * [x] add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
 * [x] move the recipe repos to [their own github ](https://github.com/geeksville/starbash-recipes/)- stop pulling them as python resources
@@ -124,7 +124,11 @@
 * [x] REVLOCK the recipies repo so old builds keep working!
 * [x] dependencies should auto skip rebuilds - though only within the 3 build cache limit
 * [x] fix remaining failure in m20 target - the final stack_dual_duo is missing dependencies on the s35 prior stage outputs and has 2x dependencies on s36
-* [ ] sort the masters list display
+* [ ] add graxpert
+* [ ] change recipes to use imports
+* [ ] cleanup Repo import code
+* [ ] remove priorities from stages where dependencies should have worked.  hack to fix "Stages in priority order: ['stack_dual_duo', 'light', 'seqextract_haoiii'"
+* [x] sort the masters list display
 * [x] fix auto generation of processed directory paths
 * [ ] track image quality on a per frame basis
 * [x] use db find master bias frames
@@ -158,6 +162,8 @@
 * [x] use https://tinydb.readthedocs.io as the DB?
 * [x] render output (including tables) with https://github.com/Textualize/rich - use basic command lines at first
 * [x] test on asiair, seestar, nina
+* [ ] use get_safe more pervasively, pass in a help string to it (to indicate source of failure)
+* [ ] remove nasty osc.py file - move into toml
 * [ ] eventually do a simple gui using https://flet.dev/docs/
 * [x] use import importlib.util to load python code it is own namespace
 * [x] make crude flat frame generation work
@@ -175,7 +181,10 @@
 * [x] change from eval() to something more secure (ast + eval? a restricted dict API?)
 * [x] add something like repo-add for masters and processed
 * [ ] do background elim with graxpert (before?) tri merge
+* [ ] have AI change asserts to raise ValueError (or something better?)
 * [x] FIX GRAXPERT RELEASE
+* [ ] add doit depenencies on the generated toml files
+* [ ] add doit dependencies on the recipe files
 * [ ] merge the tri colors into one file using pixel math
 * [x] generalize processing to also work on single duo filter or broadband OSC
 * [x] auto recognize my nina config, default nina config, asiair config, seestar config
@@ -211,17 +220,10 @@
 * [x] make master gen fully automatic as needed - hook together via dependencies
 * [x] implement _filter_by_requires
 * [x] change context["output"] to be a dataclass rather than a dict
-* [ ] use get_safe more pervasively, pass in a help string to it (to indicate source of failure)
-* [ ] remove nasty osc.py file - move into toml
 * [x] use task name dependencies to join stages
-* [ ] have AI change asserts to raise ValueError (or something better?)
-* [ ] try test run on the small dataset
+* [x] try test run on the small dataset
 * [x] move doit.db to app cache
 * [ ] test integration on big dataset
 * [x] rexport the small test dataset (I've added a few files)
 * [x] verify build takes zero time if no changes
-* [ ] add depenencies on the generated toml files
-* [ ] add dependencies on the recipe files
-* [ ] add graxpert
-* [ ] cleanup Repo import code
-* [ ] remove priorities from stages where dependencies should have worked.  hack to fix "Stages in priority order: ['stack_dual_duo', 'light', 'seqextract_haoiii'"
+

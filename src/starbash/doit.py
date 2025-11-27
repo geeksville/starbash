@@ -158,14 +158,37 @@ class ToolAction(BaseAction):
 
 @dataclass
 class ProcessingResult:
-    target: str  # normalized target name, or in the case of masters the camera or instrument id
-    session_desc: str = ""  # the input sessions processed to make this result
+    task: Task
     success: bool | None = None  # false if we had an error, None if skipped
     reason: str | None = (
         None  # reason for failure/skipping (either "processed", "skipped", "ignored", "failed")
     )
     notes: str | None = None  # notes about what happened
     # FIXME, someday we will add information about masters/flats that were used?
+
+    @property
+    def context(self) -> dict[str, Any]:
+        assert self.task.meta, "ProcessingResult requires task.meta to be set"
+        return self.task.meta.get("context", {})
+
+    @property
+    def is_master(self) -> bool:
+        assert self.task.meta, "ProcessingResult requires task.meta to be set"
+        return self.task.meta.get("is_master", False)
+
+    @property
+    def session_desc(self) -> str:
+        return f"{self.context.get('date', '')}:{self.context.get('session_config', '')}"
+
+    @property
+    def target(self) -> str:
+        """normalized target name, or in the case of masters the camera or instrument id"""
+
+        output: FileInfo | None = self.context.get("output")
+        t = self.context.get("target")
+        if not t and output and output.relative:
+            t = output.relative
+        return t or "unknown"
 
     def update(self, e: Exception | BaseFail | None = None) -> None:
         """Handle exceptions during processing and update the ProcessingResult accordingly."""
@@ -213,15 +236,8 @@ class MyReporter(ConsoleReporter):
 
         processing: ProcessingLike | None = task.meta and task.meta.get("processing")
         if task.meta and processing:
-            context: dict[str, Any] = task.meta.get("context", {})
-            output: FileInfo | None = context.get("output")
-            target = context.get("target")
-            if not target and output and output.relative:
-                target = output.relative
-
-            result = ProcessingResult(target=target or "unknown", reason=reason, success=success)
+            result = ProcessingResult(task=task, reason=reason, success=success)
             e = task.meta.get("exception")  # try to pass our raw exception if possible
-            result.session_desc = f"{context.get('date', '')}:{context.get('session_config', '')}"
 
             result.notes = task.name  # default nodes just show the task name
             result.update(e or fail)

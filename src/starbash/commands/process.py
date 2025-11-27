@@ -114,6 +114,10 @@ def print_results(
     table.add_column("Notes", style=TABLE_COLUMN_STYLE)
 
     for result in results:
+        if result.success is None and result.is_master:
+            # Skip uninteresting master processing results
+            continue
+
         # Format status with color
         if result.success is True:
             status = f"[green]✓ {result.reason or 'Success'}[/green]"

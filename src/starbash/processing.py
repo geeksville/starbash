@@ -484,6 +484,9 @@ class Processing:
             target_tasks = self._create_tasks(sessions, [None])
             results.extend(target_tasks)
 
+        for t in results:
+            t["meta"]["is_master"] = True  # mark these as possibly uninteresting
+
         return results
 
     def run_master_stages(self) -> list[ProcessingResult]:
@@ -748,9 +751,9 @@ class Processing:
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (not has_session_extra_in), (
-            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
-        )
+        assert (not has_session_in) or (
+            not has_session_extra_in
+        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
 
         self._add_stage_context_defs(stage)
 
@@ -964,9 +967,9 @@ class Processing:
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
                 conflicting_stages = tasks_to_stages(producing_tasks)
-                assert len(conflicting_stages) > 1, (
-                    "Multiple conflicting tasks must imply multiple conflicting stages?"
-                )
+                assert (
+                    len(conflicting_stages) > 1
+                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
 
                 names = [t["name"] for t in conflicting_stages]
                 logging.warning(
