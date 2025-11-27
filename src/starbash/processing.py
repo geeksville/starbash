@@ -368,7 +368,9 @@ class Processing:
         targets_list: list[str | None] = list(targets)
 
         tasks = []
-        auto_process_masters = True
+        import starbash
+
+        auto_process_masters = starbash.process_masters
         if auto_process_masters:
             tasks.extend(self._create_master_tasks())
 
@@ -751,9 +753,9 @@ class Processing:
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (not has_session_extra_in), (
-            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
-        )
+        assert (not has_session_in) or (
+            not has_session_extra_in
+        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
 
         self._add_stage_context_defs(stage)
 
@@ -920,6 +922,8 @@ class Processing:
             prior_tasks = [prior_tasks]
 
         # Collect all image rows from prior stage outputs
+        child_exception: Exception | None = None
+
         for task in prior_tasks:
             task_context: dict[str, Any] = task["meta"]["context"]  # type: ignore
             task_inputs = task_context.get("input", {})
@@ -942,8 +946,13 @@ class Processing:
                             ):
                                 image_rows.extend(task_output.image_rows)
                     except NotEnoughFilesError as e:
+                        child_exception = e  # In case we need to raise later
                         # just because one prior task doesn't have what we need, we shouldn't stop looking
                         logging.debug(f"Prior task '{task['name']}' skipped, still looking...S {e}")
+
+        if child_exception and len(image_rows) == 0:
+            # we failed on every child, give up
+            raise child_exception
 
         return FileInfo(image_rows=image_rows)
 
@@ -967,9 +976,9 @@ class Processing:
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
                 conflicting_stages = tasks_to_stages(producing_tasks)
-                assert len(conflicting_stages) > 1, (
-                    "Multiple conflicting tasks must imply multiple conflicting stages?"
-                )
+                assert (
+                    len(conflicting_stages) > 1
+                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
 
                 names = [t["name"] for t in conflicting_stages]
                 logging.warning(

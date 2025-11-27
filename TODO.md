@@ -213,6 +213,7 @@
 * [x] m20 should pick dual duo but it isn't
 * [x] store the various ScoredCandiates in the toml file (for considered masters) - use same convention as exluded scripts
 * [x] Fix processing results display
+* [ ] m13 to work again
 * [ ] make integration test robust again
 * [x] fix flats with new system
 * [x] use user selected values from the toml file
@@ -226,4 +227,5 @@
 * [ ] test integration on big dataset
 * [x] rexport the small test dataset (I've added a few files)
 * [x] verify build takes zero time if no changes
-
+* [ ] scored candidates are no longer storing their confidence strings in the TOML!!!
+* [ ] ic434 dwarf3 is not finding dark frames

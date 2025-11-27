@@ -75,7 +75,8 @@
             "args": [
                 "--debug",
                 "process",
-                "auto"
+                "auto",
+                "--no-masters",
             ]
         },
         {

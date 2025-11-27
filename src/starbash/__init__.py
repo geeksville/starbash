@@ -32,6 +32,9 @@ force_regen = False
 # Show extra command output
 verbose_output = False
 
+# Should we automatically process masters?
+process_masters = True
+
 
 def to_shortdate(date_iso: str) -> str:
     """Convert ISO UTC datetime string to local short date string (YYYY-MM-DD).

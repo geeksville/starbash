@@ -142,6 +142,13 @@ def auto(
             help="Session number to process. If not specified, processes all selected sessions."
         ),
     ] = None,
+    no_masters: Annotated[
+        bool,
+        typer.Option(
+            "--no-masters",
+            help="Don't automatically generated master frames",
+        ),
+    ] = False,
 ):
     """Automatic processing with sensible defaults.
 
@@ -157,6 +164,10 @@ def auto(
 
     The output will be saved according to the configured recipes.
     """
+    if no_masters:
+        import starbash
+
+        starbash.process_masters = False
     with Starbash("process.auto") as sb:
         with Processing(sb) as proc:
             from starbash import console
