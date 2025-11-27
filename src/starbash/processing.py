@@ -269,10 +269,16 @@ class Processing:
         """Add a processing result to the list of results."""
         self.results.append(result)
 
-    def _run_all_targets(
+    def _run_all_tasks(self, tasks: list[TaskDict]) -> list[ProcessingResult]:
+        self.doit.set_tasks(tasks)
+        self.results.clear()
+        self._run_jobs()
+        return self.results
+
+    def _create_tasks(
         self, sessions: list[SessionRow], targets: list[str | None]
-    ) -> list[ProcessingResult]:
-        """Run all processing stages for the indicated targets.
+    ) -> list[TaskDict]:
+        """Create all processing tasks for the indicated targets.
 
         Args:
             targets: List of target names (normalized) to process, or None to process
@@ -282,12 +288,15 @@ class Processing:
             TaskDict
         ] = []  # We merge all the tasks into this list - because we regenerate sb.doit.dicts each iteration
         for target in targets:
-            # we only want sessions with light frames
-            # NOT NEEDED - because the dependencies will end up ignoring sessions where all frames are filtered
-            # target_sessions = self.sb.filter_sessions_by_imagetyp(target_sessions, "light")
             if target:
+                # we only want sessions with light frames, because other session types (bias, dark, flat) are already
+                # included in our list of masters auto dependencies
+                sessions_this_target = self.sb.filter_by_imagetyp(sessions, "light")
+
                 # select sessions for this target
-                sessions_this_target = self.sb.filter_sessions_by_target(sessions, target)
+                sessions_this_target = self.sb.filter_sessions_by_target(
+                    sessions_this_target, target
+                )
 
                 # We are processing a single target, so build the context around that, and process
                 # all sessions for that target as a group
@@ -309,10 +318,7 @@ class Processing:
                         all_tasks.extend(self.tasks)
                         self.doit.set_tasks([])
 
-        self.doit.set_tasks(all_tasks)
-        self.results.clear()
-        self._run_jobs()
-        return self.results
+        return all_tasks
 
     def _get_sessions_by_imagetyp(self, imagetyp: str) -> list[SessionRow]:
         """Get all sessions that are relevant for master frame generation.
@@ -351,13 +357,15 @@ class Processing:
 
         """
         sessions = self.sb.search_session()
-        targets = list(
-            {
-                normalize_target_name(obj)
-                for s in sessions
-                if (obj := s.get(get_column_name(Database.OBJECT_KEY))) is not None
-            }
-        )
+        targets: set[str] = set()
+
+        for s in sessions:
+            target = s.get(get_column_name(Database.OBJECT_KEY))
+            if target:
+                target = normalize_target_name(target)
+                targets.add(target)
+
+        targets_list: list[str | None] = list(targets)
 
         # FIXME - to merge master processing we need to create tasks without a target specified
         # auto_process_masters = True
@@ -365,7 +373,9 @@ class Processing:
         # if auto_process_masters:
         #    self._remove_duplicates(master_sessions, already_processed)
 
-        return self._run_all_targets(sessions, targets)
+        master_tasks = self._create_master_tasks()
+        target_tasks = self._create_tasks(sessions, targets_list)
+        return self._run_all_tasks(master_tasks + target_tasks)
 
     def _set_session_in_context(self, session: SessionRow) -> None:
         """adds to context from the indicated session:
@@ -458,7 +468,7 @@ class Processing:
         d = self.context["final_output"].base
         return Path(d)
 
-    def run_master_stages(self) -> list[ProcessingResult]:
+    def _create_master_tasks(self) -> list[TaskDict]:
         """Generate master calibration frames (bias, dark, flat).
 
         Returns:
@@ -471,11 +481,22 @@ class Processing:
             self._get_sessions_by_imagetyp("flat"),
         ]
 
-        results = []
+        results: list[TaskDict] = []
         for sessions in session_lists:
-            results.extend(self._run_all_targets(sessions, [None]))
+            target_tasks = self._create_tasks(sessions, [None])
+            results.extend(target_tasks)
 
         return results
+
+    def run_master_stages(self) -> list[ProcessingResult]:
+        """Generate master calibration frames (bias, dark, flat).
+
+        Returns:
+            List of ProcessingResult objects, one per master frame generated.
+        """
+        # it is important that we make bias/dark **before** flats because we don't yet do all the task execution in one go
+
+        return self._run_all_tasks(self._create_master_tasks())
 
     @property
     def tasks(self) -> list[TaskDict]:
@@ -729,9 +750,9 @@ class Processing:
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (
-            not has_session_extra_in
-        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        assert (not has_session_in) or (not has_session_extra_in), (
+            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        )
 
         self._add_stage_context_defs(stage)
 
@@ -941,9 +962,9 @@ class Processing:
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
                 conflicting_stages = tasks_to_stages(producing_tasks)
-                assert (
-                    len(conflicting_stages) > 1
-                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
+                assert len(conflicting_stages) > 1, (
+                    "Multiple conflicting tasks must imply multiple conflicting stages?"
+                )
 
                 names = [t["name"] for t in conflicting_stages]
                 logging.warning(
@@ -1029,7 +1050,7 @@ class Processing:
 
             # FIXME Move elsewhere. It really just just be another "requires" clause
             imagetyp = get_safe(input, "type")
-            images = self.sb.filter_images_by_imagetyp(images, imagetyp)
+            images = self.sb.filter_by_imagetyp(images, imagetyp)
 
             filter_by_requires(input, images)
 

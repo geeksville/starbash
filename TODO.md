@@ -201,13 +201,14 @@
 * [x] debug logs are busted!
 * [x] fix Seestar m81 (no bias or flat cal frames)
 * [ ] why is process all not processing all?
+* [ ] m20 should pick dual duo but it isn't
 * [ ] store the various ScoredCandiates in the toml file (for considered masters) - use same convention as exluded scripts
 * [ ] Fix processing results display
 * [ ] make integration test robust again
 * [x] fix flats with new system
 * [x] use user selected values from the toml file
 * [x] try a test run on just a dual duo filter set
-* [ ] make master gen fully automatic as needed - hook together via dependencies
+* [x] make master gen fully automatic as needed - hook together via dependencies
 * [x] implement _filter_by_requires
 * [x] change context["output"] to be a dataclass rather than a dict
 * [ ] use get_safe more pervasively, pass in a help string to it (to indicate source of failure)
