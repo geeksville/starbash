@@ -18,4 +18,20 @@ class UserHandledError(ValueError):
         return self.__str__()  # At least this is something readable...
 
 
-__all__ = ["UserHandledError"]
+class NotEnoughFilesError(UserHandledError):
+    """Exception raised when not enough input files are provided for a processing stage."""
+
+    def __init__(self, message: str, files: list[str] = []):
+        super().__init__(message)
+        self.files = files
+
+
+class NoSuitableMastersException(UserHandledError):
+    """Exception raised when no suitable master calibration files are found."""
+
+    def __init__(self, kind: str):
+        super().__init__(f"No suitable master calibration files found for kind: {kind}")
+        self.kind = kind
+
+
+__all__ = ["UserHandledError", "NotEnoughFilesError", "NoSuitableMastersException"]

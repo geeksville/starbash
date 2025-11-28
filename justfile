@@ -71,6 +71,10 @@ select-seestar:
     sb select any
     sb select target Sadr
 
+select-seestar-ir:
+    sb select any
+    sb select target m81
+
 # test target that has Si and HaOiii filters
 select-si-ha:
     sb select any
@@ -141,7 +145,7 @@ _typecheck:
     poetry run basedpyright src/
 
 # Run all linting checks (ruff + basedpyright)
-check: _lint _typecheck
+lint: _lint _typecheck
 
 format:
     poetry run ruff format src/ tests/

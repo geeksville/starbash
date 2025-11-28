@@ -11,7 +11,7 @@
 kind = "master"
 
 # Given a particular 'kind' of master, we can use different relative paths
-relative.flat = "{instrument}/{date}/{imagetyp}/master_{session_config}.fit"
+relative.flat = "{instrument}/{datetime}/{imagetyp}/master_{session_config}.fit"
 
 # For any other kind we use the default path (i.e. bias, dark, etc)
-relative.default = "{camera_id}/{date}/{imagetyp}/master_{session_config}.fit"
+relative.default = "{camera_id}/{datetime}/{imagetyp}/master_{session_config}.fit"

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import MutableMapping
 from importlib import resources
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, overload
 
 import tomlkit
 from tomlkit.items import AoT
@@ -25,13 +26,29 @@ class Repo:
     Represents a single starbash repository.
     """
 
-    def __init__(self, url_or_path: str | Path):
+    def __init__(self, url_or_path: str | Path, default_toml: TOMLDocument | None = None):
         """Initialize a Repo instance.
 
         Args:
             url_or_path: Either a string URL (e.g. file://, pkg://, http://...) or a Path.
                 If a Path is provided it will be converted to a file:// URL using its
                 absolute, resolved form.
+
+        Note:
+            If the URL/path ends with .toml, it's treated as a direct TOML file.
+            Otherwise, it's treated as a directory containing a starbash.toml file.
+
+        Import Resolution:
+            After loading the TOML config, this constructor processes any 'import' keys
+            found in the configuration. Import syntax:
+
+            [import]
+            node = "some.dotted.path"  # required: which node to import
+            file = "path/to/file.toml"  # optional: source file (default: current file)
+            repo = "url_or_path"        # optional: source repo (default: current repo)
+
+            The import key is replaced with the contents of the referenced node.
+            Files are cached during import resolution to avoid redundant reads.
         """
         if isinstance(url_or_path, Path):
             # Always resolve to an absolute path to avoid ambiguity
@@ -41,12 +58,14 @@ class Repo:
             url = str(url_or_path)
 
         self.url: str = url
-        self.config: TOMLDocument = self._load_config()
+        self._import_cache: dict[str, TOMLDocument] = {}  # Cache for imported files
+        self.config: TOMLDocument = self._load_config(default_toml)
         self._as_read = (
             self.config.as_string()
         )  # the contents of the toml as we originally read from disk
 
         self._monkey_patch()
+        self._resolve_imports()
 
     def _monkey_patch(self, o: Any | None = None) -> None:
         """Add a 'source' back-ptr to all child items in the config.
@@ -77,6 +96,178 @@ class Repo:
         except AttributeError:
             pass  # simple types like int, str, float, etc. can't have attributes set on them
 
+    def _resolve_imports_in_doc(self, doc: TOMLDocument) -> None:
+        """Helper to resolve imports in a standalone TOML document."""
+        self._resolve_imports(doc, None, None)
+
+    def _resolve_imports(
+        self, o: Any | None = None, parent: dict | None = None, key: str | None = None
+    ) -> None:
+        """Recursively resolve 'import' keys in the TOML structure.
+
+        Searches through the config dictionary tree looking for tables with an 'import' key.
+        When found, loads the referenced node from the specified file/repo and replaces
+        the entire table containing the import key with the imported content.
+
+        Args:
+            o: The current object being processed (None = start at root config)
+            parent: Parent dict containing the current object
+            key: Key in parent dict that references the current object
+
+        Import table structure:
+            [import]
+            node = "some.dotted.path"  # required: which node to import
+            file = "path/to/file.toml"  # optional: relative or absolute path
+            repo = "url_or_path"        # optional: repo URL or path
+
+        Raises:
+            ValueError: If import is malformed or referenced content not found
+        """
+        # Base case - start recursion at root
+        if o is None:
+            self._resolve_imports(self.config, None, None)
+            return
+
+        # Check if this is a dict with an 'import' key
+        if isinstance(o, dict):
+            if "import" in o:
+                # Found an import directive - resolve it
+                import_spec = o["import"]
+                if not isinstance(import_spec, dict):
+                    raise ValueError(
+                        f"Import specification must be a table, got {type(import_spec)}"
+                    )
+
+                # Extract import parameters
+                node_path = import_spec.get("node")
+                if not node_path:
+                    raise ValueError("Import must specify a 'node' key")
+
+                file_path = import_spec.get("file")
+                repo_spec = import_spec.get("repo")
+
+                # Resolve the imported content
+                imported_content = self._resolve_import_node(node_path, file_path, repo_spec)
+
+                # Replace the entire parent table with the imported content
+                if parent is not None and key is not None:
+                    parent[key] = imported_content
+                    # Monkey patch the imported content to indicate its source
+                    self._monkey_patch(parent[key])
+                else:
+                    # Can't replace root config with an import
+                    raise ValueError("Cannot use import at the root level of config")
+
+                # Don't recurse into the import spec - we've replaced it
+                return
+
+            # Not an import table, recurse into children
+            # We need to iterate over a copy because we might modify the dict
+            for k, v in list(o.items()):
+                self._resolve_imports(v, o, k)
+
+        # Recursively process list-like objects (including AoT)
+        elif hasattr(o, "__iter__") and not isinstance(o, str | bytes):
+            try:
+                # For lists, we need to iterate and process each item
+                # We can't easily replace items in tomlkit AoT structures,
+                # so we recurse into each item which should be a dict
+                for item in o:
+                    # Each item in an AoT is a table (dict)
+                    if isinstance(item, dict):
+                        # Check for import at the table level
+                        if "import" in item:
+                            import_spec = item["import"]
+                            if not isinstance(import_spec, dict):
+                                raise ValueError(
+                                    f"Import specification must be a table, got {type(import_spec)}"
+                                )
+                            node_path = import_spec.get("node")
+                            if not node_path:
+                                raise ValueError("Import must specify a 'node' key")
+                            file_path = import_spec.get("file")
+                            repo_spec = import_spec.get("repo")
+
+                            # Get imported content
+                            imported_content = self._resolve_import_node(
+                                node_path, file_path, repo_spec
+                            )
+
+                            # Merge imported content into this item (preserving other keys)
+                            # First remove the import key
+                            del item["import"]
+                            # Then merge in the imported content
+                            if isinstance(imported_content, dict):
+                                for k, v in imported_content.items():
+                                    if k not in item:  # Don't override existing keys
+                                        item[k] = v
+                            self._monkey_patch(item)
+                        else:
+                            # No import, just recurse normally
+                            self._resolve_imports(item, o, None)
+            except TypeError:
+                # Not actually iterable, skip
+                pass
+
+    def _resolve_import_node(
+        self, node_path: str, file_path: str | None, repo_spec: str | None
+    ) -> Any:
+        """Resolve and return the content of an imported node.
+
+        Args:
+            node_path: Dot-separated path to the node (e.g., "recipe.stage.light")
+            file_path: Optional path to TOML file (relative or absolute)
+            repo_spec: Optional repo URL or path
+
+        Returns:
+            The imported content (deep copy to avoid reference issues)
+
+        Raises:
+            ValueError: If the import cannot be resolved
+        """
+        import copy
+
+        # Determine which repo to use
+        if repo_spec:
+            # Import from a different repo - create a temporary repo instance
+            source_repo = Repo(repo_spec)
+        else:
+            # Import from current repo
+            source_repo = self
+
+        # Determine which file to load
+        if file_path:
+            # Load a different TOML file from the source repo
+            cache_key = f"{source_repo.url}::{file_path}"
+
+            if cache_key not in self._import_cache:
+                # Load and parse the TOML file
+                toml_content = source_repo.read(file_path)
+                parsed_doc = tomlkit.parse(toml_content)
+                # Process imports in the cached file recursively
+                self._resolve_imports_in_doc(parsed_doc)
+                self._import_cache[cache_key] = parsed_doc
+
+            source_doc = self._import_cache[cache_key]
+        else:
+            # Use the current file's config
+            source_doc = source_repo.config
+
+        # Navigate to the specified node
+        current = source_doc
+        for key in node_path.split("."):
+            if not isinstance(current, dict):
+                raise ValueError(f"Cannot navigate to '{key}' in path '{node_path}' - not a dict")
+            if key not in current:
+                raise ValueError(
+                    f"Node '{key}' not found in path '{node_path}' while resolving import"
+                )
+            current = current[key]
+
+        # Return a deep copy to avoid reference issues
+        # Note: tomlkit objects need special handling for deep copy
+        return copy.deepcopy(current)
+
     def __str__(self) -> str:
         """Return a concise one-line description of this repo.
 
@@ -85,6 +276,10 @@ class Repo:
         return f"Repo(kind={self.kind()}, url={self.url})"
 
     __repr__ = __str__
+
+    def __deepcopy__(self, memo):
+        # Supress deepcopy because users almost certainly don't want to deepcopy repos
+        return self
 
     def kind(self, unknown_kind: str = "unknown") -> str:
         """
@@ -132,17 +327,34 @@ class Repo:
         Raises:
             ValueError: If the repository is not a local file repository.
         """
-        base_path = self.get_path()
-        if base_path is None:
-            raise ValueError("Cannot resolve path for non-local repository")
+        if not self.is_scheme("file"):
+            raise ValueError("Cannot write config for non-local repository")
 
-        config_path = base_path / repo_suffix
+        if self._is_direct_toml_file():
+            config_path = Path(self.url[len("file://") :])
+        else:
+            base_path = self.get_path()
+            if base_path is None:
+                raise ValueError("Cannot resolve path for non-local repository")
+            config_path = base_path / repo_suffix
+
         if self.config.as_string() == self._as_read:
             logging.debug(f"Config unchanged, not writing: {config_path}")
         else:
             # FIXME, be more careful to write the file atomically (by writing to a temp file and renaming)
+            # create the output directory if it doesn't exist
+            config_path.parent.mkdir(parents=True, exist_ok=True)
             TOMLFile(config_path).write(self.config)
             logging.debug(f"Wrote config to {config_path}")
+
+    def _is_direct_toml_file(self) -> bool:
+        """
+        Check if the URL points directly to a .toml file.
+
+        Returns:
+            bool: True if the URL ends with .toml, False otherwise.
+        """
+        return self.url.endswith(".toml")
 
     def is_scheme(self, scheme: str = "file") -> bool:
         """
@@ -158,21 +370,26 @@ class Repo:
         """
         Resolves the URL to a local file system path if it's a file URI.
 
-        Args:
-            url: The repository URL.
+        For directory URLs, returns the directory path.
+        For .toml file URLs, returns the parent directory path.
 
         Returns:
             A Path object if the URL is a local file, otherwise None.
         """
         if self.is_scheme("file"):
-            return Path(self.url[len("file://") :])
+            path = Path(self.url[len("file://") :])
+            if self._is_direct_toml_file():
+                return path.parent
+            return path
 
         return None
 
-    def add_from_ref(self, manager: RepoManager, ref: dict) -> Repo:
+    def add_from_ref(self, manager: RepoManager, ref: dict) -> Repo | None:
         """
         Adds a repository based on a repo-ref dictionary.
         """
+        url: str | None = None  # assume failure
+
         if "url" in ref:
             url = ref["url"]
         elif "dir" in ref:
@@ -191,9 +408,12 @@ class Repo:
             else:
                 # construct an URL relative to this repo's URL
                 url = self.url.rstrip("/") + "/" + ref["dir"].lstrip("/")
+
+        if url:
+            return manager.add_repo(url)
         else:
-            raise ValueError(f"Invalid repo reference: {ref}")
-        return manager.add_repo(url)
+            logging.warning("Skipping empty repo reference")
+            return None
 
     def add_by_repo_refs(self, manager: RepoManager) -> None:
         """Add all repos mentioned by repo-refs in this repo's config."""
@@ -205,6 +425,9 @@ class Repo:
     def resolve_path(self, filepath: str) -> Path:
         """
         Resolve a filepath relative to the base of this repo.
+
+        For directory URLs, resolves relative to the directory.
+        For .toml file URLs, resolves relative to the parent directory.
 
         Args:
             filepath: The path to the file, relative to the repository root.
@@ -291,24 +514,63 @@ class Repo:
         res = resources.files("starbash").joinpath(subpath).joinpath(filepath)
         return res.read_text()
 
-    def _load_config(self) -> tomlkit.TOMLDocument:
+    def _read_direct_url(self) -> str:
         """
-        Loads the repository's configuration file (e.g., repo.sb.toml).
+        Read content directly from the URL (for .toml file URLs).
+
+        Returns:
+            The content of the file as a string.
+
+        Raises:
+            ValueError: If the URL scheme is not supported.
+        """
+        if self.is_scheme("file"):
+            path = Path(self.url[len("file://") :])
+            return path.read_text()
+        elif self.is_scheme("pkg"):
+            subpath = self.url[len("pkg://") :].strip("/")
+            res = resources.files("starbash").joinpath(subpath)
+            return res.read_text()
+        elif self.is_scheme("http") or self.is_scheme("https"):
+            response = http_session.get(self.url)
+            response.raise_for_status()
+            return response.text
+        else:
+            raise ValueError(f"Unsupported URL scheme for repo: {self.url}")
+
+    def _load_config(
+        self, default_toml: tomlkit.TOMLDocument | None = None
+    ) -> tomlkit.TOMLDocument:
+        """
+        Loads the repository's configuration file.
+
+        For URLs ending with .toml, reads that file directly.
+        Otherwise, reads starbash.toml from the directory.
 
         If the config file does not exist, it logs a warning and returns an empty dict.
 
         Returns:
-            A dictionary containing the parsed configuration.
+            A TOMLDocument containing the parsed configuration.
         """
         try:
-            config_content = self.read(repo_suffix)
-            logging.debug(f"Loading repo config from {repo_suffix}")
+            if self._is_direct_toml_file():
+                # Read the .toml file directly from the URL
+                config_content = self._read_direct_url()
+                logging.debug(f"Loading repo config from {self.url}")
+            else:
+                # Read starbash.toml from the directory
+                config_content = self.read(repo_suffix)
+                logging.debug(f"Loading repo config from {repo_suffix}")
             return tomlkit.parse(config_content)
         except FileNotFoundError:
-            logging.debug(
-                f"No {repo_suffix} found"
-            )  # we currently make it optional to have the config file at root
-            return tomlkit.TOMLDocument()  # empty placeholder
+            if default_toml is not None:
+                logging.debug(f"No config file found for {self.url}, using template...")
+                return default_toml
+            else:
+                logging.debug(
+                    f"No config file found for {self.url} - using empty config..."
+                )  # we currently make it optional to have the config file at root
+                return tomlkit.TOMLDocument()  # empty placeholder
 
     def read(self, filepath: str) -> str:
         """
@@ -329,7 +591,13 @@ class Repo:
         else:
             raise ValueError(f"Unsupported URL scheme for repo: {self.url}")
 
-    def get(self, key: str, default: Any | None = None) -> Any | None:
+    @overload
+    def get(self, key: str) -> Any | None: ...
+
+    @overload
+    def get[T](self, key: str, default: T, do_create: bool = False) -> T: ...
+
+    def get(self, key: str, default: Any | None = None, do_create: bool = False) -> Any | None:
         """
         Gets a value from this repo's config for a given key.
         The key can be a dot-separated string for nested values.
@@ -342,11 +610,44 @@ class Repo:
             The found value or the default.
         """
         value = self.config
+        parent: MutableMapping = value  # track our dict parent in case we need to add to it
+        last_name = key
         for k in key.split("."):
+            if value is None and do_create and default is not None:
+                # If we are here that means the node above us in the dot path was missing, make it as a table
+                value = tomlkit.table()
+                parent[last_name] = value
+
             if not isinstance(value, dict):
+                # Key path traverses through a non-dict value (including None), return default
                 return default
+
+            parent = value
             value = value.get(k)
-        return value if value is not None else default
+            last_name = k
+
+        if value is None and default is not None:
+            # Try to convert 'dumb' list and dict defaults into tomlkit equivalents
+            # Check for AoT first (before list) since AoT is a subclass of list
+            if isinstance(default, AoT):
+                # Preserve AoT type - don't convert it
+                value = default
+            elif isinstance(default, list):
+                value = tomlkit.array()
+                for item in default:
+                    value.append(item)
+            elif isinstance(default, dict):
+                value = tomlkit.table()
+                for k, v in default.items():
+                    value[k] = v
+            else:
+                value = default
+
+            # We might add the default value into the config when not found, because client might mutate it and then want to save the file
+            if do_create:
+                parent[last_name] = value
+
+        return value
 
     def set(self, key: str, value: Any) -> None:
         """

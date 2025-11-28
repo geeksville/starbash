@@ -6,6 +6,7 @@
         "github.copilot",
         "skellock.just",
         "charliermarsh.ruff",
+        "bierner.markdown-mermaid"
         // "google.geminicodeassist"
     ]
 }

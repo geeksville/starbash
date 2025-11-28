@@ -1,84 +1,109 @@
-import glob
-import itertools
+"""Base class for processing operations in starbash."""
+
+import copy
 import logging
 import os
 import shutil
 import tempfile
 import textwrap
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from rich.progress import Progress, track
+from multidict import MultiDict
+from tomlkit.items import AoT
 
 import starbash
 from repo import Repo
-from starbash.aliases import normalize_target_name
+from starbash import InputDef, OutputDef, StageDict
+from starbash.aliases import get_aliases, normalize_target_name
 from starbash.app import Starbash
 from starbash.database import (
     Database,
+    ImageRow,
     SessionRow,
     get_column_name,
     metadata_to_camera_id,
     metadata_to_instrument_id,
 )
-from starbash.exception import UserHandledError
+from starbash.doit import (
+    FileInfo,
+    ProcessingResult,
+    StarbashDoit,
+    TaskDict,
+    doit_do_copy,
+    doit_post_process,
+)
+from starbash.exception import (
+    NoSuitableMastersException,
+    NotEnoughFilesError,
+    UserHandledError,
+)
+from starbash.filtering import FallbackToImageException, filter_by_requires
 from starbash.paths import get_user_cache_dir
 from starbash.processed_target import ProcessedTarget
-from starbash.tool import expand_context_unsafe, tools
+from starbash.rich import to_tree
+from starbash.safety import get_list_of_strings, get_safe
+from starbash.score import score_candidates
+from starbash.toml import CommentedString, toml_from_list
+from starbash.tool import expand_context_list, expand_context_unsafe, tools
+
+__all__ = [
+    "Processing",
+    "ProcessingContext",
+]
 
 
-@dataclass
-class ProcessingResult:
-    target: str  # normalized target name, or in the case of masters the camera or instrument id
-    sessions: list[SessionRow] = field(
-        default_factory=list
-    )  # the input sessions processed to make this result
-    success: bool | None = None  # false if we had an error, None if skipped
-    notes: str | None = None  # notes about what happened
-    # FIXME, someday we will add information about masters/flats that were used?
+max_contexts = 3  # FIXME, make customizable
 
 
-def update_processing_result(result: ProcessingResult, e: Exception | None = None) -> None:
-    """Handle exceptions during processing and update the ProcessingResult accordingly."""
-
-    result.success = True  # assume success
-    if e:
-        result.success = False
-
-        if isinstance(e, UserHandledError):
-            if e.ask_user_handled():
-                logging.debug("UserHandledError was handled.")
-            result.notes = e.__rich__()  # No matter what we want to show the fault in our results
-
-        elif isinstance(e, RuntimeError):
-            # Print errors for runtimeerrors but keep processing other runs...
-            logging.error(f"Skipping run due to: {e}")
-            result.notes = f"Aborted due to possible error in (alpha) code, please file bug on our github: {str(e)}"
-        else:
-            # Unexpected exception - log it and re-raise
-            logging.exception("Unexpected error during processing:")
-            raise e
-
-
-class ProcessingContext(tempfile.TemporaryDirectory):
+class ProcessingContext:
     """For processing a set of sessions for a particular target.
 
     Keeps a shared temporary directory for intermediate files.  We expose the path to that
     directory in context["process_dir"].
+
+    We keep the processing directory in our cache directory, so that the most recent contexts can be reprocessed
+    quickly.
+
+    Arguments:
+    p: The Processing instance
+    target: The target name (used to name the processing directory - MUST BE PRE normalized), or None to create a temporary
     """
 
-    def __init__(self, p: "Processing"):
+    def __init__(self, p: "Processing", target: str | None = None):
         cache_dir = get_user_cache_dir()
-        super().__init__(prefix="sbprocessing_", dir=cache_dir)
+        processing_dir = cache_dir / "processing"
+        processing_dir.mkdir(parents=True, exist_ok=True)
+
+        # Set self.name to be target (if specified) otherwise use a tempname
+        if target:
+            self.name = processing_dir / target
+            self.is_temp = False
+
+            exists = self.name.exists()
+            if not exists:
+                self.name.mkdir(parents=True, exist_ok=True)
+                logging.debug(f"Creating processing context at {self.name}")
+            else:
+                logging.debug(f"Reusing existing processing context at {self.name}")
+        else:
+            # Create a temporary directory name
+            temp_name = tempfile.mkdtemp(prefix="temp_", dir=processing_dir)
+            self.name = Path(temp_name)
+            self.is_temp = True
+
+        # Clean up old contexts if we exceed max_contexts
+        self._cleanup_old_contexts(processing_dir)
+
         self.p = p
-        logging.debug(f"Created processing context at {self.name}")
 
         self.p.init_context()
-        self.p.context["process_dir"] = self.name
+        self.p.context["process_dir"] = str(self.name)
+        if target:  # Set it in the context so we can do things like find our output dir
+            self.p.context["target"] = target
 
     def __enter__(self) -> "ProcessingContext":
-        return super().__enter__()
+        return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Returns true if exceptions were handled"""
@@ -87,183 +112,234 @@ class ProcessingContext(tempfile.TemporaryDirectory):
         # unregister our process dir
         self.p.context.pop("process_dir", None)
 
-        super().__exit__(exc_type, exc_value, traceback)
-        # return handled
+        # Delete temporary directories
+        if self.is_temp and self.name.exists():
+            logging.debug(f"Removing temporary processing directory: {self.name}")
+            shutil.rmtree(self.name, ignore_errors=True)
+
+    def _cleanup_old_contexts(self, processing_dir: Path) -> None:
+        """Remove oldest context directories if we exceed max_contexts."""
+        if not processing_dir.exists():
+            return
+
+        # Get all subdirectories in processing_dir
+        contexts = [d for d in processing_dir.iterdir() if d.is_dir()]
+
+        # If we have more than max_contexts, delete the oldest ones
+        if len(contexts) > max_contexts:
+            # Sort by modification time (oldest first)
+            contexts.sort(key=lambda d: d.stat().st_mtime)
+
+            # Calculate how many to delete
+            num_to_delete = len(contexts) - max_contexts
+
+            # Delete the oldest directories
+            for context_dir in contexts[:num_to_delete]:
+                logging.debug(f"Removing old processing context: {context_dir}")
+                shutil.rmtree(context_dir, ignore_errors=True)
 
 
-class NotEnoughFilesError(UserHandledError):
-    """Exception raised when not enough input files are provided for a processing stage."""
+class NoPriorTaskException(Exception):
+    """Exception raised when a prior task specified in 'after' cannot be found."""
 
-    def __init__(self, message: str, files: list[str]):
-        super().__init__(message)
-        self.files = files
+
+def _make_imagerow(dir: Path, path: str) -> ImageRow:
+    """Make a stub imagerow definition with just an abspath (no metadata or other standard columns)"""
+    return {"abspath": str(dir / path), "path": path}
+
+
+def _stage_to_doc(task: TaskDict, stage: StageDict) -> None:
+    """Given a stage definition, populate the "doc" string of the task dictionary."""
+    task["doc"] = stage.get("description", "No description provided")
+
+
+def _inputs_by_kind(stage: StageDict, kind: str) -> list[InputDef]:
+    """Returns all imputs of a particular kind from the given stage definition."""
+    inputs: list[InputDef] = stage.get("inputs", [])
+    return [inp for inp in inputs if inp.get("kind") == kind]
+
+
+def tasks_to_stages(tasks: list[TaskDict]) -> list[StageDict]:
+    """Extract unique stages from the given list of tasks, sorted by priority."""
+    stage_dict: dict[str, StageDict] = {}
+    for task in tasks:
+        stage = task["meta"]["stage"]
+        stage_dict[stage["name"]] = stage
+
+    # Sort stages by priority (if priority not present assume 0), higher priority first
+    stages = sorted(stage_dict.values(), key=lambda s: s.get("priority", 0), reverse=True)
+    logging.debug(f"Stages in priority order: {[s.get('name') for s in stages]}")
+    return stages
+
+
+def remove_tasks_by_stage_name(tasks: list[TaskDict], excluded: list[str]) -> list[TaskDict]:
+    return [t for t in tasks if t["meta"]["stage"].get("name") not in excluded]
+
+
+def stage_with_comment(stage: StageDict) -> CommentedString:
+    """Create a CommentedString for the given stage."""
+    name = stage.get("name", "unnamed_stage")
+    description = stage.get("description", None)
+    return CommentedString(value=name, comment=description)
+
+
+def create_default_task(tasks: list[TaskDict]) -> TaskDict:
+    """Create a default task that depends on all given tasks.
+
+    This task can be used to represent the overall processing of a target.
+
+    Args:
+        tasks: List of TaskDict objects to depend on.
+
+    Returns:
+        A TaskDict representing the default task.
+    """
+    default_task_name = "process_all"
+    task_deps = []
+    for task in tasks:
+        # We consider tasks that are writing to the final output repos
+        # 'high value' and what we should run by default
+        stage = task["meta"]["stage"]
+        outputs = stage.get("outputs", [])
+        for output in outputs:
+            output_kind = get_safe(output, "kind")
+            if output_kind == "master" or output_kind == "processed":
+                task_deps.append(task["name"])
+                break  # no need to check other outputs for this task
+
+    task_dict: TaskDict = {
+        "name": default_task_name,
+        "task_dep": task_deps,
+        "actions": None,  # No actions, just depends on other tasks
+        "doc": "Top level task to process all stages for all targets",
+    }
+    return task_dict
 
 
 class Processing:
-    """Does all heavyweight processing operations for starbash"""
+    """Abstract base class for processing operations.
+
+    Implementations must provide:
+    - run_all_stages(): Process all stages for selected sessions
+    - run_master_stages(): Generate master calibration frames
+    """
 
     def __init__(self, sb: Starbash) -> None:
-        self.sb = sb
+        self.sb: Starbash = sb
+        self.context: dict[str, Any] = {}
 
         self.sessions: list[SessionRow] = []  # The list of sessions we are currently processing
-        self.recipe: Repo | None = None  # the recipe we are using for processing
         self.recipes_considered: list[Repo] = []  # all recipes considered for this processing run
 
-        # We create one top-level progress context so that when various subtasks are created
-        # the progress bars stack and don't mess up our logging.
-        self.progress = Progress(console=starbash.console, refresh_per_second=2)
-        self.progress.start()
+        self.doit: StarbashDoit = StarbashDoit()
+
+        # Normally we will use the "process_dir", but if we are importing new images from a session we place those images
+        self.use_temp_cwd = False
+
+        self.processed_target: ProcessedTarget | None = (
+            None  # The target we are currently processing (with extra runtime metadata)
+        )
+        self.stage: StageDict | None = None  # the stage we are currently processing
+
+        self.results: list[ProcessingResult] = []
 
     # --- Lifecycle ---
     def close(self) -> None:
-        self.progress.stop()
+        pass
 
     # Context manager support
     def __enter__(self) -> "Processing":
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
-        handled = False
         self.close()
-        return handled
+        return False
 
-    def _get_stages(self, name: str) -> list[dict[str, Any]]:
-        """Get all pipeline stages defined in the merged configuration.
+    def init_context(self) -> None:
+        """Do common session init"""
+
+        # Context is preserved through all stages, so each stage can add new symbols to it for use by later stages
+        self.context = {}
+
+        # Update the context with runtime values.
+        runtime_context = {}
+        self.context.update(runtime_context)
+
+    def add_result(self, result: ProcessingResult) -> None:
+        """Add a processing result to the list of results."""
+        self.results.append(result)
+
+    def _run_all_tasks(self, tasks: list[TaskDict]) -> list[ProcessingResult]:
+        self.doit.set_tasks(tasks)
+        self.results.clear()
+        self._run_jobs()
+        return self.results
+
+    def _create_tasks(
+        self, sessions: list[SessionRow], targets: list[str | None]
+    ) -> list[TaskDict]:
+        """Create all processing tasks for the indicated targets.
+
+        Args:
+            targets: List of target names (normalized) to process, or None to process
+            all the master frames."""
+
+        all_tasks: list[
+            TaskDict
+        ] = []  # We merge all the tasks into this list - because we regenerate sb.doit.dicts each iteration
+        for target in targets:
+            if target:
+                # we only want sessions with light frames, because other session types (bias, dark, flat) are already
+                # included in our list of masters auto dependencies
+                sessions_this_target = self.sb.filter_by_imagetyp(sessions, "light")
+
+                # select sessions for this target
+                sessions_this_target = self.sb.filter_sessions_by_target(
+                    sessions_this_target, target
+                )
+
+                # We are processing a single target, so build the context around that, and process
+                # all sessions for that target as a group
+                with ProcessingContext(self, target):
+                    self.sessions = sessions_this_target
+                    self._job_to_tasks(target, "processed")
+                    all_tasks.extend(self.tasks)
+                    self.doit.set_tasks([])
+            else:
+                for s in sessions:
+                    # For masters we process each session individually
+                    with ProcessingContext(self):
+                        self._set_session_in_context(s)
+                        # Note: We need to do this early because we need to get camera_id etc... from session
+
+                        self.sessions = [s]
+                        job_desc = f"master_{s.get('id', 'unknown')}"
+                        self._job_to_tasks(job_desc, "master")
+                        all_tasks.extend(self.tasks)
+                        self.doit.set_tasks([])
+
+        return all_tasks
+
+    def _get_sessions_by_imagetyp(self, imagetyp: str) -> list[SessionRow]:
+        """Get all sessions that are relevant for master frame generation.
 
         Returns:
-            List of stage definitions (dictionaries with 'name' and 'priority')
+            List of SessionRow objects for master frame sessions.
         """
-        # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
-        pipeline_definitions = self.sb.repo_manager.merged.getall(name)
-        flat_pipeline_steps = list(itertools.chain.from_iterable(pipeline_definitions))
+        sessions = self.sb.search_session([])  # for masters we always search everything
 
-        # 2. Sort the pipeline steps by their 'priority' field.
-        try:
-            sorted_pipeline = sorted(flat_pipeline_steps, key=lambda s: s["priority"])
-        except KeyError as e:
-            # Re-raise as a ValueError with a more descriptive message.
-            raise ValueError(
-                "invalid stage definition: a stage is missing the required 'priority' key"
-            ) from e
+        # Don't return any light frame sessions
 
-        logging.debug(f"Found {len(sorted_pipeline)} pipeline steps to run in order of priority.")
-        return sorted_pipeline
+        sessions = [
+            s for s in sessions if get_aliases().normalize(s.get("imagetyp", "light")) == imagetyp
+        ]
 
-    def run_pipeline_step(self, step_name: str):
-        logging.info(f"--- Running pipeline step: '{step_name}' ---")
+        return sessions
 
-        # 3. Get all available task definitions (the `[[stage]]` tables with tool, script, when).
-        task_definitions = self.sb.repo_manager.merged.getall("stage")
-        all_tasks = list(itertools.chain.from_iterable(task_definitions))
-
-        # Find all tasks that should run during this pipeline step.
-        tasks_to_run = [task for task in all_tasks if task.get("when") == step_name]
-        for task in tasks_to_run:
-            self.run_stage(task)
-
-    def process_target(self, target: str, sessions: list[SessionRow]) -> ProcessingResult:
-        """Do processing for a particular target (i.e. all sessions for a particular object)."""
-
-        pipeline = self._get_stages("stages")
-
-        lights_step = pipeline[
-            0
-        ]  # FIXME super nasty - we assume the array is exactly these two elements
-        stack_step = pipeline[1]
-        task_exception: Exception | None = None
-
-        self.sessions = sessions
-
-        result = ProcessingResult(target=target, sessions=sessions)
-
-        with ProcessingContext(self):
-            try:
-                # target specific processing here
-
-                # we find our recipe while processing our first light frame session
-                recipe = None
-
-                # process all light frames
-                step = lights_step
-                lights_task = self.progress.add_task("Processing session...", total=len(sessions))
-                try:
-                    lights_processed = False  # for better reporting
-                    stack_processed = False
-
-                    for session in sessions:
-                        step_name = step["name"]
-                        if not recipe:
-                            # for the time being: The first step in the pipeline MUST be "light"
-                            recipe = self.sb.get_recipe_for_session(session, step)
-                            if not recipe:
-                                continue  # No recipe found for this target/session
-
-                            self.recipe = recipe
-                            self.recipes_considered = [
-                                recipe
-                            ]  # FIXME: we should let the user pick if needed
-
-                        # find the task for this step
-                        task = None
-                        if recipe:
-                            task = recipe.get("recipe.stage." + step_name)
-
-                        if task:
-                            # put all relevant session info into context
-                            self.set_session_in_context(session)
-
-                            # The following operation might take a long time, so give the user some more info...
-                            self.progress.update(
-                                lights_task,
-                                description=f"Processing {step_name} {self.context['date']}...",
-                            )
-                            try:
-                                self.run_stage(task)
-                                lights_processed = True
-                            except NotEnoughFilesError:
-                                logging.warning(
-                                    "Skipping session, siril requires at least two frames per session..."
-                                )
-
-                        # We made progress - call once per iteration ;-)
-                        self.progress.advance(lights_task)
-                finally:
-                    self.progress.remove_task(lights_task)
-
-                # after all light frames are processed, do the stacking
-                step = stack_step
-                if recipe:
-                    task = recipe.get("recipe.stage." + step["name"])
-
-                    if task:
-                        #
-                        # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
-                        # dirs for particular targets?
-                        try:
-                            self.run_stage(task)
-
-                            # FIXME create this earlier - but for now I want to assume the output
-                            # path is correct.
-                            processed_target = ProcessedTarget(self)
-                            processed_target.close()
-                            stack_processed = True
-                        except NotEnoughFilesError:
-                            logging.warning(
-                                "Skipping stacking, siril requires at least two frames per session..."
-                            )
-
-                # Success!  we processed all lights and did a stack (probably)
-                if not lights_processed:
-                    result.notes = "Skipped, no suitable recipe found for light frames..."
-                elif not stack_processed:
-                    result.notes = "Skipped, no suitable recipe found for stacking..."
-                else:
-                    update_processing_result(result)
-            except Exception as e:
-                task_exception = e
-                update_processing_result(result, task_exception)
-
-        return result
+    def _remove_duplicates(self, sessions: list[SessionRow], to_check: list[SessionRow]) -> None:
+        """Remove sessions from 'sessions' that are already in 'to_check' based on session ID."""
+        existing_ids = {s.get("id") for s in to_check if s.get("id") is not None}
+        sessions[:] = [s for s in sessions if s.get("id") not in existing_ids]
 
     def run_all_stages(self) -> list[ProcessingResult]:
         """On the currently active session, run all processing stages
@@ -281,104 +357,27 @@ class Processing:
 
         """
         sessions = self.sb.search_session()
-        targets = {
-            normalize_target_name(obj)
-            for s in sessions
-            if (obj := s.get(get_column_name(Database.OBJECT_KEY))) is not None
-        }
+        targets: set[str] = set()
 
-        target_task = self.progress.add_task("Processing targets...", total=len(targets))
+        for s in sessions:
+            target = s.get(get_column_name(Database.OBJECT_KEY))
+            if target:
+                target = normalize_target_name(target)
+                targets.add(target)
 
-        results: list[ProcessingResult] = []
-        try:
-            for target in targets:
-                self.progress.update(target_task, description=f"Processing target {target}...")
-                # select sessions for this target
-                target_sessions = self.sb.filter_sessions_by_target(sessions, target)
+        targets_list: list[str | None] = list(targets)
 
-                # we only want sessions with light frames
-                target_sessions = self.sb.filter_sessions_with_lights(target_sessions)
+        tasks = []
+        import starbash
 
-                if target_sessions:
-                    result = self.process_target(target, target_sessions)
-                    results.append(result)
+        auto_process_masters = starbash.process_masters
+        if auto_process_masters:
+            tasks.extend(self._create_master_tasks())
 
-                # We made progress - call once per iteration ;-)
-                self.progress.advance(target_task)
-        finally:
-            self.progress.remove_task(target_task)
+        tasks.extend(self._create_tasks(sessions, targets_list))
+        return self._run_all_tasks(tasks)
 
-        return results
-
-    def run_master_stages(self) -> list[ProcessingResult]:
-        """Generate any missing master frames
-
-        Steps:
-        * loop across all pipeline stages, first bias, then dark, then flat, etc...  Very important that bias is before flat.
-        * set all_tasks to be all tasks for when == "setup.master.bias"
-        * loop over all currently unfiltered sessions
-        * if task input.type == the imagetyp for this current session
-        *    add_input_to_context() add the input files to the context (from the session)
-        *    run_stage(task) to generate the new master frame
-        """
-        sorted_pipeline = self._get_stages("master-stages")
-        sessions = self.sb.search_session([])  # for masters we always search everything
-        results: list[ProcessingResult] = []
-
-        # we loop over pipeline steps in the
-        for step in sorted_pipeline:
-            step_name = step.get("name")
-            if not step_name:
-                raise ValueError("Invalid pipeline step found: missing 'name' key.")
-            for session in track(sessions, description=f"Processing {step_name} for sessions..."):
-                task = None
-                recipe = self.sb.get_recipe_for_session(session, step)
-                if recipe:
-                    task = recipe.get("recipe.stage." + step_name)
-
-                processing_exception: Exception | None = None
-                if task:
-                    try:
-                        # Create a default process dir in /tmp.
-                        # FIXME - eventually we should allow hashing or somesuch to keep reusing processing
-                        # dirs for particular targets?
-                        with ProcessingContext(self):
-                            self.set_session_in_context(session)
-
-                            # we want to allow already processed masters from other apps to be imported
-                            self.run_stage(task, processed_ok=True)
-                    except Exception as e:
-                        processing_exception = e
-
-                    # for user feedback we try to tell the name of the master we made
-                    target = step_name
-                    if self.context.get("output"):
-                        output_path = self.context.get("output", {}).get("relative_base_path")
-                        if output_path:
-                            target = str(output_path)
-                    result = ProcessingResult(target=target, sessions=[session])
-
-                    # We did one processing run. add the results
-                    update_processing_result(result, processing_exception)
-
-                    # if we skipped leave the result as skipped
-                    results.append(result)
-
-        return results
-
-    def init_context(self) -> None:
-        """Do common session init"""
-
-        # Context is preserved through all stages, so each stage can add new symbols to it for use by later stages
-        self.context = {}
-
-        # Update the context with runtime values.
-        runtime_context = {
-            # "masters": "/workspaces/starbash/images/masters",  # FIXME find this the correct way
-        }
-        self.context.update(runtime_context)
-
-    def set_session_in_context(self, session: SessionRow) -> None:
+    def _set_session_in_context(self, session: SessionRow) -> None:
         """adds to context from the indicated session:
 
         Sets the following context variables based on the provided session:
@@ -417,7 +416,7 @@ class Processing:
         # The type of images in this session
         imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
         if imagetyp:
-            imagetyp = self.sb.aliases.normalize(imagetyp)
+            imagetyp = get_aliases().normalize(imagetyp)
             self.context["imagetyp"] = imagetyp
 
             # add a short human readable description of the session - suitable for logs or in filenames
@@ -441,224 +440,178 @@ class Processing:
         # a short user friendly date for this session
         date = session.get(get_column_name(Database.START_KEY))
         if date:
+            # Convert ISO date to yyyy-mm-dd_hh-mm-ss format for guaranteed filename uniqueness
+            from datetime import datetime
+
             from starbash import (
                 to_shortdate,
             )  # Lazy import to avoid circular dependency
 
+            dt = datetime.fromisoformat(date)
+            self.context["datetime"] = dt.strftime("%Y-%m-%d_%H-%M-%S")
+
             self.context["date"] = to_shortdate(date)
 
-    def add_input_masters(self, stage: dict) -> None:
-        """based on input.masters add the correct master frames as context.master.<type> filepaths"""
-        session = self.context.get("session")
-        assert session is not None, "context.session should have been already set"
+    @property
+    def target(self) -> dict[str, Any] | None:
+        """Get the current target from the context."""
+        return self.context.get("target")
 
-        input_config = stage.get("input", {})
-        master_types: list[str] = input_config.get("masters", [])
-        for master_type in master_types:
-            masters = self.sb.get_master_images(imagetyp=master_type, reference_session=session)
-            if not masters:
-                raise RuntimeError(
-                    f"No master frames of type '{master_type}' found for stage '{stage.get('name')}'"
-                )
+    @property
+    def session(self) -> dict[str, Any]:
+        """Get the current session from the context."""
+        return self.context["session"]
 
-            context_master = self.context.setdefault("master", {})
+    @property
+    def job_dir(self) -> Path:
+        """Get the current job directory (for working/temp files) from the context."""
+        d = self.context["process_dir"]  # FIXME change this to be named "job".base
+        return Path(d)
 
-            # Try to rank the images by desirability
-            scored_masters = self.sb.score_candidates(masters, session)
-            session_masters = session.setdefault("masters", {})
-            session_masters[master_type] = scored_masters  # for reporting purposes
+    @property
+    def output_dir(self) -> Path:
+        """Get the current output directory (for working/temp files) from the context."""
+        d = self.context["final_output"].base
+        return Path(d)
 
-            if len(scored_masters) == 0:
-                raise RuntimeError(f"No suitable master frames of type '{master_type}' found.")
+    def _create_master_tasks(self) -> list[TaskDict]:
+        """Generate master calibration frames (bias, dark, flat).
 
-            self.sb._add_image_abspath(
-                scored_masters[0].candidate
-            )  # make sure abspath is populated, we need it
-
-            selected_master = scored_masters[0].candidate["abspath"]
-            logging.info(
-                f"For master '{master_type}', using: {selected_master} (score={scored_masters[0].score:.1f}, {scored_masters[0].reason})"
-            )
-
-            context_master[master_type] = selected_master
-
-    def add_input_files(self, stage: dict, processed_ok: bool = False) -> None:
-        """adds to context.input_files based on the stage input config"""
-        input_config = stage.get("input")
-        input_required = 0
-        if input_config:
-            # if there is an "input" dict, we assume input.required is true if unset
-            input_required = input_config.get("required", 0)
-            source = input_config.get("source")
-            if source is None:
-                raise ValueError(
-                    f"Stage '{stage.get('name')}' has invalid 'input' configuration: missing 'source'"
-                )
-            if source == "path":
-                # The path might contain context variables that need to be expanded.
-                # path_pattern = expand_context(input_config["path"], context)
-                path_pattern = input_config["path"]
-                input_files = glob.glob(path_pattern, recursive=True)
-
-                self.context["input_files"] = (
-                    input_files  # Pass in the file list via the context dict
-                )
-            elif source == "repo":
-                # Get images for this session (by pulling from repo)
-                session = self.context.get("session")
-                assert session is not None, "context.session should have been already set"
-
-                # if session["id"] == 10:
-                #    logging.warning("debugging session 10")
-
-                images = self.sb.get_session_images(session, processed_ok=processed_ok)
-                logging.debug(f"Using {len(images)} files as input_files")
-                self.context["input_files"] = [
-                    img["abspath"] for img in images
-                ]  # Pass in the file list via the context dict
-            elif source == "recipe":
-                # The input files are already in the tempdir from the recipe processing
-                # therefore we don't need to do anything here
-                pass
-            else:
-                raise ValueError(
-                    f"Stage '{stage.get('name')}' has invalid 'input' source: {source}"
-                )
-
-            # FIXME compare context.output to see if it already exists and is newer than the input files, if so skip processing
-        else:
-            # The script doesn't mention input, therefore assume it doesn't want input_files
-            if "input_files" in self.context:
-                del self.context["input_files"]
-
-        input_files: list[str] = self.context.get("input_files", [])
-        if input_required:
-            if len(input_files) < input_required:
-                raise NotEnoughFilesError(
-                    f"Stage requires >{input_required} input files ({len(input_files)} found)",
-                    input_files,
-                )
-
-    def add_output_path(self, stage: dict) -> None:
-        """Adds output path information to context based on the stage output config.
-
-        If the output dest is 'repo', it finds the appropriate repository and constructs
-        the full output path based on the repository's base path and relative path expression.
-
-        Sets the following context variables:
-        - context.output.root_path - base path of the destination repo
-        - context.output.base_path - full path without file extension
-        - context.output.suffix - file extension (e.g., .fits or .fit.gz)
-        - context.output.full_path - complete output file path
-        - context.output.repo - the destination Repo (if applicable)
+        Returns:
+            List of ProcessingResult objects, one per master frame generated.
         """
-        output_config = stage.get("output")
-        if not output_config:
-            # No output configuration, remove any existing output from context
-            if "output" in self.context:
-                del self.context["output"]
-            return
+        # it is important that we make bias/dark **before** flats because we don't yet do all the task execution in one go
+        results: list[TaskDict] = []
+        results.extend(self._create_masters_by_type("bias"))
+        results.extend(self._create_masters_by_type("dark"))
+        results.extend(self._create_masters_by_type("flat"))
 
-        dest = output_config.get("dest")
-        if not dest:
-            raise ValueError(
-                f"Stage '{stage.get('description', 'unknown')}' has 'output' config but missing 'dest'"
-            )
+        return results
 
-        if dest == "repo":
-            # Find the destination repo by type/kind
-            output_type = output_config.get("type")
-            if not output_type:
-                raise ValueError(
-                    f"Stage '{stage.get('description', 'unknown')}' has output.dest='repo' but missing 'type'"
-                )
+    def _create_masters_by_type(self, imagetyp: str) -> list[TaskDict]:
+        """Generate master calibration frames (bias, dark, flat).
 
-            # Find the repo with matching kind
-            dest_repo = self.sb.repo_manager.get_repo_by_kind(output_type)
-            if not dest_repo:
-                raise ValueError(
-                    f"No repository found with kind '{output_type}' for output destination"
-                )
-
-            repo_base = dest_repo.get_path()
-            if not repo_base:
-                raise ValueError(f"Repository '{dest_repo.url}' has no filesystem path")
-
-            # try to find repo.relative.<imagetyp> first, fallback to repo.relative.default
-            # Note: we are guaranteed imagetyp is already normalized
-            imagetyp = self.context.get("imagetyp", "unspecified")
-            repo_relative: str | None = dest_repo.get(
-                f"repo.relative.{imagetyp}", dest_repo.get("repo.relative.default")
-            )
-            if not repo_relative:
-                raise ValueError(
-                    f"Repository '{dest_repo.url}' is missing 'repo.relative.default' configuration"
-                )
-
-            # we support context variables in the relative path
-            repo_relative = expand_context_unsafe(repo_relative, self.context)
-            full_path = repo_base / repo_relative
-
-            # base_path but without spaces - because Siril doesn't like that
-            full_path = Path(str(full_path).replace(" ", r"_"))
-
-            base_path = full_path.parent / full_path.stem
-            if str(base_path).endswith("*"):
-                # The relative path must be of the form foo/blah/*.fits or somesuch.  In that case we want the base
-                # path to just point to that directory prefix.
-                base_path = Path(str(base_path)[:-1])
-
-            # create output directory if needed
-            os.makedirs(base_path.parent, exist_ok=True)
-
-            # Set context variables as documented in the TOML
-            self.context["output"] = {
-                # "root_path": repo_relative, not needed I think
-                "base_path": base_path,
-                # "suffix": full_path.suffix, not needed I think
-                "full_path": full_path,
-                "relative_base_path": repo_relative,
-                "repo": dest_repo,
-            }
-        else:
-            raise ValueError(
-                f"Unsupported output destination type: {dest}. Only 'repo' is currently supported."
-            )
-
-    def expand_to_context(self, to_add: dict[str, Any]):
-        """Expands any string values in to_add using the current context and updates the context.
-
-        This allows scripts to add new context variables - with general python expressions inside
+        Returns:
+            List of ProcessingResult objects, one per master frame generated.
         """
-        for key, value in to_add.items():
-            if isinstance(value, str):
-                expanded_value = expand_context_unsafe(value, self.context)
-                self.context[key] = expanded_value
-            else:
-                self.context[key] = value
+        sessions = self._get_sessions_by_imagetyp(imagetyp)
+        results = self._create_tasks(sessions, [None])
 
-    def run_stage(self, stage: dict, processed_ok: bool = False) -> None:
+        for t in results:
+            t["meta"]["is_master"] = True  # mark these as possibly uninteresting
+
+        return results
+
+    def run_master_stages(self) -> list[ProcessingResult]:
+        """Generate master calibration frames (bias, dark, flat).
+
+        Returns:
+            List of ProcessingResult objects, one per master frame generated.
         """
-        Executes a single processing stage.
+        # it is important that we make bias/dark **before** flats because we don't yet do all the task execution in one go
+
+        types = ["bias", "dark", "flat"]
+        results: list[ProcessingResult] = []
+        for t in types:
+            # run each of the master gens sepearately - because flats might need bias/dark to be present
+            results.extend(self._run_all_tasks(self._create_masters_by_type(t)))
+        return results
+
+    @property
+    def tasks(self) -> list[TaskDict]:
+        """Get the list of tasks generated for the current processing run."""
+        return list[TaskDict](self.doit.dicts.values())
+
+    def _add_task(self, task: TaskDict) -> None:
+        """Add a task to the doit task list."""
+        self.doit.add_task(task)
+
+    def _run_jobs(self) -> None:
+        # add a default task to run all the other tasks
+        self._add_task(create_default_task(self.tasks))
+
+        tree = to_tree(self.tasks)
+
+        logging.debug(f"Tasks: {tree}")
+
+        # fire up doit to run the tasks
+        # FIXME, perhaps we could run doit one level higher, so that all targets are processed by doit
+        # for parallism etc...?
+        # self.doit.run(["list", "--all", "--status"])
+
+        logging.info("Running doit tasks...")
+        doit_args: list[str] = []
+        if starbash.force_regen:
+            doit_args.append("-a")  # force rebuild
+        doit_args.append("process_all")
+        result_code = self.doit.run(doit_args)  # light_{self.target}_s35
+
+        # Start with a blank task list next time
+        self.doit.dicts.clear()
+
+        # FIXME - it would be better to call a doit entrypoint that lets us catch the actual Doit exception directly
+        if result_code != 0:
+            raise RuntimeError(f"doit processing failed with exit code {result_code}")
+
+    def _job_to_tasks(self, job_name: str, output_kind: str) -> None:
+        """Do processing for a particular target/master
+        (i.e. all selected sessions for a particular complete processing run)."""
+
+        # result = ProcessingResult(target=job_name, sessions=self.sessions)
+
+        self._set_output_by_kind(output_kind)
+
+        with ProcessedTarget(self, output_kind) as pt:
+            pt.config_valid = False  # assume our config is not worth writing
+
+            stages = self._get_stages()
+            self._stages_to_tasks(stages)
+
+            self.doit.set_tasks(self.preflight_tasks(pt, self.tasks))
+            # self.doit.run(
+            #     [
+            #         "info",
+            #         "process_all",  # "stack_m20",  # seqextract_haoiii_m20_s35
+            #     ]
+            # )
+            # self.doit.run(["dumpdb"])
+            pt.config_valid = True  # our config is probably worth keeping
+
+    def _get_stages(self, name: str = "stages") -> list[StageDict]:
+        """Get all pipeline stages defined in the merged configuration."""
+        # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
+
+        # FIXME this is kinda yucky.  The 'merged' repo_manage doesn't know how to merge AoT types, so we get back a list of AoT
+        # we need to flatten that out into one list of dict like objects
+        stages: list[AoT] = self.sb.repo_manager.merged.getall(name)
+        s_unwrapped: list[StageDict] = []
+        for stage in stages:
+            # .unwrap() - I'm trying an experiment of not unwrapping stage - which would be nice because
+            # stage has a useful 'source' backpointer.
+            s_unwrapped.extend(stage)
+        return s_unwrapped
+
+    def _clone_context(self) -> dict[str, Any]:
+        """Create a deep copy of the current processing context.
+
+        Returns:
+            A deep copy of the current context dictionary.
+        """
+        return copy.deepcopy(self.context)
+
+    def _stage_to_action(self, task: TaskDict, stage: StageDict) -> None:
+        """Given a stage definition, populate the "actions" list of the task dictionary.
+
+        Creates instances of ToolAction for the specified tool and commands.
 
         Args:
-            stage: A dictionary representing the stage configuration, containing
-                   at least 'tool' and 'script' keys.
+            task: The doit task dictionary to populate
+            stage: The stage definition from TOML containing tool and script info
         """
-        stage_desc = stage.get("description", "(missing description)")
-        stage_disabled = stage.get("disabled", False)
-        if stage_disabled:
-            logging.info(f"Skipping disabled stage: {stage_desc}")
-            return
+        from starbash.doit import ToolAction
 
-        logging.info(f"Running stage: {stage_desc}")
-
-        tool_dict = stage.get("tool")
-        if not tool_dict:
-            raise ValueError(f"Stage '{stage.get('name')}' is missing a 'tool' definition.")
-        tool_name = tool_dict.get("name")
-        if not tool_name:
-            raise ValueError(f"Stage '{stage.get('name')}' is missing a 'tool.name' definition.")
+        tool_dict = get_safe(stage, "tool")
+        tool_name = get_safe(tool_dict, "name")
         tool = tools.get(tool_name)
         if not tool:
             raise ValueError(f"Tool '{tool_name}' for stage '{stage.get('name')}' not found.")
@@ -672,7 +625,7 @@ class Processing:
             logging.debug(f"Using tool timeout: {tool.timeout} seconds")
 
         # is the script included inline?
-        script = stage.get("script")
+        script: str | None = stage.get("script")
         if script:
             script = textwrap.dedent(script)  # it might be indented in the toml
         else:
@@ -690,72 +643,677 @@ class Processing:
                 f"Stage '{stage.get('name')}' is missing a 'script' or 'script-file' definition."
             )
 
-        # This allows recipe TOML to define their own default variables.
-        # (apply all of the changes to context that the task demands)
-        stage_context = stage.get("context", {})
-        self.expand_to_context(stage_context)
-        self.add_output_path(stage)
+        # Need to determine the working directory (cwd)
+        # If we are 'importing' session files, use None so that the script is initially in a disposable temp dir
+        # otherwise use process_dir
+        cwd = self.context.get("process_dir") if not self.use_temp_cwd else None
 
-        output_info: dict | None = self.context.get("output")
+        # Create the ToolAction and add to task
+        action = ToolAction(tool, commands=script, cwd=cwd)
+        task["actions"] = [action]
+
+    def _add_stage_context_defs(self, stage: StageDict) -> None:
+        """Add any context definitions specified in the stage to our processing context.
+
+        Args:
+            stage: The stage definition from TOML
+        """
+        context_defs: dict[str, Any] = stage.get("context", {})
+        for key, value in context_defs.items():
+            self.context[key] = value
+
+    def _clear_context(self) -> None:
+        """Clear out any session-specific context variables."""
+        # since 'inputs' are session specific we erase them here, so that _create_task_dict can reinit with
+        # the correct session specific files
+        self.context.pop("input", None)
+        self.context.pop(
+            "input_files", None
+        )  # also nuke our temporary old-school way of finding input files
+
+    def _get_prior_tasks(self, stage: StageDict) -> TaskDict | list[TaskDict] | None:
+        """Get the prior tasks for the given stage based on the 'after' input definition.
+
+        Args:
+            stage: The stage definition from TOML
+        Returns:
+            Note: this function will return a single TaskDict if the prior stage was not
+            multiplexed, otherwise a list of TaskDicts for each multiplexed task.
+            Or None if no "after" keyword was found."""
+        inputs: list[InputDef] = stage.get("inputs", [])
+        input_with_after = next((inp for inp in inputs if "after" in inp), None)
+
+        if not input_with_after:
+            return None
+
+        after = get_safe(input_with_after, "after")
+        prior_task_name = self._get_unique_task_name(
+            after
+        )  # find the right task for our stage and multiplex
+
+        # Compile the prior_task_name into a regex pattern for prefix matching.
+        # The pattern from TOML may contain wildcards like "light.*" which should match
+        # task names like "light_m20_s35". We anchor the pattern to match the start of the task name.
+        import re
+
+        prior_starting_pattern = re.compile(f"^{prior_task_name}")
+        prior_exact_pattern = re.compile(f"^{prior_task_name}$")
+
+        # Handle the easier 'non-multiplexed' case - the name will exactly match
+        keys = self.doit.dicts.keys()
+        matching_keys = [k for k in keys if prior_exact_pattern.match(k)]
+        if len(matching_keys) == 1:
+            return self.doit.dicts[matching_keys[0]]
+
+        # collect all the tasks that match prior_task_pattern, in case of multiplexing
+        prior_tasks = []
+        cur_session_id = self.context.get("session", {}).get("id")
+        matching_keys = [k for k in keys if prior_starting_pattern.match(k)]
+        for key in matching_keys:
+            # Checking task names is a good filter, but to prevent being confused by things like:
+            # prior_task_name is 'light_m20_s3' but the key is 'light_m20_s35' we also need to
+            # confirm that the session IDs match
+            if (
+                not cur_session_id
+                or self.doit.dicts[key]["meta"]["context"].get("session", {}).get("id")
+                == cur_session_id
+            ):
+                prior_tasks.append(self.doit.dicts[key])
+
+        if not prior_tasks:
+            raise NoPriorTaskException(
+                f"Could not find prior task '{prior_task_name}' for 'after' input."
+            )
+        return prior_tasks
+
+    def _set_context_from_prior_stage(self, stage: StageDict) -> None:
+        """If we have an input section marked to be "after" some other session, try to respect that."""
+        prior_tasks = self._get_prior_tasks(stage)
+        if not prior_tasks:
+            # We aren't after anything - just plug in some correct defaults
+            self._clear_context()
+        else:
+            # old_session = self.context.get("session")
+            # FIXME this is kinda nasty, but if the prior stage was multiplexed we just need a context from any of
+            # tasks in that stage (as if we were in in stage_to_tasks just after them).  So look for one by name
+            # Use the last task in the list
+            multiplexed = isinstance(prior_tasks, list)
+            if multiplexed:
+                prior_task = prior_tasks[-1]
+            else:
+                prior_task = prior_tasks
+
+            context = prior_task["meta"]["context"]
+            old_session = self.context.get("session")
+            self.context = copy.deepcopy(context)
+
+            if multiplexed:
+                # since we just did a nasty thing, we don't want to inadvertently think our current
+                # (possibly non multiplexed) stage is tied to the prior stage's session
+                self.context.pop("session", None)  # remove the just added session
+                if old_session:
+                    self.context["session"] = old_session  # restore our old session
+
+    def _stage_to_tasks(self, stage: StageDict) -> None:
+        """Convert the given stage to doit task(s) and add them to our doit task list.
+
+        This method handles both single and multiplexed (per-session) stages.
+        For multiplexed stages, creates one task per session with unique names.
+        """
+        self.stage = stage
+
+        # Find what kinds of inputs the stage is REQUESTING
+        # masters_in = _inputs_by_kind(stage, "master")  # TODO: Use for input resolution
+        has_session_in = len(_inputs_by_kind(stage, "session")) > 0
+        has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
+        # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
+
+        assert (not has_session_in) or (
+            not has_session_extra_in
+        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+
+        self._add_stage_context_defs(stage)
+
+        # If we have any session inputs, this stage is multiplexed (one task per session)
+        need_multiplex = has_session_in or has_session_extra_in
+        if need_multiplex:
+            # Create one task per session
+            for s in self.sessions:
+                # Note we have a single context instance and we set session inside it
+                # later when we go to actually RUN the tasks we need to make sure each task is using a clone
+                # from _clone_context().  So that task will be seeing the correct context data we are building here.
+                # Note: we do this even in the "session_extra" case because that code needs to know the current
+                # session to find the 'previous' stage.
+                self._set_session_in_context(s)
+
+                t = self._create_task_dict(stage)
+                if t:
+                    self._add_task(t)
+                    # keep a ptr to the task for this stage - note: we "tasks" vs "task" for the multiplexed case
+                    # stage.setdefault("tasks", []).append(t)
+        else:
+            # no session for non-multiplexed stages, FIXME, not sure if there is a better place to clean this up?
+            self.context.pop("session", None)
+
+            # Single task (no multiplexing) - e.g., final stacking or post-processing
+            t = self._create_task_dict(stage)
+            if t:
+                self._add_task(t)
+            # stage["task"] = t  # keep a ptr to the task for this stage
+
+    def _get_unique_task_name(self, task_name: str) -> str:
+        """Generate a unique task name for the given stage and current session."""
+
+        # include target name in the task (if we have one)
+        if self.target:
+            task_name += f"_{self.target}"
+
+        # NOTE: we intentially don't use self.session because session might be None here and thats okay
+        session = self.context.get("session")
+        if session:
+            session_id = session["id"]
+
+            # Make unique task name by combining stage name and session ID
+            task_name += f"_s{session_id}"
+        return task_name
+
+    def _create_task_dict(self, stage: StageDict) -> TaskDict | None:
+        """Create a doit task dictionary for a single session in a multiplexed stage.
+
+        Args:
+            stage: The stage definition from TOML
+            session: The session row from the database
+
+        Returns:
+            Task dictionary suitable for doit (or None if stage cannot be processed).
+        """
         try:
-            self.add_input_files(stage, processed_ok=processed_ok)
-            self.add_input_masters(stage)
+            # We need to init our context from whatever the prior stage was using.
+            self._set_context_from_prior_stage(stage)
 
-            # if the output path already exists and is newer than all input files, skip processing
-            if output_info and not starbash.force_regen:
-                output_path = output_info.get("full_path")
-                if output_path:
-                    # output_path might contain * wildcards, make output_files be a list
-                    output_files = glob.glob(str(output_path))
-                    if len(output_files) > 0:
-                        logging.info(
-                            f"Output file already exists, skipping processing: {output_path}"
-                        )
-                        return
+            task_name = self._get_unique_task_name(stage.get("name", "unnamed_stage"))
 
-            # We normally run tools in a temp dir, but if input.source is recipe we assume we want to
-            # run in the shared processing directory.  Because prior stages output files are waiting for us there.
-            cwd = None
-            if stage.get("input", {}).get("source") == "recipe":
-                cwd = self.context.get("process_dir")
+            self.use_temp_cwd = False
 
-            tool.run(script, context=self.context, cwd=cwd)
+            fallback_output: None | ImageRow = None
+            try:
+                file_deps = self._stage_input_files(stage)
+            except FallbackToImageException as e:
+                logging.info(
+                    f"Falling back to file-based processing for stage '{stage.get('name')}' using file {e.image.get('path', 'unknown')}"
+                )
+                fallback_output = e.image
+                metadata = e.image.copy()
+                metadata.pop(
+                    "repo", None
+                )  # Repo is not serializable and for some reason doit serializes this
+                self.context["metadata"] = (
+                    metadata  # Store the image metadata so it can be used in doit_post_process
+                )
+                file_deps = [e.image["abspath"]]  # abspath is guaranteed to be present
+
+            targets = self._stage_output_files(stage)
+
+            task_dict: TaskDict = {
+                "name": task_name,
+                "file_dep": expand_context_list(file_deps, self.context),
+                # FIXME, we should probably be using something more structured than bare filenames - so we can pass base source and confidence scores
+                "targets": expand_context_list(targets, self.context),
+                "meta": {
+                    "context": self._clone_context(),
+                    "stage": stage,  # The stage we came from - used later in culling/handling conflicts
+                    "processing": self,  # so doit_post_process can update progress/write-to-db etc...
+                },
+                "clean": True,  # Let the doit "clean" command auto-delete any targets we listed
+            }
+
+            if fallback_output:
+                doit_do_copy(task_dict)
+                task_dict["doc"] = "Simple copy of singleton input file"
+            else:
+                # add the actions THIS will store a SNAPSHOT of the context AT THIS TIME for use if the task/action is later executed
+                self._stage_to_action(task_dict, stage)
+                _stage_to_doc(task_dict, stage)  # add the doc string
+
+            doit_post_process(task_dict)
+
+            return task_dict
+
         except NotEnoughFilesError as e:
-            # Not enough input files provided
-            input_files = e.files
-            if len(input_files) != 1:
-                raise  # We only handle the single file case here
+            # if the session was empty that probably just means it was completely filtered as a bad match
+            level = logging.DEBUG if len(e.files) == 0 else logging.WARNING
+            logging.log(
+                level,
+                f"Skipping stage '{stage.get('name')}' - insufficient input files: {e}",
+            )
+        except NoPriorTaskException as e:
+            logging.debug(
+                f"Skipping stage '{stage.get('name')}' - required prior task was skipped {e}"
+            )
+        except UserHandledError as e:
+            logging.warning(f"Skipping stage '{stage.get('name')}' - {e}")
+        return None
 
-            # Copy the single input file to the output path
-            output_path = self.context.get("output", {}).get("full_path")
-            if output_path:
-                shutil.copy(input_files[0], output_path)
-                logging.warning(f"Copied single master from {input_files[0]} to {output_path}")
-            else:
-                # no output path specified, re-raise
-                raise
+    def _resolve_files(self, input: InputDef, dir: Path) -> FileInfo:
+        """combine the directory with the input/output name(s) to get paths.
 
-        # verify context.output was created if it was specified
-        if output_info:
-            output_path = output_info[
-                "full_path"
-            ]  # This must be present, because we created it when we made the output node
+        We can share this function because input/output sections have the same rules for jobs"""
+        filenames = get_list_of_strings(input, "name")
+        # filenames might have had {} variables, we must expand them before going to the actual file
+        filenames = [expand_context_unsafe(f, self.context) for f in filenames]
+        return FileInfo(base=str(dir), image_rows=[_make_imagerow(dir, f) for f in filenames])
 
-            # output_path might contain * wildcards, make output_files be a list
-            output_files = glob.glob(str(output_path))
+    def _with_defaults(self, img: ImageRow) -> ImageRow:
+        """Try to provide missing metadata for image rows.  Some imagerows are 'sparse'
+        with just a filename and minor other info.  In that case try to assume the metadata matches
+        the input metadata for this single pipeline of images."""
+        r = self.context.get("default_metadata", {}).copy()
 
-            if len(output_files) < 1:
-                raise RuntimeError(f"Expected output file not found: {output_path}")
-            else:
-                if output_info["repo"].kind() == "master":
-                    # we add new masters to our image DB
-                    # add to image DB (ONLY! we don't also create a session)
+        # values from the passed in img override our defaults
+        for key, value in img.items():
+            r[key] = value
 
-                    # The generated files might not have propagated all of the metadata (because we added it after FITS import)
-                    extra_metadata = self.context.get("session", {}).get("metadata", {})
-                    self.sb.add_image(
-                        output_info["repo"],
-                        Path(output_path),
-                        force=True,
-                        extra_metadata=extra_metadata,
-                    )
+        return r
+
+    def _import_from_prior_stages(self, input: InputDef) -> FileInfo:
+        """Import and filter image data from prior stage outputs.
+
+        This function collects image rows from the outputs of previous stages in the pipeline,
+        applies any filtering requirements specified in the input definition.  If that prior stage
+        had matching unfiltered inputs, we assume that stage generated **outputs** that we want.
+
+        Args:
+            input: The input definition from the stage TOML, which may contain 'requires'
+                   filters to apply to the collected image rows.
+
+        Returns:
+            The FileInfo object we found a matching stage.  (from task["meta"]["context"]["output"])
+
+        Raises:
+            ValueError: If no prior tasks have image_rows in their context, or if the
+                       input definition is missing required fields.
+        """
+        image_rows: list[ImageRow] = []
+
+        assert self.stage
+        prior_tasks = self._get_prior_tasks(self.stage)
+        if not prior_tasks:
+            raise ValueError("Input definition with 'after' must refer to a valid prior stage.")
+
+        if not isinstance(prior_tasks, list):
+            prior_tasks = [prior_tasks]
+
+        # Collect all image rows from prior stage outputs
+        child_exception: Exception | None = None
+
+        for task in prior_tasks:
+            task_context: dict[str, Any] = task["meta"]["context"]  # type: ignore
+            task_inputs = task_context.get("input", {})
+
+            # Look through all input types in the task context for image_rows
+            for _input_type, file_info in task_inputs.items():
+                if isinstance(file_info, FileInfo) and file_info.image_rows:
+                    images = file_info.image_rows
+                    images = [self._with_defaults(img) for img in images]
+                    try:
+                        task_filtered_input = filter_by_requires(input, images)
+                        if (
+                            task_filtered_input
+                        ):  # This task had matching inputs for us, so therefore we want its outputs
+                            task_output = task_context.get("output")
+                            if (
+                                task_output
+                                and isinstance(task_output, FileInfo)
+                                and task_output.image_rows
+                            ):
+                                image_rows.extend(task_output.image_rows)
+                    except NotEnoughFilesError as e:
+                        child_exception = e  # In case we need to raise later
+                        # just because one prior task doesn't have what we need, we shouldn't stop looking
+                        logging.debug(f"Prior task '{task['name']}' skipped, still looking...S {e}")
+
+        if child_exception and len(image_rows) == 0:
+            # we failed on every child, give up
+            raise child_exception
+
+        return FileInfo(image_rows=image_rows)
+
+    def preflight_tasks(self, pt: ProcessedTarget, tasks: list[TaskDict]) -> list[TaskDict]:
+        # if user has excluded any stages, we need to respect that (remove matching stages)
+        excluded = pt.get_excluded("stages")
+        tasks = remove_tasks_by_stage_name(tasks, excluded)
+
+        # multimap from target file to tasks that produce it
+        target_to_tasks = MultiDict[TaskDict]()
+        for task in tasks:
+            logging.debug(f"Preflighting task: {task['name']}")
+            for target in task.get("targets", []):
+                target_to_tasks.add(target, task)
+
+        # pt.set_used("stages", stages, excluded)
+        # check for tasks that are writing to the same target (which is not allowed).  If we
+        # find such tasks we'll have to pick ONE based on priority and let the user know in the future
+        # they could pick something else.
+        for target in target_to_tasks.keys():
+            producing_tasks = target_to_tasks.getall(target)
+            if len(producing_tasks) > 1:
+                conflicting_stages = tasks_to_stages(producing_tasks)
+                assert (
+                    len(conflicting_stages) > 1
+                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
+
+                names = [t["name"] for t in conflicting_stages]
+                logging.warning(
+                    f"Multiple stages could produce the same target '{target}': {names}, picking a default for now..."
+                )
+                # exclude all but the first one (highest priority)
+                stages_to_exclude = conflicting_stages[1:]
+                pt.set_excluded("stages", [stage_with_comment(s) for s in stages_to_exclude])
+                tasks = remove_tasks_by_stage_name(tasks, pt.get_excluded("stages"))
+
+        # update our toml with what we used
+        pt.set_used("stages", [stage_with_comment(s) for s in tasks_to_stages(tasks)])
+
+        return tasks
+
+    def _resolve_input_files(self, input: InputDef) -> list[Path]:
+        """Resolve input file paths for a stage.
+
+        Args:
+            stage: The stage definition from TOML
+
+        Returns:
+            List of absolute file paths that are inputs to this stage
+        """
+        # FIXME: Implement input file resolution
+        # - Extract inputs from stage["inputs"]
+        # - For each input, based on its "kind":
+        #   - "session": get session light frames from database
+        #   - "master": look up master frame path (bias/dark/flat)
+        #   - "job": construct path from previous stage outputs
+        # - Apply input.requires filters (metadata, min_count, camera)
+        # - Return list of actual file paths
+
+        ci: dict = self.context.setdefault("input", {})
+
+        def _resolve_input_job() -> list[Path]:
+            """Resolve job-type inputs by importing data from prior stage outputs.
+
+            For each input name specified in the input definition, this function:
+            1. Imports and filters image rows from prior stages using _import_from_prior_stages
+            2. Stores the resulting FileInfo in the context under context["input"][name]
+            3. Collects all file paths from all imported FileInfos
+
+            Returns:
+                List of Path objects for all files imported from prior stages.
+            """
+            all_files: list[Path] = []
+            input_names = get_list_of_strings(input, "name")
+
+            for name in input_names:
+                # Import and filter data from prior stages
+                file_info = self._import_from_prior_stages(input)
+
+                # Store in context for script access
+                ci[name] = file_info
+
+                # Collect file paths
+                all_files.extend(file_info.full_paths)
+
+            logging.debug(f"Resolved {len(all_files)} job input files from prior stages")
+            return all_files
+
+        def _resolve_session_extra() -> list[Path]:
+            # In this case our context was preinited by cloning from the stage that preceeded us in processing
+            # To clean things up (before importing our real imports) we could clobber the old input section
+            # ci.clear()
+            # HOWEVER, I think it is useful to let later stages optionally refer to prior stage inputs (because inputs have names we can
+            # use to prevent colisions).
+            # In particular the "lights" input is useful to find our raw source files.
+
+            # currently our 'output' is really just the FileInfo from the prior stage output.  Repurpose that as
+            # our new input.
+            file_info: FileInfo = get_safe(self.context, "output")
+            ci["extra"] = (
+                file_info  # FIXME, change inputs to optionally use incrementing numeric keys instead of "default""
+            )
+            self.context.pop("output", None)  # remove the bogus output
+            return file_info.full_paths
+
+        def _resolve_input_session() -> list[Path]:
+            images = self.sb.get_session_images(self.session)
+
+            # FIXME Move elsewhere. It really just just be another "requires" clause
+            imagetyp = get_safe(input, "type")
+            images = self.sb.filter_by_imagetyp(images, imagetyp)
+
+            filter_by_requires(input, images)
+
+            logging.debug(f"Using {len(images)} files as input_files")
+            self.use_temp_cwd = True
+
+            repo: Repo | None = None
+            if len(images) > 0:
+                ref_image = images[0]
+                repo = ref_image.get("repo")  # all images will be from the same repo
+                self.context["default_metadata"] = (
+                    ref_image  # To allow later stage scripts info about the current script pipeline
+                )
+
+            fi = FileInfo(
+                image_rows=images,
+                repo=repo,
+                base=f"{imagetyp}_s{self.session['id']}",  # it is VERY important that the base name include the session ID, because it is used to construct unique filenames
+            )
+            ci[imagetyp] = fi
+
+            # FIXME, we temporarily (until the processing_classic is removed) use the old style input_files
+            # context variable - so that existing scripts can keep working.
+            self.context["input_files"] = fi.full_paths
+
+            return fi.full_paths
+
+        def _resolve_input_master() -> list[Path]:
+            imagetyp = get_safe(input, "type")
+            masters = self.sb.get_master_images(imagetyp=imagetyp, reference_session=self.session)
+            if not masters:
+                raise ValueError(f"No master frames of type '{imagetyp}' found for stage")
+
+            # Try to rank the images by desirability
+            scored_masters = score_candidates(masters, self.session)
+
+            # FIXME - do reporting and use the user selected master if specified
+            # FIXME make a special doit task that just provides a very large set of possible masters - so that doit can do the resolution
+            # /selection of inputs?  The INPUT for a master kind would just make its choice based on the toml user preferences (or pick the first
+            # if no other specified).  Perhaps no need for a special master task, just use the regular depdency mechanism and port over the
+            # master scripts as well!!!
+            # Use the ScoredCandidate data during the cullling!  In fact, delay DOING the scoring until that step.
+            #
+            # session_masters = session.setdefault("masters", {})
+            # session_masters[master_type] = scored_masters  # for reporting purposes
+
+            if len(scored_masters) == 0:
+                raise NoSuitableMastersException(imagetyp)
+
+            used_candidates = [scored_masters[0]]  # FIXME, for now we just pick the top one
+            excluded_candidates = scored_masters[1:]
+
+            self.sb._add_image_abspath(
+                used_candidates[0].candidate
+            )  # make sure abspath is populated, we need it
+
+            selected_master = used_candidates[0].candidate["abspath"]
+            logging.info(
+                f"For master '{imagetyp}', using: {selected_master} (score={used_candidates[0].score:.1f}, {used_candidates[0].reason})"
+            )
+
+            # so scripts can find input["bias"].base etc...
+            info = FileInfo(full=selected_master)
+            # Store the canidates we considered so they eventually end up in the toml fole
+            session_masters = self.session.setdefault("masters", {})
+            session_masters[imagetyp] = {
+                "used": toml_from_list(used_candidates),  # To have nice comments in the toml
+                "excluded": toml_from_list(excluded_candidates),
+            }
+            ci[imagetyp] = info
+
+            return [selected_master]
+
+        resolvers = {
+            "job": _resolve_input_job,
+            "session": _resolve_input_session,
+            "master": _resolve_input_master,
+            "session-extra": _resolve_session_extra,
+        }
+        kind: str = get_safe(input, "kind")
+        resolver = get_safe(resolvers, kind)
+        r = resolver()
+
+        return r
+
+    def _stage_input_files(self, stage: StageDict) -> list[Path]:
+        """Get all input file paths for the given stage.
+
+        Args:
+            stage: The stage definition from TOML"""
+        inputs: list[InputDef] = stage.get("inputs", [])
+        all_input_files: list[Path] = []
+        for inp in inputs:
+            input_files = self._resolve_input_files(inp)
+            all_input_files.extend(input_files)
+        return all_input_files
+
+    def _resolve_output_files(self, output: OutputDef) -> list[Path]:
+        """Resolve output file paths for a stage.
+
+        Args:
+            stage: The stage definition from TOML
+
+        Returns:
+            List of absolute file paths that are outputs/targets of this stage
+        """
+        # FIXME: Implement output file resolution
+        # - Extract outputs from stage["outputs"]
+        # - For each output, based on its "kind":
+        #   - "job": construct path in shared processing temp dir
+        #   - "processed": construct path in target-specific results dir
+        # - Return list of actual file paths
+
+        def _resolve_output_job() -> FileInfo:
+            return self._resolve_files(output, self.job_dir)
+
+        def _resolve_processed() -> FileInfo:
+            return self._resolve_files(output, self.output_dir)
+
+        def _resolve_master() -> FileInfo:
+            """Master frames and such - just a single output file in the output dir."""
+            fi = self._get_output_by_repo("master")
+            assert fi.base, "Output FileInfo must have a base for master output"
+            assert fi.full, "Should be inited by now"
+            assert fi.relative
+            imagerow = {"abspath": str(fi.full), "path": fi.relative}
+            fi.image_rows = [imagerow]
+            return fi
+
+        resolvers = {
+            "job": _resolve_output_job,
+            "processed": _resolve_processed,
+            "master": _resolve_master,
+        }
+        kind: str = get_safe(output, "kind")
+        resolver = get_safe(resolvers, kind)
+        r: FileInfo = resolver()
+
+        self.context["output"] = r
+        return r.full_paths
+
+    def _stage_output_files(self, stage: StageDict) -> list[Path]:
+        """Get all output file paths for the given stage.
+
+        Args:
+            stage: The stage definition from TOML"""
+        outputs: list[OutputDef] = stage.get("outputs", [])
+        all_output_files: list[Path] = []
+        for outp in outputs:
+            output_files = self._resolve_output_files(outp)
+            all_output_files.extend(output_files)
+        return all_output_files
+
+    def _stages_to_tasks(self, stages: list[StageDict]) -> None:
+        """Convert the given stages to doit tasks and add them to our doit task list."""
+        for stage in stages:
+            self._stage_to_tasks(stage)
+
+    def _get_output_by_repo(self, kind: str) -> FileInfo:
+        """Get output paths in the context based on their kind.
+
+        Args:
+            kind: The kind of output ("job", "processed", etc.)
+            paths: List of Path objects for the outputs
+        """
+        # Find the repo with matching kind
+        dest_repo = self.sb.repo_manager.get_repo_by_kind(kind)
+        if not dest_repo:
+            raise ValueError(f"No repository found with kind '{kind}' for output destination")
+
+        repo_base = dest_repo.get_path()
+        if not repo_base:
+            raise ValueError(f"Repository '{dest_repo.url}' has no filesystem path")
+
+        # try to find repo.relative.<imagetyp> first, fallback to repo.relative.default
+        # Note: we are guaranteed imagetyp is already normalized
+        imagetyp = self.context.get("imagetyp", "unspecified")
+        repo_relative: str | None = dest_repo.get(
+            f"repo.relative.{imagetyp}", dest_repo.get("repo.relative.default")
+        )
+        if not repo_relative:
+            raise ValueError(
+                f"Repository '{dest_repo.url}' is missing 'repo.relative.default' configuration"
+            )
+
+        # we support context variables in the relative path
+        repo_relative = expand_context_unsafe(repo_relative, self.context)
+        full_path = repo_base / repo_relative
+
+        # base_path but without spaces - because Siril doesn't like that
+        full_path = Path(str(full_path).replace(" ", r"_"))
+
+        base_path = full_path.parent / full_path.stem
+        if str(base_path).endswith("*"):
+            # The relative path must be of the form foo/blah/*.fits or somesuch.  In that case we want the base
+            # path to just point to that directory prefix.
+            base_path = Path(str(base_path)[:-1])
+
+        # create output directory if needed
+        os.makedirs(base_path.parent, exist_ok=True)
+
+        # Set context variables as documented in the TOML
+        return FileInfo(base=str(base_path), full=full_path, relative=repo_relative, repo=dest_repo)
+
+    def _set_output_to_repo(self, kind: str) -> None:
+        """Set output paths in the context based on their kind.
+
+        Args:
+            kind: The kind of output ("job", "processed", etc.)
+            paths: List of Path objects for the outputs
+        """
+        # Set context variables as documented in the TOML
+        # FIXME, change this type from a dict to a dataclass?!? so foo.base works in the context expanson strings
+        self.context["output"] = self._get_output_by_repo(kind)
+
+    def _set_output_by_kind(self, kind: str) -> None:
+        """Set output paths in the context based on their kind.
+
+        Args:
+            kind: The kind of output ("job", "processed", "master" etc...)
+            paths: List of Path objects for the outputs
+        """
+        if kind == "job":
+            raise NotImplementedError("Setting 'job' output kind is not yet implemented")
+        else:
+            # look up the repo by kind
+            self._set_output_to_repo(kind)
+
+            # Store that FileInfo so that any task that needs to know our final output dir can find it.  This is useful
+            # so we can read/write our per target starbash.toml file for instance...
+            self.context["final_output"] = self.context["output"]

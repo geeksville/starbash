@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+from pathlib import Path
 from typing import Any
 
 import RestrictedPython
@@ -17,6 +18,15 @@ from starbash.commands import SPINNER_STYLE
 from starbash.exception import UserHandledError
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "Tool",
+    "ToolError",
+    "expand_context",
+    "expand_context_unsafe",
+    "tools",
+    "preflight_tools",
+]
 
 
 class ToolError(UserHandledError):
@@ -80,6 +90,11 @@ def expand_context(s: str, context: dict) -> str:
     return expanded
 
 
+def expand_context_list(strings: list[str] | list[Path], context: dict) -> list[str]:
+    """Expand a list of strings with context variables."""
+    return [expand_context_unsafe(str(s), context) for s in strings]
+
+
 def expand_context_unsafe(s: str, context: dict) -> str:
     """Expand a string with Python expressions in curly braces using RestrictedPython.
 
@@ -124,8 +139,20 @@ def expand_context_unsafe(s: str, context: dict) -> str:
         except Exception as e:
             raise ValueError(f"Failed to evaluate '{expr}' in context") from e
 
-    # Replace all expressions
-    expanded = re.sub(pattern, eval_expression, s)
+    # Iteratively expand the string to handle nested placeholders.
+    # The loop continues until the string no longer changes.
+    expanded = s
+    previous = None
+    max_iterations = 10  # Safety break for infinite recursion
+    for _i in range(max_iterations):
+        if expanded == previous:
+            break  # Expansion is complete
+        previous = expanded
+        expanded = re.sub(pattern, eval_expression, expanded)
+    else:
+        logger.warning(
+            f"Template expansion reached max iterations ({max_iterations}). Possible recursive definition in '{s}'."
+        )
 
     logger.debug(f"Unsafe expanded '{s}' into '{expanded}'")
 
@@ -214,6 +241,21 @@ def tool_run(cmd: str, cwd: str, commands: str | None = None, timeout: float | N
 
     returncode = process.returncode
 
+    # print stdout BEFORE stderr so the user can more easily see error message near the exception
+    if returncode != 0:
+        # log stdout with warn priority because the tool failed
+        logger.warning(f"[tool] {stdout_lines}")
+    else:
+        logger.debug(f"[tool] {stdout_lines}")
+
+    # Check stdout for "Aborting" messages and append them to stderr (because the only useful Siril error messages appear on such a line)
+    abort_lines = [line for line in stdout_lines.splitlines() if "Aborting" in line]
+    stderr_level = logging.ERROR if returncode != 0 else logging.WARNING
+    if abort_lines:
+        stderr_lines = (
+            stderr_lines + "\n" + "\n".join(abort_lines) if stderr_lines else "\n".join(abort_lines)
+        )
+
     if stderr_lines:
         # drop any line that contains "Reading sequence failed, file cannot be opened"
         # because it is a bogus harmless message from siril and confuses users.
@@ -223,16 +265,14 @@ def tool_run(cmd: str, cwd: str, commands: str | None = None, timeout: float | N
             if "Reading sequence failed, file cannot be opened" not in line
         ]
         if filtered_lines:
-            logger.warning(f"[tool-warnings] {'\n'.join(filtered_lines)}")
+            logger.log(stderr_level, f"[tool-warnings] {'\n'.join(filtered_lines)}")
 
     if returncode != 0:
         # log stdout with warn priority because the tool failed
-        logger.warning(f"[tool] {stdout_lines}")
         raise ToolError(
             f"{cmd} failed with exit code {returncode}", command=cmd, arguments=commands
         )
     else:
-        logger.debug(f"[tool] {stdout_lines}")
         logger.debug("Tool command successful.")
 
 
@@ -275,7 +315,7 @@ class Tool:
         spinner = Spinner(
             "arc", text=f"Tool running: [bold]{self.name}[/bold]...", speed=2.0, style=SPINNER_STYLE
         )
-        with Live(spinner, console=console, refresh_per_second=5):
+        with Live(spinner, console=console, refresh_per_second=5, transient=True):
             try:
                 if not cwd:
                     # Create a temporary directory for processing
@@ -418,7 +458,7 @@ class SirilTool(ExternalTool):
         logger.debug(
             f"Running Siril in {temp_dir}, ({len(input_files)} input files) cmds:\n{script_content}"
         )
-        logger.info(f"Running Siril ({len(input_files)} input files)")
+        logger.debug(f"Running Siril ({len(input_files)} input files)")
 
         # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
         # It seems like the -d command may also be required when siril is in a flatpak

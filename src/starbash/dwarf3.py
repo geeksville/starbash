@@ -8,6 +8,10 @@ from typing import Any
 
 from starbash.database import Database
 
+__all__ = [
+    "extend_dwarf3_headers",
+]
+
 
 def _extract_temperature(filename: str) -> float | None:
     """Extract temperature from filename in format like '16C' or '20C'.
@@ -37,8 +41,8 @@ def _make_monotonic_datetime() -> str:
     # Set base date to Jan 1, 2000 for factory calibration frames
     base = datetime(2000, 1, 1, 0, 0, 0)
 
-    # Increment by 1 hour per call
-    current = base + timedelta(hours=_make_monotonic_datetime.counter)
+    # Increment by 1 day per call - to ensure all images are treated as separate sessions
+    current = base + timedelta(days=_make_monotonic_datetime.counter)
     _make_monotonic_datetime.counter += 1
 
     # Format as ISO 8601 with milliseconds

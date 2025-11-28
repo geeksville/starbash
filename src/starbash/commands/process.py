@@ -109,26 +109,27 @@ def print_results(
 
     table = Table(title=title, show_header=True, header_style=TABLE_HEADER_STYLE)
     table.add_column("Target", style=TABLE_COLUMN_STYLE, no_wrap=True)
-    table.add_column("Sessions", justify="right", style=TABLE_COLUMN_STYLE)
+    table.add_column("Session", justify="right", style=TABLE_COLUMN_STYLE)
     table.add_column("Status", justify="center", style=TABLE_COLUMN_STYLE)
     table.add_column("Notes", style=TABLE_COLUMN_STYLE)
 
     for result in results:
+        if result.success is None and result.is_master:
+            # Skip uninteresting master processing results
+            continue
+
         # Format status with color
         if result.success is True:
-            status = "[green]✓ Success[/green]"
+            status = f"[green]✓ {result.reason or 'Success'}[/green]"
         elif result.success is False:
-            status = "[red]✗ Failed[/red]"
+            status = f"[red]✗ {result.reason or 'Failed'}[/red]"
         else:
-            status = "[yellow]⊘ Skipped[/yellow]"
-
-        # Format session count
-        session_count = str(len(result.sessions))
+            status = f"[yellow]⊘ {result.reason or 'Skipped'}[/yellow]"
 
         # Format notes (truncate if too long)
         notes = result.notes or ""
 
-        table.add_row(result.target, session_count, status, notes)
+        table.add_row(result.target, result.session_desc, status, notes)
 
     console.print(table)
 
@@ -141,6 +142,13 @@ def auto(
             help="Session number to process. If not specified, processes all selected sessions."
         ),
     ] = None,
+    no_masters: Annotated[
+        bool,
+        typer.Option(
+            "--no-masters",
+            help="Don't automatically generated master frames",
+        ),
+    ] = False,
 ):
     """Automatic processing with sensible defaults.
 
@@ -156,18 +164,47 @@ def auto(
 
     The output will be saved according to the configured recipes.
     """
+    if no_masters:
+        import starbash
+
+        starbash.process_masters = False
     with Starbash("process.auto") as sb:
         with Processing(sb) as proc:
             from starbash import console
 
             if session_num is not None:
-                console.print(f"[yellow]Auto-processing session {session_num}...[/yellow]")
+                console.print(
+                    f"[read]Session number base filtering not yet implemented: {session_num}...[/red]"
+                )
             else:
                 console.print("[yellow]Auto-processing all selected sessions...[/yellow]")
 
-            results = proc.run_all_stages()
+            try:
+                results = proc.run_all_stages()
 
-            print_results("Autoprocessed", results, console)
+                print_results("Autoprocessed", results, console)
+
+            except Exception as e:
+                console.print(f"[red]Error during auto-processing: {e}[/red]")
+
+
+@app.command(
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+    add_help_option=False,
+)
+def doit(
+    ctx: typer.Context,
+):
+    """(private) for developer debugging of the underlying 'doit' dependency system.
+
+    You probably don't need to use this - unless you are a starbash developer.
+    Arguments are passed directly to doit.  For more information run: sb process doit help"""
+    with Starbash("process.doit") as sb:
+        with Processing(sb) as proc:
+            from starbash import console
+
+            console.print("[red]This command is currently for developers only...[/red]")
+            proc.doit.run(ctx.args)
 
 
 @app.command()

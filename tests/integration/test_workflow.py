@@ -45,7 +45,12 @@ def workflow_environment(tmp_path_factory, test_data_dir):
     documents_dir.mkdir(parents=True, exist_ok=True)
 
     # Set the override directories (including documents_dir to prevent writing to real user Documents)
-    paths.set_test_directories(config_dir, data_dir, documents_dir_override=documents_dir)
+    # Also set cache_dir_override so doit uses temp directory instead of real user cache
+    cache_dir = test_root / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    paths.set_test_directories(
+        config_dir, data_dir, cache_dir_override=cache_dir, documents_dir_override=documents_dir
+    )
 
     yield {
         "config_dir": config_dir,
@@ -218,7 +223,8 @@ class TestProcessMastersWorkflow:
 
     def test_process_masters_executes(self, workflow_environment):
         """Run 'sb process masters' and verify it completes without error."""
-        result = runner.invoke(app, ["process", "masters"])
+        # Use --force to ensure tasks are re-run even if already in doit database
+        result = runner.invoke(app, ["--force", "process", "masters"])
 
         # The command should complete (exit code 0)
         assert result.exit_code == 0, f"'sb process masters' failed: {result.stdout}"
@@ -269,31 +275,40 @@ class TestProcessAutoWorkflow:
     """
 
     def test_verify_process_auto_executes(self, workflow_environment):
-        """Run 'sb process auto' and verify it completes without error."""
-        result = runner.invoke(app, ["process", "auto"])
+        """Run 'sb process auto' and verify it completes with expected successful runs."""
+
+        # Print session selection before running process auto
+        result_select = runner.invoke(app, ["select", "list", "--brief"])
+        print("\n--- sb select list output ---\n", result_select.stdout)
+
+        result_select = runner.invoke(app, ["repo", "list"])
+        print("\n--- sb repo list output ---\n", result_select.stdout)
+
+        result = runner.invoke(app, ["--force", "process", "auto", "--no-masters"])
+        # Store full stdout to /tmp/process-auto.log for manual debugging
+        with open("/tmp/process-auto.log", "w") as log_file:
+            log_file.write(result.stdout)
 
         # Command should complete successfully
         assert result.exit_code == 0, f"'sb process auto' failed: {result.stdout}"
 
-        # Should produce some output
+        # Print full output for debugging
+        print("\n--- sb process auto output ---\n", result.stdout)
+
         output = result.stdout
         assert len(output) > 0, "Process auto should produce output"
+        assert (
+            "Auto-processing" in output
+        ), f"Expected 'Auto-processing' message in output:\n{output}"
 
-        # Verify the output contains a results table with at least 4 successful entries
+        # Table rows have │ delimiters and contain "Success" for successful runs
         import re
 
-        # Find all table rows (lines with "│" that contain "Success")
-        # Table format: │ Target │ Sessions │ ✓ Success │ Notes │
         success_rows = [line for line in output.split("\n") if "│" in line and "Success" in line]
-
-        assert len(success_rows) >= 4, (
-            f"Expected at least 4 successful auto-processing entries, found {len(success_rows)}\n"
+        assert len(success_rows) >= 10, (
+            f"Expected at least 10 successful auto-processing entries, found {len(success_rows)}\n"
             f"Output:\n{output}"
         )
-
-        # Verify every success row contains the word "Success"
-        for row in success_rows:
-            assert "Success" in row, f"Expected 'Success' in row: {row}"
 
     def test_verify_workflow_completion(self, workflow_environment):
         """Verify the complete workflow has run successfully.

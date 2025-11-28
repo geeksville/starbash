@@ -1,23 +1,21 @@
 import logging
 import shutil
-from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import rich.console
-import tomlkit
 import typer
 from astropy.io import fits
 from rich.logging import RichHandler
 from rich.progress import track
-from tomlkit.items import Item
 
 import starbash
 from repo import Repo, RepoManager, repo_suffix
 from starbash.aliases import (
     Aliases,
+    get_aliases,
     normalize_target_name,
+    set_aliases,
 )
 from starbash.analytics import (
     NopAnalytics,
@@ -33,11 +31,10 @@ from starbash.database import (
     SearchCondition,
     SessionRow,
     get_column_name,
-    metadata_to_camera_id,
-    metadata_to_instrument_id,
 )
 from starbash.dwarf3 import extend_dwarf3_headers
 from starbash.paths import get_user_config_dir, get_user_config_path
+from starbash.score import ScoredCandidate, score_candidates
 from starbash.selection import Selection, build_search_conditions
 from starbash.toml import toml_from_template
 from starbash.tool import preflight_tools
@@ -60,7 +57,7 @@ def setup_logging(console: rich.console.Console):
         level=starbash.log_filter_level,  # use the global log filter level
         format="%(message)s",
         datefmt="[%X]",
-        handlers=handlers,
+        handlers=handlers,  # if this is included it hangs while spinners/liveviews if doit capture is also enabled
     )
 
 
@@ -127,28 +124,6 @@ def copy_images_to_dir(images: list[ImageRow], output_dir: Path) -> None:
         console.print(f"  [red]Errors: {error_count} files[/red]")
 
 
-@dataclass
-class ScoredCandidate:
-    """Our helper structure for scoring candidate sessions will return lists of these."""
-
-    candidate: dict[str, Any]  # the scored candidate
-    score: float  # a score - higher is better.  higher scores will be at the head of the list
-    reason: str  # short explanation of why this score
-
-    @property
-    def comment(self) -> str:
-        """Generate a comment string for this candidate."""
-        return f"{round(self.score)} {self.reason}"
-
-    @property
-    def as_toml(self) -> Item:
-        """As a formatted toml node with documentation comment"""
-        s: str = self.candidate["path"]  # Must be defined by now, FIXME, use abspath instead?
-        result = tomlkit.string(s)
-        result.comment(self.comment)
-        return result
-
-
 class Starbash:
     """The main Starbash application class."""
 
@@ -174,12 +149,15 @@ class Starbash:
 
         starbash.console = console  # Update the global console to use the progress version
 
+        # Must be **after** _init_analytics otherwise we can get mutex locks later while emitting logs
         setup_logging(starbash.console)
-        logging.info("Starbash starting...")
 
         # Load app defaults and initialize the repository manager
         self._init_repos()
         self._init_analytics(cmd)  # after init repos so we have user prefs
+
+        logging.info("Starbash starting...")
+
         check_version()
         self._init_aliases()
 
@@ -215,7 +193,8 @@ class Starbash:
     def _init_aliases(self) -> None:
         alias_dict = self.repo_manager.get("aliases", {})
         assert isinstance(alias_dict, dict), "Aliases config must be a dictionary"
-        self.aliases = Aliases(alias_dict)
+        a = Aliases(alias_dict)
+        set_aliases(a)  # set global singleton instance
 
     @property
     def db(self) -> Database:
@@ -377,201 +356,7 @@ class Starbash:
         # Search for candidate sessions
         candidates = self.db.search_session(build_search_conditions(conditions))
 
-        return self.score_candidates(candidates, ref_session)
-
-    def score_candidates(
-        self, candidates: list[dict[str, Any]], ref_session: SessionRow
-    ) -> list[ScoredCandidate]:
-        """Given a list of images or sessions, try to rank that list by desirability.
-
-        Return a list of possible images/sessions which would be acceptable.  The more desirable
-        matches are first in the list.  Possibly in the future I might have a 'score' and reason
-        given for each ranking.
-
-        The following critera MUST match to be acceptable:
-        * matches requested imagetyp.
-        * same telescope as reference session
-
-        Quality is determined by (most important first):
-        * GAIN setting is as close as possible to the reference session (very high penalty for mismatch)
-        * same filter as reference session (in the case want_type==FLAT only)
-        * smaller DATE-OBS delta to the reference session (within same week beats 5°C temp difference)
-        * temperature of CCD-TEMP is closer to the reference session
-
-        Eventually the code will check the following for 'nice to have' (but not now):
-        * TBD
-
-                Implementation notes:
-                - This uses a list of inner "ranker" functions that each compute a score contribution
-                    and may append to a shared 'reasons' list from the outer closure. This makes it easy
-                    to add new ranking dimensions by appending another function to the list.
-
-        """
-
-        metadata: dict = ref_session.get("metadata", {})
-
-        # Now score and sort the candidates
-        scored_candidates: list[ScoredCandidate] = []
-
-        for candidate in candidates:
-            score = 0.0
-            reasons: list[str] = []
-
-            # Get candidate image metadata to access CCD-TEMP and DATE-OBS
-            try:
-                candidate_image = candidate  # metadata is already in the root of this object
-
-                # Define rankers that close over candidate_image, ref_* and reasons
-                def rank_gain(reasons=reasons, candidate_image=candidate_image) -> float:
-                    """Score by GAIN difference: prefer exact match, penalize mismatch."""
-                    ref_gain = metadata.get(Database.GAIN_KEY, None)
-                    if ref_gain is None:
-                        return 0.0
-                    candidate_gain = candidate_image.get(Database.GAIN_KEY)
-                    if candidate_gain is None:
-                        return 0.0
-                    try:
-                        gain_diff = abs(float(ref_gain) - float(candidate_gain))
-                        # Massive bonus for exact match, linear heavy penalty otherwise
-                        gain_score = 30000 - 1000 * gain_diff
-                        if gain_diff > 0:
-                            reasons.append(f"gain Δ={gain_diff:.0f}")
-                        else:
-                            reasons.append("gain match")
-                        return float(gain_score)
-                    except (ValueError, TypeError):
-                        return 0.0
-
-                def rank_temp(reasons=reasons, candidate_image=candidate_image) -> float:
-                    """Score by CCD-TEMP difference: prefer closer temperatures."""
-                    ref_temp = metadata.get("CCD-TEMP", None)
-                    if ref_temp is None:
-                        return 0.0
-                    candidate_temp = candidate_image.get("CCD-TEMP")
-                    if candidate_temp is None:
-                        return 0.0
-                    try:
-                        temp_diff = abs(float(ref_temp) - float(candidate_temp))
-                        # Exponential decay: closer temps get better scores
-                        temp_score = 500 * (2.718 ** (-temp_diff / 5))
-                        if temp_diff >= 0.2:  # don't report tiny differences
-                            reasons.append(f"temp Δ={temp_diff:.1f}°C")
-                        return float(temp_score)
-                    except (ValueError, TypeError):
-                        return 0.0
-
-                def rank_time(reasons=reasons, candidate_image=candidate_image) -> float:
-                    """Score by time difference: prefer older or slightly newer candidates."""
-                    ref_date_str = metadata.get(Database.DATE_OBS_KEY)
-                    candidate_date_str = candidate_image.get(Database.DATE_OBS_KEY)
-                    if not (ref_date_str and candidate_date_str):
-                        return 0.0
-                    try:
-                        ref_date = datetime.fromisoformat(ref_date_str)  # type: ignore[arg-type]
-                        candidate_date = datetime.fromisoformat(candidate_date_str)
-                        time_delta = (candidate_date - ref_date).total_seconds()
-                        days_diff = time_delta / 86400
-                        # Prefer candidates OLDER or less than 2 days newer
-                        if time_delta <= 0 or days_diff <= 2.0:
-                            # 7-day half-life, weighted higher than temp
-                            time_score = 1000 * (2.718 ** (-abs(time_delta) / (7 * 86400)))
-                            reasons.append(f"time Δ={days_diff:.1f}d")
-                        else:
-                            # Penalize candidates >2 days newer by 10x
-                            time_score = 100 * (2.718 ** (-abs(time_delta) / (7 * 86400)))
-                            reasons.append(f"time Δ={days_diff:.1f}d (in future!)")
-                        return float(time_score)
-                    except (ValueError, TypeError):
-                        logging.warning("Malformed date - ignoring entry")
-                        return 0.0
-
-                def rank_instrument(reasons=reasons, candidate_image=candidate_image) -> float:
-                    """Penalize instrument mismatch between reference and candidate."""
-                    ref_instrument = metadata_to_instrument_id(metadata)
-                    candidate_instrument = metadata_to_instrument_id(candidate_image)
-                    if ref_instrument != candidate_instrument:
-                        reasons.append("instrument mismatch")
-                        return -200000.0
-                    return 0.0
-
-                def rank_camera(reasons=reasons, candidate_image=candidate_image) -> float:
-                    """Penalize camera mismatch between reference and candidate."""
-                    ref_camera = metadata_to_camera_id(metadata)
-                    candidate_camera = metadata_to_camera_id(candidate_image)
-                    if ref_camera != candidate_camera:
-                        reasons.append("camera mismatch")
-                        return -300000.0
-                    return 0.0
-
-                def rank_camera_dimensions(
-                    reasons=reasons, candidate_image=candidate_image
-                ) -> float:
-                    """Penalize if camera dimensions do not match (NAXIS, NAXIS1, NAXIS2)."""
-                    dimension_keys = ["NAXIS", "NAXIS1", "NAXIS2"]
-                    for key in dimension_keys:
-                        ref_value = metadata.get(key)
-                        candidate_value = candidate_image.get(key)
-                        if ref_value != candidate_value:
-                            reasons.append(f"{key} mismatch")
-                            return float("-inf")
-                    return 0.0
-
-                def rank_flat_filter(reasons=reasons, candidate_image=candidate_image) -> float:
-                    """Heavily penalize FLAT frames whose FILTER metadata does not match the reference.
-
-                    Only applies if the candidate imagetyp is FLAT. Missing filter values are treated as None
-                    and do not cause a penalty (neutral)."""
-                    imagetyp = self.aliases.normalize(
-                        candidate_image.get(Database.IMAGETYP_KEY), lenient=True
-                    )
-                    if imagetyp and imagetyp == "flat":
-                        ref_filter = self.aliases.normalize(
-                            metadata.get(Database.FILTER_KEY, "None"), lenient=True
-                        )
-                        candidate_filter = self.aliases.normalize(
-                            candidate_image.get(Database.FILTER_KEY, "None"), lenient=True
-                        )
-                        if ref_filter != candidate_filter:
-                            reasons.append("filter mismatch")
-                            return -100000.0
-                        else:
-                            reasons.append("filter match")
-                    return 0.0
-
-                rankers = [
-                    rank_gain,
-                    rank_temp,
-                    rank_time,
-                    rank_instrument,
-                    rank_camera,
-                    rank_camera_dimensions,
-                    rank_flat_filter,
-                ]
-
-                # Apply all rankers and check for unusable candidates
-                for r in rankers:
-                    contribution = r()
-                    score += contribution
-                    # If any ranker returns -inf, this candidate is unusable
-                    if contribution == float("-inf"):
-                        break
-
-                # Only keep usable candidates
-                if score != float("-inf"):
-                    reason = ", ".join(reasons) if reasons else "no scoring factors"
-                    scored_candidates.append(
-                        ScoredCandidate(candidate=candidate, score=score, reason=reason)
-                    )
-
-            except (AssertionError, KeyError) as e:
-                # If we can't get the session image, log and skip this candidate
-                logging.warning(f"Could not score candidate session {candidate.get('id')}: {e}")
-                continue
-
-        # Sort by score (highest first)
-        scored_candidates.sort(key=lambda x: x.score, reverse=True)
-
-        return scored_candidates
+        return score_candidates(candidates, ref_session)
 
     def search_session(self, conditions: list[SearchCondition] | None = None) -> list[SessionRow]:
         """Search for sessions, optionally filtered by the current selection."""
@@ -591,15 +376,22 @@ class Starbash:
         Returns:
             Modified image record with 'abspath' as absolute path
         """
+        # Some nodes might have an abspath but not yet have repo set.  Fix that here!
+        repo_url = image.get(Database.REPO_URL_KEY)
+        repo = None
+        if repo_url:
+            repo = self.repo_manager.get_repo_by_url(repo_url)
+            if repo:
+                image["repo"] = repo  # cache the repo object as well
+
         if not image.get("abspath"):
-            repo_url = image.get(Database.REPO_URL_KEY)
             relative_path = image.get("path")
 
-            if repo_url and relative_path:
-                repo = self.repo_manager.get_repo_by_url(repo_url)
-                if repo:
-                    absolute_path = repo.resolve_path(relative_path)
-                    image["abspath"] = str(absolute_path)
+            if repo and relative_path:
+                absolute_path = repo.resolve_path(relative_path)
+                image["abspath"] = str(absolute_path)
+            else:
+                logging.error(f"Repo not found for URL: {repo_url}, skipping image...")
 
         return image
 
@@ -781,6 +573,13 @@ class Starbash:
         def has_critical_keys() -> bool:
             return all(key in headers for key in critical_keys)
 
+        # Some device software (old Asiair versions) fails to populate TELESCOP, in that case fall back to
+        # CREATOR (see doc/fits/malformedasimaster.txt for an example)
+        if Database.TELESCOP_KEY not in headers:
+            creator = headers.get("CREATOR")
+            if creator:
+                headers[Database.TELESCOP_KEY] = creator
+
         if not has_critical_keys():
             # See if possibly from a Dwarf3 camera which needs special handling
             extend_dwarf3_headers(headers, full_image_path)
@@ -844,13 +643,6 @@ class Starbash:
                 # Add any extra metadata if it was missing in the existing headers
                 for key, value in extra_metadata.items():
                     headers.setdefault(key, value)
-
-                # Some device software (old Asiair versions) fails to populate TELESCOP, in that case fall back to
-                # CREATOR (see doc/fits/malformedasimaster.txt for an example)
-                if Database.TELESCOP_KEY not in headers:
-                    creator = headers.get("CREATOR")
-                    if creator:
-                        headers[Database.TELESCOP_KEY] = creator
 
                 # Store relative path in database
                 headers["path"] = str(relative_path)
@@ -929,108 +721,18 @@ class Starbash:
 
         return recipes
 
-    def get_recipe_for_session(self, session: SessionRow, step: dict[str, Any]) -> Repo | None:
-        """Try to find a recipe that can be used to process the given session for the given step name
-        (master-dark, master-bias, light, stack, etc...)
-
-        * if a recipe doesn't have a matching recipe.stage.<step_name> it is not considered
-        * As part of this checking we will look at recipe.auto.require.* conditions to see if the recipe
-        is suitable for this session.
-        * the imagetyp of this session matches step.input
-
-        Currently we return just one Repo but eventually we should support multiple matching recipes
-        and make the user pick (by throwing an exception?).
-        """
-        # Get all recipe repos - FIXME add a getall(kind) to RepoManager
-        recipe_repos = self.get_recipes()
-
-        step_name = step.get("name")
-        if not step_name:
-            raise ValueError("Invalid pipeline step found: missing 'name' key.")
-
-        input_name = step.get("input")
-        if not input_name:
-            raise ValueError("Invalid pipeline step found: missing 'input' key.")
-
-        # if input type is recipe we don't check for filetype match - because we'll just use files already in
-        # the tempdir
-        if input_name != "recipe":
-            imagetyp = session.get(get_column_name(Database.IMAGETYP_KEY))
-
-            if not imagetyp or input_name != self.aliases.normalize(imagetyp):
-                logging.debug(
-                    f"Session imagetyp '{imagetyp}' does not match step input '{input_name}', skipping"
-                )
-                return None
-
-        # Get session metadata for checking requirements
-        session_metadata = session.get("metadata", {})
-
-        for repo in recipe_repos:
-            # Check if this recipe has the requested stage
-            stage_config = repo.get(f"recipe.stage.{step_name}")
-            if not stage_config:
-                logging.debug(f"Recipe {repo.url} does not have stage '{step_name}', skipping")
-                continue
-
-            # Check auto.require conditions if they exist
-
-            # If requirements are specified, check if session matches
-            required_filters = repo.get("recipe.auto.require.filter", [])
-            if required_filters:
-                session_filter = self.aliases.normalize(
-                    session_metadata.get(Database.FILTER_KEY), lenient=True
-                )
-
-                # Session must have AT LEAST one filter that matches one of the required filters
-                if not session_filter or session_filter not in required_filters:
-                    logging.debug(
-                        f"Recipe {repo.url} requires filters {required_filters}, "
-                        f"session has '{session_filter}', skipping"
-                    )
-                    continue
-
-            required_color = repo.get("recipe.auto.require.color", False)
-            if required_color:
-                session_bayer = session_metadata.get("BAYERPAT")
-
-                # Session must be color (i.e. have a BAYERPAT header)
-                if not session_bayer:
-                    logging.debug(
-                        f"Recipe {repo.url} requires a color camera, "
-                        f"but session has no BAYERPAT header, skipping"
-                    )
-                    continue
-
-            required_cameras = repo.get("recipe.auto.require.camera", [])
-            if required_cameras:
-                session_camera = self.aliases.normalize(
-                    session_metadata.get(Database.INSTRUME_KEY), lenient=True
-                )  # Camera identifier
-
-                # Session must have a camera that matches one of the required cameras
-                if not session_camera or session_camera not in required_cameras:
-                    logging.debug(
-                        f"Recipe {repo.url} requires cameras {required_cameras}, "
-                        f"session has '{session_camera}', skipping"
-                    )
-                    continue
-
-            # This recipe matches!
-            logging.info(f"Selected recipe {repo.url} for stage '{step_name}' ")
-            return repo
-
-        # No matching recipe found
-        return None
-
-    def filter_sessions_with_lights(self, sessions: list[SessionRow]) -> list[SessionRow]:
+    def filter_by_imagetyp(
+        self, sessions: list[ImageRow] | list[SessionRow], imagetyp: str
+    ) -> list[ImageRow] | list[SessionRow]:
         """Filter sessions to only those that contain light frames."""
-        filtered_sessions: list[SessionRow] = []
+        filtered_sessions: list[ImageRow] = []
         for s in sessions:
-            imagetyp_val = s.get(get_column_name(Database.IMAGETYP_KEY))
+            imagetyp_val = s.get(Database.IMAGETYP_KEY) or s.get(
+                get_column_name(Database.IMAGETYP_KEY)
+            )
             if imagetyp_val is None:
                 continue
-            if self.aliases.normalize(str(imagetyp_val)) == "light":
+            if get_aliases().normalize(str(imagetyp_val)) == imagetyp:
                 filtered_sessions.append(s)
         return filtered_sessions
 

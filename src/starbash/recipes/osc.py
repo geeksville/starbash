@@ -6,7 +6,7 @@ import os
 from glob import glob
 from typing import Any
 
-from starbash.processing import NotEnoughFilesError
+from starbash.exception import NotEnoughFilesError
 from starbash.tool import tools
 
 siril = tools["siril"]
@@ -26,7 +26,15 @@ def perhaps_delete_temps(temps: list[str]) -> None:
                 os.remove(path)
 
 
-def make_stacked(variant: str | None, output_file: str):
+def fix_sequence_name(path: str) -> str:
+    """sequence files often have a _.seq suffix, if present we remove that to make siril happy"""
+    base = os.path.basename(path)
+    if base.endswith("_.seq"):
+        base = base[: -len("_.seq")]
+    return base
+
+
+def make_stacked(inputs_to_use: list[str], variant: str | None, output_file: str):
     """
     Registers and stacks all pre-processed light frames for a given filter configuration
     across all sessions.
@@ -42,40 +50,53 @@ def make_stacked(variant: str | None, output_file: str):
     merged_seq_base = f"all_{input_base}"
 
     # Absolute path for the output stacked file
-    stacked_output_path = glob(f"{context['process_dir']}/{output_file}.fit*")
+    stacked_output_path = f"{context['output'].base}/{output_file}.fit"
 
-    if stacked_output_path:
-        logger.info(f"Using existing stacked file: {stacked_output_path}")
+    # Merge all frames (from multiple sessions and configs) use those for stacking
+    seqs_to_merge = []
+    for input_name in inputs_to_use:
+        ci = context["input"]
+        cur_seq = ci.get(input_name)
+        if cur_seq:
+            seqs_to_merge.extend(cur_seq.short_paths)
+
+    # We only wantt to process seqs_to_merge for our CURRENT variant.  So drop any files that don't start with that
+    seqs_to_merge = [fix_sequence_name(s) for s in seqs_to_merge if s.startswith(input_base)]
+
+    logger.info(f"Registering and stacking for {variant} -> {stacked_output_path}")
+    if len(seqs_to_merge) < 1:
+        raise NotEnoughFilesError("Need at least one sequence to merge")
+
+    commands = """
+        """
+
+    if len(seqs_to_merge) == 1:
+        registration_input = seqs_to_merge[0]
+        commands += """
+        """
     else:
-        # Merge all frames (from multiple sessions and configs) use those for stacking
-        frames = glob(f"{context['process_dir']}/{input_base}_s*.fit*")
+        registration_input = merged_seq_base  # we want later stages to use our merged output
+        commands += f"""
+        merge {" ".join(seqs_to_merge)} {merged_seq_base}
+        """
 
-        logger.info(
-            f"Registering and stacking {len(frames)} frames for {variant} -> {stacked_output_path}"
-        )
-        if len(frames) < 2:
-            raise NotEnoughFilesError("Need at least two frames", frames)
+    # Siril commands for registration and stacking. We run this in process_dir.
+    commands += f"""
+        # We use -2pass to select the best possible reference frame for others to register against
+        register {registration_input} -2pass
 
-        # Siril commands for registration and stacking. We run this in process_dir.
-        commands = f"""
-            link {merged_seq_base} -out={context["process_dir"]}
-            cd {context["process_dir"]}
+        # because we are using -2pass we must complete the registration here before stacking
+        # FIXME make drizzle optional
+        seqapplyreg {registration_input} -drizzle
 
-            # We use -2pass to select the best possible reference frame for others to register against
-            register {merged_seq_base} -2pass
+        stack r_{registration_input} rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
 
-            # because we are using -2pass we must complete the registration here before stacking
-            # FIXME make drizzle optional
-            seqapplyreg {merged_seq_base} -drizzle
+        # and flip if required
+        mirrorx_single {output_file}
+        """
 
-            stack r_{merged_seq_base} rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
-
-            # and flip if required
-            mirrorx_single {output_file}
-            """
-
-        context["input_files"] = frames
-        siril.run(commands, context=context)
+    # context["input_files"] = frames
+    siril.run(commands, context=context, cwd=context["process_dir"])
 
     perhaps_delete_temps([merged_seq_base, f"r_{merged_seq_base}"])
 
@@ -93,7 +114,7 @@ def make_renormalize(channel_num: int):
     sii_base = "results_00003"
 
     # Define final output paths. The 'results' directory is a symlink in the work dir.
-    results_dir = context["output"]["base_path"]
+    results_dir = context["output"].base
     os.makedirs(results_dir, exist_ok=True)
 
     commands = ""
@@ -127,6 +148,8 @@ def make_renormalize(channel_num: int):
             # -transf=shift fails sometimes, which I guess is possible because we have multiple sessions with possible different camera rotation
             # -interp=none also fails sometimes, so let default interp happen
             # -drizzle is required for success on many images
+            # FIXME - I don't thing this register is required anymore
+            # we do it in earlier stages.  But leaving now until I can test
             register results -drizzle
             pm {pm_oiii}
             update_key FILTER Oiii "OSC Duo filter extracted"
@@ -162,24 +185,25 @@ def osc_process(has_ha_oiii: bool, has_sii_oiii: bool):
     if has_sii_oiii:
         # red output channel - from the SiiOiii filter Sii is on the 672nm red channel (mistakenly called Ha by siril)
         channel_num += 1
-        make_stacked("Ha", f"results_{channel_num:05d}")
+        make_stacked(["sii"], "Ha", f"results_{channel_num:05d}")
 
     if has_ha_oiii:
         # green output channel - from the HaOiii filter Ha is on the 656nm red channel
         channel_num += 1
-        make_stacked("Ha", f"results_{channel_num:05d}")
+        make_stacked(["ha"], "Ha", f"results_{channel_num:05d}")
 
     if has_ha_oiii or has_sii_oiii:
         # blue output channel - both filters have Oiii on the 500nm blue channel.  Note the case here is uppercase to match siril output
         channel_num += 1
-        make_stacked("OIII", f"results_{channel_num:05d}")
+        make_stacked(["ha", "sii"], "OIII", f"results_{channel_num:05d}")
 
     # if we haven't already processed some other way - just do a single channel process
     # FIXME in this case we want to use a siril line like "stack r_bkg_pp_light rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -rgb_equal -32b -out=result"
     if channel_num == 0:
         # single channel - just stack all Ha frames together
         channel_num += 1
-        make_stacked(None, f"results_{channel_num:05d}")
+        # the input channel isn't really ha.  FIXME, we need to clean this up
+        make_stacked(["single"], None, f"results_{channel_num:05d}")
 
     # There might be an old/state autogenerated .seq file, delete it so it doesn't confuse renormalize
     results_seq_path = f"{context['process_dir']}/results_.seq"

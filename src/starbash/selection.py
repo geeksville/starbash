@@ -11,6 +11,11 @@ if TYPE_CHECKING:
 from repo import Repo
 from starbash.aliases import normalize_target_name
 
+__all__ = [
+    "Selection",
+    "build_search_conditions",
+]
+
 
 def build_search_conditions(
     conditions: dict[str, Any] | None,

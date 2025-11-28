@@ -74,8 +74,10 @@
             "justMyCode": false,
             "args": [
                 "--debug",
+                "--force",
                 "process",
-                "auto"
+                "auto",
+                "--no-masters",
             ]
         },
         {
@@ -88,6 +90,7 @@
             "justMyCode": false,
             "args": [
                 "--debug",
+                "--force",
                 "process",
                 "masters"
             ]
@@ -104,7 +107,7 @@
                 "--debug",
                 "repo",
                 "add",
-                "./test-data/inflated/dwarf3"
+                "/test-data/seestar"
             ]
         },
         {
@@ -150,6 +153,13 @@
             "type": "debugpy",
             "request": "launch",
             "module": "pytest",
+            "args": [
+                "-m",
+                "integration",
+                "-n",
+                "0",
+                "-v"
+            ],
             "console": "integratedTerminal",
             "python": "${workspaceFolder}/.vscode/get_poetry_python.sh"
         }

@@ -1,0 +1,25 @@
+[repo]
+kind = "processed-master"
+
+# This is auto generated at the root of a Starbash target processing tree
+# it is initially auto populated based on the best guess of starbash, but you
+# can customize as needed.  Any changes you make to this file will be preserved/used
+# in future runs.
+
+[about] # (if not present this section will be auto generated at processing time)
+
+# this section contains textual information the user might want to share on social media or whatever
+# some of it comes from FITS headers gleaned during processing or other statistics
+
+# target.name = "Some Big Nebula"
+# target.ra = "123.45"
+# OBJCTRA = '00 23 44'           / [H M S] RA of imaged object
+# OBJCTDEC= '+89 55 28'
+
+[stages]
+# Information about recipes used for processing or excluded by the user
+# If you'd like to pick something different just comment out the line in USED and uncomment the line in
+# excluded.
+# Whenever stabash is rerun it will update these arrays based on what was actually used for this run.
+used = []
+excluded = []

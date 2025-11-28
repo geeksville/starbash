@@ -1,8 +1,16 @@
 import logging
 import os
 from datetime import datetime
+from typing import Any
 
 from rich.console import Console
+
+# Common type aliases for clarity
+type StageDict = dict[str, Any]  # a processing stage definition from our toml
+type InputDef = dict[str, Any]  # an input definition within a stage
+type OutputDef = dict[str, Any]  # an output definition within a stage
+type RequireDef = dict[str, Any]  # a requires definition within an input
+type Metadata = dict[str, Any]  # image metadata dictionary
 
 # Disable Rich formatting in test environments (pytest or NO_COLOR set)
 # This prevents ANSI escape codes and line wrapping in test output for more reliable test parsing.
@@ -23,6 +31,9 @@ force_regen = False
 
 # Show extra command output
 verbose_output = False
+
+# Should we automatically process masters?
+process_masters = True
 
 
 def to_shortdate(date_iso: str) -> str:

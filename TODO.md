@@ -54,13 +54,48 @@
 * [x] **first public alpha (reddit)** at approximately this point
 * [ ] fix dwarf3 (bug #1) investigation by @codegistics
 * [x] osx path finding fixes by @jmachuca77 (bug #2)
-* [ ] always regen masters after adding a repo
+* [x] always regen masters after adding a repo
 * [x] don't warn for "[tool-warnings] Reading sequence failed, file cannot be opened: *.seq. Reading sequence failed, file cannot be opened: *.seq." because harmless
 * [x] add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
 * [x] move the recipe repos to [their own github ](https://github.com/geeksville/starbash-recipes/)- stop pulling them as python resources
 * [x] add dwarf3 files to integration tests - fix ghcr.io stuff
 * [ ] explain about PATH https://github.com/geeksville/starbash/issues/5
-* [ ] allow toml target files to be customized
+
+(The following work items were all completed as part of the doit transition)
+* [x] get the input files
+* [x] get the output files
+* [x] build and look at the list of doit tasks
+* [x] populate the context
+* [x] include target name in task names
+* [x] fix multichannel input in osc
+* [x] return real result codes from "process auto"
+* [x] make single channel OSC work
+* [x] share OSC code between dual duo and single channel OSC
+* [x] create the ProcessedTarget by referring to the processed repo path info (need context first)
+* [x] debug logs are busted!
+* [x] fix Seestar m81 (no bias or flat cal frames)
+* [x] why is process all not processing all?
+* [x] m20 should pick dual duo but it isn't
+* [x] store the various ScoredCandiates in the toml file (for considered masters) - use same convention as exluded scripts
+* [x] Fix processing results display
+* [x] m13 to work again
+* [x] make integration test robust again
+* [x] fix flats with new system
+* [x] use user selected values from the toml file
+* [x] try a test run on just a dual duo filter set
+* [x] make master gen fully automatic as needed - hook together via dependencies
+* [x] implement _filter_by_requires
+* [x] change context["output"] to be a dataclass rather than a dict
+* [x] use task name dependencies to join stages
+* [x] try test run on the small dataset
+* [x] move doit.db to app cache
+* [x] test integration on big dataset
+* [x] rexport the small test dataset (I've added a few files)
+* [x] verify build takes zero time if no changes
+* [x] scored candidates are no longer storing their confidence strings in the TOML!!!
+* [x] ic434 dwarf3 is not generating flat masters
+
+* [x] allow toml target files to be customized
 * [x] store flats in directory names based on INSTRUMENT not camera
 * [ ] do background_removal() as a separate stage via graxpert
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
@@ -73,7 +108,7 @@
 * [ ] make graxpert network check faster & expose an API
 * [ ] cleanup how different stages dependencies work together: bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
 * [ ] **second alpha release approximately here**
-* [ ] make test data even smaller
+* [x] make test data even smaller
 * [ ] merge Processing with ProcessingContext?
 * [x] check for required/recommended tools at start.
 * [ ] for debugging purposes generate a mastername.sb.toml file per master - to see input selection choices
@@ -120,7 +155,14 @@
 * [x] implement setup command (including username selection and analytics)
 * [x] include instrument name in session list (for seestar,asiair,etc)
 * [x] select default output should show summary info for current target & telescope.
-* [ ] sort the masters list display
+* [x] REVLOCK the recipies repo so old builds keep working!
+* [x] dependencies should auto skip rebuilds - though only within the 3 build cache limit
+* [x] fix remaining failure in m20 target - the final stack_dual_duo is missing dependencies on the s35 prior stage outputs and has 2x dependencies on s36
+* [ ] add graxpert
+* [ ] change recipes to use imports
+* [ ] cleanup Repo import code
+* [ ] remove priorities from stages where dependencies should have worked.  hack to fix "Stages in priority order: ['stack_dual_duo', 'light', 'seqextract_haoiii'"
+* [x] sort the masters list display
 * [x] fix auto generation of processed directory paths
 * [ ] track image quality on a per frame basis
 * [x] use db find master bias frames
@@ -154,6 +196,8 @@
 * [x] use https://tinydb.readthedocs.io as the DB?
 * [x] render output (including tables) with https://github.com/Textualize/rich - use basic command lines at first
 * [x] test on asiair, seestar, nina
+* [ ] use get_safe more pervasively, pass in a help string to it (to indicate source of failure)
+* [ ] remove nasty osc.py file - move into toml
 * [ ] eventually do a simple gui using https://flet.dev/docs/
 * [x] use import importlib.util to load python code it is own namespace
 * [x] make crude flat frame generation work
@@ -171,7 +215,10 @@
 * [x] change from eval() to something more secure (ast + eval? a restricted dict API?)
 * [x] add something like repo-add for masters and processed
 * [ ] do background elim with graxpert (before?) tri merge
+* [ ] have AI change asserts to raise ValueError (or something better?)
 * [x] FIX GRAXPERT RELEASE
+* [ ] add doit depenencies on the generated toml files
+* [ ] add doit dependencies on the recipe files
 * [ ] merge the tri colors into one file using pixel math
 * [x] generalize processing to also work on single duo filter or broadband OSC
 * [x] auto recognize my nina config, default nina config, asiair config, seestar config

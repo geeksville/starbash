@@ -16,6 +16,21 @@ target.id = "NGC281"
 # OBJCTRA = '00 23 44'           / [H M S] RA of imaged object
 # OBJCTDEC= '+89 55 28'
 
+[stages]
+# Information about recipes used for processing or excluded by the user
+# If you'd like to pick something different just comment out the line in USED and uncomment the line in
+# excluded.
+# Whenever stabash is rerun it will update these arrays based on what was actually used for this run.
+used = [
+    "osc/dual_duo.toml",
+    "master_bias",
+    "master_flat",
+    "master_dark",
+]
+excluded = [
+    "osc/single_duo.toml",
+]
+
 [[sessions]]
 # Session #1
 start = 1979-05-27T07:32:00    # first date of observation
@@ -26,11 +41,16 @@ exposure = 120                 # Average exposure in seconds
 filter = "HaOiii"              # all images of a session are guaranteed to have the same filter
 metadata.FOO = "blah"
 
-# if masters were SPECIFICALLY selected for use processing this session they will be listed here
-# Set this to override the auto selection from sessions.options (below)
-master.flat = "/blag/blah.fits"
-master.dark = ""
-master.bias = ""
+[sessions.masters.flat]
+excluded = [
+    "foo/blah/blah2.fits", # this is a scored candidate
+    "foo/blah/blah3.fits"
+]
+used = [
+    "foo/blah/blah.fits",
+]
+
+# master.bias, master.dark would be similar if needed
 
 # either images.url or images.dir must be present
 

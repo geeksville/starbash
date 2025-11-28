@@ -13,3 +13,4 @@ kind = "processed"
 # if this expression includes a * at the end we assume multiple files might be generated and they are all
 # placed in the indicated directory.
 relative.default = "{target}/*"
+
