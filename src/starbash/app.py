@@ -288,7 +288,7 @@ class Starbash:
 
         repo_toml = p / repo_suffix  # the starbash.toml file at the root of the repo
         if repo_toml.exists():
-            logging.warning("Using existing repository config file: %s", repo_toml)
+            logging.debug("Using existing repository config file: %s", repo_toml)
         else:
             if repo_type:
                 console.print(f"Creating {repo_type} repository: {p}")

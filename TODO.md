@@ -108,6 +108,7 @@
 * [x] make "repo list" only show user repos
 * [ ] make graxpert network check faster & expose an API
 * [x] cleanup how different stages dependencies work together: bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
+* [ ] too many cache dirs
 * [ ] **second alpha release approximately here**
 * [x] make test data even smaller
 * [ ] merge Processing with ProcessingContext?
@@ -117,7 +118,7 @@
 * [ ] name the progess dirs so they can be semi-persistent (speed up reruns)
 * [ ] let user spec a max cache size, if we exceed that just delete older build dirs from that cache as needed.  This would allow quick rebuilds for the last N targets rendered.
 * [x] move processing code out of app
-* [ ] move masters code out of app
+* [x] move masters code out of app
 * [x] in osc processing implement make_renormalize()
 * [x] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
 * [ ] master relative path should be based on unique camera ID - so that Ascar_V_80mm_flattener and Ascar_V_80mm_extender can share the same masters.
