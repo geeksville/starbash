@@ -475,16 +475,21 @@ class Processing:
             List of ProcessingResult objects, one per master frame generated.
         """
         # it is important that we make bias/dark **before** flats because we don't yet do all the task execution in one go
-        session_lists = [
-            self._get_sessions_by_imagetyp("bias"),
-            self._get_sessions_by_imagetyp("dark"),
-            self._get_sessions_by_imagetyp("flat"),
-        ]
-
         results: list[TaskDict] = []
-        for sessions in session_lists:
-            target_tasks = self._create_tasks(sessions, [None])
-            results.extend(target_tasks)
+        results.extend(self._create_masters_by_type("bias"))
+        results.extend(self._create_masters_by_type("dark"))
+        results.extend(self._create_masters_by_type("flat"))
+
+        return results
+
+    def _create_masters_by_type(self, imagetyp: str) -> list[TaskDict]:
+        """Generate master calibration frames (bias, dark, flat).
+
+        Returns:
+            List of ProcessingResult objects, one per master frame generated.
+        """
+        sessions = self._get_sessions_by_imagetyp(imagetyp)
+        results = self._create_tasks(sessions, [None])
 
         for t in results:
             t["meta"]["is_master"] = True  # mark these as possibly uninteresting
@@ -499,7 +504,12 @@ class Processing:
         """
         # it is important that we make bias/dark **before** flats because we don't yet do all the task execution in one go
 
-        return self._run_all_tasks(self._create_master_tasks())
+        types = ["bias", "dark", "flat"]
+        results: list[ProcessingResult] = []
+        for t in types:
+            # run each of the master gens sepearately - because flats might need bias/dark to be present
+            results.extend(self._run_all_tasks(self._create_masters_by_type(t)))
+        return results
 
     @property
     def tasks(self) -> list[TaskDict]:

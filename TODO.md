@@ -230,7 +230,3 @@
 * [x] scored candidates are no longer storing their confidence strings in the TOML!!!
 * [ ] ic434 dwarf3 is not finding dark frames
 
-dwarf master_dark_s3 is busted.  it is trying to process this as one session:
-
-'/test-data/dwarf3/CALI_FRAME/dark/cam_0/dark_exp_15.000000_gain_130_bin_1_16C_stack_10.fits'
-'/test-data/dwarf3/CALI_FRAME/dark/cam_0/dark_exp_15.000000_gain_60_bin_1_28C_stack_3.fits'
