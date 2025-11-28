@@ -153,6 +153,13 @@
             "type": "debugpy",
             "request": "launch",
             "module": "pytest",
+            "args": [
+                "-m",
+                "integration",
+                "-n",
+                "0",
+                "-v"
+            ],
             "console": "integratedTerminal",
             "python": "${workspaceFolder}/.vscode/get_poetry_python.sh"
         }

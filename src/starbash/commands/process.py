@@ -179,9 +179,13 @@ def auto(
             else:
                 console.print("[yellow]Auto-processing all selected sessions...[/yellow]")
 
-            results = proc.run_all_stages()
+            try:
+                results = proc.run_all_stages()
 
-            print_results("Autoprocessed", results, console)
+                print_results("Autoprocessed", results, console)
+
+            except Exception as e:
+                console.print(f"[red]Error during auto-processing: {e}[/red]")
 
 
 @app.command(

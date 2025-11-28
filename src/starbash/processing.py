@@ -1005,7 +1005,6 @@ class Processing:
                 stages_to_exclude = conflicting_stages[1:]
                 pt.set_excluded("stages", [stage_with_comment(s) for s in stages_to_exclude])
                 tasks = remove_tasks_by_stage_name(tasks, pt.get_excluded("stages"))
-                break  # We can exit the loop now because we've culled down to only non conflicting stages
 
         # update our toml with what we used
         pt.set_used("stages", [stage_with_comment(s) for s in tasks_to_stages(tasks)])

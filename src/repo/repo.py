@@ -342,6 +342,8 @@ class Repo:
             logging.debug(f"Config unchanged, not writing: {config_path}")
         else:
             # FIXME, be more careful to write the file atomically (by writing to a temp file and renaming)
+            # create the output directory if it doesn't exist
+            config_path.parent.mkdir(parents=True, exist_ok=True)
             TOMLFile(config_path).write(self.config)
             logging.debug(f"Wrote config to {config_path}")
 

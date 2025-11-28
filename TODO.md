@@ -228,5 +228,5 @@
 * [x] rexport the small test dataset (I've added a few files)
 * [x] verify build takes zero time if no changes
 * [x] scored candidates are no longer storing their confidence strings in the TOML!!!
-* [ ] ic434 dwarf3 is not finding dark frames
+* [x] ic434 dwarf3 is not generating flat masters
 
