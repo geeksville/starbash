@@ -227,5 +227,5 @@
 * [ ] test integration on big dataset
 * [x] rexport the small test dataset (I've added a few files)
 * [x] verify build takes zero time if no changes
-* [ ] scored candidates are no longer storing their confidence strings in the TOML!!!
+* [x] scored candidates are no longer storing their confidence strings in the TOML!!!
 * [ ] ic434 dwarf3 is not finding dark frames

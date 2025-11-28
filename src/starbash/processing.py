@@ -44,7 +44,7 @@ from starbash.processed_target import ProcessedTarget
 from starbash.rich import to_tree
 from starbash.safety import get_list_of_strings, get_safe
 from starbash.score import score_candidates
-from starbash.toml import CommentedString
+from starbash.toml import CommentedString, toml_from_list
 from starbash.tool import expand_context_list, expand_context_unsafe, tools
 
 __all__ = [
@@ -753,9 +753,9 @@ class Processing:
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (
-            not has_session_extra_in
-        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        assert (not has_session_in) or (not has_session_extra_in), (
+            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        )
 
         self._add_stage_context_defs(stage)
 
@@ -976,9 +976,9 @@ class Processing:
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
                 conflicting_stages = tasks_to_stages(producing_tasks)
-                assert (
-                    len(conflicting_stages) > 1
-                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
+                assert len(conflicting_stages) > 1, (
+                    "Multiple conflicting tasks must imply multiple conflicting stages?"
+                )
 
                 names = [t["name"] for t in conflicting_stages]
                 logging.warning(
@@ -1131,8 +1131,8 @@ class Processing:
             # Store the canidates we considered so they eventually end up in the toml fole
             session_masters = self.session.setdefault("masters", {})
             session_masters[imagetyp] = {
-                "used": used_candidates,
-                "excluded": excluded_candidates,
+                "used": toml_from_list(used_candidates),  # To have nice comments in the toml
+                "excluded": toml_from_list(excluded_candidates),
             }
             ci[imagetyp] = info
 

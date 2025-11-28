@@ -7,7 +7,7 @@ from typing import Any
 
 import tomlkit
 from tomlkit.exceptions import ConvertError
-from tomlkit.items import Item
+from tomlkit.items import Array, Item
 from tomlkit.toml_file import TOMLFile
 
 from starbash import url
@@ -65,6 +65,21 @@ def _toml_encoder(obj: Any) -> Item:
 
 
 tomlkit.register_encoder(_toml_encoder)
+
+
+def toml_from_list(items: list[Any]) -> Array:
+    """Convert a list of items to a tomlkit Array - with nice AsTomlMixin comments."""
+    arr = tomlkit.array()
+    for item in items:
+        if isinstance(item, AsTomlMixin):
+            arr.add_line(item.as_toml, comment=item.get_comment)
+        elif isinstance(item, dict):
+            arr.add_line(tomlkit.item(item))
+        else:
+            arr.add_line(item)
+
+    arr.add_line()  # MUST add a trailing line so the closing ] is on its own line
+    return arr
 
 
 def toml_from_template(

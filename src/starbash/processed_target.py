@@ -7,7 +7,7 @@ import tomlkit
 from repo import Repo, repo_suffix
 from starbash.app import ScoredCandidate, Starbash
 from starbash.database import SessionRow
-from starbash.toml import AsTomlMixin, CommentedString, toml_from_template
+from starbash.toml import AsTomlMixin, CommentedString, toml_from_list, toml_from_template
 
 __all__ = [
     "ProcessedTarget",
@@ -71,12 +71,12 @@ class ProcessedTarget:
     def set_used(self, name: str, used: list[AsTomlMixin]) -> None:
         """Set the used lists for the given section."""
         node = self.repo.get(name, {}, do_create=True)
-        node["used"] = used
+        node["used"] = toml_from_list(used)
 
     def set_excluded(self, name: str, excluded: list[AsTomlMixin]) -> None:
         """Set the excluded lists for the given section."""
         node = self.repo.get(name, {}, do_create=True)
-        node["excluded"] = excluded
+        node["excluded"] = toml_from_list(excluded)
 
     def get_excluded(self, name: str) -> list[str]:
         """Any consumers of this function probably just want the raw string"""
