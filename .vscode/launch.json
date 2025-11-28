@@ -89,6 +89,7 @@
             "justMyCode": false,
             "args": [
                 "--debug",
+                "--force",
                 "process",
                 "masters"
             ]

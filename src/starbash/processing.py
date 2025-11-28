@@ -828,6 +828,13 @@ class Processing:
                     f"Falling back to file-based processing for stage '{stage.get('name')}' using file {e.image.get('path', 'unknown')}"
                 )
                 fallback_output = e.image
+                metadata = e.image.copy()
+                metadata.pop(
+                    "repo", None
+                )  # Repo is not serializable and for some reason doit serializes this
+                self.context["metadata"] = (
+                    metadata  # Store the image metadata so it can be used in doit_post_process
+                )
                 file_deps = [e.image["abspath"]]  # abspath is guaranteed to be present
 
             targets = self._stage_output_files(stage)

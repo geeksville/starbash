@@ -376,18 +376,22 @@ class Starbash:
         Returns:
             Modified image record with 'abspath' as absolute path
         """
+        # Some nodes might have an abspath but not yet have repo set.  Fix that here!
+        repo_url = image.get(Database.REPO_URL_KEY)
+        repo = None
+        if repo_url:
+            repo = self.repo_manager.get_repo_by_url(repo_url)
+            if repo:
+                image["repo"] = repo  # cache the repo object as well
+
         if not image.get("abspath"):
-            repo_url = image.get(Database.REPO_URL_KEY)
             relative_path = image.get("path")
 
-            if repo_url and relative_path:
-                repo = self.repo_manager.get_repo_by_url(repo_url)
-                if repo:
-                    absolute_path = repo.resolve_path(relative_path)
-                    image["repo"] = repo  # cache the repo object as well
-                    image["abspath"] = str(absolute_path)
-                else:
-                    logging.error(f"Repo not found for URL: {repo_url}, skipping image...")
+            if repo and relative_path:
+                absolute_path = repo.resolve_path(relative_path)
+                image["abspath"] = str(absolute_path)
+            else:
+                logging.error(f"Repo not found for URL: {repo_url}, skipping image...")
 
         return image
 
@@ -569,6 +573,13 @@ class Starbash:
         def has_critical_keys() -> bool:
             return all(key in headers for key in critical_keys)
 
+        # Some device software (old Asiair versions) fails to populate TELESCOP, in that case fall back to
+        # CREATOR (see doc/fits/malformedasimaster.txt for an example)
+        if Database.TELESCOP_KEY not in headers:
+            creator = headers.get("CREATOR")
+            if creator:
+                headers[Database.TELESCOP_KEY] = creator
+
         if not has_critical_keys():
             # See if possibly from a Dwarf3 camera which needs special handling
             extend_dwarf3_headers(headers, full_image_path)
@@ -632,13 +643,6 @@ class Starbash:
                 # Add any extra metadata if it was missing in the existing headers
                 for key, value in extra_metadata.items():
                     headers.setdefault(key, value)
-
-                # Some device software (old Asiair versions) fails to populate TELESCOP, in that case fall back to
-                # CREATOR (see doc/fits/malformedasimaster.txt for an example)
-                if Database.TELESCOP_KEY not in headers:
-                    creator = headers.get("CREATOR")
-                    if creator:
-                        headers[Database.TELESCOP_KEY] = creator
 
                 # Store relative path in database
                 headers["path"] = str(relative_path)
