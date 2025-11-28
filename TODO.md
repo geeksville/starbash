@@ -95,6 +95,7 @@
 * [x] scored candidates are no longer storing their confidence strings in the TOML!!!
 * [x] ic434 dwarf3 is not generating flat masters
 
+* [ ] fix windows CI
 * [x] allow toml target files to be customized
 * [x] store flats in directory names based on INSTRUMENT not camera
 * [ ] do background_removal() as a separate stage via graxpert
