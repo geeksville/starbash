@@ -141,7 +141,13 @@ class ToolAction(BaseAction):
         assert self.task and self.task.meta  # We always set this to context
         context: dict[str, Any] = self.task.meta["context"]
 
-        logging.debug(f"Running ToolAction for {self.task}")
+        # Optional description of input files - to give user an idea on how long it will take
+        input_files: list[FileInfo] = context.get("input_files", [])
+        desc = ""
+        if input_files:
+            desc = f"({len(input_files)} input files)"
+
+        logging.info(f"Running {self.tool.name} for {self.task.name} {desc}")
         try:
             self.result = self.tool.run(self.commands, context=context, cwd=self.cwd)
         except ValueError as e:

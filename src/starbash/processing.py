@@ -83,9 +83,9 @@ class ProcessingContext:
             exists = self.name.exists()
             if not exists:
                 self.name.mkdir(parents=True, exist_ok=True)
-                logging.info(f"Creating processing context at {self.name}")
+                logging.debug(f"Creating processing context at {self.name}")
             else:
-                logging.info(f"Reusing existing processing context at {self.name}")
+                logging.debug(f"Reusing existing processing context at {self.name}")
         else:
             # Create a temporary directory name
             temp_name = tempfile.mkdtemp(prefix="temp_", dir=processing_dir)
@@ -440,9 +440,15 @@ class Processing:
         # a short user friendly date for this session
         date = session.get(get_column_name(Database.START_KEY))
         if date:
+            # Convert ISO date to yyyy-mm-dd_hh-mm-ss format for guaranteed filename uniqueness
+            from datetime import datetime
+
             from starbash import (
                 to_shortdate,
             )  # Lazy import to avoid circular dependency
+
+            dt = datetime.fromisoformat(date)
+            self.context["datetime"] = dt.strftime("%Y-%m-%d_%H-%M-%S")
 
             self.context["date"] = to_shortdate(date)
 
@@ -525,14 +531,13 @@ class Processing:
         self._add_task(create_default_task(self.tasks))
 
         tree = to_tree(self.tasks)
-        from starbash import console
 
-        console.print(tree)
+        logging.debug(f"Tasks: {tree}")
 
         # fire up doit to run the tasks
         # FIXME, perhaps we could run doit one level higher, so that all targets are processed by doit
         # for parallism etc...?
-        self.doit.run(["list", "--all", "--status"])
+        # self.doit.run(["list", "--all", "--status"])
 
         logging.info("Running doit tasks...")
         doit_args: list[str] = []
@@ -763,9 +768,9 @@ class Processing:
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (not has_session_extra_in), (
-            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
-        )
+        assert (not has_session_in) or (
+            not has_session_extra_in
+        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
 
         self._add_stage_context_defs(stage)
 
@@ -993,9 +998,9 @@ class Processing:
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
                 conflicting_stages = tasks_to_stages(producing_tasks)
-                assert len(conflicting_stages) > 1, (
-                    "Multiple conflicting tasks must imply multiple conflicting stages?"
-                )
+                assert (
+                    len(conflicting_stages) > 1
+                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
 
                 names = [t["name"] for t in conflicting_stages]
                 logging.warning(

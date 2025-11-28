@@ -315,7 +315,7 @@ class Tool:
         spinner = Spinner(
             "arc", text=f"Tool running: [bold]{self.name}[/bold]...", speed=2.0, style=SPINNER_STYLE
         )
-        with Live(spinner, console=console, refresh_per_second=5):
+        with Live(spinner, console=console, refresh_per_second=5, transient=True):
             try:
                 if not cwd:
                     # Create a temporary directory for processing
@@ -458,7 +458,7 @@ class SirilTool(ExternalTool):
         logger.debug(
             f"Running Siril in {temp_dir}, ({len(input_files)} input files) cmds:\n{script_content}"
         )
-        logger.info(f"Running Siril ({len(input_files)} input files)")
+        logger.debug(f"Running Siril ({len(input_files)} input files)")
 
         # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
         # It seems like the -d command may also be required when siril is in a flatpak

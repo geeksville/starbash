@@ -60,9 +60,43 @@
 * [x] move the recipe repos to [their own github ](https://github.com/geeksville/starbash-recipes/)- stop pulling them as python resources
 * [x] add dwarf3 files to integration tests - fix ghcr.io stuff
 * [ ] explain about PATH https://github.com/geeksville/starbash/issues/5
-* [ ] allow toml target files to be customized
+
+(The following work items were all completed as part of the doit transition)
+* [x] get the input files
+* [x] get the output files
+* [x] build and look at the list of doit tasks
+* [x] populate the context
+* [x] include target name in task names
+* [x] fix multichannel input in osc
+* [x] return real result codes from "process auto"
+* [x] make single channel OSC work
+* [x] share OSC code between dual duo and single channel OSC
+* [x] create the ProcessedTarget by referring to the processed repo path info (need context first)
+* [x] debug logs are busted!
+* [x] fix Seestar m81 (no bias or flat cal frames)
+* [x] why is process all not processing all?
+* [x] m20 should pick dual duo but it isn't
+* [x] store the various ScoredCandiates in the toml file (for considered masters) - use same convention as exluded scripts
+* [x] Fix processing results display
+* [x] m13 to work again
+* [x] make integration test robust again
+* [x] fix flats with new system
+* [x] use user selected values from the toml file
+* [x] try a test run on just a dual duo filter set
+* [x] make master gen fully automatic as needed - hook together via dependencies
+* [x] implement _filter_by_requires
+* [x] change context["output"] to be a dataclass rather than a dict
+* [x] use task name dependencies to join stages
+* [x] try test run on the small dataset
+* [x] move doit.db to app cache
+* [x] test integration on big dataset
+* [x] rexport the small test dataset (I've added a few files)
+* [x] verify build takes zero time if no changes
+* [x] scored candidates are no longer storing their confidence strings in the TOML!!!
+* [x] ic434 dwarf3 is not generating flat masters
+
+* [x] allow toml target files to be customized
 * [x] store flats in directory names based on INSTRUMENT not camera
-* [ ] doit refactoring (see below for long separate TODO list)
 * [ ] do background_removal() as a separate stage via graxpert
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] generate an auto-stretched output as fits and jpg.
@@ -195,38 +229,3 @@
 * [ ] experiment with auto generation of report text
 * [ ] experiment with telescopus upload (filling in fields of image info with backpointers requesting feedback)
 * [ ] make a "gen_test_db() function that can be used to generate either a huge or a tiny DB with 'real looking' test data (for performance tesing and CI).  Have it use a couple of real stripped FITS files.
-
-## Doit dependency TODOs
-* [x] get the input files
-* [x] get the output files
-* [x] build and look at the list of doit tasks
-* [x] populate the context
-* [x] include target name in task names
-* [x] fix multichannel input in osc
-* [x] return real result codes from "process auto"
-* [x] make single channel OSC work
-* [x] share OSC code between dual duo and single channel OSC
-* [x] create the ProcessedTarget by referring to the processed repo path info (need context first)
-* [x] debug logs are busted!
-* [x] fix Seestar m81 (no bias or flat cal frames)
-* [x] why is process all not processing all?
-* [x] m20 should pick dual duo but it isn't
-* [x] store the various ScoredCandiates in the toml file (for considered masters) - use same convention as exluded scripts
-* [x] Fix processing results display
-* [x] m13 to work again
-* [ ] make integration test robust again
-* [x] fix flats with new system
-* [x] use user selected values from the toml file
-* [x] try a test run on just a dual duo filter set
-* [x] make master gen fully automatic as needed - hook together via dependencies
-* [x] implement _filter_by_requires
-* [x] change context["output"] to be a dataclass rather than a dict
-* [x] use task name dependencies to join stages
-* [x] try test run on the small dataset
-* [x] move doit.db to app cache
-* [ ] test integration on big dataset
-* [x] rexport the small test dataset (I've added a few files)
-* [x] verify build takes zero time if no changes
-* [x] scored candidates are no longer storing their confidence strings in the TOML!!!
-* [x] ic434 dwarf3 is not generating flat masters
-
