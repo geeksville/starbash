@@ -241,7 +241,9 @@ class Starbash:
             # For UserHandledError, call ask_user_handled() and don't suppress
             if isinstance(exc, UserHandledError):
                 exc.ask_user_handled()
-                handled = True  # Claim we handled
+                self.close()
+                # Raise typer.Exit to ensure proper exit code
+                raise typer.Exit(code=1)
             else:
                 handled = analytics_exception(exc)
         self.close()
