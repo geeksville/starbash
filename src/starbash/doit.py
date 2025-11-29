@@ -18,7 +18,7 @@ from repo import Repo
 from starbash.database import ImageRow
 from starbash.exception import UserHandledError
 from starbash.paths import get_user_cache_dir
-from starbash.processed_target import ProcessingLike
+from starbash.processing_like import ProcessingLike
 from starbash.tool import Tool
 
 # for early testing
@@ -79,7 +79,7 @@ class FileInfo:
             return []
 
 
-max_contexts = 3  # FIXME, make customizable
+max_contexts = 2  # FIXME, make customizable
 
 
 def get_processing_dir() -> Path:

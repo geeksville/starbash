@@ -3,8 +3,6 @@
 import copy
 import logging
 import os
-import shutil
-import tempfile
 import textwrap
 from pathlib import Path
 from typing import Any
@@ -30,11 +28,9 @@ from starbash.doit import (
     ProcessingResult,
     StarbashDoit,
     TaskDict,
-    add_action,
     cleanup_old_contexts,
     doit_do_copy,
     doit_post_process,
-    get_processing_dir,
 )
 from starbash.exception import (
     NoSuitableMastersException,
@@ -43,6 +39,7 @@ from starbash.exception import (
 )
 from starbash.filtering import FallbackToImageException, filter_by_requires
 from starbash.processed_target import ProcessedTarget
+from starbash.processing_like import ProcessingLike
 from starbash.rich import to_tree
 from starbash.safety import get_list_of_strings, get_safe
 from starbash.score import score_candidates
@@ -51,68 +48,7 @@ from starbash.tool import expand_context_list, expand_context_unsafe, tools
 
 __all__ = [
     "Processing",
-    "ProcessingContext",
 ]
-
-
-class ProcessingContext:
-    """For processing a set of sessions for a particular target.
-
-    Keeps a shared temporary directory for intermediate files.  We expose the path to that
-    directory in context["process_dir"].
-
-    We keep the processing directory in our cache directory, so that the most recent contexts can be reprocessed
-    quickly.
-
-    Arguments:
-    p: The Processing instance
-    target: The target name (used to name the processing directory - MUST BE PRE normalized), or None to create a temporary
-    """
-
-    def __init__(self, p: "Processing", target: str | None = None):
-        processing_dir = get_processing_dir()
-
-        # Set self.name to be target (if specified) otherwise use a tempname
-        if target:
-            self.name = processing_dir / target
-            self.is_temp = False
-
-            exists = self.name.exists()
-            if not exists:
-                self.name.mkdir(parents=True, exist_ok=True)
-                logging.debug(f"Creating processing context at {self.name}")
-            else:
-                logging.debug(f"Reusing existing processing context at {self.name}")
-        else:
-            # Create a temporary directory name
-            temp_name = tempfile.mkdtemp(prefix="temp_", dir=processing_dir)
-            self.name = Path(temp_name)
-            self.is_temp = True
-
-        # Clean up old contexts if we exceed max_contexts
-        cleanup_old_contexts()
-
-        self.p = p
-
-        self.p.init_context()
-        self.p.context["process_dir"] = str(self.name)
-        if target:  # Set it in the context so we can do things like find our output dir
-            self.p.context["target"] = target
-
-    def __enter__(self) -> "ProcessingContext":
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        """Returns true if exceptions were handled"""
-        logging.debug(f"Cleaning up processing context at {self.name}")
-
-        # unregister our process dir
-        self.p.context.pop("process_dir", None)
-
-        # Delete temporary directories
-        if self.is_temp and self.name.exists():
-            logging.debug(f"Removing temporary processing directory: {self.name}")
-            shutil.rmtree(self.name, ignore_errors=True)
 
 
 class NoPriorTaskException(Exception):
@@ -181,7 +117,6 @@ def create_default_task(tasks: list[TaskDict]) -> TaskDict:
             output_kind = get_safe(output, "kind")
             if output_kind == "master" or output_kind == "processed":
                 high_value_task = task
-                add_action(high_value_task, cleanup_old_contexts)
                 task_deps.append(high_value_task["name"])
                 break  # no need to check other outputs for this task
 
@@ -194,7 +129,7 @@ def create_default_task(tasks: list[TaskDict]) -> TaskDict:
     return task_dict
 
 
-class Processing:
+class Processing(ProcessingLike):
     """Abstract base class for processing operations.
 
     Implementations must provide:
@@ -251,6 +186,7 @@ class Processing:
         self.doit.set_tasks(tasks)
         self.results.clear()
         self._run_jobs()
+        cleanup_old_contexts()
         return self.results
 
     def _create_tasks(
@@ -278,23 +214,23 @@ class Processing:
 
                 # We are processing a single target, so build the context around that, and process
                 # all sessions for that target as a group
-                with ProcessingContext(self, target):
-                    self.sessions = sessions_this_target
-                    self._job_to_tasks(target, "processed")
-                    all_tasks.extend(self.tasks)
-                    self.doit.set_tasks([])
+                self.init_context()
+                self.sessions = sessions_this_target
+                self._job_to_tasks(target, target)
+                all_tasks.extend(self.tasks)
+                self.doit.set_tasks([])
             else:
                 for s in sessions:
                     # For masters we process each session individually
-                    with ProcessingContext(self):
-                        self._set_session_in_context(s)
-                        # Note: We need to do this early because we need to get camera_id etc... from session
+                    self.init_context()
+                    self._set_session_in_context(s)
+                    # Note: We need to do this early because we need to get camera_id etc... from session
 
-                        self.sessions = [s]
-                        job_desc = f"master_{s.get('id', 'unknown')}"
-                        self._job_to_tasks(job_desc, "master")
-                        all_tasks.extend(self.tasks)
-                        self.doit.set_tasks([])
+                    self.sessions = [s]
+                    job_desc = f"master_{s.get('id', 'unknown')}"
+                    self._job_to_tasks(job_desc, None)
+                    all_tasks.extend(self.tasks)
+                    self.doit.set_tasks([])
 
         return all_tasks
 
@@ -345,15 +281,21 @@ class Processing:
 
         targets_list: list[str | None] = list(targets)
 
-        tasks = []
         import starbash
 
+        # Note: we don't process all tasks in one big doit run, because we want to be able to cleanup processing dirs
+        # between targets.
+
+        results: list[ProcessingResult] = []
         auto_process_masters = starbash.process_masters
         if auto_process_masters:
-            tasks.extend(self._create_master_tasks())
+            results.extend(self._run_all_tasks(self._create_master_tasks()))
 
-        tasks.extend(self._create_tasks(sessions, targets_list))
-        return self._run_all_tasks(tasks)
+        for t in targets_list:
+            tasks = self._create_tasks(sessions, [t])
+            results.extend(self._run_all_tasks(tasks))
+
+        return results
 
     def _set_session_in_context(self, session: SessionRow) -> None:
         """adds to context from the indicated session:
@@ -531,15 +473,11 @@ class Processing:
         if result_code != 0:
             raise RuntimeError(f"doit processing failed with exit code {result_code}")
 
-    def _job_to_tasks(self, job_name: str, output_kind: str) -> None:
+    def _job_to_tasks(self, job_name: str, target: str | None) -> None:
         """Do processing for a particular target/master
         (i.e. all selected sessions for a particular complete processing run)."""
 
-        # result = ProcessingResult(target=job_name, sessions=self.sessions)
-
-        self._set_output_by_kind(output_kind)
-
-        with ProcessedTarget(self, output_kind) as pt:
+        with ProcessedTarget(self, target) as pt:
             pt.config_valid = False  # assume our config is not worth writing
 
             stages = self._get_stages()
@@ -746,9 +684,9 @@ class Processing:
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (
-            not has_session_extra_in
-        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        assert (not has_session_in) or (not has_session_extra_in), (
+            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        )
 
         self._add_stage_context_defs(stage)
 
@@ -976,9 +914,9 @@ class Processing:
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
                 conflicting_stages = tasks_to_stages(producing_tasks)
-                assert (
-                    len(conflicting_stages) > 1
-                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
+                assert len(conflicting_stages) > 1, (
+                    "Multiple conflicting tasks must imply multiple conflicting stages?"
+                )
 
                 names = [t["name"] for t in conflicting_stages]
                 logging.warning(

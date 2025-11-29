@@ -90,9 +90,9 @@ class TestRepoAddWorkflow:
         assert result.exit_code == 0, f"Failed to add {repo_name} repo: {result.stdout}"
         # Check for success messages (either adding or already added)
         output_lower = result.stdout.lower()
-        assert (
-            "adding repository" in output_lower or "already added" in output_lower
-        ), f"Unexpected output: {result.stdout}"
+        assert "adding repository" in output_lower or "already added" in output_lower, (
+            f"Unexpected output: {result.stdout}"
+        )
 
     def test_add_dwarf3_repo(self, workflow_environment):
         """Add dwarf3 test data repository."""
@@ -117,9 +117,9 @@ class TestRepoAddWorkflow:
 
         # Should show success message
         output_lower = result.stdout.lower()
-        assert (
-            "adding repository" in output_lower or "already added" in output_lower
-        ), f"Unexpected output: {result.stdout}"
+        assert "adding repository" in output_lower or "already added" in output_lower, (
+            f"Unexpected output: {result.stdout}"
+        )
 
     def test_repo_add_processed(self, workflow_environment):
         """Add processed images repository."""
@@ -128,9 +128,9 @@ class TestRepoAddWorkflow:
 
         # Should show success message
         output_lower = result.stdout.lower()
-        assert (
-            "adding repository" in output_lower or "already added" in output_lower
-        ), f"Unexpected output: {result.stdout}"
+        assert "adding repository" in output_lower or "already added" in output_lower, (
+            f"Unexpected output: {result.stdout}"
+        )
 
     def test_verify_info_after_repo_add(self, workflow_environment):
         """Verify 'sb info' shows indexed data from added repos."""
@@ -184,9 +184,9 @@ class TestRepoAddWorkflow:
         import re
 
         sessions_header_match = re.search(r"Sessions \((\d+) selected out of (\d+)\)", output)
-        assert (
-            sessions_header_match
-        ), f"Could not find 'Sessions (X selected out of Y)' header in output:\n{output}"
+        assert sessions_header_match, (
+            f"Could not find 'Sessions (X selected out of Y)' header in output:\n{output}"
+        )
 
         selected_count = int(sessions_header_match.group(1))
         total_count = int(sessions_header_match.group(2))
@@ -195,9 +195,9 @@ class TestRepoAddWorkflow:
 
         # Check for at least 4 numbered table rows (format: "│ N   │ ...")
         table_row_matches = re.findall(r"│\s+(\d+)\s+│", output)
-        assert (
-            len(table_row_matches) >= 4
-        ), f"Expected at least 4 table rows, found {len(table_row_matches)}"
+        assert len(table_row_matches) >= 4, (
+            f"Expected at least 4 table rows, found {len(table_row_matches)}"
+        )
 
     def test_verify_repo_list_shows_added_repos(self, workflow_environment):
         """Verify all added repos appear in 'sb repo list'."""
@@ -297,9 +297,9 @@ class TestProcessAutoWorkflow:
 
         output = result.stdout
         assert len(output) > 0, "Process auto should produce output"
-        assert (
-            "Auto-processing" in output
-        ), f"Expected 'Auto-processing' message in output:\n{output}"
+        assert "Auto-processing" in output, (
+            f"Expected 'Auto-processing' message in output:\n{output}"
+        )
 
         # Table rows have │ delimiters and contain "Success" for successful runs
         import re

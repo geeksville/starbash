@@ -1,31 +1,18 @@
 import logging
+import shutil
+import tempfile
 from pathlib import Path
-from typing import Any, Protocol
 
 import tomlkit
 
 from repo import Repo, repo_suffix
-from starbash.app import ScoredCandidate, Starbash
-from starbash.database import SessionRow
+from starbash.doit import cleanup_old_contexts, get_processing_dir
+from starbash.processing_like import ProcessingLike
 from starbash.toml import AsTomlMixin, CommentedString, toml_from_list, toml_from_template
 
 __all__ = [
     "ProcessedTarget",
 ]
-
-
-class ProcessingLike(Protocol):
-    """Minimal protocol to avoid importing Processing and creating cycles.
-
-    This captures only the attributes used by ProcessedTarget.
-    """
-
-    context: dict[str, Any]
-    sessions: list[SessionRow]
-    recipes_considered: list[Repo]
-    sb: Starbash
-
-    def add_result(self, result: Any) -> None: ...
 
 
 class ProcessedTarget:
@@ -39,15 +26,19 @@ class ProcessedTarget:
     The generated master will be something like 'foo_blah_bias_master.fits' and in that same directory there will be a 'foo_blah_bias_master.toml'
     """
 
-    def __init__(self, p: ProcessingLike, output_kind: str = "processed") -> None:
+    def __init__(self, p: ProcessingLike, target: str | None) -> None:
         """Initialize a ProcessedTarget with the given processing context.
 
         Args:
             context: The processing context dictionary containing output paths and metadata.
         """
         self.p = p
-        dir = Path(self.p.context["output"].base)
+        self._init_processing_dir(target)
 
+        output_kind = "master" if target is None else "processed"
+        self.p._set_output_by_kind(output_kind)
+
+        dir = Path(self.p.context["output"].base)
         if output_kind != "master":
             # Get the path to the starbash.toml file
             config_path = dir / repo_suffix
@@ -84,6 +75,43 @@ class ProcessedTarget:
         excluded: list[CommentedString] = node.get("excluded", [])
         return [a.value for a in excluded]
 
+    def _init_processing_dir(self, target: str | None) -> None:
+        processing_dir = get_processing_dir()
+
+        # Set self.name to be target (if specified) otherwise use a tempname
+        if target:
+            self.name = processing_dir / target
+            self.is_temp = False
+
+            exists = self.name.exists()
+            if not exists:
+                self.name.mkdir(parents=True, exist_ok=True)
+                logging.debug(f"Creating processing context at {self.name}")
+            else:
+                logging.debug(f"Reusing existing processing context at {self.name}")
+        else:
+            # Create a temporary directory name
+            temp_name = tempfile.mkdtemp(prefix="temp_", dir=processing_dir)
+            self.name = Path(temp_name)
+            self.is_temp = True
+
+        self.p.context["process_dir"] = str(self.name)
+        if target:  # Set it in the context so we can do things like find our output dir
+            self.p.context["target"] = target
+
+    def _cleanup_processing_dir(self) -> None:
+        logging.debug(f"Cleaning up processing context at {self.name}")
+
+        # unregister our process dir
+        self.p.context.pop("process_dir", None)
+
+        # Delete temporary directories
+        if self.is_temp and self.name.exists():
+            logging.debug(f"Removing temporary processing directory: {self.name}")
+            shutil.rmtree(self.name, ignore_errors=True)
+
+        cleanup_old_contexts()
+
     def _update_from_context(self) -> None:
         """Update the repo toml based on the current context.
 
@@ -93,33 +121,8 @@ class ProcessedTarget:
         proc_sessions = self.repo.get("sessions", default=tomlkit.aot(), do_create=True)
         proc_sessions.clear()
         for sess in self.p.sessions:
-            # record the masters considered
-            masters: dict[str, list[ScoredCandidate]] | None = sess.get("masters")
-
-            to_add = sess.copy()
-            if False:  # auto serialization works?
-                to_add.pop("masters", None)  # masters is not serializable
-
-                # session_options = self.repo.get("processing.session.options")
-                t = tomlkit.item(to_add)
-
-                if masters:
-                    # a dict from masters k to as_toml values
-                    masters_out = tomlkit.table()
-                    for k, vlist in masters.items():
-                        array_out = tomlkit.array()
-                        for v in vlist:
-                            array_out.add_line(v.candidate["path"], comment=v.get_comment)
-                        array_out.add_line()  # MUST add a trailing line so the closing ] is on its own line
-                        masters_out.append(k, array_out)
-
-                    options_out = tomlkit.table()
-                    options_out.append("master", masters_out)
-
-                    t.append("options", options_out)
-                    proc_sessions.append(t)
-            else:
-                proc_sessions.append(sess)
+            # Record session info (including what masters were used for that session)
+            proc_sessions.append(sess)
 
         proc_options = self.repo.get("processing.recipe.options", {})
 
@@ -133,6 +136,8 @@ class ProcessedTarget:
             self.repo.write_config()
         else:
             logging.debug("ProcessedTarget config marked invalid, not writing to disk")
+
+        self._cleanup_processing_dir()
 
     # FIXME - i'm not yet sure if we want to use context manager style usage here
     def __enter__(self) -> "ProcessedTarget":

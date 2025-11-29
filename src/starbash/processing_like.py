@@ -1,0 +1,23 @@
+from typing import Any, Protocol
+
+from repo import Repo
+from starbash.app import Starbash
+from starbash.database import SessionRow
+
+
+class ProcessingLike(Protocol):
+    """Minimal protocol to avoid importing Processing and creating cycles.
+
+    This captures only the attributes used by ProcessedTarget.
+    """
+
+    context: dict[str, Any]
+    sessions: list[SessionRow]
+    recipes_considered: list[Repo]
+    sb: Starbash
+
+    def add_result(self, result: Any) -> None: ...
+
+    def _set_output_by_kind(self, kind: str) -> None: ...
+
+    # kinda nasty FIXME, needed by ProcessedTarget constructor due to init sequence
