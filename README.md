@@ -79,7 +79,7 @@ Completion will take effect once you restart the terminal
 
 The first time you launch starbash you will be prompted to choose a few options. You will also be told how you can add your existing raw frames and an input repo.
 
-![user setup](doc/img/user-setup.png)
+![user setup](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/img/user-setup.png)
 
 If you ever want to rerun this setup just run 'sb user setup'
 
@@ -92,7 +92,7 @@ One of the main goals of starbash is to provide 'seestar-like' automatic image p
 * star removal - (via Starnet by default) provided as extra (optional) output files
 * no changes to input repos - you can safely ask starbash to auto-process your entire tree of raw images.  Processed images go in a special 'processed' output repo.
 
-![auto session](doc/vhs/process-auto.gif)
+![auto session](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/vhs/process-auto.gif)
 
 How to use:
 
@@ -133,7 +133,7 @@ You can edit that file to pick different choices and if you reprocess that targe
 
 If you don't want the automated processing you can still ask Starbash to prepare a 'siril processing directory' with the appropriate flats, darks, biases and your light frames.  FIXME - add instructions on how to do this.
 
-![siril session](doc/vhs/process-siril.gif)
+![siril session](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/vhs/process-siril.gif)
 
 ## Supported commands
 
@@ -197,9 +197,9 @@ FIXME explain FITS and directory paths
 We try to make this project useful and friendly.  If you find problems please file a GitHub issue.
 We accept pull-requests and enjoy discussing possible new development directions via GitHub issues.  If you might want to work on this, just describe what your interests are and we can talk about how to get it merged.
 
-[Click here](doc/development.md) for the current work in progress developer docs.  They will get better before our beta release...
+[Click here](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/development.md) for the current work in progress developer docs.  They will get better before our beta release...
 
 ## License
 
 Copyright 2025 Kevin Hester, kevinh@geeksville.com.
-Licensed under the [GPL v3](LICENSE)
+Licensed under the [GPL v3](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/LICENSE)
