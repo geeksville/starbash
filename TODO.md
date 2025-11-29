@@ -102,12 +102,14 @@
 * [x] allow toml target files to be customized
 * [x] store flats in directory names based on INSTRUMENT not camera
 * [x] Substantially improve progress display
+* [x] "sb process masters" shows empty results list
 * [ ] add parameterizations support
 * [ ] do background_removal() as a separate stage via graxpert
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] generate an auto-stretched output as fits and jpg.
 * [ ] make master-selection user customizable per target
 * [ ] do auto star removal as a separate stage
+* [ ] write a small tutorial/manual for recipes and parameters
 * [x] add "darkorbias" as an input type.  make default recipes work with dark frames - not just bias frames - REQUIRED for dwarf3
 * [x] make "repo list" only show user repos
 * [x] cleanup how different stages dependencies work together: bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?

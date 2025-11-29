@@ -92,7 +92,10 @@ def siril(
 
 
 def print_results(
-    title: str, results: list[ProcessingResult], console: rich.console.Console
+    title: str,
+    results: list[ProcessingResult],
+    console: rich.console.Console,
+    skip_boring: bool = False,
 ) -> None:
     """Print processing results in a formatted table.
 
@@ -114,7 +117,7 @@ def print_results(
     table.add_column("Notes", style=TABLE_COLUMN_STYLE)
 
     for result in results:
-        if result.success is None and result.is_master:
+        if skip_boring and result.success is None and result.is_master:
             # Skip uninteresting master processing results
             continue
 
@@ -225,7 +228,7 @@ def masters():
             console.print("[yellow]Generating master frames...[/yellow]")
             results = proc.run_master_stages()
 
-            print_results("Generated masters", results, console)
+            print_results("Generated masters", results, console, skip_boring=False)
 
 
 @app.callback(invoke_without_command=True)
