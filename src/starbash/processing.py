@@ -297,15 +297,16 @@ class Processing(ProcessingLike):
 
         # Show two progress bars, one for each target and a second (from inside doit.py) showing the tasks
         progress_task = self.progress.add_task("Processing targets...", total=len(targets_list))
-        for t in self.progress.track(targets_list, task_id=progress_task):
-            self.progress.update(
-                progress_task, description=f"Processing: {t}" if t else "masters", refresh=True
-            )
-            tasks = self._create_tasks(sessions, [t])
-            results.extend(self._run_all_tasks(tasks))
-
-        # we manually created this task, so we manually need to remove it
-        self.progress.remove_task(progress_task)
+        try:
+            for t in self.progress.track(targets_list, task_id=progress_task):
+                self.progress.update(
+                    progress_task, description=f"Processing: {t}" if t else "masters", refresh=True
+                )
+                tasks = self._create_tasks(sessions, [t])
+                results.extend(self._run_all_tasks(tasks))
+        finally:
+            # we manually created this task, so we manually need to remove it
+            self.progress.remove_task(progress_task)
 
         return results
 
@@ -696,9 +697,9 @@ class Processing(ProcessingLike):
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (
-            not has_session_extra_in
-        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        assert (not has_session_in) or (not has_session_extra_in), (
+            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
+        )
 
         self._add_stage_context_defs(stage)
 
@@ -926,9 +927,9 @@ class Processing(ProcessingLike):
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
                 conflicting_stages = tasks_to_stages(producing_tasks)
-                assert (
-                    len(conflicting_stages) > 1
-                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
+                assert len(conflicting_stages) > 1, (
+                    "Multiple conflicting tasks must imply multiple conflicting stages?"
+                )
 
                 names = [t["name"] for t in conflicting_stages]
                 logging.warning(

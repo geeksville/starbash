@@ -51,6 +51,9 @@
 * [x] look for STACKCNT in input images - if populated (i.e. in prestacked biases from another platform) that is a great indication it was a processed/stacked file
 * [x] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
 * [x] fix remaining tool failures (just fail-ngc7023)
+
+## First public alpha occured here
+
 * [x] **first public alpha (reddit)** at approximately this point
 * [ ] fix dwarf3 (bug #1) investigation by @codegistics
 * [x] osx path finding fixes by @jmachuca77 (bug #2)
@@ -106,13 +109,16 @@
 * [ ] make master-selection user customizable per target
 * [ ] do auto star removal as a separate stage
 * [x] add "darkorbias" as an input type.  make default recipes work with dark frames - not just bias frames - REQUIRED for dwarf3
-* [ ] find a way to run the integration tests on a Windows VM (for #1 testing)
 * [x] make "repo list" only show user repos
-* [ ] make graxpert network check faster & expose an API
 * [x] cleanup how different stages dependencies work together: bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
 * [x] too many cache dirs, delete after tasks
 * [ ] improve user readability of process report files
 * [ ] **second alpha release approximately here**
+
+## Do second alpha here
+
+* [ ] make graxpert network check faster & expose an API
+* [ ] find a way to run the integration tests on a Windows VM (for #1 testing)
 * [x] make test data even smaller
 * [ ] merge Processing with ProcessingContext?
 * [x] check for required/recommended tools at start.

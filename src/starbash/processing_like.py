@@ -22,6 +22,5 @@ class ProcessingLike(Protocol):
 
     def add_result(self, result: Any) -> None: ...
 
+    # kinda nasty shouldn't be here - FIXME, needed by ProcessedTarget constructor due to init sequence
     def _set_output_by_kind(self, kind: str) -> None: ...
-
-    # kinda nasty FIXME, needed by ProcessedTarget constructor due to init sequence
