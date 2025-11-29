@@ -16,6 +16,10 @@
             "source.organizeImports.ruff": "explicit"
         }
     },
+    // Use the Ruff binary from our Poetry virtual environment to ensure consistency
+    "ruff.path": [
+        "/workspaces/starbash/.venv/bin/ruff"
+    ],
     // Disable Pylance type checking - using BasedPyright extension instead
     "python.analysis.typeCheckingMode": "off",
     // BasedPyright settings (requires detachhead.basedpyright extension)
