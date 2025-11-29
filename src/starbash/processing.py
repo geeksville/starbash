@@ -37,6 +37,7 @@ from starbash.exception import (
     NoSuitableMastersException,
     NotEnoughFilesError,
     UserHandledError,
+    raise_missing_repo,
 )
 from starbash.filtering import FallbackToImageException, filter_by_requires
 from starbash.processed_target import ProcessedTarget
@@ -1046,7 +1047,9 @@ class Processing(ProcessingLike):
             imagetyp = get_safe(input, "type")
             masters = self.sb.get_master_images(imagetyp=imagetyp, reference_session=self.session)
             if not masters:
-                raise ValueError(f"No master frames of type '{imagetyp}' found for stage")
+                raise UserHandledError(
+                    f"No master frames of type '{imagetyp}' found for stage.  Have you already run 'sb process masters'?"
+                )
 
             # Try to rank the images by desirability
             scored_masters = score_candidates(masters, self.session)
@@ -1183,7 +1186,7 @@ class Processing(ProcessingLike):
         # Find the repo with matching kind
         dest_repo = self.sb.repo_manager.get_repo_by_kind(kind)
         if not dest_repo:
-            raise ValueError(f"No repository found with kind '{kind}' for output destination")
+            raise_missing_repo(kind)
 
         repo_base = dest_repo.get_path()
         if not repo_base:

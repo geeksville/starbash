@@ -33,6 +33,7 @@ from starbash.database import (
     get_column_name,
 )
 from starbash.dwarf3 import extend_dwarf3_headers
+from starbash.exception import raise_missing_repo
 from starbash.paths import get_user_config_dir, get_user_config_path
 from starbash.score import ScoredCandidate, score_candidates
 from starbash.selection import Selection, build_search_conditions
@@ -232,10 +233,17 @@ class Starbash:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
+        from starbash.exception import UserHandledError
+
         handled = False
         # Don't suppress typer.Exit - it's used for controlled exit codes
         if exc and not isinstance(exc, typer.Exit) and not isinstance(exc, KeyboardInterrupt):
-            handled = analytics_exception(exc)
+            # For UserHandledError, call ask_user_handled() and don't suppress
+            if isinstance(exc, UserHandledError):
+                exc.ask_user_handled()
+                handled = True  # Claim we handled
+            else:
+                handled = analytics_exception(exc)
         self.close()
         return handled
 
@@ -427,8 +435,7 @@ class Starbash:
         master_repo = self.repo_manager.get_repo_by_kind("master")
 
         if master_repo is None:
-            logging.warning("No master repo configured - skipping master frame load.")
-            return []
+            raise_missing_repo("master")
 
         # Search for images in the master repo only
         from starbash.database import SearchCondition
@@ -543,10 +550,7 @@ class Starbash:
         self.db.remove_repo(url)
 
         # Get the repo-ref list from user config
-        repo_refs = self.user_repo.config.get("repo-ref")
-
-        if not repo_refs:
-            raise ValueError("No repository references found in user configuration.")
+        repo_refs: list = self.user_repo.config.get("repo-ref", [])
 
         # Find and remove the matching repo-ref
         found = False

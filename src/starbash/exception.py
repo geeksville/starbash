@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, NoReturn
 
 
 class UserHandledError(ValueError):
@@ -16,6 +16,13 @@ class UserHandledError(ValueError):
 
     def __rich__(self) -> Any:
         return self.__str__()  # At least this is something readable...
+
+
+def raise_missing_repo(kind: str) -> NoReturn:
+    """Raise a UserHandledError indicating that a repository of the given kind is missing."""
+    raise UserHandledError(
+        f"No {kind} repo configured.  Run 'sb user setup' (recommended) or 'sb repo add --{kind} <path>' to add one."
+    )
 
 
 class NotEnoughFilesError(UserHandledError):

@@ -289,20 +289,20 @@ def test_info_with_user_preferences(populated_database):
 
 
 def test_info_master_command_no_repo(setup_test_environment):
-    """Test 'starbash info master' with no master repo - should show warning."""
+    """Test 'starbash info master' with no master repo - should show error."""
     result = runner.invoke(app, ["info", "master"])
-    assert result.exit_code == 0
+    assert result.exit_code == 1
 
     # Should show message about no master repository
-    assert "master repository" in result.stdout.lower() or "no master" in result.stdout.lower()
+    assert "master repo" in result.stdout.lower() or "no master" in result.stdout.lower()
 
 
 def test_info_master_command_no_data(setup_test_environment):
-    """Test 'starbash info master' with master repo but no images."""
+    """Test 'starbash info master' with no master repo - should show error."""
     # This test would require adding a master repo but no images
-    # For now, just ensure the command exists and doesn't crash
+    # For now, without a master repo configured, it should fail
     result = runner.invoke(app, ["info", "master"])
-    assert result.exit_code == 0
+    assert result.exit_code == 1
 
 
 def test_info_master_help(setup_test_environment):

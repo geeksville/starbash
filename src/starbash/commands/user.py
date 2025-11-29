@@ -77,7 +77,8 @@ def _ask_masters(sb: Starbash) -> None:
     from starbash import console
 
     has_masters = sb.repo_manager.get_repo_by_kind("master") is not None
-    if not has_masters:
+    has_processed = sb.repo_manager.get_repo_by_kind("processed") is not None
+    if not has_masters or not has_processed:
         want_default_dirs = Confirm.ask(
             dedent("""
             Would you like to create default output directories in your Documents folder
@@ -88,12 +89,15 @@ def _ask_masters(sb: Starbash) -> None:
         )
         if want_default_dirs:
             console.print("Creating default repositories...")
-            master_path = str(get_user_documents_dir() / "repos" / "master")
-            processed_path = str(get_user_documents_dir() / "repos" / "processed")
-            sb.add_local_repo(path=master_path, repo_type="master")
-            sb.add_local_repo(path=processed_path, repo_type="processed")
-            console.print(f"✅ Created master repository at: {master_path}")
-            console.print(f"✅ Created processed repository at: {processed_path}")
+
+            if not has_masters:
+                master_path = str(get_user_documents_dir() / "repos" / "master")
+                sb.add_local_repo(path=master_path, repo_type="master")
+                console.print(f"✅ Created master repository at: {master_path}")
+            if not has_processed:
+                processed_path = str(get_user_documents_dir() / "repos" / "processed")
+                sb.add_local_repo(path=processed_path, repo_type="processed")
+                console.print(f"✅ Created processed repository at: {processed_path}")
             console.print()
 
 
