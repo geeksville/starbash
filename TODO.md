@@ -98,6 +98,7 @@
 * [x] fix windows CI
 * [x] allow toml target files to be customized
 * [x] store flats in directory names based on INSTRUMENT not camera
+* [ ] add parameterizations support
 * [ ] do background_removal() as a separate stage via graxpert
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] generate an auto-stretched output as fits and jpg.
@@ -108,12 +109,13 @@
 * [x] make "repo list" only show user repos
 * [ ] make graxpert network check faster & expose an API
 * [x] cleanup how different stages dependencies work together: bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
-* [ ] too many cache dirs
+* [x] too many cache dirs, delete after tasks
+* [ ] improve user readability of process report files
 * [ ] **second alpha release approximately here**
 * [x] make test data even smaller
 * [ ] merge Processing with ProcessingContext?
 * [x] check for required/recommended tools at start.
-* [ ] for debugging purposes generate a mastername.sb.toml file per master - to see input selection choices
+* [x] for debugging purposes generate a mastername.sb.toml file per master - to see input selection choices
 * [ ] include temperature in bias filenames.
 * [ ] name the progess dirs so they can be semi-persistent (speed up reruns)
 * [ ] let user spec a max cache size, if we exceed that just delete older build dirs from that cache as needed.  This would allow quick rebuilds for the last N targets rendered.

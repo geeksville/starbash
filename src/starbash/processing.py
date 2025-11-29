@@ -30,8 +30,11 @@ from starbash.doit import (
     ProcessingResult,
     StarbashDoit,
     TaskDict,
+    add_action,
+    cleanup_old_contexts,
     doit_do_copy,
     doit_post_process,
+    get_processing_dir,
 )
 from starbash.exception import (
     NoSuitableMastersException,
@@ -39,7 +42,6 @@ from starbash.exception import (
     UserHandledError,
 )
 from starbash.filtering import FallbackToImageException, filter_by_requires
-from starbash.paths import get_user_cache_dir
 from starbash.processed_target import ProcessedTarget
 from starbash.rich import to_tree
 from starbash.safety import get_list_of_strings, get_safe
@@ -51,9 +53,6 @@ __all__ = [
     "Processing",
     "ProcessingContext",
 ]
-
-
-max_contexts = 3  # FIXME, make customizable
 
 
 class ProcessingContext:
@@ -71,9 +70,7 @@ class ProcessingContext:
     """
 
     def __init__(self, p: "Processing", target: str | None = None):
-        cache_dir = get_user_cache_dir()
-        processing_dir = cache_dir / "processing"
-        processing_dir.mkdir(parents=True, exist_ok=True)
+        processing_dir = get_processing_dir()
 
         # Set self.name to be target (if specified) otherwise use a tempname
         if target:
@@ -93,7 +90,7 @@ class ProcessingContext:
             self.is_temp = True
 
         # Clean up old contexts if we exceed max_contexts
-        self._cleanup_old_contexts(processing_dir)
+        cleanup_old_contexts()
 
         self.p = p
 
@@ -116,27 +113,6 @@ class ProcessingContext:
         if self.is_temp and self.name.exists():
             logging.debug(f"Removing temporary processing directory: {self.name}")
             shutil.rmtree(self.name, ignore_errors=True)
-
-    def _cleanup_old_contexts(self, processing_dir: Path) -> None:
-        """Remove oldest context directories if we exceed max_contexts."""
-        if not processing_dir.exists():
-            return
-
-        # Get all subdirectories in processing_dir
-        contexts = [d for d in processing_dir.iterdir() if d.is_dir()]
-
-        # If we have more than max_contexts, delete the oldest ones
-        if len(contexts) > max_contexts:
-            # Sort by modification time (oldest first)
-            contexts.sort(key=lambda d: d.stat().st_mtime)
-
-            # Calculate how many to delete
-            num_to_delete = len(contexts) - max_contexts
-
-            # Delete the oldest directories
-            for context_dir in contexts[:num_to_delete]:
-                logging.debug(f"Removing old processing context: {context_dir}")
-                shutil.rmtree(context_dir, ignore_errors=True)
 
 
 class NoPriorTaskException(Exception):
@@ -204,7 +180,9 @@ def create_default_task(tasks: list[TaskDict]) -> TaskDict:
         for output in outputs:
             output_kind = get_safe(output, "kind")
             if output_kind == "master" or output_kind == "processed":
-                task_deps.append(task["name"])
+                high_value_task = task
+                add_action(high_value_task, cleanup_old_contexts)
+                task_deps.append(high_value_task["name"])
                 break  # no need to check other outputs for this task
 
     task_dict: TaskDict = {
@@ -768,9 +746,9 @@ class Processing:
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
         # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
 
-        assert (not has_session_in) or (not has_session_extra_in), (
-            "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
-        )
+        assert (not has_session_in) or (
+            not has_session_extra_in
+        ), "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
 
         self._add_stage_context_defs(stage)
 
@@ -998,9 +976,9 @@ class Processing:
             producing_tasks = target_to_tasks.getall(target)
             if len(producing_tasks) > 1:
                 conflicting_stages = tasks_to_stages(producing_tasks)
-                assert len(conflicting_stages) > 1, (
-                    "Multiple conflicting tasks must imply multiple conflicting stages?"
-                )
+                assert (
+                    len(conflicting_stages) > 1
+                ), "Multiple conflicting tasks must imply multiple conflicting stages?"
 
                 names = [t["name"] for t in conflicting_stages]
                 logging.warning(

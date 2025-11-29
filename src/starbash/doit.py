@@ -1,5 +1,6 @@
 import logging
 import shutil
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -78,6 +79,40 @@ class FileInfo:
             return []
 
 
+max_contexts = 3  # FIXME, make customizable
+
+
+def get_processing_dir() -> Path:
+    """Get the base directory for processing contexts."""
+    cache_dir = get_user_cache_dir()
+    processing_dir = cache_dir / "processing"
+    processing_dir.mkdir(parents=True, exist_ok=True)
+    return processing_dir
+
+
+def cleanup_old_contexts() -> None:
+    """Remove oldest context directories if we exceed max_contexts."""
+    processing_dir = get_processing_dir()
+    if not processing_dir.exists():
+        return
+
+    # Get all subdirectories in processing_dir
+    contexts = [d for d in processing_dir.iterdir() if d.is_dir()]
+
+    # If we have more than max_contexts, delete the oldest ones
+    if len(contexts) > max_contexts:
+        # Sort by modification time (oldest first)
+        contexts.sort(key=lambda d: d.stat().st_mtime)
+
+        # Calculate how many to delete
+        num_to_delete = len(contexts) - max_contexts
+
+        # Delete the oldest directories
+        for context_dir in contexts[:num_to_delete]:
+            logging.info(f"Removing old processing context: {context_dir}")
+            shutil.rmtree(context_dir, ignore_errors=True)
+
+
 def doit_do_copy(task_dict: TaskDict):
     """Just add an action that copies files from file_dep to targets"""
     src = task_dict["file_dep"]
@@ -91,6 +126,12 @@ def doit_do_copy(task_dict: TaskDict):
         copy_actions.append(tuple)
 
     task_dict["actions"] = copy_actions
+
+
+def add_action(task_dict: TaskDict, action: Callable):
+    """Add an action to the task dictionary's actions list."""
+    actions: list = task_dict.setdefault("actions", [])
+    actions.append(action)
 
 
 def doit_post_process(task_dict: TaskDict):
@@ -124,7 +165,7 @@ def doit_post_process(task_dict: TaskDict):
                 extra_metadata=extra_metadata,
             )
 
-    task_dict["actions"].append(closure)
+    add_action(task_dict, closure)
 
 
 class ToolAction(BaseAction):
