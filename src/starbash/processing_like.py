@@ -1,5 +1,7 @@
 from typing import Any, Protocol
 
+from rich.progress import Progress
+
 from repo import Repo
 from starbash.app import Starbash
 from starbash.database import SessionRow
@@ -15,6 +17,8 @@ class ProcessingLike(Protocol):
     sessions: list[SessionRow]
     recipes_considered: list[Repo]
     sb: Starbash
+
+    progress: Progress
 
     def add_result(self, result: Any) -> None: ...
 

@@ -1,5 +1,6 @@
 import logging
 import shutil
+from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,9 +12,8 @@ from doit.doit_cmd import DoitMain
 from doit.exceptions import BaseFail
 from doit.reporter import ConsoleReporter
 from doit.task import Task, dict_to_task
-from rich.progress import Progress, TaskID
+from rich.progress import TaskID
 
-import starbash
 from repo import Repo
 from starbash.database import ImageRow
 from starbash.exception import UserHandledError
@@ -263,13 +263,17 @@ class MyReporter(ConsoleReporter):
 
     def __init__(self, outstream, options):
         super().__init__(outstream, options)
-        self.progress = Progress(console=starbash.console, refresh_per_second=2)
         self.job_task = TaskID(0)
+        self.processing: ProcessingLike | None = None
 
     def execute_task(self, task):
         """Called just before running a task"""
         # self.outstream.write("MyReporter --> %s\n" % task.title())
-        self.progress.update(self.job_task, description=task.title(), refresh=True)
+
+        if self.processing:
+            self.processing.progress.update(
+                self.job_task, description=f"Subtask: {task.title()}", refresh=True
+            )
 
     def _handle_completion(
         self,
@@ -279,16 +283,17 @@ class MyReporter(ConsoleReporter):
         success: bool | None = True,
     ) -> None:
         # We made progress - call once per iteration ;-)
-        self.progress.advance(self.job_task)
 
-        processing: ProcessingLike | None = task.meta and task.meta.get("processing")
-        if task.meta and processing:
-            result = ProcessingResult(task=task, reason=reason, success=success)
-            e = task.meta.get("exception")  # try to pass our raw exception if possible
+        if self.processing:
+            self.processing.progress.advance(self.job_task)
 
-            result.notes = task.name  # default nodes just show the task name
-            result.update(e or fail)
-            processing.add_result(result)
+            if task.meta:
+                result = ProcessingResult(task=task, reason=reason, success=success)
+                e = task.meta.get("exception")  # try to pass our raw exception if possible
+
+                result.notes = task.name  # default nodes just show the task name
+                result.update(e or fail)
+                self.processing.add_result(result)
 
     def skip_uptodate(self, task):
         """skipped up-to-date task"""
@@ -308,22 +313,30 @@ class MyReporter(ConsoleReporter):
         super().add_failure(task, fail)
         self._handle_completion(task, fail)
 
-    def initialize(self, tasks, selected_tasks):
+    def initialize(self, tasks: OrderedDict[str, Task], selected_tasks):
         """called just after tasks have been loaded before execution starts
 
         tasks will be the full list of tasks we might run
         """
         super().initialize(tasks, selected_tasks)
 
-        self.progress.start()
-        self.job_task = self.progress.add_task("Processing targets...", total=len(tasks))
+        if len(tasks) > 0:
+            first = next(
+                iter(tasks.values())
+            )  # All tasks we add are required to have meta.processing
+
+            self.processing = first.meta and first.meta["processing"]
+            if self.processing:
+                self.job_task = self.processing.progress.add_task(
+                    "Processing tasks...", total=len(tasks)
+                )
 
     def complete_run(self):
         """called when finished running all tasks"""
         super().complete_run()
 
-        self.progress.remove_task(self.job_task)
-        self.progress.stop()
+        if self.processing:
+            self.processing.progress.remove_task(self.job_task)
 
 
 class StarbashDoit(TaskLoader2):

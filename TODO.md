@@ -98,6 +98,7 @@
 * [x] fix windows CI
 * [x] allow toml target files to be customized
 * [x] store flats in directory names based on INSTRUMENT not camera
+* [x] Substantially improve progress display
 * [ ] add parameterizations support
 * [ ] do background_removal() as a separate stage via graxpert
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
