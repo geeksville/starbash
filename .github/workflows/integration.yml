@@ -128,10 +128,14 @@ jobs:
       - name: Show free disk space
         run: df -h
 
+      - name: Make scratch directory
+        # /dev/sdb1 seems to have lots of free space
+        run: sudo mkdir -p /mnt/scratch/tmp && sudo chown -R $(id -u):$(id -g) /mnt/scratch
+
       #----------------------------------------------
       # Run integration tests
       #----------------------------------------------
       - name: Run integration tests
         env:
           SENTRY_ENVIRONMENT: ci
-        run: poetry run pytest -m integration -n 0 -v
+        run: TMPDIR=/mnt/scratch/tmp poetry run pytest -m integration -n 0 -v
