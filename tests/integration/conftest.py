@@ -14,6 +14,24 @@ from pathlib import Path
 
 import pytest
 
+from starbash import doit
+
+
+@pytest.fixture(scope="session", autouse=True)
+def limit_max_contexts():
+    """Override max_contexts to 1 for integration tests to reduce disk space usage.
+
+    This fixture automatically runs for all integration tests and saves/restores
+    the original max_contexts value after tests complete.
+    """
+    original_max_contexts = doit.max_contexts
+    doit.max_contexts = 1
+
+    yield
+
+    # Restore original value
+    doit.max_contexts = original_max_contexts
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_integration_logging():

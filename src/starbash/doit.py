@@ -79,7 +79,7 @@ class FileInfo:
             return []
 
 
-max_contexts = 2  # FIXME, make customizable
+max_contexts = 3  # FIXME, eventually make customizable via user preferences
 
 
 def get_processing_dir() -> Path:
