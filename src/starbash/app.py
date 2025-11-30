@@ -1,4 +1,6 @@
+import faulthandler
 import logging
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -140,6 +142,8 @@ class Starbash:
 
         # Must be **after** _init_analytics otherwise we can get mutex locks later while emitting logs
         setup_logging(starbash.console)
+
+        faulthandler.enable(sys.stderr)  # catch native stack traces if we crash
 
         # Load app defaults and initialize the repository manager
         self._init_repos()
