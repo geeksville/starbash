@@ -125,6 +125,9 @@ jobs:
           echo "Test data extracted successfully"
           echo "::endgroup::"
 
+      - name: Show free disk space
+        run: df -h
+
       #----------------------------------------------
       # Run integration tests
       #----------------------------------------------

@@ -125,6 +125,10 @@ jobs:
           # Let siril see /tmp
           flatpak --user override --filesystem=/tmp org.siril.Siril
 
+      - name: Show free disk space
+        if: matrix.os == 'ubuntu-latest'
+        run: df -h
+
       - name: Run tests
         env:
           SENTRY_ENVIRONMENT: ci
