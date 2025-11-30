@@ -16,6 +16,7 @@ from rich.traceback import Traceback
 
 from starbash.commands import SPINNER_STYLE
 from starbash.exception import UserHandledError
+from starbash.os import symlink_or_copy
 
 logger = logging.getLogger(__name__)
 
@@ -442,10 +443,7 @@ class SirilTool(ExternalTool):
 
             # if a script is re-run we might already have the input file symlinks
             if not os.path.exists(dest_file):
-                os.symlink(
-                    os.path.abspath(str(f)),
-                    dest_file,
-                )
+                symlink_or_copy(str(f), dest_file)
 
         # We dedent here because the commands are often indented multiline strings
         script_content = textwrap.dedent(

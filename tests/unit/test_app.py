@@ -80,9 +80,9 @@ class TestCopyImagesToDir:
         assert "Export complete!" in captured.out
         assert "Linked: 2 files" in captured.out
 
-    @patch("pathlib.Path.symlink_to")
-    def test_copy_images_to_dir_fallback_to_copy(self, mock_symlink, tmp_path, capsys):
-        """Test that copy_images_to_dir falls back to copy when symlink fails."""
+    @patch("starbash.app.symlink_or_copy")
+    def test_copy_images_to_dir_fallback_to_copy(self, mock_symlink_or_copy, tmp_path, capsys):
+        """Test that copy_images_to_dir uses symlink_or_copy which handles fallback."""
         # Create source files
         source_dir = tmp_path / "source"
         source_dir.mkdir()
@@ -93,26 +93,22 @@ class TestCopyImagesToDir:
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        # Mock symlink to raise OSError
-        mock_symlink.side_effect = OSError("Symlink not supported")
-
         # Create image metadata
         images = [{"abspath": str(file1)}]
 
         # Call the function
         copy_images_to_dir(images, output_dir)
 
-        # Verify file was copied instead
-        dest1 = output_dir / "image1.fit"
-        assert dest1.exists()
-        assert not dest1.is_symlink()
-        assert dest1.read_text() == "test data 1"
+        # Verify symlink_or_copy was called with correct arguments
+        mock_symlink_or_copy.assert_called_once_with(
+            str(file1.resolve()), str(output_dir / "image1.fit")
+        )
 
         # Check output messages
         captured = capsys.readouterr()
         assert "Exporting 1 images" in captured.out
         assert "Export complete!" in captured.out
-        assert "Copied: 1 files" in captured.out
+        assert "Linked: 1 files" in captured.out
 
     def test_copy_images_to_dir_missing_source(self, tmp_path, capsys):
         """Test that copy_images_to_dir handles missing source files."""
@@ -156,35 +152,6 @@ class TestCopyImagesToDir:
         # Check output messages
         captured = capsys.readouterr()
         assert "Skipping existing file" in captured.out
-        assert "Errors: 1 files" in captured.out
-
-    @patch("shutil.copy2")
-    @patch("pathlib.Path.symlink_to")
-    def test_copy_images_to_dir_copy_failure(self, mock_symlink, mock_copy, tmp_path, capsys):
-        """Test that copy_images_to_dir handles copy failures."""
-        # Create source file
-        source_dir = tmp_path / "source"
-        source_dir.mkdir()
-        file1 = source_dir / "image1.fit"
-        file1.write_text("test data")
-
-        # Create output directory
-        output_dir = tmp_path / "output"
-        output_dir.mkdir()
-
-        # Mock symlink to fail, then copy to fail
-        mock_symlink.side_effect = OSError("Symlink not supported")
-        mock_copy.side_effect = PermissionError("Permission denied")
-
-        # Create image metadata
-        images = [{"abspath": str(file1)}]
-
-        # Call the function
-        copy_images_to_dir(images, output_dir)
-
-        # Check output messages
-        captured = capsys.readouterr()
-        assert "Error copying" in captured.out
         assert "Errors: 1 files" in captured.out
 
     def test_copy_images_to_dir_mixed_results(self, tmp_path, capsys):
@@ -237,20 +204,21 @@ class TestCopyImagesToDir:
         assert "Exporting 0 images" in captured.out
         assert "Export complete!" in captured.out
 
-    def test_copy_images_to_dir_missing_path_key(self, tmp_path, capsys):
-        """Test copy_images_to_dir handles images without path key."""
+    def test_copy_images_to_dir_missing_abspath_key(self, tmp_path, capsys):
+        """Test copy_images_to_dir handles images without abspath key."""
         output_dir = tmp_path / "output"
         output_dir.mkdir()
 
-        # Create image metadata without path key
+        # Create image metadata without abspath key (empty string path resolves to cwd)
         images = [{"metadata": "some data"}]
 
         # Call the function
         copy_images_to_dir(images, output_dir)
 
-        # Check that it handled gracefully
+        # Check that it handled gracefully (empty path name causes it to skip with existing file message)
         captured = capsys.readouterr()
         assert "Exporting 1 images" in captured.out
+        assert "Skipping existing file" in captured.out
         assert "Errors: 1 files" in captured.out
 
 

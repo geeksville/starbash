@@ -1,5 +1,4 @@
 import logging
-import shutil
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +33,7 @@ from starbash.database import (
 )
 from starbash.dwarf3 import extend_dwarf3_headers
 from starbash.exception import raise_missing_repo
+from starbash.os import symlink_or_copy
 from starbash.paths import get_user_config_dir, get_user_config_path
 from starbash.score import ScoredCandidate, score_candidates
 from starbash.selection import Selection, build_search_conditions
@@ -83,7 +83,6 @@ def copy_images_to_dir(images: list[ImageRow], output_dir: Path) -> None:
     console.print(f"[cyan]Exporting {len(images)} images to {output_dir}...[/cyan]")
 
     linked_count = 0
-    copied_count = 0
     error_count = 0
 
     for image in images:
@@ -103,24 +102,13 @@ def copy_images_to_dir(images: list[ImageRow], output_dir: Path) -> None:
             continue
 
         # Try to create a symbolic link first
-        try:
-            dest_path.symlink_to(source_path.resolve())
-            linked_count += 1
-        except (OSError, NotImplementedError):
-            # If symlink fails, try to copy
-            try:
-                shutil.copy2(source_path, dest_path)
-                copied_count += 1
-            except Exception as e:
-                console.print(f"[red]Error copying {source_path.name}: {e}[/red]")
-                error_count += 1
+        symlink_or_copy(str(source_path.resolve()), str(dest_path))
+        linked_count += 1
 
     # Print summary
     console.print("[green]Export complete![/green]")
     if linked_count > 0:
         console.print(f"  Linked: {linked_count} files")
-    if copied_count > 0:
-        console.print(f"  Copied: {copied_count} files")
     if error_count > 0:
         console.print(f"  [red]Errors: {error_count} files[/red]")
 
