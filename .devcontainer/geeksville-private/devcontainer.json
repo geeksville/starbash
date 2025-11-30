@@ -22,7 +22,6 @@
 		"--privileged", // Allow full hw access from host, also allows writing core dump files
 		// "--network=host", // Use host network rather than our bridged container network
 		"--ipc=host", // Needed to make python SharedMemory work
-		"--name=starbash-withx11", // For easier management
 		"--user=1000:1000",
 		// Recommended https://rocm.docs.amd.com/projects/install-on-linux/en/docs-6.2.0/how-to/docker.html
 		"--security-opt=seccomp=unconfined",

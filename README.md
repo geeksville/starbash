@@ -139,7 +139,7 @@ If you don't want the automated processing you can still ask Starbash to prepare
 
 ### Repository Management
 - `sb repo list [--verbose]` - List installed repos (use `-v` for details)
-- `sb repo add [--master] [filepath|URL]` - Add a repository, optionally specifying the type
+- `sb repo add [--master|processed] [filepath|URL]` - Add a repository, optionally specifying the type
 - `sb repo remove <REPOURL>` - Remove the indicated repo from the repo list
 - `sb repo reindex [--force] <REPOURL>` - Reindex the specified repo (or all repos if none specified)
 

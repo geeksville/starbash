@@ -161,6 +161,18 @@ jobs:
           name: junit-xml
           path: .
 
+      - name: Check CODECOV_TOKEN is available
+        # DO NOT print the token itself. This only checks presence.
+        shell: bash
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          if [ -n "$CODECOV_TOKEN" ]; then
+            echo "CODECOV_TOKEN set? yes"
+          else
+            echo "CODECOV_TOKEN set? no"
+          fi
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:

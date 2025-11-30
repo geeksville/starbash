@@ -96,7 +96,7 @@
 * [x] rexport the small test dataset (I've added a few files)
 * [x] verify build takes zero time if no changes
 * [x] scored candidates are no longer storing their confidence strings in the TOML!!!
-* [x] ic434 dwarf3 is not generating flat masters
+* [x] ic434 dataset for dwarf3 is not generating flat masters
 
 * [x] fix windows CI
 * [x] allow toml target files to be customized
