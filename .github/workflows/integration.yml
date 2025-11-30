@@ -97,6 +97,10 @@ jobs:
           # Let siril see /tmp
           flatpak --user override --filesystem=/tmp org.siril.Siril
 
+      - name: Make scratch directory
+        # /dev/sdb1 seems to have lots of free space
+        run: sudo mkdir -p /mnt/scratch/tmp && sudo chown -R $(id -u):$(id -g) /mnt/scratch
+
       #----------------------------------------------
       # Extract test-data from Docker image
       #----------------------------------------------
@@ -111,14 +115,16 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Create mount point and copy data"
-          sudo mkdir -p /test-data
-          sudo chown -R $(id -u):$(id -g) /test-data
-          docker cp test-data-container:/test-data/. /test-data
+          sudo mkdir -p /mnt/scratch/test-data
+          sudo chown -R $(id -u):$(id -g) /mnt/scratch/test-data
+          docker cp test-data-container:/test-data/. /mnt/scratch/test-data
           echo "::endgroup::"
 
           echo "::group::Clean up container"
           docker rm test-data-container
           echo "::endgroup::"
+
+          ln -s /mnt/scratch/test-data /
 
           echo "::group::Verify extracted data"
           ls -la /test-data/
@@ -127,10 +133,6 @@ jobs:
 
       - name: Show free disk space
         run: df -h
-
-      - name: Make scratch directory
-        # /dev/sdb1 seems to have lots of free space
-        run: sudo mkdir -p /mnt/scratch/tmp && sudo chown -R $(id -u):$(id -g) /mnt/scratch
 
       #----------------------------------------------
       # Run integration tests
