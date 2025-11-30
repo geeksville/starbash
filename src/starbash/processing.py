@@ -876,6 +876,7 @@ class Processing(ProcessingLike):
         # Collect all image rows from prior stage outputs
         child_exception: Exception | None = None
 
+        base: str | None = None  # We will set base from the first matching prior task output
         for task in prior_tasks:
             task_context: dict[str, Any] = task["meta"]["context"]  # type: ignore
             task_inputs = task_context.get("input", {})
@@ -896,6 +897,7 @@ class Processing(ProcessingLike):
                                 and isinstance(task_output, FileInfo)
                                 and task_output.image_rows
                             ):
+                                base = task_output.base
                                 image_rows.extend(task_output.image_rows)
                     except NotEnoughFilesError as e:
                         child_exception = e  # In case we need to raise later
@@ -906,7 +908,7 @@ class Processing(ProcessingLike):
             # we failed on every child, give up
             raise child_exception
 
-        return FileInfo(image_rows=image_rows)
+        return FileInfo(base=base, image_rows=image_rows)
 
     def preflight_tasks(self, pt: ProcessedTarget, tasks: list[TaskDict]) -> list[TaskDict]:
         # if user has excluded any stages, we need to respect that (remove matching stages)
@@ -946,7 +948,7 @@ class Processing(ProcessingLike):
 
         return tasks
 
-    def _resolve_input_files(self, input: InputDef) -> list[Path]:
+    def _resolve_input_files(self, input: InputDef, index: int) -> list[Path]:
         """Resolve input file paths for a stage.
 
         Args:
@@ -978,7 +980,11 @@ class Processing(ProcessingLike):
                 List of Path objects for all files imported from prior stages.
             """
             all_files: list[Path] = []
-            input_names = get_list_of_strings(input, "name")
+
+            # name is optional - if missing we use the integer index as the name
+            input_names: list[str] | list[int] = (
+                get_list_of_strings(input, "name") if "name" in input else [index]
+            )
 
             for name in input_names:
                 # Import and filter data from prior stages
@@ -1110,8 +1116,8 @@ class Processing(ProcessingLike):
             stage: The stage definition from TOML"""
         inputs: list[InputDef] = stage.get("inputs", [])
         all_input_files: list[Path] = []
-        for inp in inputs:
-            input_files = self._resolve_input_files(inp)
+        for index, inp in enumerate(inputs):
+            input_files = self._resolve_input_files(inp, index)
             all_input_files.extend(input_files)
         return all_input_files
 

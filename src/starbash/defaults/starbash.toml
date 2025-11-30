@@ -50,10 +50,6 @@ SiiHb = ["SiiHb", "S2Hb"]
 # standard default repo locations.  When searching repos, repos listed LAST have precedence, so target file can override the root processing defaults,
 # then the user prefs, then a live github URL or whatever
 
-# [[repo-ref]]
-# Possibly provide default repos via http from github?
-# url = "https://github.com/geeksville/starbash-default-repo"
-
 [[repo-ref]]
 
 # Add our built-in recipes (FIXME, add a "resource" repo type for directories we expect to find inside
@@ -61,9 +57,9 @@ SiiHb = ["SiiHb", "S2Hb"]
 # url = "pkg://recipes"
 # We now (finally) fetch our recipes from the sister github repo via http - We use tags (for now) to bind to
 # a particular version of the repo
-url = "https://raw.githubusercontent.com/geeksville/starbash-recipes/v0.1.22"
+# url = "https://raw.githubusercontent.com/geeksville/starbash-recipes/v0.1.22"
 # FIXME until doit is merged into main, pull recipes from the the local git submodule
-# url = "file:///workspaces/starbash/starbash-recipes"
+url = "file:///workspaces/starbash/starbash-recipes"
 
 # [[repo-ref]]
 

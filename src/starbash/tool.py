@@ -476,8 +476,9 @@ class GraxpertTool(ExternalTool):
     def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
         """Executes Graxpert with the specified command line arguments"""
 
+        expanded = expand_context_unsafe(commands, context)
         # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
-        cmd = f"{self.executable_path} {commands}"
+        cmd = f"{self.executable_path} {expanded}"
 
         tool_run(cmd, cwd, timeout=self.timeout)
 

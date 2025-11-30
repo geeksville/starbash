@@ -104,7 +104,12 @@
 * [x] Substantially improve progress display
 * [x] "sb process masters" shows empty results list
 * [ ] add parameterizations support
+
 * [ ] do background_removal() as a separate stage via graxpert
+* [ ] too many outputs from stacking job.
+* [ ] graxpert needs to autodownload models
+* [ ] graxpert needs to not add .fits suffix if the output file already has one
+
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] generate an auto-stretched output as fits and jpg.
 * [ ] make master-selection user customizable per target
