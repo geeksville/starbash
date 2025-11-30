@@ -115,8 +115,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Create mount point and copy data"
-          sudo mkdir -p /mnt/scratch/test-data
-          sudo chown -R $(id -u):$(id -g) /mnt/scratch/test-data
+          mkdir -p /mnt/scratch/test-data
           docker cp test-data-container:/test-data/. /mnt/scratch/test-data
           echo "::endgroup::"
 
