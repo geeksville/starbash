@@ -107,6 +107,7 @@
 
 * [ ] do background_removal() as a separate stage via graxpert
 * [ ] too many outputs from stacking job.
+* [ ] remove 2 second pause in graxpert launch
 * [ ] graxpert needs to autodownload models
 * [ ] graxpert needs to not add .fits suffix if the output file already has one
 
