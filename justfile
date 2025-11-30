@@ -85,6 +85,9 @@ select-ha:
     sb select any
     sb select target ic1396
 
+# select a small/fast to process target
+select-small: select-seestar-ir
+
 process:
     sb process auto
 

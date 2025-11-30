@@ -95,7 +95,7 @@ def print_results(
     title: str,
     results: list[ProcessingResult],
     console: rich.console.Console,
-    skip_boring: bool = False,
+    skip_boring: bool = True,
 ) -> None:
     """Print processing results in a formatted table.
 
