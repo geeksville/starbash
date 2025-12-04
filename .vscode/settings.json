@@ -6,6 +6,14 @@
     // This enables the "format on save" feature for all languages that
     // have a configured formatter.
     "editor.formatOnSave": true,
+    // Exclude GraXpert directory from file watcher (performance)
+    "files.watcherExclude": {
+        "GraXpert/**": true
+    },
+    // Exclude GraXpert from Ruff formatting and linting
+    "ruff.exclude": [
+        "GraXpert/**"
+    ],
     // ---- Python-Specific Settings ----
     // This block specifies settings just for Python files.
     "[python]": {

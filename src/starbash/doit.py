@@ -171,9 +171,9 @@ def doit_post_process(task_dict: TaskDict):
 class ToolAction(BaseAction):
     """An action that runs a starbash tool with given commands and context."""
 
-    def __init__(self, tool: Tool, commands: str, cwd: str | None = None):
+    def __init__(self, tool: Tool, commands: str | list[str], cwd: str | None = None):
         self.tool: Tool = tool
-        self.commands: str = commands
+        self.commands: str | list[str] = commands
         self.task: Task | None = None  # Magically filled in by doit
         self.cwd: str | None = cwd
 

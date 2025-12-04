@@ -107,7 +107,7 @@ def print_results(
     from rich.table import Table
 
     if not results:
-        console.print(f"[yellow]{title}: No results to display[/yellow]")
+        console.print(f"[yellow]{title}: No results, do you have a target selected?[/yellow]")
         return
 
     table = Table(title=title, show_header=True, header_style=TABLE_HEADER_STYLE)
@@ -187,8 +187,9 @@ def auto(
 
                 print_results("Autoprocessed", results, console)
 
-            except Exception as e:
-                console.print(f"[red]Error during auto-processing: {e}[/red]")
+            except Exception:
+                console.print_exception(show_locals=True)
+                raise typer.Exit(code=1)
 
 
 @app.command(

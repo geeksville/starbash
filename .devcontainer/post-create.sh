@@ -7,7 +7,7 @@ echo "source .devcontainer/on-shell-start.sh" >> ~/.zshrc
 # Setup initial poetry venv (we store it in project so we can add the sb/starbash scripts to the path)
 # already done and persistent
 # poetry config virtualenvs.in-project true --local
-poetry install
+poetry install --with dev
 
 # Setup poetry build env
 poetry completions bash >> ~/.bash_completion

@@ -107,9 +107,11 @@
 
 * [ ] do background_removal() as a separate stage via graxpert
 * [ ] too many outputs from stacking job.
-* [ ] remove 2 second pause in graxpert launch
+* [x] remove 2 second pause in graxpert launch
 * [ ] graxpert needs to autodownload models
-* [ ] graxpert needs to not add .fits suffix if the output file already has one
+* [x] graxpert needs to not add .fits suffix if the output file already has one
+* [ ] pass in model options to graxpert
+* [ ] do new graxpert release
 
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] generate an auto-stretched output as fits and jpg.

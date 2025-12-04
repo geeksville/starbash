@@ -111,6 +111,10 @@ db-browse-gui:
 
 # just add the asiair repo if looking for a demo of adding a repo
 
+# instead of pulling graxpert from pypi, use the local checkout
+use-local-graxpert:
+    poetry add --editable ./GraXpert --extras cpuonly
+
 # genera demo videos for the README
 movies: movie-sample movie-process-auto movie-process-siril
 

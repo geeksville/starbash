@@ -305,7 +305,7 @@ class Tool:
             5 * 60.0  # 5 minutes - just to make sure we eventually stop all tools
         )
 
-    def run(self, commands: str, context: dict = {}, cwd: str | None = None) -> None:
+    def run(self, commands: str | list[str], context: dict = {}, cwd: str | None = None) -> None:
         """Run commands inside this tool
 
         If cwd is provided, use that as the working directory otherwise a temp directory is used as cwd.
@@ -333,7 +333,7 @@ class Tool:
                     shutil.rmtree(temp_dir)
                     context.pop("temp_dir", None)
 
-    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
+    def _run(self, cwd: str, commands: str | list[str], context: dict = {}) -> None:
         """Run commands inside this tool (with cwd pointing to the specified directory)"""
         raise NotImplementedError()
 
@@ -473,14 +473,27 @@ class GraxpertTool(ExternalTool):
 
         super().__init__("GraXpert", commands, "https://graxpert.com/")
 
-    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
+    def _run(self, cwd: str, commands: str | list[str], context: dict = {}) -> None:
         """Executes Graxpert with the specified command line arguments"""
 
-        expanded = expand_context_unsafe(commands, context)
-        # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
-        cmd = f"{self.executable_path} {expanded}"
+        expanded_args = None
+        if isinstance(commands, list):
+            # expand each argument separately and join into a single command line
+            expanded_args = expand_context_list(commands, context)
+            expanded = " ".join(expanded_args)
+        else:
+            expanded = expand_context_unsafe(commands, context)
 
-        tool_run(cmd, cwd, timeout=self.timeout)
+        use_builtin = True  # should we use the version of graxpert installed with starbash?
+        if use_builtin and expanded_args:
+            from graxpert import api_run
+
+            api_run(expanded_args)
+        else:
+            # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
+            cmd = f"{self.executable_path} {expanded}"
+
+            tool_run(cmd, cwd, timeout=self.timeout)
 
 
 class PythonScriptError(UserHandledError):

@@ -555,9 +555,10 @@ class Processing(ProcessingLike):
             logging.debug(f"Using tool timeout: {tool.timeout} seconds")
 
         # is the script included inline?
-        script: str | None = stage.get("script")
+        script: str | list[str] | None = stage.get("script")
         if script:
-            script = textwrap.dedent(script)  # it might be indented in the toml
+            if isinstance(script, str):
+                script = textwrap.dedent(script)  # it might be indented in the toml
         else:
             # try to load it from a file
             script_filename = stage.get("script-file", tool.default_script_file)
