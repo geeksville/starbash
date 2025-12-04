@@ -143,7 +143,10 @@ class Starbash:
         # Must be **after** _init_analytics otherwise we can get mutex locks later while emitting logs
         setup_logging(starbash.console)
 
-        faulthandler.enable(sys.stderr)  # catch native stack traces if we crash
+        try:
+            faulthandler.enable(sys.stderr)  # catch native stack traces if we crash
+        except Exception:
+            pass  # ignore failures - it isn't supported on all architectures or in pytest
 
         # Load app defaults and initialize the repository manager
         self._init_repos()
