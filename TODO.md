@@ -110,7 +110,9 @@
 * [x] remove 2 second pause in graxpert launch
 * [x] graxpert needs to autodownload models
 * [x] graxpert needs to not add .fits suffix if the output file already has one
-* [ ] auto determine graxpert script input arguments
+* [x] auto determine graxpert script input arguments
+* [ ] cope with multiple inputs to graxpert background elim
+* [ ] auto generate outout names based on input names (see background.toml)
 * [x] pass in model options to graxpert
 * [ ] add graxpert noise and deconv steps
 * [ ] do new graxpert release
