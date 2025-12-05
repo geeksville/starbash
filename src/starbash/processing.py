@@ -698,7 +698,7 @@ class Processing(ProcessingLike):
         # masters_in = _inputs_by_kind(stage, "master")  # TODO: Use for input resolution
         has_session_in = len(_inputs_by_kind(stage, "session")) > 0
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
-        # job_in = _inputs_by_kind(stage, "job")  # TODO: Use for input resolution
+        has_job_multiplex_in = len(_inputs_by_kind(stage, "job-multiplex")) > 0
 
         assert (not has_session_in) or (not has_session_extra_in), (
             "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
@@ -707,8 +707,8 @@ class Processing(ProcessingLike):
         self._add_stage_context_defs(stage)
 
         # If we have any session inputs, this stage is multiplexed (one task per session)
-        need_multiplex = has_session_in or has_session_extra_in
-        if need_multiplex:
+        multiplex_by_session = has_session_in or has_session_extra_in
+        if multiplex_by_session:
             # Create one task per session
             for s in self.sessions:
                 # Note we have a single context instance and we set session inside it
@@ -724,8 +724,11 @@ class Processing(ProcessingLike):
                     # keep a ptr to the task for this stage - note: we "tasks" vs "task" for the multiplexed case
                     # stage.setdefault("tasks", []).append(t)
         else:
-            # no session for non-multiplexed stages, FIXME, not sure if there is a better place to clean this up?
+            # no session for non-session-multiplex stages
             self.context.pop("session", None)
+
+            if has_job_multiplex_in:
+                raise NotImplementedError()
 
             # Single task (no multiplexing) - e.g., final stacking or post-processing
             t = self._create_task_dict(stage)
@@ -750,7 +753,7 @@ class Processing(ProcessingLike):
         return task_name
 
     def _create_task_dict(self, stage: StageDict) -> TaskDict | None:
-        """Create a doit task dictionary for a single session in a multiplexed stage.
+        """Create a doit task dictionary for a single session in a stage.
 
         Args:
             stage: The stage definition from TOML
@@ -772,7 +775,7 @@ class Processing(ProcessingLike):
                 file_deps = self._stage_input_files(stage)
             except FallbackToImageException as e:
                 logging.info(
-                    f"Falling back to file-based processing for stage '{stage.get('name')}' using file {e.image.get('path', 'unknown')}"
+                    f"Skipping '{stage.get('name')}' using fallback file {e.image.get('path', 'unknown')}"
                 )
                 fallback_output = e.image
                 metadata = e.image.copy()
@@ -944,14 +947,12 @@ class Processing(ProcessingLike):
 
         return tasks
 
-    def _resolve_input_files(self, input: InputDef, index: int) -> list[Path]:
+    def _resolve_input_files(self, input: InputDef, index: int) -> None:
         """Resolve input file paths for a stage.
 
         Args:
             stage: The stage definition from TOML
 
-        Returns:
-            List of absolute file paths that are inputs to this stage
         """
         # FIXME: Implement input file resolution
         # - Extract inputs from stage["inputs"]
@@ -962,9 +963,12 @@ class Processing(ProcessingLike):
         # - Apply input.requires filters (metadata, min_count, camera)
         # - Return list of actual file paths
 
-        ci: dict = self.context.setdefault("input", {})
+        # Note: at the time of staging, we store the inputs from _this stage_ in new_input
+        # later (after staging) we merge this into the prior stages inputs in commit_inputs().
+        # This allows us do staging at an earlier point in the pipeline.
+        ci: dict = self.context["stage_input"]
 
-        def _resolve_input_job() -> list[Path]:
+        def _resolve_input_job() -> None:
             """Resolve job-type inputs by importing data from prior stage outputs.
 
             For each input name specified in the input definition, this function:
@@ -975,7 +979,6 @@ class Processing(ProcessingLike):
             Returns:
                 List of Path objects for all files imported from prior stages.
             """
-            all_files: list[Path] = []
 
             # name is optional - if missing we use the integer index as the name
             input_names: list[str] | list[int] = (
@@ -989,13 +992,7 @@ class Processing(ProcessingLike):
                 # Store in context for script access
                 ci[name] = file_info
 
-                # Collect file paths
-                all_files.extend(file_info.full_paths)
-
-            logging.debug(f"Resolved {len(all_files)} job input files from prior stages")
-            return all_files
-
-        def _resolve_session_extra() -> list[Path]:
+        def _resolve_session_extra() -> None:
             # In this case our context was preinited by cloning from the stage that preceeded us in processing
             # To clean things up (before importing our real imports) we could clobber the old input section
             # ci.clear()
@@ -1010,9 +1007,8 @@ class Processing(ProcessingLike):
                 file_info  # FIXME, change inputs to optionally use incrementing numeric keys instead of "default""
             )
             self.context.pop("output", None)  # remove the bogus output
-            return file_info.full_paths
 
-        def _resolve_input_session() -> list[Path]:
+        def _resolve_input_session() -> None:
             images = self.sb.get_session_images(self.session)
 
             # FIXME Move elsewhere. It really just just be another "requires" clause
@@ -1039,13 +1035,7 @@ class Processing(ProcessingLike):
             )
             ci[imagetyp] = fi
 
-            # FIXME, we temporarily (until the processing_classic is removed) use the old style input_files
-            # context variable - so that existing scripts can keep working.
-            self.context["input_files"] = fi.full_paths
-
-            return fi.full_paths
-
-        def _resolve_input_master() -> list[Path]:
+        def _resolve_input_master() -> None:
             imagetyp = get_safe(input, "type")
             masters = self.sb.get_master_images(imagetyp=imagetyp, reference_session=self.session)
             if not masters:
@@ -1091,19 +1081,16 @@ class Processing(ProcessingLike):
             }
             ci[imagetyp] = info
 
-            return [selected_master]
-
         resolvers = {
             "job": _resolve_input_job,
+            # "job-multiplex": _resolve_input_multiplexed,
             "session": _resolve_input_session,
             "master": _resolve_input_master,
             "session-extra": _resolve_session_extra,
         }
         kind: str = get_safe(input, "kind")
         resolver = get_safe(resolvers, kind)
-        r = resolver()
-
-        return r
+        resolver()
 
     def _stage_input_files(self, stage: StageDict) -> list[Path]:
         """Get all input file paths for the given stage.
@@ -1111,10 +1098,23 @@ class Processing(ProcessingLike):
         Args:
             stage: The stage definition from TOML"""
         inputs: list[InputDef] = stage.get("inputs", [])
-        all_input_files: list[Path] = []
+
+        # Prepare for a new staging run by initing the generated inputs
+        new_inputs: dict[str, FileInfo] = {}
+        self.context["stage_input"] = new_inputs  # inputs for just the current stage
+
         for index, inp in enumerate(inputs):
-            input_files = self._resolve_input_files(inp, index)
-            all_input_files.extend(input_files)
+            self._resolve_input_files(inp, index)
+
+        # Collect all the generate inputs into a single list of files for doit
+        all_input_files: list[Path] = []
+        for inp in new_inputs.values():
+            all_input_files.extend(inp.full_paths)
+
+        # Merge the new inputs into the existing inputs in context
+        existing_inputs: dict[str, FileInfo] = self.context.setdefault("input", {})
+        existing_inputs.update(new_inputs)
+
         return all_input_files
 
     def _resolve_output_files(self, output: OutputDef) -> list[Path]:
