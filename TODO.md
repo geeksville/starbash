@@ -111,7 +111,8 @@
 * [x] graxpert needs to autodownload models
 * [x] graxpert needs to not add .fits suffix if the output file already has one
 * [x] auto determine graxpert script input arguments
-* [ ] cope with multiple inputs to graxpert background elim
+* [x] with latest changes 'seqextract_haoiii_m20_s41' (and later stages) is not finding correct input dependencies - should be dependant on prior stage outputs
+* [x] cope with multiple inputs to graxpert background elim
 * [x] auto generate outout names based on input names (see background.toml)
 * [x] pass in model options to graxpert
 * [ ] add graxpert noise and deconv steps

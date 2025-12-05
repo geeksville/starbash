@@ -527,7 +527,12 @@ class Processing(ProcessingLike):
         Returns:
             A deep copy of the current context dictionary.
         """
-        return copy.deepcopy(self.context)
+        r = copy.deepcopy(self.context)
+        # We don't want downstream tasks to be confused by our transient multiplex and current stage inputs
+        r.pop("multiplex_index", None)
+        r.pop("stage_input", None)
+
+        return r
 
     def _stage_to_action(self, task: TaskDict, stage: StageDict) -> None:
         """Given a stage definition, populate the "actions" list of the task dictionary.
@@ -599,9 +604,6 @@ class Processing(ProcessingLike):
         # since 'inputs' are session specific we erase them here, so that _create_task_dict can reinit with
         # the correct session specific files
         self.context.pop("input", None)
-        self.context.pop(
-            "input_files", None
-        )  # also nuke our temporary old-school way of finding input files
 
     def _get_prior_tasks(self, stage: StageDict) -> TaskDict | list[TaskDict] | None:
         """Get the prior tasks for the given stage based on the 'after' input definition.
@@ -698,7 +700,6 @@ class Processing(ProcessingLike):
         # masters_in = _inputs_by_kind(stage, "master")  # TODO: Use for input resolution
         has_session_in = len(_inputs_by_kind(stage, "session")) > 0
         has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
-        has_job_multiplex_in = len(_inputs_by_kind(stage, "job-multiplex")) > 0
 
         assert (not has_session_in) or (not has_session_extra_in), (
             "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
@@ -718,23 +719,13 @@ class Processing(ProcessingLike):
                 # session to find the 'previous' stage.
                 self._set_session_in_context(s)
 
-                t = self._create_task_dict(stage)
-                if t:
-                    self._add_task(t)
-                    # keep a ptr to the task for this stage - note: we "tasks" vs "task" for the multiplexed case
-                    # stage.setdefault("tasks", []).append(t)
+                self._create_task_dicts(stage)
         else:
             # no session for non-session-multiplex stages
             self.context.pop("session", None)
 
-            if has_job_multiplex_in:
-                raise NotImplementedError()
-
             # Single task (no multiplexing) - e.g., final stacking or post-processing
-            t = self._create_task_dict(stage)
-            if t:
-                self._add_task(t)
-            # stage["task"] = t  # keep a ptr to the task for this stage
+            self._create_task_dicts(stage)
 
     def _get_unique_task_name(self, task_name: str) -> str:
         """Generate a unique task name for the given stage and current session."""
@@ -750,9 +741,15 @@ class Processing(ProcessingLike):
 
             # Make unique task name by combining stage name and session ID
             task_name += f"_s{session_id}"
+
+        # handle input by single file multiplexing
+        multiplex = self.context.get("multiplex_index")
+        if multiplex is not None:
+            task_name += f"_i{multiplex}"
+
         return task_name
 
-    def _create_task_dict(self, stage: StageDict) -> TaskDict | None:
+    def _create_task_dict(self, stage: StageDict) -> None:
         """Create a doit task dictionary for a single session in a stage.
 
         Args:
@@ -763,16 +760,20 @@ class Processing(ProcessingLike):
             Task dictionary suitable for doit (or None if stage cannot be processed).
         """
         try:
-            # We need to init our context from whatever the prior stage was using.
-            self._set_context_from_prior_stage(stage)
-
             task_name = self._get_unique_task_name(stage.get("name", "unnamed_stage"))
 
             self.use_temp_cwd = False
 
             fallback_output: None | ImageRow = None
             try:
-                file_deps = self._stage_input_files(stage)
+                # in the multiplexed case we will have already resolved the input files _once_ for
+                # the various subtasks.  Otherwise do that here
+                if "multiplex_index" not in self.context:
+                    self._resolve_all_input_files(stage)  # resolve all inputs to current stage
+
+                file_deps = self._collect_input_files(
+                    stage
+                )  # convert current inputs into a list of doit dependencies
             except FallbackToImageException as e:
                 logging.info(
                     f"Skipping '{stage.get('name')}' using fallback file {e.image.get('path', 'unknown')}"
@@ -812,7 +813,7 @@ class Processing(ProcessingLike):
 
             doit_post_process(task_dict)
 
-            return task_dict
+            self._add_task(task_dict)
 
         except NotEnoughFilesError as e:
             # if the session was empty that probably just means it was completely filtered as a bad match
@@ -828,6 +829,45 @@ class Processing(ProcessingLike):
         except UserHandledError as e:
             logging.warning(f"Skipping stage '{stage.get('name')}' - {e}")
         return None
+
+    def _create_task_dicts(self, stage: StageDict) -> None:
+        """Create a doit task dictionaries for a possibly multiplexed input stage.
+
+        Args:
+            stage: The stage definition from TOML"""
+        has_job_multiplex_in = len(_inputs_by_kind(stage, "job-multiplex")) > 0
+
+        # We need to init our context from whatever the prior stage was using.
+        self._set_context_from_prior_stage(stage)
+
+        try:
+            if not has_job_multiplex_in:
+                self.context.pop("stage_input", None)  # Force new stage inputs to be resolved
+                self._create_task_dict(stage)
+            else:
+                self._resolve_all_input_files(
+                    stage
+                )  # resolve all inputs to current stage (to find out inputs to multiplex)
+
+                # This should be already defined by this point
+                job_inputs: dict[Any, FileInfo] = self.context["stage_input"]
+                # FIXME, we currently assume this feature is only used with the default '0' input
+                multiplexed_inputs = get_safe(job_inputs, 0)
+                rows = multiplexed_inputs.image_rows
+                assert rows, "I think always guaranteed have image rows here?"
+                for index, image_row in enumerate(rows):
+                    fi = FileInfo(
+                        base=multiplexed_inputs.base, image_rows=[image_row]
+                    )  # one image row at a time
+                    job_inputs[0] = fi  # For this task we are telling it just this one file
+                    self.context["multiplex_index"] = (
+                        index  # let the task know we are multiplexing inputs
+                    )
+                    self._create_task_dict(stage)
+        finally:
+            # clean things up for any future runs
+            self.context.pop("stage_input", None)
+            self.context.pop("multiplex_index", None)
 
     def _with_defaults(self, img: ImageRow) -> ImageRow:
         """Try to provide missing metadata for image rows.  Some imagerows are 'sparse'
@@ -1083,7 +1123,7 @@ class Processing(ProcessingLike):
 
         resolvers = {
             "job": _resolve_input_job,
-            # "job-multiplex": _resolve_input_multiplexed,
+            "job-multiplex": _resolve_input_job,  # Handle the same as regular jobs (at least at this level)
             "session": _resolve_input_session,
             "master": _resolve_input_master,
             "session-extra": _resolve_session_extra,
@@ -1092,8 +1132,9 @@ class Processing(ProcessingLike):
         resolver = get_safe(resolvers, kind)
         resolver()
 
-    def _stage_input_files(self, stage: StageDict) -> list[Path]:
-        """Get all input file paths for the given stage.
+    def _resolve_all_input_files(self, stage: StageDict) -> None:
+        """Resolve input file paths for the given stage.
+        This populates context["stage_input"] with all the inputs for the current stage.
 
         Args:
             stage: The stage definition from TOML"""
@@ -1106,8 +1147,15 @@ class Processing(ProcessingLike):
         for index, inp in enumerate(inputs):
             self._resolve_input_files(inp, index)
 
+    def _collect_input_files(self, stage: StageDict) -> list[Path]:
+        """Get all input file paths for the given stage.
+
+        Args:
+            stage: The stage definition from TOML"""
+
         # Collect all the generate inputs into a single list of files for doit
         all_input_files: list[Path] = []
+        new_inputs: dict[str, FileInfo] = self.context["stage_input"]
         for inp in new_inputs.values():
             all_input_files.extend(inp.full_paths)
 
