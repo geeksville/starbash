@@ -42,7 +42,7 @@ from starbash.exception import (
 from starbash.filtering import FallbackToImageException, filter_by_requires
 from starbash.processed_target import ProcessedTarget
 from starbash.processing_like import ProcessingLike
-from starbash.rich import to_tree
+from starbash.rich import to_rich_string, to_tree
 from starbash.safety import get_list_of_strings, get_safe
 from starbash.score import score_candidates
 from starbash.toml import CommentedString, toml_from_list
@@ -464,9 +464,9 @@ class Processing(ProcessingLike):
         # add a default task to run all the other tasks
         self._add_task(create_default_task(self.tasks))
 
-        tree = to_tree(self.tasks)
+        tree = to_rich_string(to_tree(self.tasks))
 
-        logging.debug(f"Tasks: {tree}")
+        logging.debug(f"Tasks:\n{tree}")
 
         # fire up doit to run the tasks
         # FIXME, perhaps we could run doit one level higher, so that all targets are processed by doit
@@ -865,7 +865,9 @@ class Processing(ProcessingLike):
             ValueError: If no prior tasks have image_rows in their context, or if the
                        input definition is missing required fields.
         """
-        image_rows: list[ImageRow] = []
+        image_rows: dict[
+            str, ImageRow
+        ] = {}  # We use a dict[abspath -> imagerow] because there might be duplicate outputs from prior stages
 
         assert self.stage
         prior_tasks = self._get_prior_tasks(self.stage)
@@ -900,17 +902,18 @@ class Processing(ProcessingLike):
                                 and task_output.image_rows
                             ):
                                 base = task_output.base
-                                image_rows.extend(task_output.image_rows)
+                                for img in task_output.image_rows:
+                                    image_rows[img["abspath"]] = img
                     except NotEnoughFilesError as e:
                         child_exception = e  # In case we need to raise later
                         # just because one prior task doesn't have what we need, we shouldn't stop looking
-                        logging.debug(f"Prior task '{task['name']}' skipped, still looking...S {e}")
+                        logging.debug(f"Prior task '{task['name']}' skipped, still looking... {e}")
 
         if child_exception and len(image_rows) == 0:
             # we failed on every child, give up
             raise child_exception
 
-        return FileInfo(base=base, image_rows=image_rows)
+        return FileInfo(base=base, image_rows=list(image_rows.values()))
 
     def preflight_tasks(self, pt: ProcessedTarget, tasks: list[TaskDict]) -> list[TaskDict]:
         # if user has excluded any stages, we need to respect that (remove matching stages)

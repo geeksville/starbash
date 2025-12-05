@@ -106,12 +106,13 @@
 * [ ] add parameterizations support - so scripts can have named preferences that get stored in toml run file
 
 * [x] do background_removal() as a separate stage via graxpert
-* [ ] too many outputs from stacking job.
+* [x] too many outputs from stacking job.
 * [x] remove 2 second pause in graxpert launch
 * [x] graxpert needs to autodownload models
 * [x] graxpert needs to not add .fits suffix if the output file already has one
 * [ ] auto determine graxpert script input arguments
 * [x] pass in model options to graxpert
+* [ ] add graxpert noise and deconv steps
 * [ ] do new graxpert release
 
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)

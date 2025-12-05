@@ -1,6 +1,8 @@
 from collections.abc import Iterable
+from io import StringIO
 from typing import Any
 
+from rich.console import Console
 from rich.tree import Tree
 
 BRIEF_LIMIT = 3  # Maximum number of leaf items to show in brief mode
@@ -55,3 +57,12 @@ def to_tree(obj: Any, label: str = "root", brief: bool = True) -> Tree:
         tree.add(f"[dim]… and {minor_count - BRIEF_LIMIT} more[/dim]")
 
     return tree
+
+
+def to_rich_string(obj: Any) -> str:
+    """Render any object to a Rich formatted string."""
+
+    string_io = StringIO()
+    temp_console = Console(file=string_io, force_terminal=True, width=120, record=True)
+    temp_console.print(obj)
+    return temp_console.export_text()
