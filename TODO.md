@@ -103,14 +103,15 @@
 * [x] store flats in directory names based on INSTRUMENT not camera
 * [x] Substantially improve progress display
 * [x] "sb process masters" shows empty results list
-* [ ] add parameterizations support
+* [ ] add parameterizations support - so scripts can have named preferences that get stored in toml run file
 
-* [ ] do background_removal() as a separate stage via graxpert
+* [x] do background_removal() as a separate stage via graxpert
 * [ ] too many outputs from stacking job.
 * [x] remove 2 second pause in graxpert launch
-* [ ] graxpert needs to autodownload models
+* [x] graxpert needs to autodownload models
 * [x] graxpert needs to not add .fits suffix if the output file already has one
-* [ ] pass in model options to graxpert
+* [ ] auto determine graxpert script input arguments
+* [x] pass in model options to graxpert
 * [ ] do new graxpert release
 
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)

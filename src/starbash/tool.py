@@ -305,7 +305,13 @@ class Tool:
             5 * 60.0  # 5 minutes - just to make sure we eventually stop all tools
         )
 
-    def run(self, commands: str | list[str], context: dict = {}, cwd: str | None = None) -> None:
+    def run(
+        self,
+        commands: str | list[str],
+        context: dict = {},
+        cwd: str | None = None,
+        **kwargs: dict[str, Any],
+    ) -> None:
         """Run commands inside this tool
 
         If cwd is provided, use that as the working directory otherwise a temp directory is used as cwd.
@@ -326,14 +332,16 @@ class Tool:
                         temp_dir  # pass our directory path in for the tool's usage
                     )
 
-                self._run(cwd, commands, context=context)
+                self._run(cwd, commands, context=context, **kwargs)
             finally:
                 spinner.update(text=f"Tool completed: [bold]{self.name}[/bold].")
                 if temp_dir:
                     shutil.rmtree(temp_dir)
                     context.pop("temp_dir", None)
 
-    def _run(self, cwd: str, commands: str | list[str], context: dict = {}) -> None:
+    def _run(
+        self, cwd: str, commands: str | list[str], context: dict = {}, **kwargs: dict[str, Any]
+    ) -> None:
         """Run commands inside this tool (with cwd pointing to the specified directory)"""
         raise NotImplementedError()
 
@@ -473,7 +481,9 @@ class GraxpertTool(ExternalTool):
 
         super().__init__("GraXpert", commands, "https://graxpert.com/")
 
-    def _run(self, cwd: str, commands: str | list[str], context: dict = {}) -> None:
+    def _run(
+        self, cwd: str, commands: str | list[str], context: dict = {}, **kwargs: dict[str, Any]
+    ) -> None:
         """Executes Graxpert with the specified command line arguments"""
 
         expanded_args = None
@@ -488,7 +498,7 @@ class GraxpertTool(ExternalTool):
         if use_builtin and expanded_args:
             from graxpert import api_run
 
-            api_run(expanded_args)
+            api_run(expanded_args, kwargs)
         else:
             # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
             cmd = f"{self.executable_path} {expanded}"

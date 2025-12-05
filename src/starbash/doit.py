@@ -171,11 +171,18 @@ def doit_post_process(task_dict: TaskDict):
 class ToolAction(BaseAction):
     """An action that runs a starbash tool with given commands and context."""
 
-    def __init__(self, tool: Tool, commands: str | list[str], cwd: str | None = None):
+    def __init__(
+        self,
+        tool: Tool,
+        commands: str | list[str],
+        cwd: str | None = None,
+        parameters: dict[str, Any] = {},
+    ):
         self.tool: Tool = tool
         self.commands: str | list[str] = commands
         self.task: Task | None = None  # Magically filled in by doit
         self.cwd: str | None = cwd
+        self.parameters: dict[str, Any] = parameters
 
     def execute(self, out=None, err=None):
         # Doit requires that we set result to **something**. None is fine, though returning TaskFailed or a dictionary or a string.
@@ -190,7 +197,9 @@ class ToolAction(BaseAction):
 
         logging.info(f"Running {self.tool.name} for {self.task.name} {desc}")
         try:
-            self.result = self.tool.run(self.commands, context=context, cwd=self.cwd)
+            self.result = self.tool.run(
+                self.commands, context=context, cwd=self.cwd, **self.parameters
+            )
         except ValueError as e:
             # We pass back any exceptions in task.meta - so that our ConsoleReporter can pick them up (doit normally strips exceptions)
             self.task.meta["exception"] = e

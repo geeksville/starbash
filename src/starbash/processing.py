@@ -542,6 +542,7 @@ class Processing(ProcessingLike):
 
         tool_dict = get_safe(stage, "tool")
         tool_name = get_safe(tool_dict, "name")
+        tool_parameters = tool_dict.get("parameters", {})
         tool = tools.get(tool_name)
         if not tool:
             raise ValueError(f"Tool '{tool_name}' for stage '{stage.get('name')}' not found.")
@@ -580,7 +581,7 @@ class Processing(ProcessingLike):
         cwd = self.context.get("process_dir") if not self.use_temp_cwd else None
 
         # Create the ToolAction and add to task
-        action = ToolAction(tool, commands=script, cwd=cwd)
+        action = ToolAction(tool, commands=script, cwd=cwd, parameters=tool_parameters)
         task["actions"] = [action]
 
     def _add_stage_context_defs(self, stage: StageDict) -> None:
