@@ -826,15 +826,6 @@ class Processing(ProcessingLike):
             logging.warning(f"Skipping stage '{stage.get('name')}' - {e}")
         return None
 
-    def _resolve_files(self, input: InputDef, dir: Path) -> FileInfo:
-        """combine the directory with the input/output name(s) to get paths.
-
-        We can share this function because input/output sections have the same rules for jobs"""
-        filenames = get_list_of_strings(input, "name")
-        # filenames might have had {} variables, we must expand them before going to the actual file
-        filenames = [expand_context_unsafe(f, self.context) for f in filenames]
-        return FileInfo(base=str(dir), image_rows=[_make_imagerow(dir, f) for f in filenames])
-
     def _with_defaults(self, img: ImageRow) -> ImageRow:
         """Try to provide missing metadata for image rows.  Some imagerows are 'sparse'
         with just a filename and minor other info.  In that case try to assume the metadata matches
@@ -1142,11 +1133,38 @@ class Processing(ProcessingLike):
         #   - "processed": construct path in target-specific results dir
         # - Return list of actual file paths
 
+        def _resolve_files(dir: Path) -> FileInfo:
+            """combine the directory with the input/output name(s) to get paths."""
+            filenames: list[str] = []
+
+            auto_prefix = output.get("auto", {}).get("prefix")
+            if auto_prefix:
+                # automatically generate filenames based on input files
+                my_input = self.context["input"]  # Guaranteed to be present by now
+                input_file_info: FileInfo = get_safe(
+                    my_input, 0
+                )  # FIXME, currently we only work with the 'default' input for this feature
+
+                for filename in input_file_info.short_paths:
+                    generated_name = f"{auto_prefix}{filename}"
+                    filenames.append(str(dir / generated_name))
+            else:
+                # normal case - get the list of filenames from the output definition
+                filenames = get_list_of_strings(output, "name")
+
+            # filenames might have had {} variables, we must expand them before going to the actual file
+            filenames = [expand_context_unsafe(f, self.context) for f in filenames]
+
+            if not filenames:
+                raise ValueError("Output definition must specify at least one file.")
+
+            return FileInfo(base=str(dir), image_rows=[_make_imagerow(dir, f) for f in filenames])
+
         def _resolve_output_job() -> FileInfo:
-            return self._resolve_files(output, self.job_dir)
+            return _resolve_files(self.job_dir)
 
         def _resolve_processed() -> FileInfo:
-            return self._resolve_files(output, self.output_dir)
+            return _resolve_files(self.output_dir)
 
         def _resolve_master() -> FileInfo:
             """Master frames and such - just a single output file in the output dir."""

@@ -112,7 +112,7 @@
 * [x] graxpert needs to not add .fits suffix if the output file already has one
 * [x] auto determine graxpert script input arguments
 * [ ] cope with multiple inputs to graxpert background elim
-* [ ] auto generate outout names based on input names (see background.toml)
+* [x] auto generate outout names based on input names (see background.toml)
 * [x] pass in model options to graxpert
 * [ ] add graxpert noise and deconv steps
 * [ ] do new graxpert release
