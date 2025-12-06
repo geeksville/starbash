@@ -13,6 +13,7 @@ from starbash.commands.__init__ import (
 )
 from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
+from starbash.doit import FileInfo
 from starbash.processing import Processing, ProcessingResult
 
 app = typer.Typer()
@@ -131,6 +132,15 @@ def print_results(
 
         # Format notes (truncate if too long)
         notes = result.notes or ""
+
+        # if success or skipped, show outputs generated
+        fi: FileInfo | None = result.context.get("output")
+        if fi and result.success is not False:
+            is_tmp_dir = fi.repo is None
+            output_files_str = " → " + ", ".join(fi.short_paths)
+            if is_tmp_dir:
+                output_files_str = f"[dim]{output_files_str}[/dim]"
+            notes += output_files_str
 
         table.add_row(result.target, result.session_desc, status, notes)
 

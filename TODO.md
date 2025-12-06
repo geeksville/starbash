@@ -115,6 +115,7 @@
 * [x] cope with multiple inputs to graxpert background elim
 * [x] auto generate outout names based on input names (see background.toml)
 * [x] pass in model options to graxpert
+* [ ] why was stack_osc_m20 and stack_dual_duo_m20 both allowed to run?
 * [ ] add graxpert noise and deconv steps
 * [ ] do new graxpert release
 

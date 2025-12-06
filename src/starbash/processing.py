@@ -403,10 +403,10 @@ class Processing(ProcessingLike):
         return Path(d)
 
     @property
-    def output_dir(self) -> Path:
+    def output_file_info(self) -> FileInfo:
         """Get the current output directory (for working/temp files) from the context."""
-        d = self.context["final_output"].base
-        return Path(d)
+        d = self.context["final_output"]
+        return d
 
     def _create_master_tasks(self) -> list[TaskDict]:
         """Generate master calibration frames (bias, dark, flat).
@@ -1186,16 +1186,20 @@ class Processing(ProcessingLike):
             filenames: list[str] = []
 
             auto_prefix = output.get("auto", {}).get("prefix")
+            repo: Repo | None = None  # the repo for our output (assume none)
             if auto_prefix:
                 # automatically generate filenames based on input files
                 my_input = self.context["input"]  # Guaranteed to be present by now
                 input_file_info: FileInfo = get_safe(
                     my_input, 0
                 )  # FIXME, currently we only work with the 'default' input for this feature
+                repo = (
+                    self.output_file_info.repo
+                )  # preserve the same repo we were using for output (if possible)
 
                 for filename in input_file_info.short_paths:
                     generated_name = f"{auto_prefix}{filename}"
-                    filenames.append(str(dir / generated_name))
+                    filenames.append(generated_name)
             else:
                 # normal case - get the list of filenames from the output definition
                 filenames = get_list_of_strings(output, "name")
@@ -1206,13 +1210,17 @@ class Processing(ProcessingLike):
             if not filenames:
                 raise ValueError("Output definition must specify at least one file.")
 
-            return FileInfo(base=str(dir), image_rows=[_make_imagerow(dir, f) for f in filenames])
+            return FileInfo(
+                repo=repo, base=str(dir), image_rows=[_make_imagerow(dir, f) for f in filenames]
+            )
 
         def _resolve_output_job() -> FileInfo:
             return _resolve_files(self.job_dir)
 
         def _resolve_processed() -> FileInfo:
-            return _resolve_files(self.output_dir)
+            fi = self.output_file_info
+            assert fi.base, "Output FileInfo must have a base for processed output"
+            return _resolve_files(Path(fi.base))
 
         def _resolve_master() -> FileInfo:
             """Master frames and such - just a single output file in the output dir."""
