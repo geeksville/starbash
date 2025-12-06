@@ -123,7 +123,8 @@ jobs:
           docker rm test-data-container
           echo "::endgroup::"
 
-          ln -s /mnt/scratch/test-data /
+          sudo ln -s /mnt/scratch/test-data /
+          sudo chown $(id -u):$(id -g) /test-data
 
           echo "::group::Verify extracted data"
           ls -la /test-data/
