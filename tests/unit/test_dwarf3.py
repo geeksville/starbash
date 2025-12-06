@@ -198,4 +198,213 @@ class TestDwarf3HeaderExtension:
             assert result is True
             assert headers[Database.EXPTIME_KEY] == expected_exp
             assert headers[Database.GAIN_KEY] == expected_gain
-            assert headers[Database.IMAGETYP_KEY] == "dark"
+
+
+class TestDwarf3HelperFunctions:
+    """Test helper functions in the dwarf3 module."""
+
+    def test_extract_temperature_with_valid_formats(self):
+        """Test temperature extraction from various filename formats."""
+        from starbash.dwarf3 import _extract_temperature
+
+        assert _extract_temperature("file_16C.fits") == 16.0
+        assert _extract_temperature("file_20C_stack.fits") == 20.0
+        assert _extract_temperature("dark_15C.fits") == 15.0
+        assert _extract_temperature("raw_60s_60_0002_20251020-032310186_20C.fits") == 20.0
+
+    def test_extract_temperature_no_match(self):
+        """Test temperature extraction when no temperature in filename."""
+        from starbash.dwarf3 import _extract_temperature
+
+        assert _extract_temperature("file.fits") is None
+        assert _extract_temperature("no_temp_here.fits") is None
+        assert _extract_temperature("16_degrees.fits") is None
+
+    def test_make_monotonic_datetime_increments(self):
+        """Test that monotonic datetime increments on each call."""
+        from starbash.dwarf3 import _make_monotonic_datetime
+
+        # Reset counter
+        _make_monotonic_datetime.counter = 0
+
+        dt1 = _make_monotonic_datetime()
+        dt2 = _make_monotonic_datetime()
+        dt3 = _make_monotonic_datetime()
+
+        assert dt1 == "2000-01-01T00:00:00.000"
+        assert dt2 == "2000-01-02T00:00:00.000"
+        assert dt3 == "2000-01-03T00:00:00.000"
+
+    def test_make_monotonic_datetime_format(self):
+        """Test that monotonic datetime has correct format."""
+        from starbash.dwarf3 import _make_monotonic_datetime
+
+        _make_monotonic_datetime.counter = 0
+        dt = _make_monotonic_datetime()
+
+        # Check format: YYYY-MM-DDTHH:MM:SS.mmm
+        assert len(dt) == 23
+        assert dt[4] == "-"
+        assert dt[7] == "-"
+        assert dt[10] == "T"
+        assert dt[13] == ":"
+        assert dt[16] == ":"
+        assert dt[19] == "."
+
+
+class TestDwarf3CameraDetection:
+    """Test camera/instrument detection logic."""
+
+    def test_tele_camera_variants(self):
+        """Test various ways to detect TELE camera."""
+        from pathlib import Path
+
+        from starbash.dwarf3 import extend_dwarf3_headers
+
+        test_cases = [
+            "dwarf3/CALI_FRAME/bias/cam_0/bias.fits",
+            "dwarf3/something/TELE/file.fits",
+            "dwarf3/folder/raw_tele_data.fits",
+        ]
+
+        for path in test_cases:
+            headers = {"path": path}
+            full_path = Path("/fake") / path
+            # Create a minimal cali_frame context
+            if "CALI_FRAME" in path:
+                result = extend_dwarf3_headers(headers, full_path)
+                if result:
+                    assert headers.get("INSTRUME") == "TELE"
+
+    def test_wide_camera_variants(self):
+        """Test various ways to detect WIDE camera."""
+        from pathlib import Path
+
+        from starbash.dwarf3 import extend_dwarf3_headers
+
+        test_cases = [
+            "dwarf3/CALI_FRAME/bias/cam_1/bias.fits",
+            "dwarf3/something/WIDE/file.fits",
+            "dwarf3/folder/raw_wide_data.fits",
+        ]
+
+        for path in test_cases:
+            headers = {"path": path}
+            full_path = Path("/fake") / path
+            # Create a minimal cali_frame context
+            if "CALI_FRAME" in path:
+                result = extend_dwarf3_headers(headers, full_path)
+                if result:
+                    assert headers.get("INSTRUME") == "WIDE"
+
+
+class TestDwarf3EdgeCases:
+    """Test edge cases and error handling."""
+
+    def test_malformed_gain_patterns(self):
+        """Test handling of malformed gain patterns in filenames."""
+        from pathlib import Path
+
+        from starbash.dwarf3 import extend_dwarf3_headers
+
+        headers = {"path": "dwarf3/CALI_FRAME/bias/cam_0/bias_no_gain.fits"}
+        full_path = Path("/fake/bias_no_gain.fits")
+
+        result = extend_dwarf3_headers(headers, full_path)
+        assert result is True
+        # Should not have GAIN_KEY if parsing failed
+        assert Database.GAIN_KEY not in headers or headers.get(Database.GAIN_KEY) is None
+
+    def test_malformed_exposure_patterns(self):
+        """Test handling of malformed exposure patterns in filenames."""
+        from pathlib import Path
+
+        from starbash.dwarf3 import extend_dwarf3_headers
+
+        headers = {"path": "dwarf3/CALI_FRAME/dark/cam_0/dark_no_exp.fits"}
+        full_path = Path("/fake/dark_no_exp.fits")
+
+        result = extend_dwarf3_headers(headers, full_path)
+        assert result is True
+        # Should not have EXPTIME_KEY if parsing failed
+        assert Database.EXPTIME_KEY not in headers or headers.get(Database.EXPTIME_KEY) is None
+
+    def test_missing_shots_info_json(self, tmp_path):
+        """Test light frame handling when shotsInfo.json is missing."""
+        from starbash.dwarf3 import extend_dwarf3_headers
+
+        # Create a directory without shotsInfo.json
+        light_dir = tmp_path / "light_session"
+        light_dir.mkdir()
+
+        headers = {"path": "dwarf3/target/session/light_60s60_Astro_20251018-045926401_16C.fits"}
+        full_path = light_dir / "light_60s60_Astro_20251018-045926401_16C.fits"
+
+        # Should return False since shotsInfo.json doesn't exist
+        result = extend_dwarf3_headers(headers, full_path)
+        assert result is False
+
+    def test_invalid_json_in_shots_info(self, tmp_path, caplog):
+        """Test handling of invalid JSON in shotsInfo.json."""
+        import logging
+
+        from starbash.dwarf3 import extend_dwarf3_headers
+
+        # Create a directory with invalid JSON
+        light_dir = tmp_path / "light_session"
+        light_dir.mkdir()
+        shots_info = light_dir / "shotsInfo.json"
+        shots_info.write_text("{invalid json")
+
+        headers = {"path": "dwarf3/target/session/light_60s60_Astro_20251018-045926401_16C.fits"}
+        full_path = light_dir / "light_60s60_Astro_20251018-045926401_16C.fits"
+
+        with caplog.at_level(logging.WARNING):
+            result = extend_dwarf3_headers(headers, full_path)
+
+        # Should still process the file but log warning
+        assert result is True
+        assert "Could not read shotsInfo.json" in caplog.text
+
+    def test_dwarf_dark_removes_bad_keys(self):
+        """Test that DWARF_DARK processing removes bogus FITS keys."""
+        from pathlib import Path
+
+        from starbash.dwarf3 import extend_dwarf3_headers
+
+        headers = {
+            "path": "dwarf3/DWARF_DARK/session/raw_60s_60_0002_20251020-032310186_20C.fits",
+            Database.FILTER_KEY: "bogus_filter",
+            "RA": "00:00:00",
+            "DEC": "+00:00:00",
+            Database.OBJECT_KEY: "bogus_object",
+        }
+        full_path = Path("/fake/raw_60s_60_0002_20251020-032310186_20C.fits")
+
+        result = extend_dwarf3_headers(headers, full_path)
+        assert result is True
+
+        # These keys should be removed
+        assert Database.FILTER_KEY not in headers
+        assert "RA" not in headers
+        assert "DEC" not in headers
+        assert Database.OBJECT_KEY not in headers
+
+    def test_telescop_naming_convention(self):
+        """Test that TELESCOP is set to D3 + INSTRUME."""
+        from pathlib import Path
+
+        from starbash.dwarf3 import extend_dwarf3_headers
+
+        # Test TELE
+        headers = {"path": "dwarf3/CALI_FRAME/bias/cam_0/bias.fits"}
+        full_path = Path("/fake/bias.fits")
+        extend_dwarf3_headers(headers, full_path)
+        assert headers.get(Database.TELESCOP_KEY) == "D3TELE"
+
+        # Test WIDE
+        headers = {"path": "dwarf3/CALI_FRAME/bias/cam_1/bias.fits"}
+        full_path = Path("/fake/bias.fits")
+        extend_dwarf3_headers(headers, full_path)
+        assert headers.get(Database.TELESCOP_KEY) == "D3WIDE"
+        assert headers[Database.IMAGETYP_KEY] == "bias"

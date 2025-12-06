@@ -102,6 +102,10 @@ process-fail: select-any
     sb select target m31 # m13 # ngc6960
     sb --debug process auto
 
+code-coverage:
+    poetry run pytest --cov --cov-report=html
+    open htmlcov/index.html
+
 db-browse:
     # via poetry --dev
     harlequin -a sqlite -r ~/.local/share/starbash/db.sqlite3
