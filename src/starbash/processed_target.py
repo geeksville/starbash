@@ -6,13 +6,22 @@ from pathlib import Path
 import tomlkit
 
 from repo import Repo, repo_suffix
+from starbash import StageDict
 from starbash.doit import cleanup_old_contexts, get_processing_dir
 from starbash.processing_like import ProcessingLike
+from starbash.safety import get_safe
 from starbash.toml import AsTomlMixin, CommentedString, toml_from_list, toml_from_template
 
 __all__ = [
     "ProcessedTarget",
 ]
+
+
+def stage_with_comment(stage: StageDict) -> CommentedString:
+    """Create a CommentedString for the given stage."""
+    name = stage.get("name", "unnamed_stage")
+    description = stage.get("description", None)
+    return CommentedString(value=name, comment=description)
 
 
 class ProcessedTarget:
@@ -54,6 +63,7 @@ class ProcessedTarget:
             repo_path, default_toml=default_toml
         )  # a structured Repo object for reading/writing this config
         self._update_from_context()
+        self._set_default_stages()
 
         self.config_valid = (
             True  # You can set this to False if you'd like to suppress writing the toml to disk
@@ -64,15 +74,17 @@ class ProcessedTarget:
         node = self.repo.get(name, {}, do_create=True)
         node["used"] = toml_from_list(used)
 
-    def set_excluded(self, name: str, excluded: list[AsTomlMixin]) -> None:
+    def set_excluded(self, name: str, stages_to_exclude: list[StageDict]) -> None:
         """Set the excluded lists for the given section."""
+        excluded = [stage_with_comment(s) for s in stages_to_exclude]
+
         node = self.repo.get(name, {}, do_create=True)
         node["excluded"] = toml_from_list(excluded)
 
-    def get_excluded(self, name: str) -> list[str]:
-        """Any consumers of this function probably just want the raw string"""
-        node = self.repo.get(name, {})
-        excluded: list[CommentedString] = node.get("excluded", [])
+    def get_from_toml(self, dict_name: str, key_name: str) -> list[str]:
+        """Any consumers of this function probably just want the raw string (key_name is usually excluded or used)"""
+        node = self.repo.get(dict_name, {})
+        excluded: list[CommentedString] = node.get(key_name, [])
         return [a.value for a in excluded]
 
     def _init_processing_dir(self, target: str | None) -> None:
@@ -111,6 +123,30 @@ class ProcessedTarget:
             shutil.rmtree(self.name, ignore_errors=True)
 
         cleanup_old_contexts()
+
+    def _set_default_stages(self) -> None:
+        """If we have newly discovered stages which should be excluded by default, add them now."""
+        excluded = self.get_from_toml("stages", "excluded")
+        used: list[str] = self.get_from_toml("stages", "used")
+
+        # Rebuild the list of stages we need to exclude, so we can rewrite if needed
+        stages_to_exclude: list[StageDict] = []
+        changed = False
+        for stage in self.p.stages:
+            stage_name = get_safe(stage, "name")
+
+            if stage_name in excluded:
+                stages_to_exclude.append(stage)
+            elif stage.get("exclude_by_default", False) and stage_name not in used:
+                # if we've never seen this stage name before
+                logging.debug(
+                    f"Excluding stage '{stage_name}' by default for target '{self.name.name}'"
+                )
+                stages_to_exclude.append(stage)
+                changed = True
+
+        if changed:  # Only rewrite if we actually added something
+            self.set_excluded("stages", stages_to_exclude)
 
     def _update_from_context(self) -> None:
         """Update the repo toml based on the current context.

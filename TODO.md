@@ -120,8 +120,10 @@
 * [x] make graxpert network check faster & expose a graxpert API
 * [x] add graxpert noise and deconv steps
 * [x] do new graxpert release v3.2.0a1
-* [ ] make integration-test work again
-* [ ] push to main
+* [ ] make integration-test work again (m13, possibly a problem with auto master generation?)
+* [x] skip graxpert denoise by default (it is very slow)
+* [ ] push to main and bump to 0.1.29 on pypi
+* [ ] while developing default to pulling recipies from local submodule
 
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] generate an auto-stretched output as fits and jpg.

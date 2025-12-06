@@ -40,12 +40,12 @@ from starbash.exception import (
     raise_missing_repo,
 )
 from starbash.filtering import FallbackToImageException, filter_by_requires
-from starbash.processed_target import ProcessedTarget
+from starbash.processed_target import ProcessedTarget, stage_with_comment
 from starbash.processing_like import ProcessingLike
 from starbash.rich import to_rich_string, to_tree
 from starbash.safety import get_list_of_strings, get_safe
 from starbash.score import score_candidates
-from starbash.toml import CommentedString, toml_from_list
+from starbash.toml import toml_from_list
 from starbash.tool import expand_context_list, expand_context_unsafe, tools
 
 __all__ = [
@@ -88,13 +88,6 @@ def tasks_to_stages(tasks: list[TaskDict]) -> list[StageDict]:
 
 def remove_tasks_by_stage_name(tasks: list[TaskDict], excluded: list[str]) -> list[TaskDict]:
     return [t for t in tasks if t["meta"]["stage"].get("name") not in excluded]
-
-
-def stage_with_comment(stage: StageDict) -> CommentedString:
-    """Create a CommentedString for the given stage."""
-    name = stage.get("name", "unnamed_stage")
-    description = stage.get("description", None)
-    return CommentedString(value=name, comment=description)
 
 
 def create_default_task(tasks: list[TaskDict]) -> TaskDict:
@@ -496,7 +489,7 @@ class Processing(ProcessingLike):
         with ProcessedTarget(self, target) as pt:
             pt.config_valid = False  # assume our config is not worth writing
 
-            stages = self._get_stages()
+            stages = self.stages
             self._stages_to_tasks(stages)
 
             self.doit.set_tasks(self.preflight_tasks(pt, self.tasks))
@@ -509,8 +502,13 @@ class Processing(ProcessingLike):
             # self.doit.run(["dumpdb"])
             pt.config_valid = True  # our config is probably worth keeping
 
-    def _get_stages(self, name: str = "stages") -> list[StageDict]:
+    @property
+    def stages(
+        self,
+    ) -> list[StageDict]:
         """Get all pipeline stages defined in the merged configuration."""
+        name = "stages"
+
         # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
 
         # FIXME this is kinda yucky.  The 'merged' repo_manage doesn't know how to merge AoT types, so we get back a list of AoT
@@ -953,7 +951,7 @@ class Processing(ProcessingLike):
 
     def preflight_tasks(self, pt: ProcessedTarget, tasks: list[TaskDict]) -> list[TaskDict]:
         # if user has excluded any stages, we need to respect that (remove matching stages)
-        excluded = pt.get_excluded("stages")
+        excluded = pt.get_from_toml("stages", "excluded")
         tasks = remove_tasks_by_stage_name(tasks, excluded)
 
         # multimap from target file to tasks that produce it
@@ -981,8 +979,8 @@ class Processing(ProcessingLike):
                 )
                 # exclude all but the first one (highest priority)
                 stages_to_exclude = conflicting_stages[1:]
-                pt.set_excluded("stages", [stage_with_comment(s) for s in stages_to_exclude])
-                tasks = remove_tasks_by_stage_name(tasks, pt.get_excluded("stages"))
+                pt.set_excluded("stages", stages_to_exclude)
+                tasks = remove_tasks_by_stage_name(tasks, pt.get_from_toml("stages", "excluded"))
 
         # update our toml with what we used
         pt.set_used("stages", [stage_with_comment(s) for s in tasks_to_stages(tasks)])
