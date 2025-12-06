@@ -121,9 +121,15 @@
 * [x] make integration-test work again (m13, possibly a problem with auto master generation?)
 * [x] skip graxpert denoise by default (it is very slow)
 * [x] push to main and bump to 0.1.29 on pypi
-* [ ] while developing default to pulling recipies from local submodule
+* [ ] while developing default to pulling recipes from local submodule
+* [ ] automatically do process masters before first run?
 * [ ] add parameterizations support - so scripts can have named preferences that get stored in toml run file
 * [ ] use pixelmath to merge multichannel output files into a single file
+* [ ] split out most of osc.py?
+* [ ] input_files should be cleared from imported contexts.  To fix:
+ Running Siril for light_vs_dark_ic1848_s63 (128 input files)
+...
+Running Siril for seqextract_haoiii_ic1848_s63 (128 input files)
 
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] provide link to generated starbash.toml files

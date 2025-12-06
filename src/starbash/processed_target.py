@@ -139,8 +139,8 @@ class ProcessedTarget:
                 stages_to_exclude.append(stage)
             elif stage.get("exclude_by_default", False) and stage_name not in used:
                 # if we've never seen this stage name before
-                logging.debug(
-                    f"Excluding stage '{stage_name}' by default for target '{self.name.name}'"
+                logging.info(
+                    f"Excluding stage '{stage_name}' by default, edit starbash.toml if you'd like it enabled."
                 )
                 stages_to_exclude.append(stage)
                 changed = True
