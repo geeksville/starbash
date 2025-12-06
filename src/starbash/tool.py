@@ -441,9 +441,7 @@ class SirilTool(ExternalTool):
 
         siril_path = self.executable_path
         if siril_path == "org.siril.Siril":
-            # The executable is inside a flatpak, so run the lighter/faster/no-gui required exe
-            # from inside the flatpak
-            siril_path = "flatpak run --command=siril-cli org.siril.Siril"
+            siril_path = "flatpak run org.siril.Siril"
 
         # Create symbolic links for all input files in the temp directory
         for f in input_files:

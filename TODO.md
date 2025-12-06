@@ -104,6 +104,7 @@
 * [x] Substantially improve progress display
 * [x] "sb process masters" shows empty results list
 * [ ] add parameterizations support - so scripts can have named preferences that get stored in toml run file
+* [ ] use pixelmath to merge multichannel output files into a single file
 
 * [x] do background_removal() as a separate stage via graxpert
 * [x] too many outputs from stacking job.
@@ -116,8 +117,8 @@
 * [x] auto generate outout names based on input names (see background.toml)
 * [x] pass in model options to graxpert
 * [x] why was stack_osc_m20 and stack_dual_duo_m20 both allowed to run? NOT a bug, because they generate different non-conflicting output names.  if user wants they can manually exclude certain stages
-* [ ] add graxpert noise and deconv steps
-* [ ] use caching fetch to speed up graxpert downloads
+* [x] make graxpert network check faster & expose a graxpert API
+* [x] add graxpert noise and deconv steps
 * [ ] do new graxpert release
 
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
@@ -134,7 +135,7 @@
 
 ## Do second alpha here
 
-* [ ] make graxpert network check faster & expose an API
+* [ ] use caching fetch to speed up graxpert downloads
 * [ ] find a way to run the integration tests on a Windows VM (for #1 testing)
 * [x] make test data even smaller
 * [ ] merge Processing with ProcessingContext?
