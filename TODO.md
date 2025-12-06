@@ -115,8 +115,9 @@
 * [x] cope with multiple inputs to graxpert background elim
 * [x] auto generate outout names based on input names (see background.toml)
 * [x] pass in model options to graxpert
-* [ ] why was stack_osc_m20 and stack_dual_duo_m20 both allowed to run?
+* [x] why was stack_osc_m20 and stack_dual_duo_m20 both allowed to run? NOT a bug, because they generate different non-conflicting output names.  if user wants they can manually exclude certain stages
 * [ ] add graxpert noise and deconv steps
+* [ ] use caching fetch to speed up graxpert downloads
 * [ ] do new graxpert release
 
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)

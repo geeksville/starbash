@@ -1181,21 +1181,23 @@ class Processing(ProcessingLike):
         #   - "processed": construct path in target-specific results dir
         # - Return list of actual file paths
 
-        def _resolve_files(dir: Path) -> FileInfo:
+        def _resolve_files(dir: Path, output_file_info: FileInfo | None = None) -> FileInfo:
             """combine the directory with the input/output name(s) to get paths."""
             filenames: list[str] = []
 
             auto_prefix = output.get("auto", {}).get("prefix")
             repo: Repo | None = None  # the repo for our output (assume none)
+            if output_file_info:
+                repo = (
+                    output_file_info.repo
+                )  # preserve the same repo we were using for output (if possible)
+
             if auto_prefix:
                 # automatically generate filenames based on input files
                 my_input = self.context["input"]  # Guaranteed to be present by now
                 input_file_info: FileInfo = get_safe(
                     my_input, 0
                 )  # FIXME, currently we only work with the 'default' input for this feature
-                repo = (
-                    self.output_file_info.repo
-                )  # preserve the same repo we were using for output (if possible)
 
                 for filename in input_file_info.short_paths:
                     generated_name = f"{auto_prefix}{filename}"
@@ -1220,7 +1222,7 @@ class Processing(ProcessingLike):
         def _resolve_processed() -> FileInfo:
             fi = self.output_file_info
             assert fi.base, "Output FileInfo must have a base for processed output"
-            return _resolve_files(Path(fi.base))
+            return _resolve_files(Path(fi.base), fi)
 
         def _resolve_master() -> FileInfo:
             """Master frames and such - just a single output file in the output dir."""
