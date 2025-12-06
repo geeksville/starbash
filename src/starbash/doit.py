@@ -203,7 +203,7 @@ class ToolAction(BaseAction):
         except ValueError as e:
             # We pass back any exceptions in task.meta - so that our ConsoleReporter can pick them up (doit normally strips exceptions)
             self.task.meta["exception"] = e
-            self.result = TaskFailed("tool failed")
+            return TaskFailed("tool failed")
             # raise e  # Let doit do its normal exception handling though
 
         self.values = {}  # doit requires this attribute to be set
@@ -261,6 +261,10 @@ class ProcessingResult:
                 # Print errors for runtimeerrors but keep processing other runs...
                 logging.error(f"Skipping run due to: {e}")
                 self.notes = f"Aborted due to possible error in (alpha) code, please file bug on our github: {str(e)}"
+            elif isinstance(e, ValueError):
+                # General error from user misconfiguration or tools - not a bug in our code
+                logging.error(f"Skipping run due to: {e}")
+                self.notes = str(e)
             else:
                 # Unexpected exception - log it and re-raise
                 logging.exception("Unexpected error during processing:")

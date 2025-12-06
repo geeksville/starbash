@@ -484,7 +484,9 @@ class Processing(ProcessingLike):
         self.doit.dicts.clear()
 
         # FIXME - it would be better to call a doit entrypoint that lets us catch the actual Doit exception directly
-        if result_code != 0:
+        if (
+            result_code != 0 and result_code != 1
+        ):  # 1 means a task failed, we just include that failure in our list of results
             raise RuntimeError(f"doit processing failed with exit code {result_code}")
 
     def _job_to_tasks(self, job_name: str, target: str | None) -> None:

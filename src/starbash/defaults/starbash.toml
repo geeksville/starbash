@@ -57,9 +57,9 @@ SiiHb = ["SiiHb", "S2Hb"]
 # url = "pkg://recipes"
 # We now (finally) fetch our recipes from the sister github repo via http - We use tags (for now) to bind to
 # a particular version of the repo
-# url = "https://raw.githubusercontent.com/geeksville/starbash-recipes/v0.1.22"
+url = "https://raw.githubusercontent.com/geeksville/starbash-recipes/v0.1.29"
 # FIXME until doit is merged into main, pull recipes from the the local git submodule
-url = "file:///workspaces/starbash/starbash-recipes"
+# url = "file:///workspaces/starbash/starbash-recipes"
 
 # [[repo-ref]]
 
