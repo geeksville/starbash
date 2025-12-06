@@ -115,6 +115,10 @@ db-browse-gui:
 use-local-graxpert:
     poetry add --editable ./GraXpert --extras cpuonly
 
+use-pypi-graxpert:
+    poetry remove GraXpert
+    poetry add graxpert --extras cpuonly
+
 # genera demo videos for the README
 movies: movie-sample movie-process-auto movie-process-siril
 

@@ -119,7 +119,9 @@
 * [x] why was stack_osc_m20 and stack_dual_duo_m20 both allowed to run? NOT a bug, because they generate different non-conflicting output names.  if user wants they can manually exclude certain stages
 * [x] make graxpert network check faster & expose a graxpert API
 * [x] add graxpert noise and deconv steps
-* [ ] do new graxpert release
+* [x] do new graxpert release v3.2.0a1
+* [ ] make integration-test work again
+* [ ] push to main
 
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] generate an auto-stretched output as fits and jpg.
@@ -187,7 +189,7 @@
 * [x] REVLOCK the recipies repo so old builds keep working!
 * [x] dependencies should auto skip rebuilds - though only within the 3 build cache limit
 * [x] fix remaining failure in m20 target - the final stack_dual_duo is missing dependencies on the s35 prior stage outputs and has 2x dependencies on s36
-* [ ] add graxpert
+* [x] add graxpert
 * [ ] change recipes to use imports
 * [ ] cleanup Repo import code
 * [ ] remove priorities from stages where dependencies should have worked.  hack to fix "Stages in priority order: ['stack_dual_duo', 'light', 'seqextract_haoiii'"

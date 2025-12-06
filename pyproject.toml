@@ -25,10 +25,10 @@ sentry-sdk = "^2.42.1"
 update-checker = "^0.18.0"
 requests-cache = "^1.2.1"
 doit = "^0.36.0"
-graxpert = {path = "GraXpert", extras = ["cpuonly"], develop = true}
 
 # Note: to use graxpert from the local tree rather than pypi use:
 # graxpert = {path = "GraXpert", extras = ["cpuonly"], develop = true}
+graxpert = {version = "^3.2.0a1", extras = ["cpuonly"]}
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.4.2,<9.0.0"
