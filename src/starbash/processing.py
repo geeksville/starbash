@@ -759,76 +759,61 @@ class Processing(ProcessingLike):
         Returns:
             Task dictionary suitable for doit (or None if stage cannot be processed).
         """
+
+        task_name = self._get_unique_task_name(stage.get("name", "unnamed_stage"))
+
+        self.use_temp_cwd = False
+
+        fallback_output: None | ImageRow = None
         try:
-            task_name = self._get_unique_task_name(stage.get("name", "unnamed_stage"))
+            # in the multiplexed case we will have already resolved the input files _once_ for
+            # the various subtasks.  Otherwise do that here
+            if "multiplex_index" not in self.context:
+                self._resolve_all_input_files(stage)  # resolve all inputs to current stage
 
-            self.use_temp_cwd = False
-
-            fallback_output: None | ImageRow = None
-            try:
-                # in the multiplexed case we will have already resolved the input files _once_ for
-                # the various subtasks.  Otherwise do that here
-                if "multiplex_index" not in self.context:
-                    self._resolve_all_input_files(stage)  # resolve all inputs to current stage
-
-                file_deps = self._collect_input_files(
-                    stage
-                )  # convert current inputs into a list of doit dependencies
-            except FallbackToImageException as e:
-                logging.info(
-                    f"Skipping '{stage.get('name')}' using fallback file {e.image.get('path', 'unknown')}"
-                )
-                fallback_output = e.image
-                metadata = e.image.copy()
-                metadata.pop(
-                    "repo", None
-                )  # Repo is not serializable and for some reason doit serializes this
-                self.context["metadata"] = (
-                    metadata  # Store the image metadata so it can be used in doit_post_process
-                )
-                file_deps = [e.image["abspath"]]  # abspath is guaranteed to be present
-
-            targets = self._stage_output_files(stage)
-
-            task_dict: TaskDict = {
-                "name": task_name,
-                "file_dep": expand_context_list(file_deps, self.context),
-                # FIXME, we should probably be using something more structured than bare filenames - so we can pass base source and confidence scores
-                "targets": expand_context_list(targets, self.context),
-                "meta": {
-                    "context": self._clone_context(),
-                    "stage": stage,  # The stage we came from - used later in culling/handling conflicts
-                    "processing": self,  # so doit_post_process can update progress/write-to-db etc...
-                },
-                "clean": True,  # Let the doit "clean" command auto-delete any targets we listed
-            }
-
-            if fallback_output:
-                doit_do_copy(task_dict)
-                task_dict["doc"] = "Simple copy of singleton input file"
-            else:
-                # add the actions THIS will store a SNAPSHOT of the context AT THIS TIME for use if the task/action is later executed
-                self._stage_to_action(task_dict, stage)
-                _stage_to_doc(task_dict, stage)  # add the doc string
-
-            doit_post_process(task_dict)
-
-            self._add_task(task_dict)
-
-        except NotEnoughFilesError as e:
-            # if the session was empty that probably just means it was completely filtered as a bad match
-            level = logging.DEBUG if len(e.files) == 0 else logging.WARNING
-            logging.log(
-                level,
-                f"Skipping stage '{stage.get('name')}' - insufficient input files: {e}",
+            file_deps = self._collect_input_files(
+                stage
+            )  # convert current inputs into a list of doit dependencies
+        except FallbackToImageException as e:
+            logging.info(
+                f"Skipping '{stage.get('name')}' using fallback file {e.image.get('path', 'unknown')}"
             )
-        except NoPriorTaskException as e:
-            logging.debug(
-                f"Skipping stage '{stage.get('name')}' - required prior task was skipped {e}"
+            fallback_output = e.image
+            metadata = e.image.copy()
+            metadata.pop(
+                "repo", None
+            )  # Repo is not serializable and for some reason doit serializes this
+            self.context["metadata"] = (
+                metadata  # Store the image metadata so it can be used in doit_post_process
             )
-        except UserHandledError as e:
-            logging.warning(f"Skipping stage '{stage.get('name')}' - {e}")
-        return None
+            file_deps = [e.image["abspath"]]  # abspath is guaranteed to be present
+
+        targets = self._stage_output_files(stage)
+
+        task_dict: TaskDict = {
+            "name": task_name,
+            "file_dep": expand_context_list(file_deps, self.context),
+            # FIXME, we should probably be using something more structured than bare filenames - so we can pass base source and confidence scores
+            "targets": expand_context_list(targets, self.context),
+            "meta": {
+                "context": self._clone_context(),
+                "stage": stage,  # The stage we came from - used later in culling/handling conflicts
+                "processing": self,  # so doit_post_process can update progress/write-to-db etc...
+            },
+            "clean": True,  # Let the doit "clean" command auto-delete any targets we listed
+        }
+
+        if fallback_output:
+            doit_do_copy(task_dict)
+            task_dict["doc"] = "Simple copy of singleton input file"
+        else:
+            # add the actions THIS will store a SNAPSHOT of the context AT THIS TIME for use if the task/action is later executed
+            self._stage_to_action(task_dict, stage)
+            _stage_to_doc(task_dict, stage)  # add the doc string
+
+        doit_post_process(task_dict)
+
+        self._add_task(task_dict)
 
     def _create_task_dicts(self, stage: StageDict) -> None:
         """Create a doit task dictionaries for a possibly multiplexed input stage.
@@ -837,10 +822,10 @@ class Processing(ProcessingLike):
             stage: The stage definition from TOML"""
         has_job_multiplex_in = len(_inputs_by_kind(stage, "job-multiplex")) > 0
 
-        # We need to init our context from whatever the prior stage was using.
-        self._set_context_from_prior_stage(stage)
-
         try:
+            # We need to init our context from whatever the prior stage was using.
+            self._set_context_from_prior_stage(stage)
+
             if not has_job_multiplex_in:
                 self.context.pop("stage_input", None)  # Force new stage inputs to be resolved
                 self._create_task_dict(stage)
@@ -864,6 +849,21 @@ class Processing(ProcessingLike):
                         index  # let the task know we are multiplexing inputs
                     )
                     self._create_task_dict(stage)
+
+        except NotEnoughFilesError as e:
+            # if the session was empty that probably just means it was completely filtered as a bad match
+            level = logging.DEBUG if len(e.files) == 0 else logging.WARNING
+            logging.log(
+                level,
+                f"Skipping stage '{stage.get('name')}' - insufficient input files: {e}",
+            )
+        except NoPriorTaskException as e:
+            logging.debug(
+                f"Skipping stage '{stage.get('name')}' - required prior task was skipped {e}"
+            )
+        except UserHandledError as e:
+            logging.warning(f"Skipping stage '{stage.get('name')}' - {e}")
+
         finally:
             # clean things up for any future runs
             self.context.pop("stage_input", None)
@@ -1074,6 +1074,10 @@ class Processing(ProcessingLike):
                 base=f"{imagetyp}_s{self.session['id']}",  # it is VERY important that the base name include the session ID, because it is used to construct unique filenames
             )
             ci[imagetyp] = fi
+
+            # The tool invocation will automatically copy any files listed in input_files
+            # into the local working directory - which is what we want for 'session' inputs
+            self.context["input_files"] = fi.full_paths
 
         def _resolve_input_master() -> None:
             imagetyp = get_safe(input, "type")
