@@ -471,7 +471,30 @@ class SirilTool(ExternalTool):
         tool_run(cmd, temp_dir, script_content, timeout=self.timeout)
 
 
-class GraxpertTool(ExternalTool):
+class GraxpertBuiltinTool(Tool):
+    """Expose Graxpert as a tool"""
+
+    def __init__(self) -> None:
+        super().__init__("GraXpert")
+
+    def _run(
+        self, cwd: str, commands: str | list[str], context: dict = {}, **kwargs: dict[str, Any]
+    ) -> None:
+        """Executes Graxpert with the specified command line arguments"""
+
+        expanded_args = None
+        if isinstance(commands, list):
+            # expand each argument separately and join into a single command line
+            expanded_args = expand_context_list(commands, context)
+        else:
+            raise ValueError("GraxpertTool requires commands specified as a list")
+
+        from graxpert import api_run
+
+        api_run(expanded_args, kwargs)
+
+
+class GraxpertExternalTool(ExternalTool):
     """Expose Graxpert as a tool"""
 
     def __init__(self) -> None:
@@ -492,16 +515,10 @@ class GraxpertTool(ExternalTool):
         else:
             expanded = expand_context_unsafe(commands, context)
 
-        use_builtin = True  # should we use the version of graxpert installed with starbash?
-        if use_builtin and expanded_args:
-            from graxpert import api_run
+        # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
+        cmd = f"{self.executable_path} {expanded}"
 
-            api_run(expanded_args, kwargs)
-        else:
-            # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
-            cmd = f"{self.executable_path} {expanded}"
-
-            tool_run(cmd, cwd, timeout=self.timeout)
+        tool_run(cmd, cwd, timeout=self.timeout)
 
 
 class PythonScriptError(UserHandledError):
@@ -578,5 +595,6 @@ def preflight_tools() -> None:
 
 # A dictionary mapping tool names to their respective tool instances.
 tools: dict[str, Tool] = {
-    tool.name.lower(): tool for tool in list[Tool]([SirilTool(), GraxpertTool(), PythonTool()])
+    tool.name.lower(): tool
+    for tool in list[Tool]([SirilTool(), GraxpertBuiltinTool(), PythonTool()])
 }
