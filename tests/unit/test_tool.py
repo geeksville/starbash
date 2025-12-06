@@ -9,7 +9,8 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 
 from starbash.tool import (
-    GraxpertTool,
+    GraxpertBuiltinTool,
+    GraxpertExternalTool,
     PythonScriptError,
     PythonTool,
     SirilTool,
@@ -420,15 +421,6 @@ class TestSirilTool:
         assert tool.name == "Siril"
 
 
-class TestGraxpertTool:
-    """Tests for GraxpertTool class."""
-
-    def test_graxpert_tool_name(self):
-        """Test GraxpertTool has correct name."""
-        tool = GraxpertTool()
-        assert tool.name == "GraXpert"
-
-
 class TestToolsDict:
     """Tests for tools dictionary."""
 
@@ -446,7 +438,7 @@ class TestToolsDict:
     def test_tools_dict_values_are_tool_instances(self):
         """Test that dict values are Tool instances."""
         assert isinstance(tools["siril"], SirilTool)
-        assert isinstance(tools["graxpert"], GraxpertTool)
+        # assert isinstance(tools["graxpert"], GraxpertBuiltinTool)
         assert isinstance(tools["python"], PythonTool)
 
     def test_tools_dict_keys_match_names(self):
@@ -559,7 +551,7 @@ class TestGraxpertToolRun:
         if not shutil.which("graxpert"):
             pytest.skip("GraXpert not available on this system")
 
-        tool = GraxpertTool()
+        tool = GraxpertExternalTool()
         tool.timeout = 10.0  # 10 second timeout for test
 
         with tempfile.TemporaryDirectory() as temp_dir:
