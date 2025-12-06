@@ -19,7 +19,7 @@ from starbash.database import ImageRow
 from starbash.exception import UserHandledError
 from starbash.paths import get_user_cache_dir
 from starbash.processing_like import ProcessingLike
-from starbash.tool import Tool
+from starbash.tool.base import Tool
 
 # for early testing
 my_builtin_task = {

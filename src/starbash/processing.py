@@ -46,7 +46,8 @@ from starbash.rich import to_rich_string, to_tree
 from starbash.safety import get_list_of_strings, get_safe
 from starbash.score import score_candidates
 from starbash.toml import toml_from_list
-from starbash.tool import expand_context_list, expand_context_unsafe, tools
+from starbash.tool import tools
+from starbash.tool.context import expand_context_list, expand_context_unsafe
 
 __all__ = [
     "Processing",
