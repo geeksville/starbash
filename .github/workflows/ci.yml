@@ -152,6 +152,7 @@ jobs:
     # Single upload job that runs once (on linux) after the matrix test job completes
     needs: test
     runs-on: ubuntu-latest
+    environment: ci
     steps:
       - name: Download coverage artifact
         uses: actions/download-artifact@v4
