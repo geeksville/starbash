@@ -103,8 +103,6 @@
 * [x] store flats in directory names based on INSTRUMENT not camera
 * [x] Substantially improve progress display
 * [x] "sb process masters" shows empty results list
-* [ ] add parameterizations support - so scripts can have named preferences that get stored in toml run file
-* [ ] use pixelmath to merge multichannel output files into a single file
 
 * [x] do background_removal() as a separate stage via graxpert
 * [x] too many outputs from stacking job.
@@ -120,12 +118,15 @@
 * [x] make graxpert network check faster & expose a graxpert API
 * [x] add graxpert noise and deconv steps
 * [x] do new graxpert release v3.2.0a1
-* [ ] make integration-test work again (m13, possibly a problem with auto master generation?)
+* [x] make integration-test work again (m13, possibly a problem with auto master generation?)
 * [x] skip graxpert denoise by default (it is very slow)
-* [ ] push to main and bump to 0.1.29 on pypi
+* [x] push to main and bump to 0.1.29 on pypi
 * [ ] while developing default to pulling recipies from local submodule
+* [ ] add parameterizations support - so scripts can have named preferences that get stored in toml run file
+* [ ] use pixelmath to merge multichannel output files into a single file
 
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
+* [ ] provide link to generated starbash.toml files
 * [ ] generate an auto-stretched output as fits and jpg.
 * [ ] make master-selection user customizable per target
 * [ ] do auto star removal as a separate stage
