@@ -195,7 +195,16 @@ def auto(
             try:
                 results = proc.run_all_stages()
 
-                print_results("Autoprocessed", results, console)
+                title = "Autoprocessed"
+
+                # Try to show a likely output directory (not perfect but better than nothing)
+                if len(results) > 0:
+                    last = results[-1]
+                    fi: FileInfo = last.context["output"]
+                    if fi.repo:
+                        title += f" to {fi.repo.resolve_path()}"
+
+                print_results(title, results, console)
 
             except Exception:
                 console.print_exception(show_locals=True)

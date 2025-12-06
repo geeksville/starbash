@@ -422,7 +422,7 @@ class Repo:
         for ref in repo_refs:
             self.add_from_ref(manager, ref)
 
-    def resolve_path(self, filepath: str) -> Path:
+    def resolve_path(self, filepath: str | None = None) -> Path:
         """
         Resolve a filepath relative to the base of this repo.
 
@@ -438,7 +438,9 @@ class Repo:
         base_path = self.get_path()
         if base_path is None:
             raise ValueError("Cannot resolve filepaths for non-local repositories")
-        target_path = (base_path / filepath).resolve()
+
+        target_path = (base_path / filepath) if filepath else base_path
+        target_path = target_path.resolve()
 
         # Security check to prevent accessing files outside the repo directory.
         # FIXME SECURITY - temporarily disabled because I want to let file urls say things like ~/foo.
