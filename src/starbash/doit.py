@@ -254,9 +254,9 @@ class ProcessingResult:
             if isinstance(e, BaseFail):
                 self.notes = "Task failed: " + str(e)
             elif isinstance(e, UserHandledError):
-                if e.ask_user_handled():
-                    logging.debug("UserHandledError was handled.")
-                self.notes = e.__rich__()  # No matter what we want to show the fault in our results
+                e.ask_user_handled()
+                # FIXME we currently ignore the result of ask_user_handled?
+                self.notes = f"{self.task.name}: {e.__rich__()}"  # No matter what we want to show the fault in our results
             elif isinstance(e, RuntimeError):
                 # Print errors for runtimeerrors but keep processing other runs...
                 logging.error(f"Skipping run due to: {e}")

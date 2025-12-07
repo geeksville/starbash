@@ -197,7 +197,7 @@ def do_list_sessions(sb: Starbash, brief: bool = False):
         sb.analytics.set_data("session.num_selected", len(sessions))
         sb.analytics.set_data("session.num_total", len_all)
 
-        table.add_column("#", style=TABLE_COLUMN_STYLE, no_wrap=True)
+        table.add_column("Id", style=TABLE_COLUMN_STYLE, no_wrap=True)
         table.add_column("Date", style=TABLE_COLUMN_STYLE, no_wrap=True)
         table.add_column("# images", style=TABLE_COLUMN_STYLE, no_wrap=True)
         table.add_column("Time", style=TABLE_COLUMN_STYLE, no_wrap=True)
@@ -230,6 +230,8 @@ def do_list_sessions(sb: Starbash, brief: bool = False):
             image_types.add(image_type)
             telescope = get_key(Database.TELESCOP_KEY)
             telescopes.add(telescope)
+
+            session_id = str(get_key(Database.ID_KEY))
 
             # Show the non normalized target name
             metadata = sess.get("metadata")
@@ -267,7 +269,7 @@ def do_list_sessions(sb: Starbash, brief: bool = False):
                 pass  # Show nothing
             else:
                 table.add_row(
-                    str(session_index + 1),
+                    session_id,
                     date,
                     str(num_images),
                     total_secs,

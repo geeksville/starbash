@@ -956,7 +956,11 @@ class Processing(ProcessingLike):
 
     def preflight_tasks(self, pt: ProcessedTarget, tasks: list[TaskDict]) -> list[TaskDict]:
         # if user has excluded any stages, we need to respect that (remove matching stages)
+
+        # FIXME, this is wrong, excluded stages should be on a per session basis.
+        # different sessions might have different exclusions
         excluded = pt.get_from_toml("stages", "excluded")
+
         tasks = remove_tasks_by_stage_name(tasks, excluded)
 
         # multimap from target file to tasks that produce it
