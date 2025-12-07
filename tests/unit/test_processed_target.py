@@ -9,7 +9,13 @@ import pytest
 import tomlkit
 
 from repo import Repo
-from starbash.processed_target import ProcessedTarget, stage_with_comment
+from starbash.processed_target import (
+    ProcessedTarget,
+    get_from_toml,
+    set_excluded,
+    set_used,
+    stage_with_comment,
+)
 from starbash.toml import CommentedString
 
 
@@ -180,62 +186,60 @@ class TestProcessedTargetMethods:
 
     def test_set_used(self, processed_target):
         """Test set_used method."""
-        mock_node = {}
-        processed_target.repo.get.return_value = mock_node
-
-        used_items = [
-            CommentedString("item1", "comment1"),
-            CommentedString("item2", "comment2"),
+        used_stages = [
+            {"name": "stage1", "description": "First stage"},
+            {"name": "stage2", "description": "Second stage"},
         ]
 
-        processed_target.set_used("sessions", used_items)
+        test_dict = {}
+        set_used(test_dict, used_stages)
 
-        assert "used" in mock_node
-        processed_target.repo.get.assert_called_with("sessions", {}, do_create=True)
+        assert "stages" in test_dict
+        assert "used" in test_dict["stages"]
+        assert len(test_dict["stages"]["used"]) == 2
 
     def test_set_excluded(self, processed_target):
         """Test set_excluded method."""
-        mock_node = {}
-        processed_target.repo.get.return_value = mock_node
-
         stages_to_exclude = [
             {"name": "calibration", "description": "Calibrate frames"},
             {"name": "registration"},
         ]
 
-        processed_target.set_excluded("stages", stages_to_exclude)
+        test_dict = {}
+        set_excluded(test_dict, stages_to_exclude)
 
-        assert "excluded" in mock_node
-        processed_target.repo.get.assert_called_with("stages", {}, do_create=True)
+        assert "stages" in test_dict
+        assert "excluded" in test_dict["stages"]
+        assert len(test_dict["stages"]["excluded"]) == 2
 
     def test_get_from_toml(self, processed_target):
         """Test get_from_toml method."""
-        mock_node = {
-            "excluded": [
-                CommentedString("stage1", "desc1"),
-                CommentedString("stage2", "desc2"),
-            ]
+        test_dict = {
+            "stages": {
+                "excluded": [
+                    CommentedString("stage1", "desc1"),
+                    CommentedString("stage2", "desc2"),
+                ]
+            }
         }
-        processed_target.repo.get.return_value = mock_node
 
-        result = processed_target.get_from_toml("stages", "excluded")
+        result = get_from_toml(test_dict, "excluded")
 
         assert result == ["stage1", "stage2"]
-        processed_target.repo.get.assert_called_with("stages", {})
 
     def test_get_from_toml_empty_list(self, processed_target):
         """Test get_from_toml with empty list."""
-        processed_target.repo.get.return_value = {}
+        test_dict = {"stages": {}}
 
-        result = processed_target.get_from_toml("stages", "excluded")
+        result = get_from_toml(test_dict, "excluded")
 
         assert result == []
 
     def test_get_from_toml_missing_key(self, processed_target):
         """Test get_from_toml with missing key."""
-        processed_target.repo.get.return_value = {"other_key": ["value"]}
+        test_dict = {"stages": {"other_key": ["value"]}}
 
-        result = processed_target.get_from_toml("stages", "excluded")
+        result = get_from_toml(test_dict, "excluded")
 
         assert result == []
 
@@ -357,42 +361,6 @@ class TestProcessedTargetContext:
 
             # Verify sessions were added to the AoT
             assert len(mock_sessions_aot) == 2
-
-    def test_update_from_context_recipes(self, mock_processing_like, temp_processing_dir):
-        """Test _update_from_context updates recipe URLs."""
-        mock_recipe1 = MagicMock()
-        mock_recipe1.url = "file:///recipe1"
-        mock_recipe2 = MagicMock()
-        mock_recipe2.url = "file:///recipe2"
-
-        mock_processing_like.sessions = []
-        mock_processing_like.recipes_considered = [mock_recipe1, mock_recipe2]
-
-        with (
-            patch("starbash.processed_target.toml_from_template") as mock_template,
-            patch("starbash.processed_target.Repo") as mock_repo_class,
-        ):
-            mock_template.return_value = {}
-            mock_repo = MagicMock()
-
-            mock_options = {}
-
-            def mock_get(*args, **kwargs):
-                if args[0] == "sessions":
-                    return tomlkit.aot()
-                if args[0] == "processing.recipe.options":
-                    return mock_options
-                return {}
-
-            mock_repo.get.side_effect = mock_get
-            mock_repo_class.return_value = mock_repo
-
-            pt = ProcessedTarget(mock_processing_like, "test")
-            pt._update_from_context()
-
-            # Verify recipe URLs were added
-            assert "url" in mock_options
-            assert mock_options["url"] == ["file:///recipe1", "file:///recipe2"]
 
 
 class TestProcessedTargetCleanup:

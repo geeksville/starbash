@@ -121,7 +121,8 @@
 * [x] make integration-test work again (m13, possibly a problem with auto master generation?)
 * [x] skip graxpert denoise by default (it is very slow)
 * [x] push to main and bump to 0.1.29 on pypi
-* [ ] bug: m31 test set is trying to do seqextract.  bkg_pp_light_s34 is missing, never generated light task for seestar data.
+* [ ] bug: dies due to differing resolutions in merge. can repo with m31 test set - https://github.com/geeksville/starbash/issues/9
+
 * [x] fix: getting removed in preflight because stage exclusions need to be session specific
 * [ ] while developing default to pulling recipes from local submodule
 * [ ] automatically do process masters before first run?

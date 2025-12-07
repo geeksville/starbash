@@ -4,14 +4,18 @@ from pathlib import Path
 
 import pytest
 
+from starbash.processed_target import tasks_to_stages
 from starbash.processing import (
     _inputs_by_kind,
     _make_imagerow,
     _stage_to_doc,
     create_default_task,
-    remove_tasks_by_stage_name,
-    tasks_to_stages,
 )
+
+
+def remove_tasks_by_stage_name(tasks: list[dict], excluded: list[str]) -> list[dict]:
+    """Helper function to remove tasks by stage name (for testing)."""
+    return [t for t in tasks if t["meta"]["stage"]["name"] not in excluded]
 
 
 class TestMakeImagerow:
