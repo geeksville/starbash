@@ -121,6 +121,7 @@
 * [x] make integration-test work again (m13, possibly a problem with auto master generation?)
 * [x] skip graxpert denoise by default (it is very slow)
 * [x] push to main and bump to 0.1.29 on pypi
+* [ ] bug: m31 test set is trying to do seqextract.  why?
 * [ ] while developing default to pulling recipes from local submodule
 * [ ] automatically do process masters before first run?
 * [ ] add parameterizations support - so scripts can have named preferences that get stored in toml run file

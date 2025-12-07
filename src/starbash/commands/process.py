@@ -128,7 +128,7 @@ def print_results(
         elif result.success is False:
             status = f"[red]✗ {result.reason or 'Failed'}[/red]"
         else:
-            status = f"[yellow]⊘ {result.reason or 'Skipped'}[/yellow]"
+            status = f"[yellow]Ø {result.reason or 'Skipped'}[/yellow]"
 
         # Format notes (truncate if too long)
         notes = result.notes or ""

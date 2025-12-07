@@ -1030,10 +1030,9 @@ class Processing(ProcessingLike):
                 get_list_of_strings(input, "name") if "name" in input else [index]
             )
 
+            # Import and filter data from prior stages
+            file_info = self._import_from_prior_stages(input)
             for name in input_names:
-                # Import and filter data from prior stages
-                file_info = self._import_from_prior_stages(input)
-
                 # Store in context for script access
                 ci[name] = file_info
 
@@ -1048,6 +1047,11 @@ class Processing(ProcessingLike):
             # currently our 'output' is really just the FileInfo from the prior stage output.  Repurpose that as
             # our new input.
             file_info: FileInfo = get_safe(self.context, "output")
+
+            # We don't actually use this return value, but we want an exception raised if we are missing suitable
+            # prior inputs (i.e. if the current requires filters don't match anything).
+            self._import_from_prior_stages(input)
+
             ci["extra"] = (
                 file_info  # FIXME, change inputs to optionally use incrementing numeric keys instead of "default""
             )
