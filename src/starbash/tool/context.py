@@ -3,6 +3,7 @@
 import logging
 import re
 from pathlib import Path
+from typing import Any
 
 import RestrictedPython
 
@@ -62,6 +63,26 @@ def expand_context(s: str, context: dict) -> str:
 def expand_context_list(strings: list[str] | list[Path], context: dict) -> list[str]:
     """Expand a list of strings with context variables."""
     return [expand_context_unsafe(str(s), context) for s in strings]
+
+
+def expand_context_dict(d: dict[str, str], context: dict) -> dict[str, Any]:
+    """Expand all values in a dictionary with context variables."""
+    return {k: expand_context_typed(v, context) for k, v in d.items()}
+
+
+def expand_context_typed(s: str, context: dict) -> Any:
+    """Expand a string with context variables and return it as type T."""
+    expanded = expand_context_unsafe(s, context)
+
+    # if expanded can be successfully parsed as a float, convert to a float (ignore T for this purpose)
+    # FIXME: really we should add a type option to parameters in toml.  And use that type information once we know
+    # the name of the symbol we found.  But for now we do this hack to make floats work.
+    try:
+        return float(expanded)  # type: ignore[return-value]
+    except ValueError:
+        pass
+
+    return expanded  # type: ignore[return-value]
 
 
 def expand_context_unsafe(s: str, context: dict) -> str:

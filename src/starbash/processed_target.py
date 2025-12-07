@@ -10,6 +10,7 @@ from repo import Repo, repo_suffix
 from starbash import StageDict
 from starbash.database import SessionRow
 from starbash.doit import TaskDict, cleanup_old_contexts, get_processing_dir
+from starbash.parameters import ParameterStore
 from starbash.processing_like import ProcessingLike
 from starbash.safety import get_safe
 from starbash.toml import CommentedString, toml_from_list, toml_from_template
@@ -167,6 +168,9 @@ class ProcessedTarget:
         )
 
         p.processed_target = self  # a backpointer to our ProcessedTarget
+
+        self.parameter_store = ParameterStore()
+        self.parameter_store.add_from_repo(self.repo)
 
     def _init_processing_dir(self, target: str | None) -> None:
         processing_dir = get_processing_dir()

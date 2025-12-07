@@ -55,7 +55,7 @@ from starbash.safety import get_list_of_strings, get_safe
 from starbash.score import score_candidates
 from starbash.toml import toml_from_list
 from starbash.tool import tools
-from starbash.tool.context import expand_context_list, expand_context_unsafe
+from starbash.tool.context import expand_context_dict, expand_context_list, expand_context_unsafe
 
 __all__ = [
     "Processing",
@@ -559,7 +559,8 @@ class Processing(ProcessingLike):
 
         tool_dict = get_safe(stage, "tool")
         tool_name = get_safe(tool_dict, "name")
-        tool_parameters = tool_dict.get("parameters", {})
+        tool_parameters_in: dict[str, str] = tool_dict.get("parameters", {})
+        tool_parameters = expand_context_dict(tool_parameters_in, self.context)
         tool = tools.get(tool_name)
         if not tool:
             raise ValueError(f"Tool '{tool_name}' for stage '{stage.get('name')}' not found.")
@@ -780,6 +781,12 @@ class Processing(ProcessingLike):
         """
 
         task_name = self._get_unique_task_name(stage.get("name", "unnamed_stage"))
+
+        # Add our parameters to the context (stage.repo was monkey patched by the repo manager)
+        # FIXME, perhaps it makes more sense to put parameters at the 'stage' level so we don't need to do this?
+        assert self.processed_target, "ProcessedTarget is guaraneed to be set here"
+        self.processed_target.parameter_store.add_from_repo(stage.source)  # pyright: ignore[reportAttributeAccessIssue]
+        self.context["parameters"] = self.processed_target.parameter_store.as_obj
 
         self.use_temp_cwd = False
 

@@ -3,9 +3,16 @@ from typing import Any
 
 import tomlkit
 from tomlkit import aot, table
+from tomlkit.items import AoT
 
 from repo import Repo
 from starbash.safety import get_safe
+
+
+class ParameterObject:
+    """Simple object to hold parameter attributes."""
+
+    pass
 
 
 @dataclass
@@ -46,7 +53,7 @@ class ParameterStore:
                 source=repo,
                 name=param["name"],
                 description=param.get("description"),
-                default=param.get("default"),
+                default=get_safe(param, "default"),
             )
             self._parameters[p.name] = p
 
@@ -82,7 +89,7 @@ class ParameterStore:
         config = repo.config
 
         # Get or create [[overrides]] section
-        overrides_aot = config.get("overrides")
+        overrides_aot: AoT | None = config.get("overrides")
         has_existing_overrides = False
         if overrides_aot is None:
             overrides_aot = aot()
@@ -94,43 +101,45 @@ class ParameterStore:
         # If no existing overrides, we need to add commented examples
         if not has_existing_overrides and len(self._parameters) > 0:
             # Build comment lines for all parameters without overrides
-            comment_lines = []
+            comment_lines: list[str] = []
             comment_lines.append(
-                "# Uncomment and modify any of the following to override parameters:"
+                "Uncomment and modify any of the following to override parameters:"
             )
 
             for param in self._parameters.values():
                 if not param.is_override:
-                    comment_lines.append("#")
-                    comment_lines.append("# [[overrides]]")
-                    name_line = f'# name = "{param.name}"'
+                    comment_lines.append("")
+                    comment_lines.append(" [[overrides]]")
+                    name_line = f' name = "{param.name}"'
                     if param.description:
                         name_line += f" # {param.description}"
                     comment_lines.append(name_line)
                     if param.default is not None:
                         if isinstance(param.default, str):
-                            comment_lines.append(f'# value = "{param.default}"')
+                            comment_lines.append(f' value = "{param.default}"')
                         else:
-                            comment_lines.append(f"# value = {param.default}")
+                            comment_lines.append(f" value = {param.default}")
 
             # Add a dummy entry so the AoT gets written
             dummy = table()
-            dummy.add(tomlkit.comment("\n".join(comment_lines)))
             overrides_aot.append(dummy)
 
-        # Write the config back to the file
-        repo.write_config()
+            for line in comment_lines:
+                config.add(tomlkit.comment(line))
 
-    def as_dict(self) -> dict[str, Any]:
-        """Return the parameters/overrides as a dictionary suitable for including as context.parameters.
+            repo.write_config()
+
+    @property
+    def as_obj(self) -> ParameterObject:
+        """Return the parameters/overrides as an object suitable for including as context.parameters.
 
         Note: if there are multiple overrides for the same parameter name, the last one added takes precedence.
         If there is no override for a parameter, its default value is used."""
-        result = {}
+        result = ParameterObject()
         for param in self._parameters.values():
             # Use override value if present, otherwise use default
             if param.is_override:
-                result[param.name] = param.value
-            elif param.default is not None:
-                result[param.name] = param.default
+                setattr(result, param.name, param.value)
+            elif not hasattr(result, param.name):
+                setattr(result, param.name, param.default)
         return result
