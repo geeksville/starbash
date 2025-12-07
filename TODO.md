@@ -123,18 +123,18 @@
 * [x] push to main and bump to 0.1.29 on pypi
 * [ ] bug: dies due to differing resolutions in merge. can repo with m31 test set - https://github.com/geeksville/starbash/issues/9
 * [x] test case m20 failing due to two tasks targeting stacked_Ha.fits
-
+* [ ] ic test failing on ic434 - make auto master processing smarter
 * [x] fix: getting removed in preflight because stage exclusions need to be session specific
 * [x] while developing default to pulling recipes from local submodule
 * [ ] automatically do process masters before first run?
-* [ ] add parameterizations support - so scripts can have named preferences that get stored in toml run file
+* [ ] add parameterizations support - so scripts can have named preferences that get stored in toml run file - use for graxpert smoothing etc...
 * [ ] use pixelmath to merge multichannel output files into a single file
 * [ ] split out most of osc.py?
 * [x] input_files should be cleared from imported contexts.  To fix:
 
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] provide link to generated starbash.toml files
-* [ ] generate an auto-stretched output as fits and jpg.
+* [x] generate an auto-stretched output as jpg thumbnails.
 * [x] make master-selection user customizable per target
 * [ ] do auto star removal as a separate stage
 * [ ] write a small tutorial/manual for recipes and parameters - explain make philosophy, reusability rather than brittlness, agnostic engine, sharability/tracability
