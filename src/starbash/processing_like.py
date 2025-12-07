@@ -2,7 +2,6 @@ from typing import Any, Protocol
 
 from rich.progress import Progress
 
-from repo import Repo
 from starbash import StageDict
 from starbash.app import Starbash
 from starbash.database import SessionRow
@@ -16,8 +15,8 @@ class ProcessingLike(Protocol):
 
     context: dict[str, Any]
     sessions: list[SessionRow]
-    recipes_considered: list[Repo]
     sb: Starbash
+    processed_target: Any | None  # FIXME, actually a ProcessedTarget
 
     @property
     def stages(

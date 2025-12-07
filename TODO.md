@@ -121,7 +121,8 @@
 * [x] make integration-test work again (m13, possibly a problem with auto master generation?)
 * [x] skip graxpert denoise by default (it is very slow)
 * [x] push to main and bump to 0.1.29 on pypi
-* [ ] bug: m31 test set is trying to do seqextract.  bkg_pp_light_s34 is missing, never generated light task for seestar data.  getting removed in preflight because stage exclusions need to be session specific
+* [ ] bug: m31 test set is trying to do seqextract.  bkg_pp_light_s34 is missing, never generated light task for seestar data.
+* [x] fix: getting removed in preflight because stage exclusions need to be session specific
 * [ ] while developing default to pulling recipes from local submodule
 * [ ] automatically do process masters before first run?
 * [ ] add parameterizations support - so scripts can have named preferences that get stored in toml run file
@@ -132,7 +133,7 @@
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [ ] provide link to generated starbash.toml files
 * [ ] generate an auto-stretched output as fits and jpg.
-* [ ] make master-selection user customizable per target
+* [x] make master-selection user customizable per target
 * [ ] do auto star removal as a separate stage
 * [ ] write a small tutorial/manual for recipes and parameters
 * [x] add "darkorbias" as an input type.  make default recipes work with dark frames - not just bias frames - REQUIRED for dwarf3

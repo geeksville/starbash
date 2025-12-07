@@ -40,7 +40,15 @@ from starbash.exception import (
     raise_missing_repo,
 )
 from starbash.filtering import FallbackToImageException, filter_by_requires
-from starbash.processed_target import ProcessedTarget, stage_with_comment
+from starbash.processed_target import (
+    ProcessedTarget,
+    get_from_toml,
+    set_excluded,
+    set_used_stages_from_tasks,
+    task_to_session,
+    task_to_stage,
+    tasks_to_stages,
+)
 from starbash.processing_like import ProcessingLike
 from starbash.rich import to_rich_string, to_tree
 from starbash.safety import get_list_of_strings, get_safe
@@ -74,21 +82,21 @@ def _inputs_by_kind(stage: StageDict, kind: str) -> list[InputDef]:
     return [inp for inp in inputs if inp.get("kind") == kind]
 
 
-def tasks_to_stages(tasks: list[TaskDict]) -> list[StageDict]:
-    """Extract unique stages from the given list of tasks, sorted by priority."""
-    stage_dict: dict[str, StageDict] = {}
-    for task in tasks:
-        stage = task["meta"]["stage"]
-        stage_dict[stage["name"]] = stage
+def remove_excluded_tasks(tasks: list[TaskDict]) -> list[TaskDict]:
+    """Look in our session['stages'] dict to see if this task is allowed to be processed"""
 
-    # Sort stages by priority (if priority not present assume 0), higher priority first
-    stages = sorted(stage_dict.values(), key=lambda s: s.get("priority", 0), reverse=True)
-    logging.debug(f"Stages in priority order: {[s.get('name') for s in stages]}")
-    return stages
+    def task_allowed(task: TaskDict) -> bool:
+        stage = task_to_stage(task)
+        session = task_to_session(task)
+        if not session:
+            pt: ProcessedTarget = task["meta"]["processed_target"]
+            assert pt, "ProcessedTarget must be set in Processing for sessionless tasks"
+            session = pt.default_stages
 
+        excluded_stages = get_from_toml(session, "excluded")
+        return stage.get("name") not in excluded_stages
 
-def remove_tasks_by_stage_name(tasks: list[TaskDict], excluded: list[str]) -> list[TaskDict]:
-    return [t for t in tasks if t["meta"]["stage"].get("name") not in excluded]
+    return [t for t in tasks if task_allowed(t)]
 
 
 def create_default_task(tasks: list[TaskDict]) -> TaskDict:
@@ -125,6 +133,23 @@ def create_default_task(tasks: list[TaskDict]) -> TaskDict:
     return task_dict
 
 
+def _clone_context(context: dict[str, Any]) -> dict[str, Any]:
+    """Create a deep copy of the current processing context.
+
+    Returns:
+        A deep copy of the current context dictionary.
+    """
+    r = copy.deepcopy(context)
+
+    # A few fields (if populated) we want SHARED between all contexts, so that if two contexts were initially pointing
+    # at the same session row (for insance), changes in one context are reflected in the other.
+    for key in ["session"]:
+        if key in context:
+            r[key] = context[key]
+
+    return r
+
+
 class Processing(ProcessingLike):
     """Abstract base class for processing operations.
 
@@ -138,7 +163,6 @@ class Processing(ProcessingLike):
         self.context: dict[str, Any] = {}
 
         self.sessions: list[SessionRow] = []  # The list of sessions we are currently processing
-        self.recipes_considered: list[Repo] = []  # all recipes considered for this processing run
 
         self.doit: StarbashDoit = StarbashDoit()
 
@@ -522,16 +546,6 @@ class Processing(ProcessingLike):
             s_unwrapped.extend(stage)
         return s_unwrapped
 
-    def _clone_context(self) -> dict[str, Any]:
-        """Create a deep copy of the current processing context.
-
-        Returns:
-            A deep copy of the current context dictionary.
-        """
-        r = copy.deepcopy(self.context)
-
-        return r
-
     def _stage_to_action(self, task: TaskDict, stage: StageDict) -> None:
         """Given a stage definition, populate the "actions" list of the task dictionary.
 
@@ -677,7 +691,7 @@ class Processing(ProcessingLike):
 
             context = prior_task["meta"]["context"]
             old_session = self.context.get("session")
-            self.context = copy.deepcopy(context)
+            self.context = _clone_context(context)
 
             # Don't accidentially try to copy in the prior stages input files
             self.context.pop("input_files", None)
@@ -801,9 +815,10 @@ class Processing(ProcessingLike):
             # FIXME, we should probably be using something more structured than bare filenames - so we can pass base source and confidence scores
             "targets": expand_context_list(targets, self.context),
             "meta": {
-                "context": self._clone_context(),
+                "context": _clone_context(self.context),
                 "stage": stage,  # The stage we came from - used later in culling/handling conflicts
                 "processing": self,  # so doit_post_process can update progress/write-to-db etc...
+                "processed_target": self.processed_target,  # so the tasks can access saved toml metadata
             },
             "clean": True,  # Let the doit "clean" command auto-delete any targets we listed
         }
@@ -957,20 +972,14 @@ class Processing(ProcessingLike):
     def preflight_tasks(self, pt: ProcessedTarget, tasks: list[TaskDict]) -> list[TaskDict]:
         # if user has excluded any stages, we need to respect that (remove matching stages)
 
-        # FIXME, this is wrong, excluded stages should be on a per session basis.
-        # different sessions might have different exclusions
-        excluded = pt.get_from_toml("stages", "excluded")
-
-        tasks = remove_tasks_by_stage_name(tasks, excluded)
+        tasks = remove_excluded_tasks(tasks)
 
         # multimap from target file to tasks that produce it
         target_to_tasks = MultiDict[TaskDict]()
         for task in tasks:
-            logging.debug(f"Preflighting task: {task['name']}")
             for target in task.get("targets", []):
                 target_to_tasks.add(target, task)
 
-        # pt.set_used("stages", stages, excluded)
         # check for tasks that are writing to the same target (which is not allowed).  If we
         # find such tasks we'll have to pick ONE based on priority and let the user know in the future
         # they could pick something else.
@@ -988,11 +997,16 @@ class Processing(ProcessingLike):
                 )
                 # exclude all but the first one (highest priority)
                 stages_to_exclude = conflicting_stages[1:]
-                pt.set_excluded("stages", stages_to_exclude)
-                tasks = remove_tasks_by_stage_name(tasks, pt.get_from_toml("stages", "excluded"))
 
-        # update our toml with what we used
-        pt.set_used("stages", [stage_with_comment(s) for s in tasks_to_stages(tasks)])
+                # If the producing_tasks are generating conflicting outputs, all of those tasks must be associated with the
+                # same session.  Therefore we only need to update one session row (which is shared by all of them)
+                session = task_to_session(producing_tasks[0])
+                if session:
+                    set_excluded(session, stages_to_exclude)
+
+                tasks = remove_excluded_tasks(tasks)
+
+        set_used_stages_from_tasks(tasks)
 
         return tasks
 

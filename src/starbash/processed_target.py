@@ -2,15 +2,17 @@ import logging
 import shutil
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import tomlkit
 
 from repo import Repo, repo_suffix
 from starbash import StageDict
-from starbash.doit import cleanup_old_contexts, get_processing_dir
+from starbash.database import SessionRow
+from starbash.doit import TaskDict, cleanup_old_contexts, get_processing_dir
 from starbash.processing_like import ProcessingLike
 from starbash.safety import get_safe
-from starbash.toml import AsTomlMixin, CommentedString, toml_from_list, toml_from_template
+from starbash.toml import CommentedString, toml_from_list, toml_from_template
 
 __all__ = [
     "ProcessedTarget",
@@ -22,6 +24,98 @@ def stage_with_comment(stage: StageDict) -> CommentedString:
     name = stage.get("name", "unnamed_stage")
     description = stage.get("description", None)
     return CommentedString(value=name, comment=description)
+
+
+def set_used(self: dict, used_stages: list[StageDict]) -> None:
+    """Set the used lists for the given section."""
+    name = "stages"
+    used = [stage_with_comment(s) for s in used_stages]
+    node = self.setdefault(name, {})
+    node["used"] = toml_from_list(used)
+
+
+def set_excluded(self: dict, stages_to_exclude: list[StageDict]) -> None:
+    """Set the excluded lists for the given section."""
+    name = "stages"
+    excluded = [stage_with_comment(s) for s in stages_to_exclude]
+
+    node = self.setdefault(name, {})
+    node["excluded"] = toml_from_list(excluded)
+
+
+def get_from_toml(self: dict, key_name: str) -> list[str]:
+    """Any consumers of this function probably just want the raw string (key_name is usually excluded or used)"""
+    dict_name = "stages"
+    node = self.setdefault(dict_name, {})
+    excluded: list[CommentedString] = node.get(key_name, [])
+    return [a.value for a in excluded]
+
+
+def task_to_stage(task: TaskDict) -> StageDict:
+    """Extract the stage from the given task's context."""
+    return task["meta"]["stage"]
+
+
+def task_to_session(task: TaskDict) -> SessionRow | None:
+    """Extract the session from the given task's context."""
+    context = task["meta"]["context"]
+    session = context.get("session")
+    return session
+
+
+def tasks_to_stages(tasks: list[TaskDict]) -> list[StageDict]:
+    """Extract unique stages from the given list of tasks, sorted by priority."""
+    stage_dict: dict[str, StageDict] = {}
+    for task in tasks:
+        stage = task["meta"]["stage"]
+        stage_dict[stage["name"]] = stage
+
+    # Sort stages by priority (if priority not present assume 0), higher priority first
+    stages = sorted(stage_dict.values(), key=lambda s: s.get("priority", 0), reverse=True)
+    logging.debug(f"Stages in priority order: {[s.get('name') for s in stages]}")
+    return stages
+
+
+def set_used_stages_from_tasks(tasks: list[dict]) -> None:
+    """Given a list of tasks, set the used stages in each session touched by those tasks."""
+
+    # Inside each session we touched, collect a list of used stages (initially as a list of strings but then in the final)
+    # cleanup converted into toml lists with set_used.
+    # We rely on the fact that a single session row instance is shared between all tasks for that session.
+
+    if not tasks:
+        return
+
+    typ_task = tasks[0]
+    pt: ProcessedTarget | None = typ_task["meta"]["processed_target"]
+    assert pt, "ProcessedTarget must be set in Processing for sessionless tasks"
+
+    # step 1: clear our temp lists
+    default_stages: list[StageDict] = []
+    for task in tasks:
+        session = task_to_session(task)
+        if session:
+            session["_temp_used_stages"] = []
+
+    # step 2: collect used stages
+    for task in tasks:
+        stage = task_to_stage(task)
+        session = task_to_session(task)
+        used = session["_temp_used_stages"] if session else default_stages
+        if stage not in used:
+            used.append(stage)
+
+    # step 3: commit used stages to toml (and remove temp lists)
+    for task in tasks:
+        session = task_to_session(task)
+        if session:
+            used_stages: list[StageDict] = session.pop("_temp_used_stages", [])
+            if used_stages:
+                set_used(session, used_stages)
+
+    # Commit our default used stages too
+    if default_stages:
+        set_used(pt.default_stages, default_stages)
 
 
 class ProcessedTarget:
@@ -62,30 +156,17 @@ class ProcessedTarget:
         self.repo = Repo(
             repo_path, default_toml=default_toml
         )  # a structured Repo object for reading/writing this config
-        self._update_from_context()
+        self._init_from_toml()
+
+        # Contains "used" and "excluded" lists - used for sessionless tasks
+        self.default_stages: dict[str, Any] = {}
         self._set_default_stages()
 
         self.config_valid = (
             True  # You can set this to False if you'd like to suppress writing the toml to disk
         )
 
-    def set_used(self, name: str, used: list[AsTomlMixin]) -> None:
-        """Set the used lists for the given section."""
-        node = self.repo.get(name, {}, do_create=True)
-        node["used"] = toml_from_list(used)
-
-    def set_excluded(self, name: str, stages_to_exclude: list[StageDict]) -> None:
-        """Set the excluded lists for the given section."""
-        excluded = [stage_with_comment(s) for s in stages_to_exclude]
-
-        node = self.repo.get(name, {}, do_create=True)
-        node["excluded"] = toml_from_list(excluded)
-
-    def get_from_toml(self, dict_name: str, key_name: str) -> list[str]:
-        """Any consumers of this function probably just want the raw string (key_name is usually excluded or used)"""
-        node = self.repo.get(dict_name, {})
-        excluded: list[CommentedString] = node.get(key_name, [])
-        return [a.value for a in excluded]
+        p.processed_target = self  # a backpointer to our ProcessedTarget
 
     def _init_processing_dir(self, target: str | None) -> None:
         processing_dir = get_processing_dir()
@@ -126,8 +207,8 @@ class ProcessedTarget:
 
     def _set_default_stages(self) -> None:
         """If we have newly discovered stages which should be excluded by default, add them now."""
-        excluded = self.get_from_toml("stages", "excluded")
-        used: list[str] = self.get_from_toml("stages", "used")
+        excluded = get_from_toml(self.default_stages, "excluded")
+        used: list[str] = get_from_toml(self.default_stages, "used")
 
         # Rebuild the list of stages we need to exclude, so we can rewrite if needed
         stages_to_exclude: list[StageDict] = []
@@ -146,7 +227,26 @@ class ProcessedTarget:
                 changed = True
 
         if changed:  # Only rewrite if we actually added something
-            self.set_excluded("stages", stages_to_exclude)
+            set_excluded(self.default_stages, stages_to_exclude)
+
+    def _init_from_toml(self) -> None:
+        """Read customized settings (masters, stages etc...) from the toml into our sessions/defaults."""
+
+        proc_sessions = self.repo.get("sessions", default=tomlkit.aot(), do_create=False)
+        for sess in self.p.sessions:
+            # look in proc_sessions for a matching session by id, copy certain named fields accross: such as "stages", "masters"
+            id = get_safe(sess, "id")
+            for proc_sess in proc_sessions:
+                if get_safe(proc_sess, "id") == id:
+                    # copy accross certain named fields
+                    for field in ["stages", "masters"]:
+                        if field in proc_sess:
+                            sess[field] = proc_sess[field]
+                    break
+
+        self.default_stages = {
+            "stages": self.repo.get("stages", default={})
+        }  # FIXME, I accidentally have a nested dict named stages
 
     def _update_from_context(self) -> None:
         """Update the repo toml based on the current context.
@@ -157,13 +257,14 @@ class ProcessedTarget:
         proc_sessions = self.repo.get("sessions", default=tomlkit.aot(), do_create=True)
         proc_sessions.clear()
         for sess in self.p.sessions:
-            # Record session info (including what masters were used for that session)
+            # Record session info (including what masters and stages were used for that session)
             proc_sessions.append(sess)
 
-        proc_options = self.repo.get("processing.recipe.options", {})
-
-        # populate the list of recipes considered
-        proc_options["url"] = [recipe.url for recipe in self.p.recipes_considered]
+        # Store our non specific stages used/excluded - FIXME kinda yucky, I was not smart about how to use dicts
+        for key in ["used", "excluded"]:
+            value = self.default_stages["stages"].get(key)
+            if value:
+                self.repo.set(f"stages.{key}", value)
 
     def close(self) -> None:
         """Finalize and close the ProcessedTarget, saving any updates to the config."""
@@ -174,6 +275,7 @@ class ProcessedTarget:
             logging.debug("ProcessedTarget config marked invalid, not writing to disk")
 
         self._cleanup_processing_dir()
+        self.p.processed_target = None
 
     # FIXME - i'm not yet sure if we want to use context manager style usage here
     def __enter__(self) -> "ProcessedTarget":

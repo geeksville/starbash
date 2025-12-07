@@ -19,7 +19,6 @@ def mock_processing_like(tmp_path):
     mock = MagicMock()
     mock.context = {}
     mock.sessions = []
-    mock.recipes_considered = []
     mock.stages = []
 
     # Mock the output object that _set_output_by_kind creates
@@ -333,7 +332,6 @@ class TestProcessedTargetContext:
             {"id": 1, "name": "session1"},
             {"id": 2, "name": "session2"},
         ]
-        mock_processing_like.recipes_considered = []
 
         with (
             patch("starbash.processed_target.toml_from_template") as mock_template,
