@@ -73,11 +73,11 @@
             "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
             "justMyCode": false,
             "args": [
-                // "--debug",
+                "--debug",
                 // "--force",
                 "process",
                 "auto",
-                // "--no-masters",
+                "--no-masters",
             ]
         },
         {

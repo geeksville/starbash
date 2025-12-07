@@ -529,9 +529,6 @@ class Processing(ProcessingLike):
             A deep copy of the current context dictionary.
         """
         r = copy.deepcopy(self.context)
-        # We don't want downstream tasks to be confused by our transient multiplex and current stage inputs
-        r.pop("multiplex_index", None)
-        r.pop("stage_input", None)
 
         return r
 
@@ -681,6 +678,13 @@ class Processing(ProcessingLike):
             context = prior_task["meta"]["context"]
             old_session = self.context.get("session")
             self.context = copy.deepcopy(context)
+
+            # Don't accidentially try to copy in the prior stages input files
+            self.context.pop("input_files", None)
+
+            # We don't want downstream tasks to be confused by our transient multiplex and current stage inputs
+            self.context.pop("multiplex_index", None)
+            self.context.pop("stage_input", None)
 
             if multiplexed:
                 # since we just did a nasty thing, we don't want to inadvertently think our current
