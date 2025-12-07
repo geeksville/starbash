@@ -1217,14 +1217,16 @@ class Processing(ProcessingLike):
             """combine the directory with the input/output name(s) to get paths."""
             filenames: list[str] = []
 
-            auto_prefix = output.get("auto", {}).get("prefix")
+            auto_prefix = output.get("auto", {}).get("prefix", "")
+            auto_suffix = output.get("auto", {}).get("suffix")
             repo: Repo | None = None  # the repo for our output (assume none)
             if output_file_info:
                 repo = (
                     output_file_info.repo
                 )  # preserve the same repo we were using for output (if possible)
 
-            if auto_prefix:
+            # Note: we allow auto.suffix to be an empty string to remove suffixes
+            if auto_prefix or auto_suffix is not None:
                 # automatically generate filenames based on input files
                 my_input = self.context["input"]  # Guaranteed to be present by now
                 input_file_info: FileInfo = get_safe(
@@ -1232,6 +1234,11 @@ class Processing(ProcessingLike):
                 )  # FIXME, currently we only work with the 'default' input for this feature
 
                 for filename in input_file_info.short_paths:
+                    # change suffix: if filename already has a suffix, replace it otherwise add it
+                    if auto_suffix is not None:
+                        stem = Path(filename).stem
+                        filename = f"{stem}{auto_suffix}"
+
                     generated_name = f"{auto_prefix}{filename}"
                     filenames.append(generated_name)
             else:
