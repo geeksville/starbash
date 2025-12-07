@@ -122,10 +122,10 @@
 * [x] skip graxpert denoise by default (it is very slow)
 * [x] push to main and bump to 0.1.29 on pypi
 * [ ] bug: dies due to differing resolutions in merge. can repo with m31 test set - https://github.com/geeksville/starbash/issues/9
-* [ ] test case m20 failing due to two tasks targeting stacked_Ha.fits
+* [x] test case m20 failing due to two tasks targeting stacked_Ha.fits
 
 * [x] fix: getting removed in preflight because stage exclusions need to be session specific
-* [ ] while developing default to pulling recipes from local submodule
+* [x] while developing default to pulling recipes from local submodule
 * [ ] automatically do process masters before first run?
 * [ ] add parameterizations support - so scripts can have named preferences that get stored in toml run file
 * [ ] use pixelmath to merge multichannel output files into a single file
@@ -137,7 +137,7 @@
 * [ ] generate an auto-stretched output as fits and jpg.
 * [x] make master-selection user customizable per target
 * [ ] do auto star removal as a separate stage
-* [ ] write a small tutorial/manual for recipes and parameters
+* [ ] write a small tutorial/manual for recipes and parameters - explain make philosophy, reusability rather than brittlness, agnostic engine, sharability/tracability
 * [x] add "darkorbias" as an input type.  make default recipes work with dark frames - not just bias frames - REQUIRED for dwarf3
 * [x] make "repo list" only show user repos
 * [x] cleanup how different stages dependencies work together: bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?

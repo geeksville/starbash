@@ -174,6 +174,14 @@ class Starbash:
         # Add user prefs as a repo
         self.user_repo = self.repo_manager.add_repo("file://" + str(create_user()))
 
+        # We always need at least one set of recipes.  If the user hasn't specified one use the default.
+        if self.repo_manager.get_repo_by_kind("std-recipe") is None:
+            default_recipes_url = self.repo_manager.get("repo.recipe_default")
+            assert default_recipes_url, (
+                "Bug, repo.recipe_default not found."
+            )  # Should be guaranteed
+            self.repo_manager.add_repo(default_recipes_url)
+
     def _init_analytics(self, cmd: str) -> None:
         self.analytics = NopAnalytics()
         if self.user_repo.get("analytics.enabled", True):

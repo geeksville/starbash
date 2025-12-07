@@ -24,8 +24,16 @@ install-completion:
     #!/usr/bin/env zsh
     sb --install-completion
 
+# Use our local git submodule version of the recipies
+use-local-recipes:
+    sb repo add /workspaces/starbash/starbash-recipes
+
+# Use the github version
+use-standard-recipes:
+    sb repo remove file:///workspaces/starbash/starbash-recipes
+
 # wipe install and do standard reinit
-common-init: clean-cache clean-config clean-masters install-completion
+common-init: clean-cache clean-config clean-masters install-completion use-local-recipes
     echo "Reiniting a developer config..."
     sb user name "Kevin Hester"
     sb user email "kevinh@geeksville.com"
