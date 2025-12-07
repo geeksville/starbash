@@ -17,15 +17,11 @@ target.id = "$target"
 # OBJCTRA = '00 23 44'           / [H M S] RA of imaged object
 # OBJCTDEC= '+89 55 28'
 
-[stages]
 # Information about recipes used for processing or excluded by the user
 # If you'd like to pick something different just comment out the line in USED and uncomment the line in
 # excluded.
 # Whenever stabash is rerun it will update these arrays based on what was actually used for this run.
-used = [
-]
-excluded = [
-]
+[stages]
 
 [overrides]
 
@@ -48,6 +44,12 @@ excluded = [
 
 [processing.recipe]
 
+
+[processing.recipe.options]
+
+# elegible recipes available for use, if one was not specified above the first recipe in this list will be used
+url = ["file:///blah/blah/recipes/osc-broadband.toml"]
+
 # if specified a specific recipe will be used, otherwiase one will be chosen and run
 # automatically
 # Starbash will search all recipe repos to find this by name
@@ -59,9 +61,6 @@ excluded = [
 
 # a default starbash file for a particular processed target will typically contain only the preceeding
 
-[processing.recipe.options]
-
-# elegible recipes available for use, if one was not specified above the first recipe in this list will be used
-url = ["file:///blah/blah/recipes/osc-broadband.toml"]
-
+# Summary information for each session processed.  Included with sessions is [stages] which allows per session
+# recipe exclusions/inclusions to be specified.
 [[sessions]]

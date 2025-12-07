@@ -232,12 +232,14 @@ class ProcessedTarget:
     def _init_from_toml(self) -> None:
         """Read customized settings (masters, stages etc...) from the toml into our sessions/defaults."""
 
-        proc_sessions = self.repo.get("sessions", default=tomlkit.aot(), do_create=False)
+        proc_sessions = self.repo.get("sessions", default=[], do_create=False)
+        # When populated in the template we have just a bare [sessions] section, which per toml spec
+        # means an array of ONE empty table. We ignore that case by skipping over any session that has no id.
         for sess in self.p.sessions:
             # look in proc_sessions for a matching session by id, copy certain named fields accross: such as "stages", "masters"
             id = get_safe(sess, "id")
             for proc_sess in proc_sessions:
-                if get_safe(proc_sess, "id") == id:
+                if proc_sess.get("id") == id:
                     # copy accross certain named fields
                     for field in ["stages", "masters"]:
                         if field in proc_sess:

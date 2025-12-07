@@ -16,10 +16,8 @@ kind = "processed-master"
 # OBJCTRA = '00 23 44'           / [H M S] RA of imaged object
 # OBJCTDEC= '+89 55 28'
 
-[stages]
 # Information about recipes used for processing or excluded by the user
 # If you'd like to pick something different just comment out the line in USED and uncomment the line in
 # excluded.
 # Whenever stabash is rerun it will update these arrays based on what was actually used for this run.
-used = []
-excluded = []
+[stages]

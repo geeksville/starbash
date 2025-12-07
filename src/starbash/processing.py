@@ -1001,8 +1001,9 @@ class Processing(ProcessingLike):
                 # If the producing_tasks are generating conflicting outputs, all of those tasks must be associated with the
                 # same session.  Therefore we only need to update one session row (which is shared by all of them)
                 session = task_to_session(producing_tasks[0])
-                if session:
-                    set_excluded(session, stages_to_exclude)
+                if not session:
+                    session = pt.default_stages
+                set_excluded(session, stages_to_exclude)
 
                 tasks = remove_excluded_tasks(tasks)
 
