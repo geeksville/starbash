@@ -188,7 +188,7 @@ class Starbash:
             # Try to add the versioned repo; fall back to local submodule if it fails
             try:
                 self.repo_manager.add_repo(default_recipes_url)
-            except (ValueError, Exception) as e:
+            except ValueError as e:
                 # Fallback to local submodule if remote version doesn't exist yet
                 logging.warning(f"Could not load recipes from {default_recipes_url}: {e}")
                 submodule_path = Path(__file__).parent.parent.parent / "starbash-recipes"
