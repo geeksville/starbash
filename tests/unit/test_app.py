@@ -279,6 +279,62 @@ class TestStarbashInit:
             # Analytics setup should be called
             mock_analytics["setup"].assert_called_once()
 
+    @patch("starbash.windows.platform.system")
+    @patch("starbash.windows.is_under_powershell")
+    def test_init_warns_on_windows_without_powershell(
+        self,
+        mock_is_under_powershell,
+        mock_platform_system,
+        setup_test_environment,
+        mock_analytics,
+        caplog,
+    ):
+        """Test that initialization warns when running on Windows without PowerShell."""
+        mock_platform_system.return_value = "Windows"
+        mock_is_under_powershell.return_value = False
+
+        with Starbash() as app:
+            # Check that warning was logged
+            assert any(
+                "old school" in record.message and "Powershell" in record.message
+                for record in caplog.records
+            )
+
+    @patch("starbash.windows.platform.system")
+    @patch("starbash.windows.is_under_powershell")
+    def test_init_no_warning_on_windows_with_powershell(
+        self,
+        mock_is_under_powershell,
+        mock_platform_system,
+        setup_test_environment,
+        mock_analytics,
+        caplog,
+    ):
+        """Test that initialization does not warn when running on Windows with PowerShell."""
+        mock_platform_system.return_value = "Windows"
+        mock_is_under_powershell.return_value = True
+
+        with Starbash() as app:
+            # Check that warning was NOT logged
+            assert not any(
+                "old school" in record.message and "Powershell" in record.message
+                for record in caplog.records
+            )
+
+    @patch("starbash.windows.platform.system")
+    def test_init_no_warning_on_linux(
+        self, mock_platform_system, setup_test_environment, mock_analytics, caplog
+    ):
+        """Test that initialization does not warn on non-Windows systems."""
+        mock_platform_system.return_value = "Linux"
+
+        with Starbash() as app:
+            # Check that warning was NOT logged
+            assert not any(
+                "old school" in record.message and "Powershell" in record.message
+                for record in caplog.records
+            )
+
     def test_init_with_user_email(self, setup_test_environment, mock_analytics):
         """Test initialization includes user email when configured."""
         config_dir = setup_test_environment["config_dir"]

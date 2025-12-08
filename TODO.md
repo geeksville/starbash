@@ -133,7 +133,7 @@
 * [x] input_files should be cleared from imported contexts.  To fix:
 
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
-* [ ] provide link to generated starbash.toml files
+* [x] provide link to generated starbash.toml files
 * [x] generate an auto-stretched output as jpg thumbnails.
 * [x] make master-selection user customizable per target
 * [ ] do auto star removal as a separate stage

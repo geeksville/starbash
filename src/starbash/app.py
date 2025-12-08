@@ -43,6 +43,7 @@ from starbash.score import ScoredCandidate, score_candidates
 from starbash.selection import Selection, build_search_conditions
 from starbash.toml import toml_from_template
 from starbash.tool import preflight_tools
+from starbash.windows import windows_init
 
 critical_keys = [Database.DATE_OBS_KEY, Database.IMAGETYP_KEY]
 
@@ -144,6 +145,8 @@ class Starbash:
 
         # Must be **after** _init_analytics otherwise we can get mutex locks later while emitting logs
         setup_logging(starbash.console)
+
+        windows_init()
 
         try:
             faulthandler.enable(sys.stderr)  # catch native stack traces if we crash
