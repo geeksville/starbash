@@ -142,6 +142,7 @@
 * [x] make "repo list" only show user repos
 * [x] cleanup how different stages dependencies work together: bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
 * [x] too many cache dirs, delete after tasks
+* [ ] include thanks for siril,graxpert,starnet,doit
 * [ ] improve user readability of process report files
 * [ ] **second alpha release approximately here**
 

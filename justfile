@@ -24,6 +24,18 @@ install-completion:
     #!/usr/bin/env zsh
     sb --install-completion
 
+# Install the starnet binaries
+install-starnet:
+    wget -O /tmp/starnet.zip https://starnetastro.com/wp-content/uploads/2022/03/StarNetv2CLI_linux.zip
+    mkdir -p ~/packages
+    unzip -jo /tmp/starnet.zip -d ~/packages/starnet
+    chmod a+x ~/packages/starnet/starnet++
+    rm /tmp/starnet.zip
+
+# Run starnet (for testing)
+starnet infile outfile="starless.tif" stride="256":
+    LD_LIBRARY_PATH=~/packages/starnet ~/packages/starnet/starnet++ {{infile}} {{outfile}} {{stride}}
+
 # Use our local git submodule version of the recipies
 use-local-recipes:
     sb repo add /workspaces/starbash/starbash-recipes
