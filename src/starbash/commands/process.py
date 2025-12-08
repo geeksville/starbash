@@ -147,7 +147,17 @@ def print_results(
             output_files_str = ", ".join(fi.rich_links)
             if is_tmp_dir:
                 output_files_str = f"[dim]{output_files_str}[/dim]"
-            notes += " → " + output_files_str
+
+            toml_url: str | None = None
+            # Try to find a toml url
+            if meta:
+                pt = meta.get("processed_target")
+                if pt:
+                    toml_url = pt.repo.url if pt.repo else None
+
+            link_arrow = to_rich_link(toml_url, "→") if toml_url else "→"
+
+            notes += f" {link_arrow} {output_files_str}"
 
         output_fi: FileInfo | None = result.context.get("final_output")
         result_str = result.target  # assume we won't be able to add a link
