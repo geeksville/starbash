@@ -291,6 +291,21 @@ class Repo:
         c = self.get("repo.kind", unknown_kind)
         return str(c)
 
+    @property
+    def config_url(self) -> str:
+        """
+        Returns the URL to the configuration file for this repository.
+
+        For direct .toml file URLs, returns the URL as-is.
+        For directory URLs, appends '/starbash.toml' to the URL.
+
+        Returns:
+            The complete URL to the starbash.toml configuration file.
+        """
+        if self._is_direct_toml_file():
+            return self.url
+        return f"{self.url.rstrip('/')}/{repo_suffix}"
+
     def add_repo_ref(self, manager: RepoManager, dir: Path) -> Repo | None:
         """
         Adds a new repo-ref to this repository's configuration.
@@ -461,12 +476,17 @@ class Repo:
 
         Args:
             filepath: The path to the file, relative to the repository root.
+                     If empty, reads directly from the URL (for .toml file URLs).
 
         Returns:
             The content of the file as a string.
         """
-        target_path = self.resolve_path(filepath)
+        if not filepath:
+            # Read directly from the URL
+            path = Path(self.url[len("file://") :])
+            return path.read_text()
 
+        target_path = self.resolve_path(filepath)
         return target_path.read_text()
 
     def _read_http(self, filepath: str) -> str:
@@ -475,6 +495,7 @@ class Repo:
 
         Args:
             filepath: Path within the base resource directory for this repo.
+                     If empty, reads directly from the URL (for .toml file URLs).
 
         Returns:
             The content of the resource as a string.
@@ -483,7 +504,10 @@ class Repo:
             ValueError: If the HTTP request fails.
         """
         # Construct the full URL by joining the base URL with the filepath
-        url = self.url.rstrip("/") + "/" + filepath.lstrip("/")
+        if filepath:
+            url = self.url.rstrip("/") + "/" + filepath.lstrip("/")
+        else:
+            url = self.url
 
         try:
             response = http_session.get(url)
@@ -506,6 +530,7 @@ class Repo:
 
         Args:
             filepath: Path within the base resource directory for this repo.
+                     If empty, reads directly from the URL (for .toml file URLs).
 
         Returns:
             The content of the resource as a string (UTF-8).
@@ -513,32 +538,11 @@ class Repo:
         # Path portion after pkg://, interpreted relative to the 'starbash' package
         subpath = self.url[len("pkg://") :].strip("/")
 
-        res = resources.files("starbash").joinpath(subpath).joinpath(filepath)
-        return res.read_text()
-
-    def _read_direct_url(self) -> str:
-        """
-        Read content directly from the URL (for .toml file URLs).
-
-        Returns:
-            The content of the file as a string.
-
-        Raises:
-            ValueError: If the URL scheme is not supported.
-        """
-        if self.is_scheme("file"):
-            path = Path(self.url[len("file://") :])
-            return path.read_text()
-        elif self.is_scheme("pkg"):
-            subpath = self.url[len("pkg://") :].strip("/")
-            res = resources.files("starbash").joinpath(subpath)
-            return res.read_text()
-        elif self.is_scheme("http") or self.is_scheme("https"):
-            response = http_session.get(self.url)
-            response.raise_for_status()
-            return response.text
+        if filepath:
+            res = resources.files("starbash").joinpath(subpath).joinpath(filepath)
         else:
-            raise ValueError(f"Unsupported URL scheme for repo: {self.url}")
+            res = resources.files("starbash").joinpath(subpath)
+        return res.read_text()
 
     def _load_config(
         self, default_toml: tomlkit.TOMLDocument | None = None
@@ -557,7 +561,7 @@ class Repo:
         try:
             if self._is_direct_toml_file():
                 # Read the .toml file directly from the URL
-                config_content = self._read_direct_url()
+                config_content = self.read("")
                 logging.debug(f"Loading repo config from {self.url}")
             else:
                 # Read starbash.toml from the directory

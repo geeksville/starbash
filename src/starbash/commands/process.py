@@ -14,6 +14,7 @@ from starbash.commands.__init__ import (
 from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
 from starbash.doit import FileInfo
+from starbash.processed_target import ProcessedTarget
 from starbash.processing import Processing, ProcessingResult
 from starbash.rich import to_rich_link
 
@@ -151,9 +152,9 @@ def print_results(
             toml_url: str | None = None
             # Try to find a toml url
             if meta:
-                pt = meta.get("processed_target")
-                if pt:
-                    toml_url = pt.repo.url if pt.repo else None
+                pt: ProcessedTarget | None = meta.get("processed_target")
+                if pt and pt.repo:
+                    toml_url = pt.repo.config_url
 
             link_arrow = to_rich_link(toml_url, "→") if toml_url else "→"
 

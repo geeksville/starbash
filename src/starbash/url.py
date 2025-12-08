@@ -1,6 +1,5 @@
+from pathlib import Path
 from urllib.parse import quote
-
-from click import Path
 
 project = "https://github.com/geeksville/starbash"
 analytics_docs = f"{project}/blob/main/doc/analytics.md"

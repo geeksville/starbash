@@ -207,3 +207,46 @@ def test_repo_direct_toml_resolve_path(tmp_path: Path):
     resolved = repo.resolve_path("data.txt")
     assert resolved == sibling_file
     assert resolved.read_text() == "test data"
+
+
+def test_repo_config_url_property(tmp_path: Path):
+    """
+    Tests that the config_url property returns the correct URL to the config file
+    for both directory repos and direct .toml file repos.
+    """
+    from repo.repo import Repo
+
+    # Test 1: Directory repo (should append /starbash.toml)
+    dir_repo_path = tmp_path / "dir-repo"
+    dir_repo_path.mkdir()
+    (dir_repo_path / "starbash.toml").write_text(
+        """
+        [repo]
+        kind = "directory"
+        """
+    )
+
+    dir_repo = Repo(f"file://{dir_repo_path}")
+    expected_dir_url = f"file://{dir_repo_path}/starbash.toml"
+    assert dir_repo.config_url == expected_dir_url
+
+    # Test 2: Direct .toml file repo (should return URL as-is)
+    toml_file = tmp_path / "custom.toml"
+    toml_file.write_text(
+        """
+        [repo]
+        kind = "direct"
+        """
+    )
+
+    toml_repo = Repo(f"file://{toml_file}")
+    expected_toml_url = f"file://{toml_file}"
+    assert toml_repo.config_url == expected_toml_url
+
+    # Test 3: pkg:// URL (directory form)
+    pkg_repo = Repo("pkg://defaults")
+    assert pkg_repo.config_url == "pkg://defaults/starbash.toml"
+
+    # Test 4: pkg:// URL (direct .toml file)
+    pkg_toml_repo = Repo("pkg://defaults/config.toml")
+    assert pkg_toml_repo.config_url == "pkg://defaults/config.toml"
