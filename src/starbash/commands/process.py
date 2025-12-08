@@ -15,6 +15,7 @@ from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
 from starbash.doit import FileInfo
 from starbash.processing import Processing, ProcessingResult
+from starbash.rich import to_rich_link
 
 app = typer.Typer()
 
@@ -132,11 +133,12 @@ def print_results(
 
         # Format notes (truncate if too long)
         notes = ""
+        meta: dict | None = result.task.meta
         if result.notes:
             notes = result.notes
-            stage = result.task.meta and result.task.meta.get("stage")
+            stage = meta and meta.get("stage")
             if stage:
-                notes = f"[link={stage.source.url}]{notes}[/link]"
+                notes = to_rich_link(stage.source.url, notes)
 
         # if success or skipped, show outputs generated
         fi: FileInfo | None = result.context.get("output")
@@ -149,11 +151,18 @@ def print_results(
 
         output_fi: FileInfo | None = result.context.get("final_output")
         result_str = result.target  # assume we won't be able to add a link
-        if output_fi and result.success is not False:
-            output_dir = output_fi.base
-            result_str = f"[link=file://{output_dir}]{result.target}[/link]"
+        if output_fi and output_fi.base and result.success is not False:
+            output_dir = Path(output_fi.base)
+            result_str = to_rich_link(output_dir, result.target)
 
-        table.add_row(result_str, result.session_desc, status, notes)
+        # Try to link to source files if we can
+        session_link = result.session_desc
+        input_files: list[Path] | None = result.context.get("input_files")
+        if input_files:
+            first_input = input_files[0]
+            session_link = to_rich_link(first_input.parent, result.session_desc)
+
+        table.add_row(result_str, session_link, status, notes)
 
     console.print(table)
 

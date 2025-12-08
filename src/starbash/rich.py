@@ -1,9 +1,12 @@
 from collections.abc import Iterable
 from io import StringIO
+from pathlib import Path
 from typing import Any
 
 from rich.console import Console
 from rich.tree import Tree
+
+from starbash.url import make_file_url
 
 BRIEF_LIMIT = 3  # Maximum number of leaf items to show in brief mode
 
@@ -57,6 +60,25 @@ def to_tree(obj: Any, label: str = "root", brief: bool = True) -> Tree:
         tree.add(f"[dim]… and {minor_count - BRIEF_LIMIT} more[/dim]")
 
     return tree
+
+
+def to_rich_link(f: str | Path, label: str | None = None) -> str:
+    """Create a Rich-formatted clickable link to a file path.
+
+    Args:
+        f: Path to the file
+        label: Optional label for the link; if None, uses the file name"""
+    if isinstance(f, str):  # assume URL
+        file_url = str(f)
+        fdefault = f
+    elif isinstance(f, Path):
+        file_url = make_file_url(f)
+        fdefault = f.name
+    else:
+        raise TypeError("f must be a Path or Url")
+
+    link_label = label or fdefault
+    return f"[link={file_url}]{link_label}[/link]"
 
 
 def to_rich_string(obj: Any) -> str:
