@@ -161,7 +161,8 @@
                 "-v"
             ],
             "console": "integratedTerminal",
-            "python": "${workspaceFolder}/.vscode/get_poetry_python.sh"
+            "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
+            "justMyCode": false
         }
     ]
 }

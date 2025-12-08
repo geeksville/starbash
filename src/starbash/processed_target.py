@@ -275,6 +275,7 @@ class ProcessedTarget:
     def close(self) -> None:
         """Finalize and close the ProcessedTarget, saving any updates to the config."""
         self._update_from_context()
+        self.parameter_store.write_overrides(self.repo)
         if self.config_valid:
             self.repo.write_config()
         else:

@@ -47,11 +47,12 @@ def test_add_parameters_from_repo(tmp_path: Path):
     store.add_from_repo(repo)
 
     # Verify parameters were loaded
-    assert "smoothing_option" in store._parameters
-    assert "ai_version" in store._parameters
+    param_names = [p.name for p in store._parameters]
+    assert "smoothing_option" in param_names
+    assert "ai_version" in param_names
 
     # Check smoothing_option details
-    param = store._parameters["smoothing_option"]
+    param = next(p for p in store._parameters if p.name == "smoothing_option")
     assert param.name == "smoothing_option"
     assert param.default == 0.5
     assert param.description == "Smoothing option for graxpert"
@@ -59,7 +60,7 @@ def test_add_parameters_from_repo(tmp_path: Path):
     assert param.source == repo
 
     # Check ai_version details
-    param = store._parameters["ai_version"]
+    param = next(p for p in store._parameters if p.name == "ai_version")
     assert param.name == "ai_version"
     assert param.default == "1.0.1"
     assert param.description == "AI version"
@@ -85,8 +86,9 @@ def test_add_overrides_from_repo(tmp_path: Path):
     store.add_from_repo(repo)
 
     # Verify override was loaded
-    assert "smoothing_option" in store._parameters
-    param = store._parameters["smoothing_option"]
+    param_names = [p.name for p in store._parameters]
+    assert "smoothing_option" in param_names
+    param = next(p for p in store._parameters if p.name == "smoothing_option")
     assert param.name == "smoothing_option"
     assert param.value == 0.7
     assert param.is_override
@@ -130,16 +132,23 @@ def test_override_replaces_parameter(tmp_path: Path):
     store.add_from_repo(param_repo)
     store.add_from_repo(override_repo)
 
-    # Verify the override replaced the parameter
-    param = store._parameters["smoothing_option"]
-    assert param.value == 0.8
-    assert param.default == 0.5  # Should still have original default
-    assert param.is_override
-    assert param.source == override_repo  # Source should be updated
+    # Verify both the parameter and override were added
+    # as_obj should apply the override value
+    obj = store.as_obj
+    assert obj.smoothing_option == 0.8
+
+    # Check that we have both entries in the list
+    params = [p for p in store._parameters if p.name == "smoothing_option"]
+    assert len(params) == 2  # One parameter, one override
+
+    # Find the override entry
+    override_param = next(p for p in params if p.is_override)
+    assert override_param.value == 0.8
+    assert override_param.source == override_repo
 
 
-def test_as_dict_with_defaults(tmp_path: Path):
-    """Test as_dict returns defaults when no overrides."""
+def test_as_obj_with_defaults(tmp_path: Path):
+    """Test as_obj returns defaults when no overrides."""
     toml_file = tmp_path / "starbash.toml"
     toml_file.write_text(
         """
@@ -161,12 +170,13 @@ def test_as_dict_with_defaults(tmp_path: Path):
     store = ParameterStore()
     store.add_from_repo(repo)
 
-    result = store.as_dict()
-    assert result == {"smoothing_option": 0.5, "ai_version": "1.0.1"}
+    result = store.as_obj
+    assert result.smoothing_option == 0.5
+    assert result.ai_version == "1.0.1"
 
 
-def test_as_dict_with_overrides(tmp_path: Path):
-    """Test as_dict returns override values instead of defaults."""
+def test_as_obj_with_overrides(tmp_path: Path):
+    """Test as_obj returns override values instead of defaults."""
     # Repo with parameters
     param_file = tmp_path / "params.toml"
     param_file.write_text(
@@ -206,9 +216,10 @@ def test_as_dict_with_overrides(tmp_path: Path):
     store.add_from_repo(param_repo)
     store.add_from_repo(override_repo)
 
-    result = store.as_dict()
+    result = store.as_obj
     # smoothing_option should use override, ai_version should use default
-    assert result == {"smoothing_option": 0.9, "ai_version": "1.0.1"}
+    assert result.smoothing_option == 0.9
+    assert result.ai_version == "1.0.1"
 
 
 def test_write_overrides_creates_section(tmp_path: Path):
@@ -226,15 +237,18 @@ def test_write_overrides_creates_section(tmp_path: Path):
     store = ParameterStore()
 
     # Add parameters to the store
-    store._parameters["test_param"] = Parameter(
-        source=repo, name="test_param", default=42, description="Test parameter"
+    store._parameters.append(
+        Parameter(source=repo, name="test_param", default=42, description="Test parameter")
     )
-    store._parameters["another_param"] = Parameter(
-        source=repo, name="another_param", default="value", description="Another test parameter"
+    store._parameters.append(
+        Parameter(
+            source=repo, name="another_param", default="value", description="Another test parameter"
+        )
     )
 
     # Write overrides
     store.write_overrides(repo)
+    repo.write_config()
 
     # Reload and verify [[overrides]] section exists with comments
     updated_content = toml_file.read_text()
@@ -265,6 +279,7 @@ def test_write_overrides_preserves_existing(tmp_path: Path):
     repo = Repo(toml_file)
     store = ParameterStore()
     store.write_overrides(repo)
+    repo.write_config()
 
     # Reload and verify existing override is still there
     updated_repo = Repo(toml_file)

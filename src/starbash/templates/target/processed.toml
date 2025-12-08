@@ -23,9 +23,8 @@ target.id = "$target"
 # Whenever stabash is rerun it will update these arrays based on what was actually used for this run.
 [stages]
 
-[overrides]
-
-# FIXME let user specify overrides for script parameters here (for custom settings etc... without having to tweak recipes)
+[[overrides]]
+# If your recipes have parameters starbash will auto populate this section with possible overrides.
 
 [processing]
 
