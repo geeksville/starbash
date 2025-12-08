@@ -1,7 +1,9 @@
 import faulthandler
 import logging
 import sys
+from importlib.metadata import version
 from pathlib import Path
+from string import Template
 from typing import Any
 
 import rich.console
@@ -180,7 +182,21 @@ class Starbash:
             assert default_recipes_url, (
                 "Bug, repo.recipe_default not found."
             )  # Should be guaranteed
-            self.repo_manager.add_repo(default_recipes_url)
+            # Substitute version in URL template (e.g., ${version} -> 0.1.30)
+            app_version = version("starbash")
+            default_recipes_url = Template(default_recipes_url).safe_substitute(version=app_version)
+            # Try to add the versioned repo; fall back to local submodule if it fails
+            try:
+                self.repo_manager.add_repo(default_recipes_url)
+            except (ValueError, Exception) as e:
+                # Fallback to local submodule if remote version doesn't exist yet
+                logging.warning(f"Could not load recipes from {default_recipes_url}: {e}")
+                submodule_path = Path(__file__).parent.parent.parent / "starbash-recipes"
+                if submodule_path.exists():
+                    logging.info(f"Using local recipes from {submodule_path}")
+                    self.repo_manager.add_repo(f"file://{submodule_path}")
+                else:
+                    raise
 
     def _init_analytics(self, cmd: str) -> None:
         self.analytics = NopAnalytics()

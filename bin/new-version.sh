@@ -20,7 +20,10 @@ set -euo pipefail
 #   5) Push the commit and the tag to origin
 
 usage() {
-  echo "Usage: $0 [version|bump-type]" >&2
+  echo "Usage: $0 [--dry-run] [version|bump-type]" >&2
+  echo "" >&2
+  echo "Options:" >&2
+  echo "  --dry-run   Show what would be done without making changes" >&2
   echo "" >&2
   echo "Examples:" >&2
   echo "  $0          # auto-bump patch version (0.2.0 → 0.2.1)" >&2
@@ -28,11 +31,19 @@ usage() {
   echo "  $0 minor    # bump minor (0.2.0 → 0.3.0)" >&2
   echo "  $0 major    # bump major (0.2.0 → 1.0.0)" >&2
   echo "  $0 0.2.0    # set explicit version" >&2
+  echo "  $0 --dry-run minor  # show what would happen for minor bump" >&2
 }
 
 if [[ ${1:-} == "-h" || ${1:-} == "--help" ]]; then
   usage
   exit 0
+fi
+
+# Check for --dry-run flag
+DRY_RUN=false
+if [[ ${1:-} == "--dry-run" ]]; then
+  DRY_RUN=true
+  shift
 fi
 
 # Default to patch bump if no argument provided
@@ -59,11 +70,13 @@ if ! git remote get-url origin >/dev/null 2>&1; then
   exit 1
 fi
 
-# Ensure clean working tree
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "Error: working tree has uncommitted changes. Commit or stash before running." >&2
-  git status --porcelain
-  exit 1
+# Ensure clean working tree (skip check in dry-run mode)
+if [[ $DRY_RUN == false ]]; then
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "Error: working tree has uncommitted changes. Commit or stash before running." >&2
+    git status --porcelain
+    exit 1
+  fi
 fi
 
 # Bump or set the version
@@ -86,17 +99,48 @@ fi
 FILES=(pyproject.toml)
 [[ -f poetry.lock ]] && FILES+=(poetry.lock)
 
-git add "${FILES[@]}"
-git commit -m "Release: $VERSION"
+if [[ $DRY_RUN == true ]]; then
+  echo "[DRY RUN] Would add and commit: ${FILES[*]}"
+  echo "[DRY RUN] Would commit with message: Release: $VERSION"
+  echo "[DRY RUN] Would create tag $TAG with message: starbash $VERSION"
+  if [[ -d starbash-recipes ]]; then
+    echo "[DRY RUN] Would tag starbash-recipes submodule with $TAG"
+  fi
+  echo "[DRY RUN] Would push commit to origin"
+  echo "[DRY RUN] Would push tag $TAG to origin"
+  echo "[DRY RUN] Would run: poetry install"
+  echo ""
+  echo "[DRY RUN] To actually perform these actions, run without --dry-run"
+else
+  git add "${FILES[@]}"
+  git commit -m "Release: $VERSION"
 
-echo "Creating tag $TAG..."
-git tag -a "$TAG" -m "starbash $VERSION"
+  echo "Creating tag $TAG..."
+  git tag -a "$TAG" -m "starbash $VERSION"
 
-echo "Pushing commit and tag to origin..."
-git push origin HEAD
-git push origin "$TAG"
+  # Tag the starbash-recipes submodule if it exists
+  if [[ -d starbash-recipes ]]; then
+    echo "Tagging starbash-recipes submodule with $TAG..."
+    (
+      cd starbash-recipes
+      git tag -f -a "$TAG" -m "starbash $VERSION"
+      if git remote get-url origin >/dev/null 2>&1; then
+        git push -f origin "$TAG"
+        echo "Pushed tag $TAG to starbash-recipes"
+      else
+        echo "Warning: starbash-recipes has no origin remote, tag created locally only"
+      fi
+    )
+  fi
 
-echo "Installing locally"
-poetry install
+  echo "Pushing commit and tag to origin..."
+  git push origin HEAD
+  git push origin "$TAG"
 
-echo "Done. Created and pushed tag $TAG."
+  echo "Installing locally"
+  poetry install
+
+  echo "Done. Created and pushed tag $TAG."
+fi
+
+

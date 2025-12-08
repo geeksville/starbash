@@ -6,9 +6,9 @@ kind = "preferences"
 # Add our built-in recipes (FIXME, add a "resource" repo type for directories we expect to find inside
 # our python blob)
 # url = "pkg://recipes"
-# We now (finally) fetch our recipes from the sister github repo via http - We use tags (for now) to bind to
-# a particular version of the repo
-recipe_default = "https://raw.githubusercontent.com/geeksville/starbash-recipes/v0.1.29"
+# We now (finally) fetch our recipes from the sister github repo via http - We use tags to bind to
+# a particular version of the repo (using ${version} which gets substituted with the current starbash version)
+recipe_default = "https://raw.githubusercontent.com/geeksville/starbash-recipes/v${version}"
 
 # FIXME until doit is merged into main, pull recipes from the the local git submodule
 # url = "file:///workspaces/starbash/starbash-recipes"
