@@ -51,6 +51,22 @@ class FileInfo:
     image_rows: list[ImageRow] | None = None  # List of individual files (if applicable)
 
     @property
+    def rich_links(self) -> list[str]:
+        """Get rich links for individual file paths from this FileInfo.
+
+        Returns:
+            List of rich link strings for individual files.
+        """
+        links = []
+        if self.image_rows is not None:
+            for img in self.image_rows:
+                path = img["abspath"]
+                links.append(f"[link=file://{path}]{img['path']}[/link]")
+        elif self.base is not None and self.full is not None:
+            links.append(f"[link=file://{self.full}]{self.relative or self.full.name}[/link]")
+        return links
+
+    @property
     def short_paths(self) -> list[str]:
         """Get the list of individual file paths from this FileInfo.
 

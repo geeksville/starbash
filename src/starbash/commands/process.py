@@ -115,7 +115,7 @@ def print_results(
     table.add_column("Target", style=TABLE_COLUMN_STYLE, no_wrap=True)
     table.add_column("Session", justify="right", style=TABLE_COLUMN_STYLE)
     table.add_column("Status", justify="center", style=TABLE_COLUMN_STYLE)
-    table.add_column("Notes", style=TABLE_COLUMN_STYLE)
+    table.add_column("Notes (links are clickable!)", style=TABLE_COLUMN_STYLE)
 
     for result in results:
         if skip_boring and result.success is None and result.is_master:
@@ -131,18 +131,29 @@ def print_results(
             status = f"[yellow]Ø {result.reason or 'Skipped'}[/yellow]"
 
         # Format notes (truncate if too long)
-        notes = result.notes or ""
+        notes = ""
+        if result.notes:
+            notes = result.notes
+            stage = result.task.meta and result.task.meta.get("stage")
+            if stage:
+                notes = f"[link={stage.source.url}]{notes}[/link]"
 
         # if success or skipped, show outputs generated
         fi: FileInfo | None = result.context.get("output")
         if fi and result.success is not False:
             is_tmp_dir = fi.repo is None
-            output_files_str = " → " + ", ".join(fi.short_paths)
+            output_files_str = ", ".join(fi.rich_links)
             if is_tmp_dir:
                 output_files_str = f"[dim]{output_files_str}[/dim]"
-            notes += output_files_str
+            notes += " → " + output_files_str
 
-        table.add_row(result.target, result.session_desc, status, notes)
+        output_fi: FileInfo | None = result.context.get("final_output")
+        result_str = result.target  # assume we won't be able to add a link
+        if output_fi and result.success is not False:
+            output_dir = output_fi.base
+            result_str = f"[link=file://{output_dir}]{result.target}[/link]"
+
+        table.add_row(result_str, result.session_desc, status, notes)
 
     console.print(table)
 
