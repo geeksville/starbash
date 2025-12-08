@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set up Python
         id: setup-python
@@ -129,6 +131,9 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: df -h
 
+      - name: Install current version
+        run: poetry install
+
       - name: Run tests
         env:
           SENTRY_ENVIRONMENT: ci
@@ -156,6 +161,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Download coverage artifact
         uses: actions/download-artifact@v4
