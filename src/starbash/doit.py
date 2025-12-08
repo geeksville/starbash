@@ -88,7 +88,7 @@ class FileInfo:
             List of Path objects for individual files. (full abs paths)
         """
         if self.image_rows is not None:
-            return [img["abspath"] for img in self.image_rows]
+            return [Path(img["abspath"]) for img in self.image_rows]
         elif self.full is not None:
             return [self.full]
         else:
