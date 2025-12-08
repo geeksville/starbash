@@ -45,9 +45,7 @@ class RepoManager:
         return [
             r
             for r in self.repos
-            if not r.kind().endswith("recipe")
-            and r.kind() != "preferences"
-            and not r.is_scheme("pkg")
+            if r.kind() not in ["preferences", "recipe"] and not r.is_scheme("pkg")
         ]
 
     def add_repo(self, url: str) -> Repo:
