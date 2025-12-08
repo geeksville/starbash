@@ -127,7 +127,7 @@
 * [x] fix: getting removed in preflight because stage exclusions need to be session specific
 * [x] while developing default to pulling recipes from local submodule
 * [ ] automatically do process masters before first run?
-* [ ] add parameterizations support - so scripts can have named preferences that get stored in toml run file - use for graxpert smoothing etc...
+* [x] add parameterizations support - so scripts can have named preferences that get stored in toml run file - use for graxpert smoothing etc...
 * [ ] use pixelmath to merge multichannel output files into a single file
 * [ ] split out most of osc.py?
 * [x] input_files should be cleared from imported contexts.  To fix:
