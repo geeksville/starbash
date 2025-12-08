@@ -36,7 +36,7 @@ from starbash.database import (
     get_column_name,
 )
 from starbash.dwarf3 import extend_dwarf3_headers
-from starbash.exception import raise_missing_repo
+from starbash.exception import UserHandledError, raise_missing_repo
 from starbash.os import symlink_or_copy
 from starbash.paths import get_user_config_dir, get_user_config_path
 from starbash.score import ScoredCandidate, score_candidates
@@ -586,7 +586,7 @@ class Starbash:
                 break
 
         if not found:
-            raise ValueError(f"Repository '{url}' not found in user configuration.")
+            raise UserHandledError(f"Repository '{url}' not found in user configuration.")
 
         # Write the updated config
         self.user_repo.write_config()
