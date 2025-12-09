@@ -157,7 +157,7 @@ class Starbash:
         self._init_repos()
         self._init_analytics(cmd)  # after init repos so we have user prefs
 
-        logging.info("Starbash starting...")
+        logging.info("Starbash starting")
 
         check_version()
         self._init_aliases()

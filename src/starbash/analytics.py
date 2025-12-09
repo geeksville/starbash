@@ -7,6 +7,7 @@ from sentry_sdk.integrations.excepthook import ExcepthookIntegration
 import starbash
 import starbash.url as url
 from starbash import _is_test_env
+from starbash.check_version import is_connected
 
 # Default to no analytics/auto crash reports
 analytics_allowed = False
@@ -25,7 +26,7 @@ __all__ = [
 def analytics_setup(allowed: bool = False, user_email: str | None = None) -> None:
     global analytics_allowed
     analytics_allowed = allowed
-    if analytics_allowed:
+    if analytics_allowed and is_connected():
         import sentry_sdk
         from sentry_sdk.integrations.logging import LoggingIntegration
 
