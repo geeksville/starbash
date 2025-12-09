@@ -801,7 +801,7 @@ class Processing(ProcessingLike):
                 stage
             )  # convert current inputs into a list of doit dependencies
         except FallbackToImageException as e:
-            logging.info(
+            logging.debug(
                 f"Skipping '{stage.get('name')}' using fallback file {e.image.get('path', 'unknown')}"
             )
             fallback_output = e.image
@@ -999,7 +999,7 @@ class Processing(ProcessingLike):
                 )
 
                 names = [t["name"] for t in conflicting_stages]
-                logging.warning(
+                logging.debug(
                     f"Multiple stages could produce the same target '{target}': {names}, picking a default for now..."
                 )
                 # exclude all but the first one (highest priority)

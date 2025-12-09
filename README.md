@@ -29,23 +29,27 @@ If you are interested in alpha-testing we ❤️ you.  This README should have e
 
 ## Current features
 
+### From the alpha 1 (0.1.0) release (2025/11/12)
 * Automatically recognizes and auto-parses the default NINA, Asiair, and Seestar raw file repos (adding support for other layouts is easy).
 * Multi-session support by default (including automatic selection of correct flats, biases, and dark frames).
 * 'Repos' can contain raw files, generated masters, preprocessed files, or recipes.
 * Automatically performs **complete** preprocessing on OSC (broadband, narrowband, or dual Duo filter).  i.e., gives you 'seestar-level' auto-preprocessing, so you only need to do the (optional) custom post-processing.
 * Uses Siril recipes for its pre-processing operations (support for Pixinsight-based recipes will probably be coming at some point...).
-* Generates a per-target config file which can (eventually) be customized if the detected defaults or preprocessing are not what you want.
+
+### From the alpha 2 (0.2.0) release (2025/12/12 ish)
+* Include a stretched 'thumbnail'(FIXME - link example thumbnail) jpg proof-of-concept render in the output directories
+* Generates a per-target [report/config file](FIXME - link example processed toml) which can be customized if the detected defaults or preprocessing are not what you want.
+* '[Recipes](https://github.com/geeksville/starbash-recipes)' are now user-editable - provides repeatable/human-readable/shareable descriptions of all processing steps.
+* Repos can be on the local disk or shared via HTTPS/GitHub/etc.  This is particularly useful for recipe repos.
+* [Graxpert](https://graxpert.com/) based [recipe stages](https://github.com/geeksville/starbash-recipes/tree/main/graxpert) added (support for Pixinsight-based recipes will probably be coming at some point...).
 
 ## Features coming soon
 
-* Include a stretched 'thumbnail' jpg proof-of-concept render in the output directories
+* Better recipe syntax documentation.
 * Support for mono-camera workflows (this alpha version only supports color cameras).
-* Generates a per-target report/config file which can be customized if the detected defaults or preprocessing are not what you want.
-* 'Recipes' are now user-editable - provides repeatable/human-readable/shareable descriptions of all processing steps.
-* Repos can be on the local disk or shared via HTTPS/GitHub/etc.  This is particularly useful for recipe repos.
-* Graxpert based recipe stages added (support for Pixinsight-based recipes will probably be coming at some point...).
 * The target report can be used to auto-generate a human-friendly 'postable/shareable' report about that image.
 * Target reports are shareable so that you can request comments from others and others can rerender with different settings.
+* Namespaces for recipes are disambiguated to be globally unique
 
 See the [TODO](TODO.md) file for work items and approximate schedule.
 
@@ -179,18 +183,37 @@ FIXME explain FITS and directory paths
 * N.I.N.A. - tested, seems fairly okay.
 * Asiair - tested, seems fairly okay.
 * Seestar - tested, seems fairly okay.
+* Dwarf3 - tested but young and possibly buggy, please report bugs if you find them.
 * Ekos/Kstars - not tested; please try it and file a GitHub issue if you see any problems.
 
 ## Supported tools (now)
+Starbash is a tool agnostic workflow manager.  But it wouldn't be possible without the folling great tools.
 
-* Siril
-* Graxpert
-* Python (you can add Python code to recipes if necessary)
+* [Siril](https://siril.org/)
+* [Graxpert](https://graxpert.com/) - for background and noise elimination
+* [Python](https://www.python.org/) (you can add Python code to recipes if necessary)
 
 ## Supported tools (future?)
 
 * Pixinsight?
 * Autostakkert?
+
+## Credits
+* Various reddit users who submitted anonymous crash reports from alpha 1
+* [@codegistics](https://github.com/codegistics) for kindly donating Dwarf3 test data and invaluable debugging assistance.
+* The developers of Siril and Graxpert - which are wonderful tools.
+* The [doit](https://pydoit.org/) automation building tool, which substantially simiplified this tool's development.
+
+## Design
+
+FIXME - write this
+
+FIXME - what this tool is
+a way to avoid opaque script blobs that are tied to a particular tool.
+instead a way to make sharable/extendable workflows from atomic mini-tools
+A way to capture preprocessing steps used to create an image
+FIXME - what this tool isn't
+Influences from make, npm, github.
 
 ## Development
 

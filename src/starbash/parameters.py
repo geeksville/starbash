@@ -95,7 +95,7 @@ class ParameterStore:
         overrides_aot: AoT | None = config.get("overrides")
         has_existing_overrides = False
         existing_overrides: set[str] = set()  # the names of existing overrides
-        if overrides_aot is None:
+        if overrides_aot is None or not isinstance(overrides_aot, AoT):
             overrides_aot = aot()
             config["overrides"] = overrides_aot
         else:

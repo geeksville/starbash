@@ -20,7 +20,7 @@ Sleep 2s
 Type "sb process auto"
 Sleep 0.5s
 Enter
-Sleep 2s
+Sleep 3s
 
 Type "ls -l /workspaces/starbash/images/processed/m20/"
 Sleep 0.5s
