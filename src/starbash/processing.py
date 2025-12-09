@@ -980,7 +980,7 @@ class Processing(ProcessingLike):
             # we failed on every child, give up
             raise child_exception
 
-        return FileInfo(base=base, image_rows=list(image_rows.values()))
+        return FileInfo(base=base, image_rows=list(image_rows.values()), definition=input)
 
     def preflight_tasks(self, pt: ProcessedTarget, tasks: list[TaskDict]) -> list[TaskDict]:
         # if user has excluded any stages, we need to respect that (remove matching stages)
@@ -1079,6 +1079,7 @@ class Processing(ProcessingLike):
             # currently our 'output' is really just the FileInfo from the prior stage output.  Repurpose that as
             # our new input.
             file_info: FileInfo = get_safe(self.context, "output")
+            file_info.definition = input  # update definition to current input
 
             # We don't actually use this return value, but we want an exception raised if we are missing suitable
             # prior inputs (i.e. if the current requires filters don't match anything).
@@ -1113,6 +1114,7 @@ class Processing(ProcessingLike):
                 image_rows=images,
                 repo=repo,
                 base=f"{imagetyp}_s{self.session['id']}",  # it is VERY important that the base name include the session ID, because it is used to construct unique filenames
+                definition=input,
             )
             ci[imagetyp] = fi
 
@@ -1158,7 +1160,7 @@ class Processing(ProcessingLike):
             )
 
             # so scripts can find input["bias"].base etc...
-            info = FileInfo(full=selected_master)
+            info = FileInfo(full=selected_master, definition=input)
             # Store the canidates we considered so they eventually end up in the toml fole
             session_masters = self.session.setdefault("masters", {})
             session_masters[imagetyp] = {
@@ -1295,6 +1297,7 @@ class Processing(ProcessingLike):
         resolver = get_safe(resolvers, kind)
         r: FileInfo = resolver()
 
+        r.definition = output
         self.context["output"] = r
         return r.full_paths
 

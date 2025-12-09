@@ -1,3 +1,4 @@
+import glob
 import logging
 import shutil
 from collections import OrderedDict
@@ -12,11 +13,13 @@ from doit.doit_cmd import DoitMain
 from doit.exceptions import BaseFail
 from doit.reporter import ConsoleReporter
 from doit.task import Task, dict_to_task
-from rich.progress import TaskID
+from rich.progress import TaskID, track
 
 from repo import Repo
+from starbash import InputDef
 from starbash.database import ImageRow
 from starbash.exception import UserHandledError
+from starbash.os import symlink_or_copy
 from starbash.paths import get_user_cache_dir
 from starbash.processing_like import ProcessingLike
 from starbash.tool.base import Tool
@@ -49,6 +52,9 @@ class FileInfo:
     relative: str | None = None  # the relative path within the repository
     repo: Repo | None = None  # The repo this file is within
     image_rows: list[ImageRow] | None = None  # List of individual files (if applicable)
+    definition: InputDef | None = (
+        None  # The input (or output) definition that produced this FileInfo
+    )
 
     @property
     def rich_links(self) -> list[str]:
@@ -184,6 +190,55 @@ def doit_post_process(task_dict: TaskDict):
     add_action(task_dict, closure)
 
 
+def merge_to(base_name: str, fi: FileInfo) -> None:
+    """Merge all input files in fi into a single sequence named base_name.
+
+    This function collects all FITS files from the input FileInfo (including files from .seq sequences)
+    and creates symlinks/copies with sequential names in a subdirectory like base_name/base_name_0001.fits,
+    base_name/base_name_0002.fits, etc.
+
+    Args:
+        base_name: The base name for the merged sequence (without extension)
+        fi: FileInfo containing the input files to merge
+    """
+    assert fi.base, "FileInfo must have a base directory for merging"
+    base_dir = Path(fi.base)
+    collected_files: list[Path] = []
+
+    # Iterate over short_paths to find all FITS files
+    for short_path in fi.short_paths:
+        path = Path(short_path)
+
+        # If it's a .seq file, find all FITS files with that prefix
+        if path.suffix == ".seq":
+            seq_prefix = path.stem
+            pattern = str(base_dir / f"{seq_prefix}*.fit*")
+            matching_files = sorted(glob.glob(pattern))
+            collected_files.extend([Path(f) for f in matching_files])
+
+    # Create output directory and remove if it already exists
+    output_dir = base_dir / base_name
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create symlinks/copies with sequential names in the subdirectory
+    for index, source_file in track(
+        enumerate(collected_files, start=1), description="Collecting job inputs"
+    ):
+        dest_name = f"{base_name}_{index:05d}.fits"
+        dest_path = output_dir / dest_name
+        symlink_or_copy(str(source_file), str(dest_path))
+
+
+def perhaps_merge_to(fi: FileInfo):
+    input = fi.definition
+    if input:
+        merge: str | None = input.get("merge_to")
+        if merge:
+            merge_to(merge, fi)
+
+
 class ToolAction(BaseAction):
     """An action that runs a starbash tool with given commands and context."""
 
@@ -210,6 +265,12 @@ class ToolAction(BaseAction):
         desc = ""
         if input_files:
             desc = f"({len(input_files)} input files)"
+
+        # Some tools might want us to pre merge all the input frames (siril merge command doesn't nicely work with images
+        # of different sizes etc).
+        stage_input: dict[Any, FileInfo] = context["stage_input"]
+        for fi in stage_input.values():
+            perhaps_merge_to(fi)
 
         logging.info(f"Running {self.tool.name} for {self.task.name} {desc}")
         try:
