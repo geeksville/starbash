@@ -132,8 +132,7 @@
 * [x] add parameterizations support - so scripts can have named preferences that get stored in toml run file - use for graxpert smoothing etc...
 * [ ] use pixelmath to merge multichannel output files into a single file
 * [ ] split out most of osc.py?
-* [x] input_files should be cleared from imported contexts.  To fix:
-
+* [x] input_files should be cleared from imported contexts.
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [x] provide link to generated starbash.toml files
 * [x] generate an auto-stretched output as jpg thumbnails.

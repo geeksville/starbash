@@ -76,6 +76,12 @@ def _stage_to_doc(task: TaskDict, stage: StageDict) -> None:
     task["doc"] = stage.get("description", "No description provided")
 
 
+def _inputs_with_key(stage: StageDict, key: str) -> list[InputDef]:
+    """Returns all imputs which contain a particular key."""
+    inputs: list[InputDef] = stage.get("inputs", [])
+    return [inp for inp in inputs if key in inp]
+
+
 def _inputs_by_kind(stage: StageDict, kind: str) -> list[InputDef]:
     """Returns all imputs of a particular kind from the given stage definition."""
     inputs: list[InputDef] = stage.get("inputs", [])
@@ -847,7 +853,7 @@ class Processing(ProcessingLike):
 
         Args:
             stage: The stage definition from TOML"""
-        has_job_multiplex_in = len(_inputs_by_kind(stage, "job-multiplex")) > 0
+        has_job_multiplex_in = len(_inputs_with_key(stage, "multiplex")) > 0
 
         try:
             # We need to init our context from whatever the prior stage was using.
@@ -1163,7 +1169,6 @@ class Processing(ProcessingLike):
 
         resolvers = {
             "job": _resolve_input_job,
-            "job-multiplex": _resolve_input_job,  # Handle the same as regular jobs (at least at this level)
             "session": _resolve_input_session,
             "master": _resolve_input_master,
             "session-extra": _resolve_session_extra,
