@@ -123,6 +123,7 @@
 * [x] push to main and bump to 0.1.29 on pypi
 * [ ] bug: dies due to differing resolutions in merge. can repo with m31 test set - https://github.com/geeksville/starbash/issues/9
 * [x] test case m20 failing due to two tasks targeting stacked_Ha.fits
+* [ ] test and adjust (m31?) multisession/mixed device stacking
 * [ ] ic test failing on ic434 - make auto master processing smarter
 * [x] fix: getting removed in preflight because stage exclusions need to be session specific
 * [x] while developing default to pulling recipes from local submodule

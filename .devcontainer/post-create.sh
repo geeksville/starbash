@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-echo "source .devcontainer/on-shell-start.sh" >> ~/.bashrc
-echo "source .devcontainer/on-shell-start.sh" >> ~/.zshrc
+echo "source /workspaces/starbash/.devcontainer/on-shell-start.sh" >> ~/.bashrc
+echo "source /workspaces/starbash/.devcontainer/on-shell-start.sh" >> ~/.zshrc
 
 # Setup initial poetry venv (we store it in project so we can add the sb/starbash scripts to the path)
 # already done and persistent

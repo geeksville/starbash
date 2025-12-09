@@ -45,8 +45,8 @@ If you are interested in alpha-testing we ❤️ you.  This README should have e
 
 ## Features coming soon
 
-* Better recipe syntax documentation.
-* Support for mono-camera workflows (this alpha version only supports color cameras).
+* Better recipe 'writers guide' documentation.
+* Support for mono-camera workflows (the alpha only has osc recipes).
 * The target report can be used to auto-generate a human-friendly 'postable/shareable' report about that image.
 * Target reports are shareable so that you can request comments from others and others can rerender with different settings.
 * Namespaces for recipes are disambiguated to be globally unique
