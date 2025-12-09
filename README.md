@@ -128,10 +128,11 @@ sb process masters
 ```
 sb process auto
 ```
+![auto finished](doc/img/auto_finish.png)
 
-The output directory (in addition to the processed fits outputs) will also contain a 'starbash.toml'.  That file contains information about what choices were made during processing (which masters selected, which recipes selected..., selected Siril options, etc...).
+The output directory (in addition to the processed fits outputs & jpeg thumbnails) will also contain a 'starbash.toml'.  That file contains information about what choices were made during processing (which masters selected, which recipes selected..., selected Siril options, etc...).
 
-You can edit that file to pick different choices and if you reprocess that target your choices will be used.  (Note: this feature is not yet implemented in the release version of the tool - but soon.)
+You can edit that file to pick different choices and if you reprocess that target your choices will be used.
 
 ### Manual Siril processing
 
