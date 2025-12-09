@@ -16,9 +16,8 @@ class TestIsUnderPowershell:
 
     def test_returns_false_when_psmodulepath_absent(self):
         """Should return False when PSModulePath environment variable is not set."""
-        # Remove PSModulePath if it exists
-        env = {k: v for k, v in os.environ.items() if k != "PSModulePath"}
-        with patch.dict(os.environ, env, clear=True):
+        # Explicitly patch with empty dict, ensuring PSModulePath is not present
+        with patch.dict(os.environ, {}, clear=True):
             assert is_under_powershell() is False
 
     def test_returns_true_with_multiple_ps_env_vars(self):
@@ -35,18 +34,11 @@ class TestIsUnderPowershell:
 
     def test_returns_false_with_non_ps_env_vars(self):
         """Should return False when only non-PowerShell environment variables are present."""
+        # Set only cmd.exe vars, explicitly excluding any PS variables
         env = {
             "PATH": "C:\\Windows\\System32",
             "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
             "PROMPT": "$P$G",
         }
-        # Remove any PS variables and set only cmd.exe vars
-        env = {k: v for k, v in os.environ.items() if not k.startswith("PS")}
-        env.update(
-            {
-                "PATH": "C:\\Windows\\System32",
-                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
-            }
-        )
         with patch.dict(os.environ, env, clear=True):
             assert is_under_powershell() is False
