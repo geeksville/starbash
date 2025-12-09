@@ -3,6 +3,9 @@
 import logging
 import os
 import textwrap
+from pathlib import Path
+
+from rich.progress import track
 
 from starbash.os import symlink_or_copy
 from starbash.tool.base import ExternalTool, tool_run
@@ -11,6 +14,25 @@ from starbash.tool.context import expand_context_unsafe, strip_comments
 logger = logging.getLogger(__name__)
 
 __all__ = ["SirilTool"]
+
+
+def link_or_copy_to_dir(input_files: list[Path], dest_dir: str):
+    """Create symbolic links or copies of input files in the given directory."""
+
+    from starbash.os import symlinks_supported
+
+    description = (
+        "Linking input files..."
+        if symlinks_supported
+        else "Copying input files (fix your OS settings!)..."
+    )
+
+    for f in track(input_files, description=description):
+        dest_file = os.path.join(dest_dir, os.path.basename(str(f)))
+
+        # if a script is re-run we might already have the input file symlinks
+        if not os.path.exists(dest_file):
+            symlink_or_copy(str(f), dest_file)
 
 
 class SirilTool(ExternalTool):
@@ -35,7 +57,7 @@ class SirilTool(ExternalTool):
         # The loop continues until the string no longer changes.
         expanded = expand_context_unsafe(commands, context)
 
-        input_files = context.get("input_files", [])
+        input_files: list[Path] = context.get("input_files", [])
 
         temp_dir = cwd
 
@@ -43,13 +65,7 @@ class SirilTool(ExternalTool):
         if siril_path == "org.siril.Siril":
             siril_path = "flatpak run org.siril.Siril"
 
-        # Create symbolic links for all input files in the temp directory
-        for f in input_files:
-            dest_file = os.path.join(temp_dir, os.path.basename(str(f)))
-
-            # if a script is re-run we might already have the input file symlinks
-            if not os.path.exists(dest_file):
-                symlink_or_copy(str(f), dest_file)
+        link_or_copy_to_dir(input_files, temp_dir)
 
         # We dedent here because the commands are often indented multiline strings
         script_content = textwrap.dedent(

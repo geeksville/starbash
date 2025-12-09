@@ -1145,9 +1145,10 @@ class Processing(ProcessingLike):
                 used_candidates[0].candidate
             )  # make sure abspath is populated, we need it
 
-            selected_master = used_candidates[0].candidate["abspath"]
+            selected = used_candidates[0].candidate
+            selected_master = selected["abspath"]
             logging.info(
-                f"For master '{imagetyp}', using: {selected_master} (score={used_candidates[0].score:.1f}, {used_candidates[0].reason})"
+                f"For master '{imagetyp}', using: {selected['path']} (score={used_candidates[0].score:.1f}, {used_candidates[0].reason})"
             )
 
             # so scripts can find input["bias"].base etc...
