@@ -20,6 +20,7 @@ poetry completions zsh > ~/.zfunc/_poetry
 poetry run pre-commit install
 
 # just completions
+just --completions bash >> ~/.bash_completion
 just --completions zsh > ~/.zfunc/_just
 
 # for zsh completions: Add to fpath and enable completions if not already present

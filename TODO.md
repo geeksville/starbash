@@ -121,6 +121,7 @@
 * [x] make integration-test work again (m13, possibly a problem with auto master generation?)
 * [x] skip graxpert denoise by default (it is very slow)
 * [x] push to main and bump to 0.1.29 on pypi
+* [x] don't spam warnings when no internet connection
 * [ ] bug: dies due to differing resolutions in merge. can repo with m31 test set - https://github.com/geeksville/starbash/issues/9
 * [x] test case m20 failing due to two tasks targeting stacked_Ha.fits
 * [ ] test and adjust (m31?) multisession/mixed device stacking

@@ -29,6 +29,9 @@ def analytics_setup(allowed: bool = False, user_email: str | None = None) -> Non
         import sentry_sdk
         from sentry_sdk.integrations.logging import LoggingIntegration
 
+        # Suppress urllib3 connection retry warnings from Sentry's HTTP client
+        logging.getLogger("urllib3.connectionpool").setLevel(logging.ERROR)
+
         logging.info(
             f"Analytics/crash-reports enabled.  To change [link={url.analytics_docs}]click here[/link]",
             extra={"markup": True},
