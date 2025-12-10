@@ -312,13 +312,13 @@ class Processing(ProcessingLike):
 
         import starbash
 
-        # Note: we don't process all tasks in one big doit run, because we want to be able to cleanup processing dirs
-        # between targets.
-
         results: list[ProcessingResult] = []
         auto_process_masters = starbash.process_masters
         if auto_process_masters:
-            results.extend(self._run_all_tasks(self._create_master_tasks()))
+            results.extend(self.run_master_stages())
+
+        # Note: we don't process all tasks in one big doit run, because we want to be able to cleanup processing dirs
+        # between targets.
 
         # Show two progress bars, one for each target and a second (from inside doit.py) showing the tasks
         progress_task = self.progress.add_task("Processing targets...", total=len(targets_list))

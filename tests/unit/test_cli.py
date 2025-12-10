@@ -168,6 +168,8 @@ def test_repo_add_command(setup_test_environment, tmp_path):
 
 def test_repo_remove_command(setup_test_environment, tmp_path):
     """Test 'starbash repo remove' command - can remove a user-added repo."""
+    import re
+
     # Add a test repo first
     test_repo = tmp_path / "testrepo"  # Short name to avoid wrapping issues
     test_repo.mkdir()
@@ -182,31 +184,22 @@ def test_repo_remove_command(setup_test_environment, tmp_path):
     # The test repo should be in the list
     assert "testrepo" in list_result.stdout
 
-    # Find the repo number - filter out log lines first
-    lines = [
-        line
-        for line in list_result.stdout.split("\n")
-        if (
-            line.strip()
-            and ":" in line
-            and "file://" in line
-            and not line.strip().startswith("INFO")
-            and not line.strip().startswith("DEBUG")
-        )
-    ]
-    # Get the last numbered line
-    last_line = None
-    for line in lines:
-        if line.strip() and line.strip()[0].isdigit():
-            last_line = line
+    # Find the line with testrepo and extract its number using regex
+    # This handles ANSI color codes that might be in the output
+    repo_num = None
+    for line in list_result.stdout.split("\n"):
+        if "testrepo" in line and "file://" in line:
+            # Extract number using regex, which works even with ANSI codes
+            match = re.search(r"(\d+):", line)
+            if match:
+                repo_num = match.group(1)
+                break
 
     # Debug output for troubleshooting
-    if last_line is None:
+    if repo_num is None:
         print(f"\n=== DEBUG: Full output ===\n{list_result.stdout}")
-        print(f"\n=== DEBUG: Filtered lines ===\n{lines}")
 
-    assert last_line is not None, f"Could not find numbered repo in list. Lines: {lines}"
-    repo_num = last_line.strip().split(":")[0].strip()
+    assert repo_num is not None, f"Could not find testrepo in list. Output: {list_result.stdout}"
 
     # Remove the repo
     remove_result = runner.invoke(app, ["repo", "remove", repo_num])

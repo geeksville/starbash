@@ -284,7 +284,7 @@ class TestProcessAutoWorkflow:
         result_select = runner.invoke(app, ["repo", "list"])
         print("\n--- sb repo list output ---\n", result_select.stdout)
 
-        result = runner.invoke(app, ["--force", "process", "auto", "--no-masters"])
+        result = runner.invoke(app, ["process", "auto"])
         # Store full stdout to /tmp/process-auto.log for manual debugging
         with open("/tmp/process-auto.log", "w") as log_file:
             log_file.write(result.stdout)

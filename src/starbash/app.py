@@ -48,6 +48,8 @@ from starbash.windows import windows_init
 
 critical_keys = [Database.DATE_OBS_KEY, Database.IMAGETYP_KEY]
 
+force_local_recipes = False  # Set to True to always use local recipes for testing
+
 
 def setup_logging(console: rich.console.Console):
     """
@@ -173,6 +175,18 @@ class Starbash:
         self.selection = Selection(self.user_repo)
         preflight_tools()
 
+    def _install_local_recipes(self) -> bool:
+        """Use our local github submodule for recipes during development.
+
+        Returns True if local recipes were installed."""
+
+        submodule_path = Path(__file__).parent.parent.parent / "starbash-recipes"
+        if submodule_path.exists():
+            logging.info(f"Using local recipes from {submodule_path}")
+            self.repo_manager.add_repo(f"file://{submodule_path}")
+            return True
+        return False
+
     def _init_repos(self) -> None:
         """Initialize all repositories managed by the RepoManager."""
         self.repo_manager = RepoManager()
@@ -183,6 +197,10 @@ class Starbash:
 
         # We always need at least one set of recipes.  If the user hasn't specified one use the default.
         if self.repo_manager.get_repo_by_kind("std-recipe") is None:
+            if force_local_recipes:
+                if self._install_local_recipes():
+                    return  # We were able to use a local submodule version
+
             default_recipes_url = self.repo_manager.get("repo.recipe_default")
             assert default_recipes_url, (
                 "Bug, repo.recipe_default not found."
@@ -196,11 +214,7 @@ class Starbash:
             except ValueError as e:
                 # Fallback to local submodule if remote version doesn't exist yet
                 logging.warning(f"Could not load recipes from {default_recipes_url}: {e}")
-                submodule_path = Path(__file__).parent.parent.parent / "starbash-recipes"
-                if submodule_path.exists():
-                    logging.info(f"Using local recipes from {submodule_path}")
-                    self.repo_manager.add_repo(f"file://{submodule_path}")
-                else:
+                if not self._install_local_recipes():
                     raise
 
     def _init_analytics(self, cmd: str) -> None:

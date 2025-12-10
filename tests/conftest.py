@@ -7,6 +7,28 @@ import pytest
 from starbash import paths
 
 
+@pytest.fixture(scope="session", autouse=True)
+def force_local_recipes_for_all_tests():
+    """Force all tests to use local recipe submodule instead of remote recipes.
+
+    This session-scoped autouse fixture runs once at the beginning of the test session
+    and ensures that all Starbash instances created during testing will use the local
+    starbash-recipes submodule rather than fetching recipes from GitHub.
+    """
+    from starbash import app
+
+    # Save original value
+    original_value = app.force_local_recipes
+
+    # Force use of local recipes for all tests
+    app.force_local_recipes = True
+
+    yield
+
+    # Restore original value after all tests complete
+    app.force_local_recipes = original_value
+
+
 @pytest.fixture
 def setup_test_environment(tmp_path):
     """Setup a test environment with isolated config and data directories.

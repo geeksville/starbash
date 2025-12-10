@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from starbash import doit
+from starbash import doit_types
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -24,13 +24,13 @@ def limit_max_contexts():
     This fixture automatically runs for all integration tests and saves/restores
     the original max_contexts value after tests complete.
     """
-    original_max_contexts = doit.max_contexts
-    doit.max_contexts = 1
+    original_max_contexts = doit_types.max_contexts
+    doit_types.max_contexts = 1
 
     yield
 
     # Restore original value
-    doit.max_contexts = original_max_contexts
+    doit_types.max_contexts = original_max_contexts
 
 
 @pytest.fixture(scope="session", autouse=True)
