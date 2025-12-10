@@ -52,7 +52,7 @@
 * [x] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
 * [x] fix remaining tool failures (just fail-ngc7023)
 
-## First public alpha occured here
+### First public alpha occured here
 
 * [x] **first public alpha (reddit)** at approximately this point
 * [ ] fix dwarf3 (bug #1) investigation by @codegistics
@@ -125,12 +125,12 @@
 * [x] bug: dies due to differing resolutions in merge. can repo with m31 test set - https://github.com/geeksville/starbash/issues/9
 * [x] test case m20 failing due to two tasks targeting stacked_Ha.fits
 * [x] test and adjust (m31?) multisession/mixed device stacking
-* [ ] store siril/graxpert/anytool logs in the output directory...
+* [x] store siril/graxpert/anytool logs in the output directory...
 * [ ] ic test failing on ic434 - make auto master processing smarter - this will fix the integration test
 * [x] fix: getting removed in preflight because stage exclusions need to be session specific
 * [x] while developing default to pulling recipes from local submodule
 * [x] add parameterizations support - so scripts can have named preferences that get stored in toml run file - use for graxpert smoothing etc...
-* [ ] show only first 5 and last 10 lines for siril failures
+* [x] show only first 5 and last 10 lines for siril failures
 * [ ] use pixelmath to merge multichannel output files into a single file
 * [ ] bug: ngc6888 (in the big test data set) needs looser registration requirements
 * [ ] split out most of osc.py?
@@ -146,12 +146,12 @@
 * [x] cleanup how different stages dependencies work together: bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
 * [x] too many cache dirs, delete after tasks
 * [x] no need for a cheaper modification checker - current checker only uses the expensive md5 if the file timestamp differs and the size has not changed.  But if that is too expensive TimestampChecker is available.
-* [ ] include thanks for siril,graxpert,starnet,doit
+* [x] include thanks for siril,graxpert,starnet,doit
 * [ ] improve user readability of process report files
 * [ ] add warning about trusting recipe sources...
 * [ ] **second alpha release approximately here**
 
-## Do second alpha here
+### Do second alpha here
 
 * [ ] make a use_drizzle prefs option, make it work on a per project or per user basis (drizzle uses LOTS of disk space)
 * [ ] experiment with parallel task execution: https://github.com/pydoit/doit/blob/00c136f5dfe7e9039d0fed6dddd6d45c84c307b4/doc/cmd-run.rst#parallel-execution.  Though locks would need around final run logging
@@ -279,7 +279,7 @@
 * [ ] experiment with telescopus upload (filling in fields of image info with backpointers requesting feedback)
 * [ ] make a "gen_test_db() function that can be used to generate either a huge or a tiny DB with 'real looking' test data (for performance tesing and CI).  Have it use a couple of real stripped FITS files.
 
-List of currently failing runs (probably just running out of disk space?):
+(stale) List of currently failing runs (probably just running out of disk space?):
 
                                    Autoprocessed to /workspaces/starbash/images/processed
 ┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
