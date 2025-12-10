@@ -1153,8 +1153,9 @@ class Processing(ProcessingLike):
 
             selected = used_candidates[0].candidate
             selected_master = selected["abspath"]
+            path = Path(selected["path"])  # to get just the filename portion
             logging.info(
-                f"For master '{imagetyp}', using: {selected['path']} (score={used_candidates[0].score:.1f}, {used_candidates[0].reason})"
+                f"For master '{imagetyp}', using: {path.name} (score={used_candidates[0].score:.1f}, {used_candidates[0].reason})"
             )
 
             # so scripts can find input["bias"].base etc...

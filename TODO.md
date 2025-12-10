@@ -136,7 +136,8 @@ Changes since alpha 1...
 * [x] show only first 5 and last 10 lines for siril failures
 * [ ] use pixelmath to merge multichannel output files into a single file
 * [ ] bug: ngc6888 (in the big test data set) needs looser registration requirements
-* [ ] split out most of osc.py?
+* [ ] include siril author credits
+* [x] split out most of osc.py?
 * [x] input_files should be cleared from imported contexts.
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
 * [x] provide link to generated starbash.toml files

@@ -158,6 +158,10 @@ class ProcessedTarget:
 
         self.log_path: Path = log_path  # Let later tools see where to write our logs
 
+        # Blow away any old log file
+        if log_path.exists():
+            log_path.unlink()
+
         template_name = f"target/{output_kind}"
         default_toml = toml_from_template(template_name, overrides=self.p.context)
         self.repo = Repo(
