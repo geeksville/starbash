@@ -165,11 +165,11 @@ Changes after alpha 2...
 * [ ] use caching fetch to speed up graxpert downloads
 * [ ] find a way to run the integration tests on a Windows VM (for #1 testing)
 * [x] make test data even smaller
-* [ ] merge Processing with ProcessingContext?
+* [x] merge Processing with ProcessingContext?
 * [x] check for required/recommended tools at start.
 * [x] for debugging purposes generate a mastername.sb.toml file per master - to see input selection choices
 * [ ] include temperature in bias filenames.
-* [ ] name the progess dirs so they can be semi-persistent (speed up reruns)
+* [x] name the progess dirs so they can be semi-persistent (speed up reruns)
 * [ ] let user spec a max cache size, if we exceed that just delete older build dirs from that cache as needed.  This would allow quick rebuilds for the last N targets rendered.
 * [x] move processing code out of app
 * [x] move masters code out of app
@@ -177,9 +177,8 @@ Changes after alpha 2...
 * [x] make auto process work again for dual-duo single session workflows (test with NGC 281) sb.run_all_stages()
 * [ ] master relative path should be based on unique camera ID - so that Ascar_V_80mm_flattener and Ascar_V_80mm_extender can share the same masters.
 * [x] NotEnoughFilesError should not crash processing
-* [ ] simple OSC processing scripts shouldn't even need custom python - make siril invoke smarter (by being multi-session aware for input files)
+* [x] simple OSC processing scripts shouldn't even need custom python - make siril invoke smarter (by being multi-session aware for input files)
 * [ ] find a way for scripts to share python code with each other
-* [ ] implement recipe/repo inheritence to prevent the copypasta required in the existing OSC scripts
 * [x] add progress 'spinner' bar while doing any tool runs... https://rich.readthedocs.io/en/latest/reference/spinner.html
 * [x] return a list of ProcessingResult named tuples from auto and master processing.  print as table.
 * [x] get a successful run on X
@@ -191,17 +190,17 @@ Changes after alpha 2...
 * [x] fix dark frame generation
 * [x] make 'regen all masters' work
 * [ ] normalize imagetyp before inserting them into session or images tables
-* [ ] add backpointers to run-customization repo file to output FITS files.
-* [ ] eventually store master info in the root toml file for masters
+* [x] add backpointers to run-customization repo file to output FITS files.
+* [x] eventually store master info in the root toml file for masters
 * [x] allow recipes to specify the min # of expected generated output files.  Currently we just assume it is 1
 * [ ] more gracefully handle UnrecognizedAliasError and ask user if they want to add it...
-* [ ] make output-path precheck work for "lights" rules so those expensive operations can sometimes be skipped
-* [ ] make and intergration test that uses a few real files
-* [ ] catch the exception for missing siril/graxpert and print user instructions on how to install
+* [x] make output-path precheck work for "lights" rules so those expensive operations can sometimes be skipped
+* [x] make and intergration test that uses a few real files
+* [ ] make UserHandledError actually prompt for a user decision (aliases etc...)
 * [x] make flat rule work
-* [ ] use normalized names when searching for filters or master or light frames
+* [x] use normalized names when searching for filters or master or light frames
 * [x] when reindexing/adding masters, put them in the session db as some sort of special entry
-* [ ] make siril prep smarter about best sets, include report in toml file, show options on log
+* [x] make siril prep smarter about best sets, include report in toml file, show options on log
 * [x] I bet that masters are probably being included in the session images, don't include them when passing image files to tasks.
 * [ ] probably: instead of a list of repos we should keep repos in memory in a tree structure - which would allow walking up the tree to inherit/override entries.
 * [x] add exposure length as another common element for a session
@@ -215,6 +214,7 @@ Changes after alpha 2...
 * [x] dependencies should auto skip rebuilds - though only within the 3 build cache limit
 * [x] fix remaining failure in m20 target - the final stack_dual_duo is missing dependencies on the s35 prior stage outputs and has 2x dependencies on s36
 * [x] add graxpert
+* [ ] implement recipe/repo inheritence to prevent the copypasta required in the existing OSC scripts
 * [ ] change recipes to use imports
 * [ ] cleanup Repo import code
 * [ ] remove priorities from stages where dependencies should have worked.  hack to fix "Stages in priority order: ['stack_dual_duo', 'light', 'seqextract_haoiii'"
@@ -230,17 +230,15 @@ Changes after alpha 2...
 * [x] add automated session looping (multiday)
 * [x] unify the script execution code between sessions and masters
 * [x] pass stage outputs via the context?
-* [ ] install bandit security tests https://bandit.readthedocs.io/en/latest/integrations.html
-* [ ] generalize the various session selectors to make them just come from an array of column names (should allow removing the select telescope, select foo variants)
+* [x] FIX GRAXPERT RELEASE
+* [x] generalize the various session selectors to make them just come from an array of column names (should allow removing the select telescope, select foo variants)
 * [x] add the concept of filter aliases
 * [ ] record # of repos, # of images, # of sessions, in analytics - to measure db sufficiency
 * [x] does repo glob even matter if we just throw everything in the db based on fits metadata?  do an experiment.  YES it does, use DB based on FITS for all operations (instead of globs)
 * [x] Add a db starbash.Database class, populated from repos.  Regen as needed.
 * [x] change the info commands to use the current selection query (and include comparison to all in the output)
-* [ ] Possibly store the DB queries as the description for the sesssion inputs?
 * [x] consider two different 'users' one who just wants to use the DB/repo stuff (doesn't need the auto processing) - for that user just let them do queries and build a 'process' directory for siril.  And the other user who wants our slick smart scripts to also do at least pre-processing.  In initial release just support the the query opts
 * [x] add makefile style dependencies
-* [ ] allow selecting targets using OBJCTRA and OBJECTDEC + an angle of view - because it makes name differences meaningless.  possibly start with a name and then query a DB to find RA/DEC then look for the local images.
 * [x] add FITS based filter detection (use astropy.io https://docs.astropy.org/en/stable/install.html)
 * [x] make single DUO processing work
 * [x] add a command to select the current set of sessions to process (allow filtering by target name, date, instrument, etc...)
@@ -253,7 +251,6 @@ Changes after alpha 2...
 * [x] render output (including tables) with https://github.com/Textualize/rich - use basic command lines at first
 * [x] test on asiair, seestar, nina
 * [ ] use get_safe more pervasively, pass in a help string to it (to indicate source of failure)
-* [ ] eventually do a simple gui using https://flet.dev/docs/
 * [x] use import importlib.util to load python code it is own namespace
 * [x] make crude flat frame generation work
 * [x] make crude light frame processing work
@@ -261,16 +258,16 @@ Changes after alpha 2...
 * [x] don't include recipes in the list of repos on the CLI.
 * [x] add a repo-add command that creates repo.sb.toml file in the rootdir and references it from users preferences.
 * [x] have repo-add auto recognize common nina/asiair/seestar layouts
-* [ ] generate a report on the final output including attribution for data sources, recpies etc...
+* [ ] generate a report on the final output including attribution for data sources, recipes etc...
 * [x] make default invocation walk the user through creation of input and output repos.
 * [x] don't regen masters/stacks/etc... if we don't need to - precheck for existence of output file
 * [x] add a backpointer in stages to the recipe they came from (for attribution, reporting etc...)
-* [ ] validate TOML files at load time to look for invalid keys (detect possible typos in recpie files etc...)
+
 * [x] change from eval() to something more secure (ast + eval? a restricted dict API?)
 * [x] add something like repo-add for masters and processed
 * [ ] do background elim with graxpert (before?) tri merge
 * [ ] mass-change all asserts to raise ValueError instead (or something better?)
-* [x] FIX GRAXPERT RELEASE
+
 * [ ] add doit depenencies on the generated toml files
 * [ ] add doit dependencies on the recipe files
 * [x] generalize processing to also work on single duo filter or broadband OSC
@@ -280,6 +277,13 @@ Changes after alpha 2...
 * [ ] print report on frame quality, registration etc...
 * [ ] get a real app icon (instead of current placeholder)
 * [ ] experiment with auto generation of report text
+
+* [ ] make python less of security nightmare
+* [ ] install bandit security tests https://bandit.readthedocs.io/en/latest/integrations.html
+* [ ] allow selecting targets using OBJCTRA and OBJECTDEC + an angle of view - because it makes name differences meaningless.  possibly start with a name and then query a DB to find RA/DEC then look for the local images.
+* [ ] Possibly store the DB queries as the description for the sesssion inputs?
+* [ ] eventually do a simple gui using https://flet.dev/docs/
+* [ ] validate TOML files at load time to look for invalid keys (detect possible typos in recipe files etc...)
 * [ ] experiment with telescopus upload (filling in fields of image info with backpointers requesting feedback)
 * [ ] make a "gen_test_db() function that can be used to generate either a huge or a tiny DB with 'real looking' test data (for performance tesing and CI).  Have it use a couple of real stripped FITS files.
 
