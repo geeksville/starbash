@@ -1,0 +1,341 @@
+[repo]
+kind = "processed-target"
+
+# This is auto generated at the root of a Starbash target processing tree
+# it is initially auto populated based on the best guess of starbash, but you
+# can customize as needed.  Any changes you make to this file will be preserved/used
+# in future runs.
+
+[about] # (if not present this section will be auto generated at processing time)
+
+summary = """
+Processed data for M 20.
+Generated from 2 imaging sessions.
+Total of 0.6 hours of exposure.
+Filters used: HaOiii, SiiOiii.
+Observation dates: 2025-09-23, 2025-09-23.
+"""
+
+target.id = "M 20"
+target.ra = "270.715522614653"
+target.dec = "-22.9604117826365"
+
+# Information about recipes used for processing or excluded by the user
+# If you'd like to pick something different just comment out the line in USED and uncomment the line in
+# excluded.
+# Whenever stabash is rerun it will update these arrays based on what was actually used for this run.
+
+[stages]
+used = [
+    "stack_dual_duo", # Stack OSC dual duo (HaOiii + SiiOiii) filter data: with separate Ha, Oiii and Sii channels
+    "stack_osc", # Basic OSC stacking (no fancy narrowband extraction)
+    "background", # Do background subtraction with graxpert
+    "thumbnail", # Generate a stretched thumbnail image
+    ]
+excluded = [
+    "stack_single_duo", # Stack OSC single duo (HaOiii) filter data: with separate Ha and Oiii channels
+    ]
+
+[[overrides]] # Uncomment and modify any of the following to override parameters:
+#
+# [[overrides]]
+# name = "stack_registration" # Registration options for Siril stacking
+# value = "rej g 0.3 0.05"
+#
+# [[overrides]]
+# name = "stack_filtering" # Filtering options for Siril (controls which frames are accepted for stacking)
+# value = "-filter-wfwhm=3k"
+#
+# [[overrides]]
+# name = "stack_options" # Misc options for Siril stacking
+# value = "-norm=addscale -output_norm -rgb_equal -32b"
+#
+# [[overrides]]
+# name = "smoothing_option" # Smoothing option for graxpert background extraction
+# value = 0.5
+#
+# [[overrides]]
+# name = "bge_ai_version" # AI version for graxpert background extraction
+# value = "1.0.1"
+#
+# [[overrides]]
+# name = "smoothing_option" # Smoothing option for graxpert background extraction
+# value = 0.5
+#
+# [[overrides]]
+# name = "bge_ai_version" # AI version for graxpert background extraction
+# value = "1.0.1"
+#
+# [[overrides]]
+# name = "smoothing_option" # Smoothing option for graxpert background extraction
+# value = 0.5
+#
+# [[overrides]]
+# name = "bge_ai_version" # AI version for graxpert background extraction
+# value = "1.0.1"
+#
+# [[overrides]]
+# name = "smoothing_option" # Smoothing option for graxpert background extraction
+# value = 0.5
+#
+# [[overrides]]
+# name = "bge_ai_version" # AI version for graxpert background extraction
+# value = "1.0.1"
+#
+# [[overrides]]
+# name = "thumbnail_size" # Maximum dimension for the thumbnail image
+# value = 1920
+#
+# [[overrides]]
+# name = "thumbnail_quality" # Quality setting for the thumbnail image (1-100)
+# value = 80
+
+[processing]
+
+# later during preprocessing information and attribution for recipe/tool usage etc will be added here
+
+[processing.citation]
+
+# The creator of this image session
+# (if not present this section will be auto generated at processing time)
+# this whole secion is auto copied from userprefs.sb.toml
+# The format of this session is compatible with the Citation File Format (CFF)
+# see https://github.com/citation-file-format/citation-file-format/blob/main/schema-guide.md
+# for details.
+# The only difference is to facilitate toml parsing we use an = sign instead of :
+# if/when .cff file exports are required we'll do that conversion then.
+
+[processing.recipe]
+
+# Summary information for each session processed.  Included with sessions is [stages] which allows per session
+# recipe exclusions/inclusions to be specified.
+[[sessions]]
+id = 41
+start = "2025-09-23T03:43:03.0192374"
+end = "2025-09-23T04:32:29.9182169"
+filter = "HaOiii"
+imagetyp = "LIGHT"
+object = "m20"
+telescop = "Ascar V 80mm extender"
+num_images = 10
+exptime_total = 1200.0
+exptime = 120.0
+image_doc_id = 65
+repo_url = "file:///test-data/nina"
+
+[sessions.metadata]
+SIMPLE = true
+BITPIX = 16
+NAXIS = 2
+NAXIS1 = 6248
+NAXIS2 = 4176
+BZERO = 32768
+EXTEND = true
+IMAGETYP = "LIGHT"
+EXPOSURE = 120.0
+EXPTIME = 120.0
+DATE-LOC = "2025-09-22T20:43:03.0192374"
+DATE-OBS = "2025-09-23T03:43:03.0192374"
+MJD-OBS = 60941.154896053
+DATE-AVG = "2025-09-23T03:44:03.2311871"
+MJD-AVG = 60941.1555929515
+XBINNING = 1
+YBINNING = 1
+GAIN = 100
+OFFSET = 50
+EGAIN = 0.242862924933434
+XPIXSZ = 3.76
+YPIXSZ = 3.76
+INSTRUME = "ZWO ASI2600MC Duo"
+CAMERAID = "ZWOptical_ZWO ASI2600MC Duo_"
+SET-TEMP = -10.0
+CCD-TEMP = -10.1
+BAYERPAT = "RGGB"
+XBAYROFF = 0
+YBAYROFF = 0
+USBLIMIT = 40
+TELESCOP = "Ascar V 80mm extender"
+FOCALLEN = 600.0
+FOCRATIO = 7.5
+RA = 270.715522614653
+DEC = -22.9604117826365
+CENTALT = 25.1108333333333
+CENTAZ = 205.533333333333
+AIRMASS = 2.34606402886404
+PIERSIDE = "East"
+SITEELEV = 148.6
+SITELAT = 37.5209711666667
+SITELONG = -122.309140833333
+FWHEEL = "EFW"
+FILTER = "HaOiii"
+OBJECT = "M 20"
+OBJCTRA = "18 02 42"
+OBJCTDEC = "-22 58 18"
+OBJCTROT = 98.0062369922861
+FOCNAME = "EAF"
+FOCPOS = 25498
+FOCUSPOS = 25498
+FOCUSSZ = 600000.0
+FOCTEMP = 24.5
+FOCUSTEM = 24.5
+DEWPOINT = 11.0
+HUMIDITY = 50.0
+PRESSURE = 991.4
+AMBTEMP = 21.9
+WINDDIR = 124.0
+WINDGUST = 1.800144
+WINDSPD = 0.0
+ROWORDER = "TOP-DOWN"
+EQUINOX = 2000.0
+SWCREATE = "N.I.N.A. 3.2.0.3005 (x64)"
+
+[sessions.stages]
+excluded = [
+    "light_vs_bias", # Extract OSC light calibrated vs bias
+    "light_no_darks", # Calibrate OSC lights that have no dark frames available
+    ]
+used = [
+    "light_vs_dark", # Extract OSC light calibrated vs dark
+    "seqextract_haoiii", # Extract OSC HaOiii channels
+    ]
+
+[sessions.masters.bias]
+used = [
+    "zwoasi2600mcduo/2025-09-10_03-31-44/bias/master_bias_gain100.fit", # -169344 gain match, time Δ=-13.0d, instrument mismatch
+    ]
+excluded = [
+    ]
+
+[sessions.masters.flat]
+used = [
+    "ascarv80mmextender/2025-09-23_03-36-20/flat/master_flat_HaOiii_gain100.fit", # 31480 gain match, time Δ=-0.0d, filter match
+    ]
+excluded = [
+    "ascarv80mmextender/2025-09-23_03-37-52/flat/master_flat_SiiOiii_gain100.fit", # -68520 gain match, time Δ=-0.0d, filter mismatch
+    ]
+
+[sessions.masters.dark]
+used = [
+    "zwoasi2600mcduo/2025-09-10_03-48-47/dark/master_dark_120s_gain100.fit", # -169354 gain match, time Δ=-13.0d, instrument mismatch
+    ]
+excluded = [
+    "zwoasi2600mcduo/2025-09-10_03-38-43/dark/master_dark_60s_gain100.fit", # -169364 gain match, temp Δ=0.2°C, time Δ=-13.0d, instrument mismatch
+    "zwoasi2600mcduo/2025-09-10_03-26-39/dark/master_dark_30s_gain100.fit", # -169383 gain match, temp Δ=0.4°C, time Δ=-13.0d, instrument mismatch
+    "zwoasi2600mcduo/2025-09-10_03-25-06/dark/master_dark_1s_gain100.fit", # -169383 gain match, temp Δ=0.4°C, time Δ=-13.0d, instrument mismatch
+    ]
+
+[[sessions]]
+id = 42
+start = "2025-09-23T03:52:06.4254740"
+end = "2025-09-23T04:24:47.4998062"
+filter = "SiiOiii"
+imagetyp = "LIGHT"
+object = "m20"
+telescop = "Ascar V 80mm extender"
+num_images = 8
+exptime_total = 960.0
+exptime = 120.0
+image_doc_id = 67
+repo_url = "file:///test-data/nina"
+
+[sessions.metadata]
+SIMPLE = true
+BITPIX = 16
+NAXIS = 2
+NAXIS1 = 6248
+NAXIS2 = 4176
+BZERO = 32768
+EXTEND = true
+IMAGETYP = "LIGHT"
+EXPOSURE = 120.0
+EXPTIME = 120.0
+DATE-LOC = "2025-09-22T20:52:06.4254740"
+DATE-OBS = "2025-09-23T03:52:06.4254740"
+MJD-OBS = 60941.1611854746
+DATE-AVG = "2025-09-23T03:53:06.6220382"
+MJD-AVG = 60941.1618821989
+XBINNING = 1
+YBINNING = 1
+GAIN = 100
+OFFSET = 50
+EGAIN = 0.242862924933434
+XPIXSZ = 3.76
+YPIXSZ = 3.76
+INSTRUME = "ZWO ASI2600MC Duo"
+CAMERAID = "ZWOptical_ZWO ASI2600MC Duo_"
+SET-TEMP = -10.0
+CCD-TEMP = -10.0
+BAYERPAT = "RGGB"
+XBAYROFF = 0
+YBAYROFF = 0
+USBLIMIT = 40
+TELESCOP = "Ascar V 80mm extender"
+FOCALLEN = 600.0
+FOCRATIO = 7.5
+RA = 270.71776363843
+DEC = -22.9614840082792
+CENTALT = 24.305
+CENTAZ = 207.656111111111
+AIRMASS = 2.41804398589757
+PIERSIDE = "East"
+SITEELEV = 148.6
+SITELAT = 37.5209711666667
+SITELONG = -122.309140833333
+FWHEEL = "EFW"
+FILTER = "SiiOiii"
+OBJECT = "M 20"
+OBJCTRA = "18 02 42"
+OBJCTDEC = "-22 58 18"
+OBJCTROT = 98.0062369922861
+FOCNAME = "EAF"
+FOCPOS = 25458
+FOCUSPOS = 25458
+FOCUSSZ = 600000.0
+FOCTEMP = 24.5
+FOCUSTEM = 24.5
+DEWPOINT = 11.0
+HUMIDITY = 50.0
+PRESSURE = 991.4
+AMBTEMP = 21.9
+WINDDIR = 124.0
+WINDGUST = 1.800144
+WINDSPD = 0.0
+ROWORDER = "TOP-DOWN"
+EQUINOX = 2000.0
+SWCREATE = "N.I.N.A. 3.2.0.3005 (x64)"
+
+[sessions.stages]
+excluded = [
+    "light_vs_bias", # Extract OSC light calibrated vs bias
+    "light_no_darks", # Calibrate OSC lights that have no dark frames available
+    ]
+used = [
+    "light_vs_dark", # Extract OSC light calibrated vs dark
+    "seqextract_haoiii", # Extract OSC HaOiii channels
+    ]
+
+[sessions.masters.bias]
+used = [
+    "zwoasi2600mcduo/2025-09-10_03-31-44/bias/master_bias_gain100.fit", # -169354 gain match, time Δ=-13.0d, instrument mismatch
+    ]
+excluded = [
+    ]
+
+[sessions.masters.flat]
+used = [
+    "ascarv80mmextender/2025-09-23_03-37-52/flat/master_flat_SiiOiii_gain100.fit", # 31489 gain match, time Δ=-0.0d, filter match
+    ]
+excluded = [
+    "ascarv80mmextender/2025-09-23_03-36-20/flat/master_flat_HaOiii_gain100.fit", # -68511 gain match, time Δ=-0.0d, filter mismatch
+    ]
+
+[sessions.masters.dark]
+used = [
+    "zwoasi2600mcduo/2025-09-10_03-48-47/dark/master_dark_120s_gain100.fit", # -169344 gain match, time Δ=-13.0d, instrument mismatch
+    ]
+excluded = [
+    "zwoasi2600mcduo/2025-09-10_03-38-43/dark/master_dark_60s_gain100.fit", # -169373 gain match, temp Δ=0.3°C, time Δ=-13.0d, instrument mismatch
+    "zwoasi2600mcduo/2025-09-10_03-26-39/dark/master_dark_30s_gain100.fit", # -169392 gain match, temp Δ=0.5°C, time Δ=-13.0d, instrument mismatch
+    "zwoasi2600mcduo/2025-09-10_03-25-06/dark/master_dark_1s_gain100.fit", # -169392 gain match, temp Δ=0.5°C, time Δ=-13.0d, instrument mismatch
+    ]
+

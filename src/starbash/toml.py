@@ -83,19 +83,26 @@ def toml_from_list(items: list[Any]) -> Array:
 
 
 def toml_from_template(
-    template_name: str, dest_path: Path | None = None, overrides: dict[str, Any] = {}
+    template_name: str, dest_path: Path | None = None, overrides: dict[str, Any] | None = {}
 ) -> tomlkit.TOMLDocument:
     """Load a TOML document from a template file.
     expand {vars} in the template using the `overrides` dictionary.
+
+    Args:
+        template_name (str): name of the template file (without .toml extension)
+        dest_path (Path | None, optional): if provided, write the resulting toml to
+            this path. Defaults to None.
+        overrides (dict[str, Any], optional): variables to override in the template. If None, no overrides.
     """
 
     tomlstr = resources.files("starbash").joinpath(f"templates/{template_name}.toml").read_text()
 
-    # add default vars always available
-    vars = {"PROJECT_URL": url.project}
-    vars.update(overrides)
-    t = Template(tomlstr)
-    tomlstr = t.substitute(vars)
+    if overrides is not None:
+        # add default vars always available
+        vars = {"PROJECT_URL": url.project}
+        vars.update(overrides)
+        t = Template(tomlstr)
+        tomlstr = t.substitute(vars)
 
     toml = tomlkit.parse(tomlstr)
 

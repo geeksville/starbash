@@ -137,6 +137,7 @@ Changes since alpha 1...
 * [ ] use pixelmath to merge multichannel output files into a single file
 * [ ] bug: ngc6888 (in the big test data set) needs looser registration requirements
 * [ ] include siril author credits
+* [ ] Anonymize SITELONG and SITELAT in output files
 * [x] split out most of osc.py?
 * [x] input_files should be cleared from imported contexts.
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
@@ -151,7 +152,7 @@ Changes since alpha 1...
 * [x] too many cache dirs, delete after tasks
 * [x] no need for a cheaper modification checker - current checker only uses the expensive md5 if the file timestamp differs and the size has not changed.  But if that is too expensive TimestampChecker is available.
 * [x] include thanks for siril,graxpert,starnet,doit
-* [ ] improve user readability of process report files
+* [x] improve user readability of process report files
 * [ ] add warning about trusting recipe sources...
 * [ ] **second alpha release approximately here**
 

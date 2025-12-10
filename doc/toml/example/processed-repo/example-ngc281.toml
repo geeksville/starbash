@@ -1,6 +1,8 @@
 [repo]
 kind="processed-target"
 
+# NOTE: This example is a little stale - better to look at example-m20.toml instead.
+
 # This is auto generated at the root of a session processing tree
 # it is initially auto populated based on the best guess of starbash, but the user
 # can hand customize as needed

@@ -6,16 +6,20 @@ kind = "processed-target"
 # can customize as needed.  Any changes you make to this file will be preserved/used
 # in future runs.
 
-[about] # (if not present this section will be auto generated at processing time)
+# About the target and processing - this section is auto geneated each starbash processing run...
+[about]
 
-# this section contains textual information the user might want to share on social media or whatever
-# some of it comes from FITS headers gleaned during processing or other statistics
+summary = """
+Processed data for $target.
+Generated from $num_sessions imaging sessions.
+Total of $total_exposure_hours hours of exposure.
+Filters used: $filters_used.
+Observation dates: $observation_dates.
+"""
 
 target.id = "$target"
-# target.name = "Some Big Nebula"
-# target.ra = "123.45"
-# OBJCTRA = '00 23 44'           / [H M S] RA of imaged object
-# OBJCTDEC= '+89 55 28'
+target.ra = "$target_ra"
+target.dec = "$target_dec"
 
 # Information about recipes used for processing or excluded by the user
 # If you'd like to pick something different just comment out the line in USED and uncomment the line in
@@ -23,15 +27,12 @@ target.id = "$target"
 # Whenever stabash is rerun it will update these arrays based on what was actually used for this run.
 [stages]
 
-[[overrides]]
 # If your recipes have parameters starbash will auto populate this section with possible overrides.
-
-[processing]
-
-# later during preprocessing information and attribution for recipe/tool usage etc will be added here
+[[overrides]]
 
 [processing.citation]
 
+# (Not yet implemented)
 # The creator of this image session
 # (if not present this section will be auto generated at processing time)
 # this whole secion is auto copied from userprefs.sb.toml
@@ -41,24 +42,10 @@ target.id = "$target"
 # The only difference is to facilitate toml parsing we use an = sign instead of :
 # if/when .cff file exports are required we'll do that conversion then.
 
-[processing.recipe]
 
 
-[processing.recipe.options]
 
-# elegible recipes available for use, if one was not specified above the first recipe in this list will be used
-url = ["file:///blah/blah/recipes/osc-broadband.toml"]
 
-# if specified a specific recipe will be used, otherwiase one will be chosen and run
-# automatically
-# Starbash will search all recipe repos to find this by name
-# url = "http://foo.blah/osc-dual-duo"
-
-# other standard recipes...
-# osc-duo, osc-broadband
-# mono-sho (fixme find other names used in mono workflow land)
-
-# a default starbash file for a particular processed target will typically contain only the preceeding
 
 # Summary information for each session processed.  Included with sessions is [stages] which allows per session
 # recipe exclusions/inclusions to be specified.

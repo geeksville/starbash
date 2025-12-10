@@ -9,7 +9,7 @@ from typing import Any
 import tomlkit
 
 from repo import Repo, repo_suffix
-from starbash import StageDict
+from starbash import StageDict, to_shortdate
 from starbash.database import SessionRow
 from starbash.doit_types import TaskDict, cleanup_old_contexts, get_processing_dir
 from starbash.parameters import ParameterStore
@@ -163,7 +163,9 @@ class ProcessedTarget:
             log_path.unlink()
 
         template_name = f"target/{output_kind}"
-        default_toml = toml_from_template(template_name, overrides=self.p.context)
+        self.template_name = template_name
+        # Note: we are careful to delay overrides (for the 'about' section) until later
+        default_toml = toml_from_template(template_name, overrides=None)
         self.repo = Repo(
             repo_path, default_toml=default_toml
         )  # a structured Repo object for reading/writing this config
@@ -282,9 +284,64 @@ class ProcessedTarget:
             if value:
                 self.repo.set(f"stages.{key}", value)
 
+    def _generate_report(self) -> None:
+        """Generate a summary report about this processed target."""
+
+        overrides: dict[str, Any] = {}
+
+        # Gather some summary statistics
+        num_sessions = len(self.p.sessions)
+        total_num_images: int = 0
+        total_exposure_hours = 0.0
+        filters_used: set[str] = set()
+        observation_dates: list[str] = []
+
+        # Some fields should be the same for all sessions, so just grab them from the first one
+        if num_sessions > 0:
+            first_sess = self.p.sessions[0]
+            metadata = first_sess.get("metadata", {})
+            overrides["target"] = metadata.get("OBJECT", "N/A")
+            overrides["target_ra"] = metadata.get("RA", "N/A")
+            overrides["target_dec"] = metadata.get("DEC", "N/A")
+
+        for sess in self.p.sessions:
+            num_images = sess.get("num_images", 0)
+            total_num_images += num_images
+            exptime = sess.get("exptime", 0.0)
+            exposure_hours = (num_images * exptime) / 3600.0
+            total_exposure_hours += exposure_hours
+
+            filter = sess.get("filter")
+            if filter:
+                filters_used.add(filter)
+
+            obs_date = sess.get("start")
+            if obs_date:
+                observation_dates.append(to_shortdate(obs_date))
+
+        overrides["num_sessions"] = num_sessions
+        overrides["total_exposure_hours"] = round(total_exposure_hours, 2)
+        overrides["filters_used"] = ", ".join(sorted(filters_used))
+        if observation_dates:
+            sorted_dates = sorted(observation_dates)
+            overrides["observation_dates"] = ", ".join(sorted_dates)
+            overrides["earliest_date"] = sorted_dates[0]
+            overrides["latest_date"] = sorted_dates[-1]
+        else:
+            overrides["earliest_date"] = "N/A"
+            overrides["latest_date"] = "N/A"
+
+        report_toml = toml_from_template(
+            self.template_name, overrides=overrides
+        )  # reload the about section so we can snarf the updated version
+
+        # Store the updated about section
+        self.repo.set("about", report_toml["about"])
+
     def close(self) -> None:
         """Finalize and close the ProcessedTarget, saving any updates to the config."""
         self._update_from_context()
+        self._generate_report()
         self.parameter_store.write_overrides(self.repo)
         if self.config_valid:
             self.repo.write_config()

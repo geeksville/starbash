@@ -558,6 +558,9 @@ class Repo:
         Returns:
             A TOMLDocument containing the parsed configuration.
         """
+        if default_toml is None:
+            default_toml = tomlkit.TOMLDocument()  # empty placeholder
+
         try:
             if self._is_direct_toml_file():
                 # Read the .toml file directly from the URL
@@ -567,16 +570,15 @@ class Repo:
                 # Read starbash.toml from the directory
                 config_content = self.read(repo_suffix)
                 logging.debug(f"Loading repo config from {repo_suffix}")
-            return tomlkit.parse(config_content)
+            parsed = tomlkit.parse(config_content)
+
+            # All repos must have a "repo" table inside, otherwise we assume the file is invalid and should
+            # be reinited from template.
+            return parsed if "repo" in parsed else default_toml
+
         except FileNotFoundError:
-            if default_toml is not None:
-                logging.debug(f"No config file found for {self.url}, using template...")
-                return default_toml
-            else:
-                logging.debug(
-                    f"No config file found for {self.url} - using empty config..."
-                )  # we currently make it optional to have the config file at root
-                return tomlkit.TOMLDocument()  # empty placeholder
+            logging.debug(f"No config file found for {self.url}, using template...")
+            return default_toml
 
     def read(self, filepath: str) -> str:
         """
