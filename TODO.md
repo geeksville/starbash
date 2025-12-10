@@ -153,7 +153,8 @@
 
 ## Do second alpha here
 
-* [ ] experiment with parallel task execution: https://github.com/pydoit/doit/blob/00c136f5dfe7e9039d0fed6dddd6d45c84c307b4/doc/cmd-run.rst#parallel-execution
+* [ ] make a use_drizzle prefs option, make it work on a per project or per user basis (drizzle uses LOTS of disk space)
+* [ ] experiment with parallel task execution: https://github.com/pydoit/doit/blob/00c136f5dfe7e9039d0fed6dddd6d45c84c307b4/doc/cmd-run.rst#parallel-execution.  Though locks would need around final run logging
 * [ ] use caching fetch to speed up graxpert downloads
 * [ ] find a way to run the integration tests on a Windows VM (for #1 testing)
 * [x] make test data even smaller
@@ -293,21 +294,16 @@ List of currently failing runs (probably just running out of disk space?):
 │ m27  Mixed Dual and Seestar - dies due to not enough disk for drizzle         │       2025-07-10:light_LP_gain80 │ ✗ Failed  │ Tool: 'siril -d                                         │
 │                 │                                  │           │ /home/vscode/.cache/starbash/processing/m27 -s -'       │
 │                 │                                  │           │ failed                                                  │
-│ ngc6888         │       2025-07-07:light_LP_gain80 │ ✗ Failed  │ Tool: 'siril -d                                         │
+│ ngc6888 - probably also needs too much disk in drizzle        │       2025-07-07:light_LP_gain80 │ ✗ Failed  │ Tool: 'siril -d                                         │
 │                 │                                  │           │ /home/vscode/.cache/starbash/processing/ngc6888 -s -'   │
 │                 │                                  │           │ failed                                                  │
-│ ic1396          │  2025-09-02:light_HaOiii_gain100 │ ✗ Failed  │ Error during python script execution                    │
-│ ngc6960         │       2025-07-17:light_LP_gain80 │ ✗ Failed  │ Tool: 'siril -d                                         │
-│                 │                                  │           │ /home/vscode/.cache/starbash/processing/ngc6960 -s -'   │
-│                 │                                  │           │ failed                                                  │
-│ m45             │    2025-09-16:light_None_gain100 │ ✗ Failed  │ Tool: 'siril -d                                         │
+│ ic1396 - probably also big         │  2025-09-02:light_HaOiii_gain100 │ ✗ Failed  │ Error during python script execution                    │
+
+│ m45 - probably just disk space            │    2025-09-16:light_None_gain100 │ ✗ Failed  │ Tool: 'siril -d                                         │
 │                 │                                  │           │ /home/vscode/.cache/starbash/processing/m45 -s -'       │
 │                 │                                  │           │ failed                                                  │
-│ m13             │    2025-08-25:light_None_gain100 │ ✓ Success │ light_vs_dark_m13_s3 → bkg_pp_light_s3_.seq             │
-│ m13             │    2025-07-12:light_IRCUT_gain80 │ ✗ Failed  │ Tool: 'siril -d                                         │
-│                 │                                  │           │ /home/vscode/.cache/starbash/processing/m13 -s -'       │
-│                 │                                  │           │ failed                                                  │
-│ m31             │    2025-09-01:light_None_gain100 │ ✗ Failed  │ Tool: 'siril -d                                         │
+
+│ m31 - probably just drizzle disk space            │    2025-09-01:light_None_gain100 │ ✗ Failed  │ Tool: 'siril -d                                         │
 │                 │                                  │           │ /home/vscode/.cache/starbash/processing/m31 -s -'       │
 │                 │                                  │           │ failed                                                  │
 └─────────────────┴──────────────────────────────────┴───────────┴─────────────────────────────────────────────────────────┘
