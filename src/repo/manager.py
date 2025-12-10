@@ -9,7 +9,7 @@ Manages the repository of processing recipes and configurations.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, overload
 
 from multidict import MultiDict
 
@@ -93,7 +93,14 @@ class RepoManager:
                 return repo
         return None
 
-    def get(self, key: str, default=None):
+    # If a default was provided use that type for return
+    @overload
+    def get[T](self, key: str, default: T) -> T | Any: ...
+
+    @overload
+    def get(self, key: str, default: None = None) -> Any | None: ...
+
+    def get[T](self, key: str, default: T | None = None) -> T | Any | None:
         """
         Searches for a key across all repositories and returns the first value found.
         The search is performed in reverse order of repository loading, so the

@@ -271,10 +271,20 @@ class ProcessedTarget:
 
         Call this **after** processing so that output path info etc... is in the context."""
 
+        blacklist: list[str] = self.p.sb.repo_manager.get("repo.metadata_blacklist", default=[])
+
         # Update the sessions list
         proc_sessions = self.repo.get("sessions", default=tomlkit.aot(), do_create=True)
         proc_sessions.clear()
         for sess in self.p.sessions:
+            sess = sess.copy()
+
+            metadata = sess.get("metadata", {})
+            # Remove any blacklisted metadata fields
+            for key in blacklist:
+                if key in metadata:
+                    metadata.pop(key, None)
+
             # Record session info (including what masters and stages were used for that session)
             proc_sessions.append(sess)
 

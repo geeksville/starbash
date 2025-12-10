@@ -10,6 +10,12 @@ kind = "preferences"
 # a particular version of the repo (using ${version} which gets substituted with the current starbash version)
 recipe_default = "https://raw.githubusercontent.com/geeksville/starbash-recipes/v${version}"
 
+# Some fields in session metadata we don't want to include in reports or toml because they might leak PII
+metadata_blacklist = [
+    "SITELONG",
+    "SITELAT",
+]
+
 # FIXME until doit is merged into main, pull recipes from the the local git submodule
 # url = "file:///workspaces/starbash/starbash-recipes"
 
