@@ -146,11 +146,15 @@ class ProcessedTarget:
         if output_kind != "master":
             # Get the path to the starbash.toml file
             config_path = dir / repo_suffix
+            log_path = dir / "starbash.log"
             repo_path = dir
         else:
             # Master file paths are just the base plus .toml
             config_path = dir.with_suffix(".toml")
+            log_path = dir.with_suffix(".log")
             repo_path = config_path
+
+        self.log_path: Path = log_path  # Let later tools see where to write our logs
 
         template_name = f"target/{output_kind}"
         default_toml = toml_from_template(template_name, overrides=self.p.context)

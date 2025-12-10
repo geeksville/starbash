@@ -618,7 +618,7 @@ class Starbash:
             if not has_critical_keys():
                 logging.debug(f"Headers {headers}")
                 logging.warning(
-                    "Image '%s' missing required FITS header (DATE-OBS or IMAGETYP), skipping...",
+                    "Image '%s' missing a required FITS header , skipping...",
                     headers["path"],
                 )
                 return False

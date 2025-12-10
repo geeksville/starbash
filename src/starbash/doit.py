@@ -272,11 +272,17 @@ class ToolAction(BaseAction):
         for fi in stage_input.values():
             perhaps_merge_to(fi)
 
+        from starbash.processed_target import ProcessedTarget
+
+        pt: ProcessedTarget = self.task.meta["processed_target"]
+        logfile_path = pt.log_path
+
         logging.info(f"Running {self.tool.name} for {self.task.name} {desc}")
         try:
-            self.result = self.tool.run(
-                self.commands, context=context, cwd=self.cwd, **self.parameters
-            )
+            with open(logfile_path, "a") as logfile:
+                self.result = self.tool.run(
+                    self.commands, context=context, cwd=self.cwd, log_out=logfile, **self.parameters
+                )
         except ValueError as e:
             # We pass back any exceptions in task.meta - so that our ConsoleReporter can pick them up (doit normally strips exceptions)
             self.task.meta["exception"] = e

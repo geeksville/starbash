@@ -1,5 +1,6 @@
 """Base tool classes for stage execution."""
 
+import io
 import logging
 import os
 import shutil
@@ -57,7 +58,47 @@ class MissingToolError(UserHandledError):
         return str(self)  # FIXME do something better here?
 
 
-def tool_run(cmd: str, cwd: str, commands: str | None = None, timeout: float | None = None) -> None:
+def tool_emit_logs(lines: str, log_level: int = logging.INFO) -> None:
+    """Emit log lines from a tool to the logger at the specified log level.
+
+    Some tools (especially Siril) are poor at marking which lines have actual error message, and they might generate LOTS
+    of less interesting log lines.  So in the case we got an error result from the tool, print only the first few lines (to show basic
+    context) and the last few lines (to show actual error messages).
+    """
+    NUM_PRELUDE_LINES = 5
+    NUM_WARNING_LINES = 10
+
+    if log_level == logging.DEBUG:
+        logger.log(log_level, f"[tool] {lines}")  # Show all the lines if we are debugging
+    else:
+        # Remove blank lines (not interesting)
+        split_lines = [line for line in lines.splitlines() if line.strip()]
+        total_preview_lines = NUM_PRELUDE_LINES + NUM_WARNING_LINES
+
+        if len(split_lines) <= total_preview_lines:
+            # If there are few enough lines, just show them all at the specified log level
+            logger.log(log_level, f"[tool] {lines}")
+        else:
+            # Show first few lines as INFO
+            first_lines = "\n".join(split_lines[:NUM_PRELUDE_LINES])
+            logger.info(f"[tool] {first_lines}")
+
+            # Show ellipsis to indicate omitted lines
+            omitted_count = len(split_lines) - total_preview_lines
+            logger.info(f"[dim][tool] … ({omitted_count} lines omitted) …[/dim]")
+
+            # Show last few lines at the specified log level
+            last_lines = "\n".join(split_lines[-NUM_WARNING_LINES:])
+            logger.log(log_level, f"[tool] {last_lines}")
+
+
+def tool_run(
+    cmd: str,
+    cwd: str,
+    commands: str | None = None,
+    timeout: float | None = None,
+    log_out: io.TextIOWrapper | None = None,
+) -> None:
     """Executes an external tool with an optional script of commands in a given working directory."""
 
     logger.debug(f"Running {cmd} in {cwd}: stdin={commands}")
@@ -85,10 +126,16 @@ def tool_run(cmd: str, cwd: str, commands: str | None = None, timeout: float | N
 
     # print stdout BEFORE stderr so the user can more easily see error message near the exception
     if returncode != 0:
-        # log stdout with warn priority because the tool failed
-        logger.warning(f"[tool] {stdout_lines}")
+        # log stdout with error priority because the tool failed
+        log_level = logging.ERROR
     else:
-        logger.debug(f"[tool] {stdout_lines}")
+        log_level = logging.DEBUG
+    tool_emit_logs(stdout_lines, log_level=log_level)
+
+    # If log_out is provided, also write stdout to that file
+    if log_out and stdout_lines:
+        log_out.write(stdout_lines)
+        log_out.flush()  # Just in case the user is 'tailing' the file
 
     # Check stdout for "Aborting" messages and append them to stderr (because the only useful Siril error messages appear on such a line)
     abort_lines = [line for line in stdout_lines.splitlines() if "Aborting" in line]
@@ -121,6 +168,10 @@ def tool_run(cmd: str, cwd: str, commands: str | None = None, timeout: float | N
 class Tool:
     """A tool for stage execution"""
 
+    # Tools and recursively invoke other tools.  So it is important that if we've set a log file destination at the top
+    # of our call tree, that variables get passed down to all sub-tools.
+    _default_log_out: io.TextIOWrapper | None = None
+
     def __init__(self, name: str) -> None:
         self.name: str = name
 
@@ -131,6 +182,7 @@ class Tool:
     def set_defaults(self):
         # default timeout in seconds, if you need to run a tool longer than this, you should change
         # it before calling run()
+        # FIXME, remove this concept and instead just use the new parameters API
         self.timeout = (
             60 * 60.0  # 60 minutes - just to make sure we eventually stop all tools
         )
@@ -140,6 +192,7 @@ class Tool:
         commands: str | list[str],
         context: dict = {},
         cwd: str | None = None,
+        log_out: io.TextIOWrapper | None = None,
         **kwargs: dict[str, Any],
     ) -> None:
         """Run commands inside this tool
@@ -153,6 +206,18 @@ class Tool:
             "arc", text=f"Tool running: [bold]{self.name}[/bold]...", speed=2.0, style=SPINNER_STYLE
         )
         with Live(spinner, console=console, refresh_per_second=5, transient=True):
+            did_set_default_log = (
+                False  # Assume we are not the top entry into the chain of tool calls
+            )
+            if log_out:
+                if not Tool._default_log_out:
+                    # set the class default log output if we don't have one yet
+                    Tool._default_log_out = log_out
+                    did_set_default_log = True
+
+            # Use the default if someone higher up provided it
+            my_log = log_out if log_out else Tool._default_log_out
+
             try:
                 if not cwd:
                     # Create a temporary directory for processing
@@ -162,15 +227,24 @@ class Tool:
                         temp_dir  # pass our directory path in for the tool's usage
                     )
 
-                self._run(cwd, commands, context=context, **kwargs)
+                self._run(cwd, commands, context=context, log_out=my_log, **kwargs)
             finally:
                 spinner.update(text=f"Tool completed: [bold]{self.name}[/bold].")
                 if temp_dir:
                     shutil.rmtree(temp_dir)
                     context.pop("temp_dir", None)
 
+                if did_set_default_log:
+                    # clear the class default log output if we set it
+                    Tool._default_log_out = None
+
     def _run(
-        self, cwd: str, commands: str | list[str], context: dict = {}, **kwargs: dict[str, Any]
+        self,
+        cwd: str,
+        commands: str | list[str],
+        context: dict = {},
+        log_out: io.TextIOWrapper | None = None,
+        **kwargs: dict[str, Any],
     ) -> None:
         """Run commands inside this tool (with cwd pointing to the specified directory)"""
         raise NotImplementedError()

@@ -1,5 +1,6 @@
 """GraXpert tool integration."""
 
+import io
 import logging
 from typing import Any
 
@@ -45,7 +46,12 @@ class GraxpertExternalTool(ExternalTool):
         super().__init__("GraXpert", commands, "https://graxpert.com/")
 
     def _run(
-        self, cwd: str, commands: str | list[str], context: dict = {}, **kwargs: dict[str, Any]
+        self,
+        cwd: str,
+        commands: str | list[str],
+        context: dict = {},
+        log_out: io.TextIOWrapper | None = None,
+        **kwargs: dict[str, Any],
     ) -> None:
         """Executes Graxpert with the specified command line arguments"""
 
@@ -60,4 +66,4 @@ class GraxpertExternalTool(ExternalTool):
         # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
         cmd = f"{self.executable_path} {expanded}"
 
-        tool_run(cmd, cwd, timeout=self.timeout)
+        tool_run(cmd, cwd, timeout=self.timeout, log_out=log_out)

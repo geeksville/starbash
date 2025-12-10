@@ -73,7 +73,7 @@
             "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
             "justMyCode": false,
             "args": [
-                "--debug",
+                // "--debug",
                 // "--force",
                 "process",
                 "auto",
@@ -89,7 +89,7 @@
             "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
             "justMyCode": false,
             "args": [
-                "--debug",
+                // "--debug",
                 // "--force",
                 "process",
                 "masters"

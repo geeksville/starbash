@@ -1,5 +1,6 @@
 """Siril tool integration."""
 
+import io
 import logging
 import os
 import textwrap
@@ -50,7 +51,9 @@ class SirilTool(ExternalTool):
 
         super().__init__("Siril", commands, "https://siril.org/")
 
-    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
+    def _run(
+        self, cwd: str, commands: str, context: dict = {}, log_out: io.TextIOWrapper | None = None
+    ) -> None:
         """Executes Siril with a script of commands in a given working directory."""
 
         # Iteratively expand the command string to handle nested placeholders.
@@ -84,4 +87,4 @@ class SirilTool(ExternalTool):
         # It seems like the -d command may also be required when siril is in a flatpak
         cmd = f"{siril_path} -d {temp_dir} -s -"
 
-        tool_run(cmd, temp_dir, script_content, timeout=self.timeout)
+        tool_run(cmd, temp_dir, script_content, timeout=self.timeout, log_out=log_out)

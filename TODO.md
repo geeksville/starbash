@@ -148,6 +148,7 @@
 * [x] no need for a cheaper modification checker - current checker only uses the expensive md5 if the file timestamp differs and the size has not changed.  But if that is too expensive TimestampChecker is available.
 * [ ] include thanks for siril,graxpert,starnet,doit
 * [ ] improve user readability of process report files
+* [ ] add warning about trusting recipe sources...
 * [ ] **second alpha release approximately here**
 
 ## Do second alpha here
@@ -277,133 +278,28 @@
 * [ ] experiment with telescopus upload (filling in fields of image info with backpointers requesting feedback)
 * [ ] make a "gen_test_db() function that can be used to generate either a huge or a tiny DB with 'real looking' test data (for performance tesing and CI).  Have it use a couple of real stripped FITS files.
 
-List of currently failing runs:
-
-
+List of currently failing runs (probably just running out of disk space?):
 
                                    Autoprocessed to /workspaces/starbash/images/processed
 ┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Target          ┃                          Session ┃  Status   ┃ Notes                                                   ┃
 ┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ic1848          │  2025-09-07:light_HaOiii_gain100 │ ✓ Success │ light_vs_dark_ic1848_s63 → bkg_pp_light_s63_.seq        │
-│ ic1848          │ 2025-09-12:light_SiiOiii_gain100 │ ✓ Success │ light_vs_dark_ic1848_s72 → bkg_pp_light_s72_.seq        │
-│ ic1848          │  2025-09-06:light_HaOiii_gain100 │ ✓ Success │ light_vs_dark_ic1848_s60 → bkg_pp_light_s60_.seq        │
-│ ic1848          │  2025-09-15:light_HaOiii_gain100 │ ✓ Success │ light_vs_dark_ic1848_s76 → bkg_pp_light_s76_.seq        │
-│ ic1848          │ 2025-09-14:light_SiiOiii_gain100 │ ✓ Success │ light_vs_dark_ic1848_s74 → bkg_pp_light_s74_.seq        │
-│ ic1848          │  2025-09-08:light_HaOiii_gain100 │ ✓ Success │ light_vs_dark_ic1848_s68 → bkg_pp_light_s68_.seq        │
-│ ic1848          │ 2025-09-16:light_SiiOiii_gain100 │ ✓ Success │ light_vs_dark_ic1848_s78 → bkg_pp_light_s78_.seq        │
-│ ic1848          │  2025-09-07:light_HaOiii_gain100 │ ✓ Success │ seqextract_haoiii_ic1848_s63 →                          │
-│                 │                                  │           │ Ha_bkg_pp_light_s63_.seq, OIII_bkg_pp_light_s63_.seq    │
-│ ic1848          │ 2025-09-12:light_SiiOiii_gain100 │ ✓ Success │ seqextract_haoiii_ic1848_s72 →                          │
-│                 │                                  │           │ Ha_bkg_pp_light_s72_.seq, OIII_bkg_pp_light_s72_.seq    │
-│ ic1848          │  2025-09-06:light_HaOiii_gain100 │ ✓ Success │ seqextract_haoiii_ic1848_s60 →                          │
-│                 │                                  │           │ Ha_bkg_pp_light_s60_.seq, OIII_bkg_pp_light_s60_.seq    │
-│ ic1848          │  2025-09-15:light_HaOiii_gain100 │ ✓ Success │ seqextract_haoiii_ic1848_s76 →                          │
-│                 │                                  │           │ Ha_bkg_pp_light_s76_.seq, OIII_bkg_pp_light_s76_.seq    │
-│ ic1848          │ 2025-09-14:light_SiiOiii_gain100 │ ✓ Success │ seqextract_haoiii_ic1848_s74 →                          │
-│                 │                                  │           │ Ha_bkg_pp_light_s74_.seq, OIII_bkg_pp_light_s74_.seq    │
-│ ic1848          │  2025-09-08:light_HaOiii_gain100 │ ✓ Success │ seqextract_haoiii_ic1848_s68 →                          │
-│                 │                                  │           │ Ha_bkg_pp_light_s68_.seq, OIII_bkg_pp_light_s68_.seq    │
-│ ic1848          │ 2025-09-16:light_SiiOiii_gain100 │ ✓ Success │ seqextract_haoiii_ic1848_s78 →                          │
+
+│ ic1848 HUGE!!!         │ 2025-09-16:light_SiiOiii_gain100 │ ✓ Success │ seqextract_haoiii_ic1848_s78 →                          │
 │                 │                                  │           │ Ha_bkg_pp_light_s78_.seq, OIII_bkg_pp_light_s78_.seq    │
 │ ic1848          │ 2025-09-16:light_SiiOiii_gain100 │ ✗ Failed  │ Tool: 'siril -d                                         │
 │                 │                                  │           │ /home/vscode/.cache/starbash/processing/ic1848 -s -'    │
 │                 │                                  │           │ failed                                                  │
-│ sadr            │       2025-07-15:light_LP_gain80 │ ✓ Success │ light_no_darks_sadr_s48 → bkg_pp_light_s48_.seq         │
-│ sadr            │       2025-07-15:light_LP_gain80 │ ✓ Success │ stack_osc_sadr → stacked.fits                           │
-│ sadr            │       2025-07-15:light_LP_gain80 │ ✓ Success │ background_sadr_i0 → bk_stacked.fits                    │
-│ andromedagalaxy │    2025-09-01:light_None_gain100 │ ✓ Success │ light_vs_dark_andromedagalaxy_s139 →                    │
-│                 │                                  │           │ bkg_pp_light_s139_.seq                                  │
-│ andromedagalaxy │    2025-09-01:light_None_gain100 │ ✓ Success │ stack_osc_andromedagalaxy → stacked.fits                │
-│ andromedagalaxy │    2025-09-01:light_None_gain100 │ ✓ Success │ background_andromedagalaxy_i0 → bk_stacked.fits         │
-│ m27             │       2025-07-10:light_LP_gain80 │ ✗ Failed  │ Tool: 'siril -d                                         │
+│ m27  Mixed Dual and Seestar - dies due to not enough disk for drizzle         │       2025-07-10:light_LP_gain80 │ ✗ Failed  │ Tool: 'siril -d                                         │
 │                 │                                  │           │ /home/vscode/.cache/starbash/processing/m27 -s -'       │
 │                 │                                  │           │ failed                                                  │
-│ m51             │    2025-07-03:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_m51_s36 → bkg_pp_light_s36_.seq          │
-│ m51             │    2025-07-08:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_m51_s38 → bkg_pp_light_s38_.seq          │
-│ m51             │    2025-07-13:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_m51_s35 → bkg_pp_light_s35_.seq          │
-│ m51             │    2025-07-11:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_m51_s37 → bkg_pp_light_s37_.seq          │
-│ m51             │    2025-07-08:light_IRCUT_gain80 │ ✓ Success │ stack_osc_m51 → stacked.fits                            │
-│ m51             │    2025-07-08:light_IRCUT_gain80 │ ✓ Success │ background_m51_i0 → bk_stacked.fits                     │
-│ m100            │    2025-07-07:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_m100_s22 → bkg_pp_light_s22_.seq         │
-│ m100            │    2025-07-04:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_m100_s21 → bkg_pp_light_s21_.seq         │
-│ m100            │    2025-07-15:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_m100_s23 → bkg_pp_light_s23_.seq         │
-│ m100            │    2025-07-15:light_IRCUT_gain80 │ ✓ Success │ stack_osc_m100 → stacked.fits                           │
-│ m100            │    2025-07-15:light_IRCUT_gain80 │ ✓ Success │ background_m100_i0 → bk_stacked.fits                    │
-│ ic5146          │  2025-09-03:light_HaOiii_gain100 │ ✓ Success │ light_vs_dark_ic5146_s81 → bkg_pp_light_s81_.seq        │
-│ ic5146          │  2025-09-03:light_HaOiii_gain100 │ ✓ Success │ stack_osc_ic5146 → stacked.fits                         │
-│ ic5146          │  2025-09-03:light_HaOiii_gain100 │ ✓ Success │ seqextract_haoiii_ic5146_s81 →                          │
-│                 │                                  │           │ Ha_bkg_pp_light_s81_.seq, OIII_bkg_pp_light_s81_.seq    │
-│ ic5146          │  2025-09-03:light_HaOiii_gain100 │ ✓ Success │ background_ic5146_i2 → bk_stacked.fits                  │
-│ ic5146          │  2025-09-03:light_HaOiii_gain100 │ ✓ Success │ stack_single_duo_ic5146 → stacked_Ha.fits,              │
-│                 │                                  │           │ stacked_OIII.fits                                       │
-│ ic5146          │  2025-09-03:light_HaOiii_gain100 │ ✓ Success │ background_ic5146_i0 → bk_stacked_Ha.fits               │
-│ ic5146          │  2025-09-03:light_HaOiii_gain100 │ ✓ Success │ background_ic5146_i1 → bk_stacked_OIII.fits             │
 │ ngc6888         │       2025-07-07:light_LP_gain80 │ ✗ Failed  │ Tool: 'siril -d                                         │
 │                 │                                  │           │ /home/vscode/.cache/starbash/processing/ngc6888 -s -'   │
 │                 │                                  │           │ failed                                                  │
-│ m81             │    2025-07-14:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_m81_s39 → bkg_pp_light_s39_.seq          │
-│ m81             │    2025-07-14:light_IRCUT_gain80 │ ✓ Success │ stack_osc_m81 → stacked.fits                            │
-│ m81             │    2025-07-14:light_IRCUT_gain80 │ ✓ Success │ background_m81_i0 → bk_stacked.fits                     │
-│ lbn354          │  2025-09-03:light_HaOiii_gain100 │ ✓ Success │ light_vs_dark_lbn354_s86 → bkg_pp_light_s86_.seq        │
-│ lbn354          │  2025-09-03:light_HaOiii_gain100 │ ✓ Success │ seqextract_haoiii_lbn354_s86 →                          │
-│                 │                                  │           │ Ha_bkg_pp_light_s86_.seq, OIII_bkg_pp_light_s86_.seq    │
-│ lbn354          │  2025-09-03:light_HaOiii_gain100 │ ✓ Success │ stack_osc_lbn354 → stacked.fits                         │
-│ lbn354          │  2025-09-03:light_HaOiii_gain100 │ ✓ Success │ stack_single_duo_lbn354 → stacked_Ha.fits,              │
-│                 │                                  │           │ stacked_OIII.fits                                       │
-│ lbn354          │  2025-09-03:light_HaOiii_gain100 │ ✓ Success │ background_lbn354_i2 → bk_stacked.fits                  │
-│ lbn354          │  2025-09-03:light_HaOiii_gain100 │ ✓ Success │ background_lbn354_i0 → bk_stacked_Ha.fits               │
-│ lbn354          │  2025-09-03:light_HaOiii_gain100 │ ✓ Success │ background_lbn354_i1 → bk_stacked_OIII.fits             │
-│ ic1396          │  2025-09-02:light_HaOiii_gain100 │ ✓ Success │ light_vs_dark_ic1396_s52 → bkg_pp_light_s52_.seq        │
-│ ic1396          │  2025-09-02:light_HaOiii_gain100 │ ✓ Success │ seqextract_haoiii_ic1396_s52 →                          │
-│                 │                                  │           │ Ha_bkg_pp_light_s52_.seq, OIII_bkg_pp_light_s52_.seq    │
 │ ic1396          │  2025-09-02:light_HaOiii_gain100 │ ✗ Failed  │ Error during python script execution                    │
-│ pinwheelgalaxy  │    2025-09-01:light_None_gain100 │ ✓ Success │ light_vs_dark_pinwheelgalaxy_s138 →                     │
-│                 │                                  │           │ bkg_pp_light_s138_.seq                                  │
-│ pinwheelgalaxy  │    2025-09-01:light_None_gain100 │ ✓ Success │ stack_osc_pinwheelgalaxy → stacked.fits                 │
-│ pinwheelgalaxy  │    2025-09-01:light_None_gain100 │ ✓ Success │ background_pinwheelgalaxy_i0 → bk_stacked.fits          │
-│ ic5070          │       2025-07-04:light_LP_gain80 │ ✓ Success │ light_no_darks_ic5070_s20 → bkg_pp_light_s20_.seq       │
-│ ic5070          │       2025-07-04:light_LP_gain80 │ ✓ Success │ stack_osc_ic5070 → stacked.fits                         │
-│ ic5070          │       2025-07-04:light_LP_gain80 │ ✓ Success │ background_ic5070_i0 → bk_stacked.fits                  │
-│ ngc6960         │    2025-07-28:light_HaO3_gain100 │ ✓ Success │ light_vs_dark_ngc6960_s5 → bkg_pp_light_s5_.seq         │
-│ ngc6960         │    2025-07-28:light_HaO3_gain100 │ ✓ Success │ seqextract_haoiii_ngc6960_s5 → Ha_bkg_pp_light_s5_.seq, │
-│                 │                                  │           │ OIII_bkg_pp_light_s5_.seq                               │
 │ ngc6960         │       2025-07-17:light_LP_gain80 │ ✗ Failed  │ Tool: 'siril -d                                         │
 │                 │                                  │           │ /home/vscode/.cache/starbash/processing/ngc6960 -s -'   │
 │                 │                                  │           │ failed                                                  │
-│ ngc7635         │  2025-09-20:light_HaOiii_gain100 │ ✓ Success │ light_vs_dark_ngc7635_s122 → bkg_pp_light_s122_.seq     │
-│ ngc7635         │  2025-09-21:light_HaOiii_gain100 │ ✓ Success │ light_vs_dark_ngc7635_s127 → bkg_pp_light_s127_.seq     │
-│ ngc7635         │ 2025-09-20:light_SiiOiii_gain100 │ ✓ Success │ light_vs_dark_ngc7635_s123 → bkg_pp_light_s123_.seq     │
-│ ngc7635         │  2025-09-23:light_HaOiii_gain100 │ ✓ Success │ light_vs_dark_ngc7635_s130 → bkg_pp_light_s130_.seq     │
-│ ngc7635         │ 2025-09-23:light_SiiOiii_gain100 │ ✓ Success │ light_vs_dark_ngc7635_s131 → bkg_pp_light_s131_.seq     │
-│ ngc7635         │ 2025-09-21:light_SiiOiii_gain100 │ ✓ Success │ light_vs_dark_ngc7635_s126 → bkg_pp_light_s126_.seq     │
-│ ngc7635         │  2025-09-20:light_HaOiii_gain100 │ ✓ Success │ seqextract_haoiii_ngc7635_s122 →                        │
-│                 │                                  │           │ Ha_bkg_pp_light_s122_.seq, OIII_bkg_pp_light_s122_.seq  │
-│ ngc7635         │  2025-09-21:light_HaOiii_gain100 │ ✓ Success │ seqextract_haoiii_ngc7635_s127 →                        │
-│                 │                                  │           │ Ha_bkg_pp_light_s127_.seq, OIII_bkg_pp_light_s127_.seq  │
-│ ngc7635         │ 2025-09-20:light_SiiOiii_gain100 │ ✓ Success │ seqextract_haoiii_ngc7635_s123 →                        │
-│                 │                                  │           │ Ha_bkg_pp_light_s123_.seq, OIII_bkg_pp_light_s123_.seq  │
-│ ngc7635         │  2025-09-23:light_HaOiii_gain100 │ ✓ Success │ seqextract_haoiii_ngc7635_s130 →                        │
-│                 │                                  │           │ Ha_bkg_pp_light_s130_.seq, OIII_bkg_pp_light_s130_.seq  │
-│ ngc7635         │ 2025-09-23:light_SiiOiii_gain100 │ ✓ Success │ seqextract_haoiii_ngc7635_s131 →                        │
-│                 │                                  │           │ Ha_bkg_pp_light_s131_.seq, OIII_bkg_pp_light_s131_.seq  │
-│ ngc7635         │ 2025-09-21:light_SiiOiii_gain100 │ ✓ Success │ seqextract_haoiii_ngc7635_s126 →                        │
-│                 │                                  │           │ Ha_bkg_pp_light_s126_.seq, OIII_bkg_pp_light_s126_.seq  │
-│ ngc7635         │ 2025-09-23:light_SiiOiii_gain100 │ ✗ Failed  │ Error during python script execution                    │
-│ ngc281          │ 2025-09-17:light_SiiOiii_gain100 │ ✓ Success │ light_vs_dark_ngc281_s110 → bkg_pp_light_s110_.seq      │
-│ ngc281          │  2025-09-17:light_HaOiii_gain100 │ ✓ Success │ light_vs_dark_ngc281_s109 → bkg_pp_light_s109_.seq      │
-│ ngc281          │ 2025-09-17:light_SiiOiii_gain100 │ ✓ Success │ seqextract_haoiii_ngc281_s110 →                         │
-│                 │                                  │           │ Ha_bkg_pp_light_s110_.seq, OIII_bkg_pp_light_s110_.seq  │
-│ ngc281          │ 2025-09-17:light_SiiOiii_gain100 │ ✓ Success │ stack_osc_ngc281 → stacked.fits                         │
-│ ngc281          │  2025-09-17:light_HaOiii_gain100 │ ✓ Success │ seqextract_haoiii_ngc281_s109 →                         │
-│                 │                                  │           │ Ha_bkg_pp_light_s109_.seq, OIII_bkg_pp_light_s109_.seq  │
-│ ngc281          │ 2025-09-17:light_SiiOiii_gain100 │ ✓ Success │ background_ngc281_i3 → bk_stacked.fits                  │
-│ ngc281          │ 2025-09-17:light_SiiOiii_gain100 │ ✓ Success │ stack_dual_duo_ngc281 → stacked_Ha.fits,                │
-│                 │                                  │           │ stacked_OIII.fits, stacked_Sii.fits                     │
-│ ngc281          │ 2025-09-17:light_SiiOiii_gain100 │ ✓ Success │ background_ngc281_i1 → bk_stacked_OIII.fits             │
-│ ngc281          │ 2025-09-17:light_SiiOiii_gain100 │ ✓ Success │ background_ngc281_i0 → bk_stacked_Ha.fits               │
-│ ngc281          │ 2025-09-17:light_SiiOiii_gain100 │ ✓ Success │ background_ngc281_i2 → bk_stacked_Sii.fits              │
-│ m45             │    2025-09-16:light_None_gain100 │ ✓ Success │ light_vs_dark_m45_s106 → bkg_pp_light_s106_.seq         │
 │ m45             │    2025-09-16:light_None_gain100 │ ✗ Failed  │ Tool: 'siril -d                                         │
 │                 │                                  │           │ /home/vscode/.cache/starbash/processing/m45 -s -'       │
 │                 │                                  │           │ failed                                                  │
@@ -411,57 +307,6 @@ List of currently failing runs:
 │ m13             │    2025-07-12:light_IRCUT_gain80 │ ✗ Failed  │ Tool: 'siril -d                                         │
 │                 │                                  │           │ /home/vscode/.cache/starbash/processing/m13 -s -'       │
 │                 │                                  │           │ failed                                                  │
-│ ngc6939         │    2025-08-25:light_None_gain100 │ ✓ Success │ light_vs_dark_ngc6939_s4 → bkg_pp_light_s4_.seq         │
-│ ngc6939         │    2025-08-25:light_None_gain100 │ ✓ Success │ stack_osc_ngc6939 → stacked.fits                        │
-│ ngc6939         │    2025-08-25:light_None_gain100 │ ✓ Success │ background_ngc6939_i0 → bk_stacked.fits                 │
-│ ngc7000         │  2025-09-15:light_HaOiii_gain100 │ ✓ Success │ light_vs_dark_ngc7000_s117 → bkg_pp_light_s117_.seq     │
-│ ngc7000         │ 2025-09-16:light_SiiOiii_gain100 │ ✓ Success │ light_vs_dark_ngc7000_s119 → bkg_pp_light_s119_.seq     │
-│ ngc7000         │ 2025-09-14:light_SiiOiii_gain100 │ ✓ Success │ light_vs_dark_ngc7000_s115 → bkg_pp_light_s115_.seq     │
-│ ngc7000         │  2025-09-15:light_HaOiii_gain100 │ ✓ Success │ seqextract_haoiii_ngc7000_s117 →                        │
-│                 │                                  │           │ Ha_bkg_pp_light_s117_.seq, OIII_bkg_pp_light_s117_.seq  │
-│ ngc7000         │ 2025-09-16:light_SiiOiii_gain100 │ ✓ Success │ seqextract_haoiii_ngc7000_s119 →                        │
-│                 │                                  │           │ Ha_bkg_pp_light_s119_.seq, OIII_bkg_pp_light_s119_.seq  │
-│ ngc7000         │ 2025-09-16:light_SiiOiii_gain100 │ ✓ Success │ stack_osc_ngc7000 → stacked.fits                        │
-│ ngc7000         │ 2025-09-14:light_SiiOiii_gain100 │ ✓ Success │ seqextract_haoiii_ngc7000_s115 →                        │
-│                 │                                  │           │ Ha_bkg_pp_light_s115_.seq, OIII_bkg_pp_light_s115_.seq  │
-│ ngc7000         │ 2025-09-16:light_SiiOiii_gain100 │ ✓ Success │ background_ngc7000_i3 → bk_stacked.fits                 │
-│ ngc7000         │ 2025-09-16:light_SiiOiii_gain100 │ ✓ Success │ stack_dual_duo_ngc7000 → stacked_Ha.fits,               │
-│                 │                                  │           │ stacked_OIII.fits, stacked_Sii.fits                     │
-│ ngc7000         │ 2025-09-16:light_SiiOiii_gain100 │ ✓ Success │ background_ngc7000_i1 → bk_stacked_OIII.fits            │
-│ ngc7000         │ 2025-09-16:light_SiiOiii_gain100 │ ✓ Success │ background_ngc7000_i2 → bk_stacked_Sii.fits             │
-│ ngc7000         │ 2025-09-16:light_SiiOiii_gain100 │ ✓ Success │ background_ngc7000_i0 → bk_stacked_Ha.fits              │
-│ m20             │ 2025-09-23:light_SiiOiii_gain100 │ ✓ Success │ light_vs_dark_m20_s92 → bkg_pp_light_s92_.seq           │
-│ m20             │  2025-09-23:light_HaOiii_gain100 │ ✓ Success │ light_vs_dark_m20_s91 → bkg_pp_light_s91_.seq           │
-│ m20             │ 2025-09-23:light_SiiOiii_gain100 │ ✓ Success │ seqextract_haoiii_m20_s92 → Ha_bkg_pp_light_s92_.seq,   │
-│                 │                                  │           │ OIII_bkg_pp_light_s92_.seq                              │
-│ m20             │  2025-09-23:light_HaOiii_gain100 │ ✓ Success │ seqextract_haoiii_m20_s91 → Ha_bkg_pp_light_s91_.seq,   │
-│                 │                                  │           │ OIII_bkg_pp_light_s91_.seq                              │
-│ m20             │ 2025-09-23:light_SiiOiii_gain100 │ ✓ Success │ stack_osc_m20 → stacked.fits                            │
-│ m20             │ 2025-09-23:light_SiiOiii_gain100 │ ✓ Success │ stack_dual_duo_m20 → stacked_Ha.fits,                   │
-│                 │                                  │           │ stacked_OIII.fits, stacked_Sii.fits                     │
-│ m20             │ 2025-09-23:light_SiiOiii_gain100 │ ✓ Success │ background_m20_i3 → bk_stacked.fits                     │
-│ m20             │ 2025-09-23:light_SiiOiii_gain100 │ ✓ Success │ background_m20_i0 → bk_stacked_Ha.fits                  │
-│ m20             │ 2025-09-23:light_SiiOiii_gain100 │ ✓ Success │ background_m20_i1 → bk_stacked_OIII.fits                │
-│ m20             │ 2025-09-23:light_SiiOiii_gain100 │ ✓ Success │ background_m20_i2 → bk_stacked_Sii.fits                 │
-│ m101            │    2025-07-07:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_m101_s25 → bkg_pp_light_s25_.seq         │
-│ m101            │    2025-07-05:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_m101_s26 → bkg_pp_light_s26_.seq         │
-│ m101            │    2025-07-08:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_m101_s24 → bkg_pp_light_s24_.seq         │
-│ m101            │    2025-07-05:light_IRCUT_gain80 │ ⊘ Current │ stack_osc_m101 → stacked.fits                           │
-│ m101            │    2025-07-05:light_IRCUT_gain80 │ ⊘ Current │ background_m101_i0 → bk_stacked.fits                    │
-│ m106            │    2025-07-18:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_m106_s28 → bkg_pp_light_s28_.seq         │
-│ m106            │    2025-07-18:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_m106_s27 → bkg_pp_light_s27_.seq         │
-│ m106            │    2025-07-18:light_IRCUT_gain80 │ ✓ Success │ stack_osc_m106 → stacked.fits                           │
-│ m106            │    2025-07-18:light_IRCUT_gain80 │ ✓ Success │ background_m106_i0 → bk_stacked.fits                    │
-│ ngc7023         │    2025-07-20:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_ngc7023_s47 → bkg_pp_light_s47_.seq      │
-│ ngc7023         │    2025-07-20:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_ngc7023_s46 → bkg_pp_light_s46_.seq      │
-│ ngc7023         │    2025-07-04:light_IRCUT_gain80 │ ✓ Success │ light_no_darks_ngc7023_s45 → bkg_pp_light_s45_.seq      │
-│ ngc7023         │    2025-07-20:light_IRCUT_gain80 │ ⊘ Current │ stack_osc_ngc7023 → stacked.fits                        │
-│ ngc7023         │    2025-07-20:light_IRCUT_gain80 │ ⊘ Current │ background_ngc7023_i0 → bk_stacked.fits                 │
-│ ic1318b         │       2025-07-18:light_LP_gain80 │ ✓ Success │ light_no_darks_ic1318b_s19 → bkg_pp_light_s19_.seq      │
-│ ic1318b         │       2025-07-18:light_LP_gain80 │ ✓ Success │ stack_osc_ic1318b → stacked.fits                        │
-│ ic1318b         │       2025-07-18:light_LP_gain80 │ ✓ Success │ background_ic1318b_i0 → bk_stacked.fits                 │
-│ m31             │    2025-08-25:light_None_gain100 │ ✓ Success │ light_vs_dark_m31_s2 → bkg_pp_light_s2_.seq             │
-│ m31             │    2025-09-01:light_None_gain100 │ ✓ Success │ light_vs_dark_m31_s140 → bkg_pp_light_s140_.seq         │
 │ m31             │    2025-09-01:light_None_gain100 │ ✗ Failed  │ Tool: 'siril -d                                         │
 │                 │                                  │           │ /home/vscode/.cache/starbash/processing/m31 -s -'       │
 │                 │                                  │           │ failed                                                  │

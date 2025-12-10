@@ -1,5 +1,6 @@
 """Python tool integration using RestrictedPython."""
 
+import io
 import logging
 import os
 
@@ -56,11 +57,14 @@ class PythonTool(Tool):
         # default script file override
         self.default_script_file = "starbash.py"
 
-    def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
+    def _run(
+        self, cwd: str, commands: str, context: dict = {}, log_out: io.TextIOWrapper | None = None
+    ) -> None:
         original_cwd = os.getcwd()
         try:
             os.chdir(cwd)  # cd to where this script expects to run
 
+            # FIXME, we currently ignore log_out because python is by default printing to our log anyways
             logger.info(f"Executing python script in {cwd} using RestrictedPython")
             try:
                 byte_code = RestrictedPython.compile_restricted(
