@@ -1,4 +1,5 @@
 ## TODO
+This is a rough list of feature/bug workitems.  See headers below to see when particular features/fixes were added.
 
 * [x] FIX GRAXPERT AMD
 * [x] unify the various processing routines by using a templating system
@@ -51,12 +52,14 @@
 * [x] look for STACKCNT in input images - if populated (i.e. in prestacked biases from another platform) that is a great indication it was a processed/stacked file
 * [x] make score_candidates() highly prefer frames that are in the past. Better search by date for masters (i.e. must be in the past or near futurer)
 * [x] fix remaining tool failures (just fail-ngc7023)
-
-### First public alpha occured here
-
 * [x] **first public alpha (reddit)** at approximately this point
-* [ ] fix dwarf3 (bug #1) investigation by @codegistics
-* [x] osx path finding fixes by @jmachuca77 (bug #2)
+
+### First public alpha (0.1.0) occured 2025/11/11 ish
+
+Changes since alpha 1...
+
+* [ ] bug #1 - fix dwarf3 investigation by @codegistics
+* [x] bug #2 - osx path finding fixes by @jmachuca77
 * [x] always regen masters after adding a repo
 * [x] don't warn for "[tool-warnings] Reading sequence failed, file cannot be opened: *.seq. Reading sequence failed, file cannot be opened: *.seq." because harmless
 * [x] add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
@@ -151,7 +154,9 @@
 * [ ] add warning about trusting recipe sources...
 * [ ] **second alpha release approximately here**
 
-### Do second alpha here
+### Do second alpha (0.2.0) here
+
+Changes after alpha 2...
 
 * [ ] make a use_drizzle prefs option, make it work on a per project or per user basis (drizzle uses LOTS of disk space)
 * [ ] experiment with parallel task execution: https://github.com/pydoit/doit/blob/00c136f5dfe7e9039d0fed6dddd6d45c84c307b4/doc/cmd-run.rst#parallel-execution.  Though locks would need around final run logging
@@ -219,7 +224,7 @@
 * [x] use db to find light frames
 * [x] add top level catch asking users to report bugs
 * [x] add crash and usage analytics - sentry.io?
-* [ ] move session config looping out of scripts - to require less script coding (Sii, Oiii etc...)
+* [x] move session config looping out of scripts - to require less script coding (Sii, Oiii etc...)
 * [x] add automated session looping (multiday)
 * [x] unify the script execution code between sessions and masters
 * [x] pass stage outputs via the context?
@@ -232,7 +237,7 @@
 * [x] change the info commands to use the current selection query (and include comparison to all in the output)
 * [ ] Possibly store the DB queries as the description for the sesssion inputs?
 * [x] consider two different 'users' one who just wants to use the DB/repo stuff (doesn't need the auto processing) - for that user just let them do queries and build a 'process' directory for siril.  And the other user who wants our slick smart scripts to also do at least pre-processing.  In initial release just support the the query opts
-* [ ] add makefile style dependencies
+* [x] add makefile style dependencies
 * [ ] allow selecting targets using OBJCTRA and OBJECTDEC + an angle of view - because it makes name differences meaningless.  possibly start with a name and then query a DB to find RA/DEC then look for the local images.
 * [x] add FITS based filter detection (use astropy.io https://docs.astropy.org/en/stable/install.html)
 * [x] make single DUO processing work
@@ -246,7 +251,6 @@
 * [x] render output (including tables) with https://github.com/Textualize/rich - use basic command lines at first
 * [x] test on asiair, seestar, nina
 * [ ] use get_safe more pervasively, pass in a help string to it (to indicate source of failure)
-* [ ] remove nasty osc.py file - move into toml
 * [ ] eventually do a simple gui using https://flet.dev/docs/
 * [x] use import importlib.util to load python code it is own namespace
 * [x] make crude flat frame generation work
@@ -257,18 +261,16 @@
 * [x] have repo-add auto recognize common nina/asiair/seestar layouts
 * [ ] generate a report on the final output including attribution for data sources, recpies etc...
 * [x] make default invocation walk the user through creation of input and output repos.
-* [ ] do star extraction
-* [ ] don't regen masters/stacks/etc... if we don't need to - precheck for existence of output file
+* [x] don't regen masters/stacks/etc... if we don't need to - precheck for existence of output file
 * [x] add a backpointer in stages to the recipe they came from (for attribution, reporting etc...)
 * [ ] validate TOML files at load time to look for invalid keys (detect possible typos in recpie files etc...)
 * [x] change from eval() to something more secure (ast + eval? a restricted dict API?)
 * [x] add something like repo-add for masters and processed
 * [ ] do background elim with graxpert (before?) tri merge
-* [ ] have AI change asserts to raise ValueError (or something better?)
+* [ ] mass-change all asserts to raise ValueError instead (or something better?)
 * [x] FIX GRAXPERT RELEASE
 * [ ] add doit depenencies on the generated toml files
 * [ ] add doit dependencies on the recipe files
-* [ ] merge the tri colors into one file using pixel math
 * [x] generalize processing to also work on single duo filter or broadband OSC
 * [x] auto recognize my nina config, default nina config, asiair config, seestar config
 * [x] list all found targets across all repos
