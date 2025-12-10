@@ -13,6 +13,9 @@ def test_basic_import_same_file(tmp_path: Path):
     toml_file = tmp_path / "test.toml"
     toml_file.write_text(
         """
+        [repo]
+        kind = "recipe"
+
         [base_stage]
         tool = "siril"
         description = "Base stage definition"
@@ -39,6 +42,9 @@ def test_import_from_different_file(tmp_path: Path):
     lib_file = tmp_path / "library.toml"
     lib_file.write_text(
         """
+        [repo]
+        kind = "library"
+
         [common_settings]
         tool = "graxpert"
         input.required = 5
@@ -81,6 +87,9 @@ def test_import_with_relative_path(tmp_path: Path):
     # Create library in subdirectory
     lib_file = subdir / "lib.toml"
     lib_file.write_text("""
+        [repo]
+        kind = "library"
+
         [template]
         description = "Template from subdirectory"
         value = 123
@@ -90,6 +99,9 @@ def test_import_with_relative_path(tmp_path: Path):
     main_file = tmp_path / "main.toml"
     lib_path_posix = lib_file.relative_to(tmp_path).as_posix()
     main_file.write_text(f"""
+        [repo]
+        kind = "recipe"
+
         [my_config.import]
         file = "{lib_path_posix}"
         node = "template"
@@ -108,6 +120,9 @@ def test_import_nested_node(tmp_path: Path):
     toml_file = tmp_path / "test.toml"
     toml_file.write_text(
         """
+        [repo]
+        kind = "recipe"
+
         [library.stages.preprocessing]
         tool = "siril"
         script = "calibrate light"
@@ -183,6 +198,9 @@ def test_import_caching(tmp_path: Path):
     lib_file = tmp_path / "library.toml"
     lib_file.write_text(
         """
+        [repo]
+        kind = "library"
+
         [setting_a]
         value = "A"
 
@@ -197,6 +215,9 @@ def test_import_caching(tmp_path: Path):
     lib_path_posix = lib_file.relative_to(tmp_path).as_posix()
     main_file.write_text(
         f"""
+        [repo]
+        kind = "recipe"
+
         [config_a.import]
         file = "{lib_path_posix}"
         node = "setting_a"
@@ -224,6 +245,9 @@ def test_import_in_array_of_tables(tmp_path: Path):
     toml_file = tmp_path / "test.toml"
     toml_file.write_text(
         """
+        [repo]
+        kind = "recipe"
+
         [base_stage]
         tool = "siril"
         priority = 10
@@ -257,6 +281,9 @@ def test_import_preserves_additional_keys(tmp_path: Path):
     toml_file = tmp_path / "test.toml"
     toml_file.write_text(
         """
+        [repo]
+        kind = "recipe"
+
         [base]
         tool = "siril"
         description = "Base description"
@@ -285,6 +312,9 @@ def test_import_missing_node_error(tmp_path: Path):
     toml_file = tmp_path / "test.toml"
     toml_file.write_text(
         """
+        [repo]
+        kind = "recipe"
+
         [stage.import]
         node = "nonexistent.node"
         """,
@@ -300,6 +330,9 @@ def test_import_missing_node_key_error(tmp_path: Path):
     toml_file = tmp_path / "test.toml"
     toml_file.write_text(
         """
+        [repo]
+        kind = "recipe"
+
         [stage.import]
         file = "other.toml"
         """,
@@ -315,6 +348,9 @@ def test_import_invalid_spec_error(tmp_path: Path):
     toml_file = tmp_path / "test.toml"
     toml_file.write_text(
         """
+        [repo]
+        kind = "recipe"
+
         [stage]
         import = "invalid_string_value"
         """,
@@ -330,6 +366,9 @@ def test_import_missing_file_error(tmp_path: Path):
     toml_file = tmp_path / "test.toml"
     toml_file.write_text(
         """
+        [repo]
+        kind = "recipe"
+
         [stage.import]
         file = "nonexistent.toml"
         node = "some.node"
@@ -346,6 +385,9 @@ def test_import_at_root_error(tmp_path: Path):
     toml_file = tmp_path / "test.toml"
     toml_file.write_text(
         """
+        [repo]
+        kind = "recipe"
+
         [some]
         value = 1
 
@@ -365,6 +407,9 @@ def test_nested_imports(tmp_path: Path):
     base_file = tmp_path / "base.toml"
     base_file.write_text(
         """
+        [repo]
+        kind = "library"
+
         [foundation]
         tool = "siril"
         base_value = 1
@@ -377,6 +422,9 @@ def test_nested_imports(tmp_path: Path):
     base_path_posix = base_file.relative_to(tmp_path).as_posix()
     intermediate_file.write_text(
         f"""
+        [repo]
+        kind = "library"
+
         [extended.import]
         file = "{base_path_posix}"
         node = "foundation"
@@ -389,6 +437,9 @@ def test_nested_imports(tmp_path: Path):
     intermediate_path_posix = intermediate_file.relative_to(tmp_path).as_posix()
     main_file.write_text(
         f"""
+        [repo]
+        kind = "recipe"
+
         [final.import]
         file = "{intermediate_path_posix}"
         node = "extended"
@@ -409,6 +460,9 @@ def test_import_preserves_monkey_patch(tmp_path: Path):
     lib_file = tmp_path / "lib.toml"
     lib_file.write_text(
         """
+        [repo]
+        kind = "library"
+
         [template]
         value = 42
         """,
@@ -419,6 +473,9 @@ def test_import_preserves_monkey_patch(tmp_path: Path):
     lib_path_posix = lib_file.relative_to(tmp_path).as_posix()
     main_file.write_text(
         f"""
+        [repo]
+        kind = "recipe"
+
         [imported.import]
         file = "{lib_path_posix}"
         node = "template"
@@ -439,6 +496,9 @@ def test_multiple_imports_isolation(tmp_path: Path):
     base_file = tmp_path / "base.toml"
     base_file.write_text(
         """
+        [repo]
+        kind = "library"
+
         [shared]
         [shared.mutable]
         value = 10
@@ -450,6 +510,9 @@ def test_multiple_imports_isolation(tmp_path: Path):
     base_path_posix = base_file.relative_to(tmp_path).as_posix()
     main_file.write_text(
         f"""
+        [repo]
+        kind = "recipe"
+
         [copy1.import]
         file = "{base_path_posix}"
         node = "shared"
@@ -479,6 +542,9 @@ def test_import_complex_structure(tmp_path: Path):
     lib_file = tmp_path / "lib.toml"
     lib_file.write_text(
         """
+        [repo]
+        kind = "library"
+
         [complex]
         name = "complex_stage"
 
@@ -506,6 +572,9 @@ def test_import_complex_structure(tmp_path: Path):
     lib_path_posix = lib_file.relative_to(tmp_path).as_posix()
     main_file.write_text(
         f"""
+        [repo]
+        kind = "recipe"
+
         [my_stage.import]
         file = "{lib_path_posix}"
         node = "complex"

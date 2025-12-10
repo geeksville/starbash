@@ -134,6 +134,7 @@ Changes since alpha 1...
 * [x] while developing default to pulling recipes from local submodule
 * [x] add parameterizations support - so scripts can have named preferences that get stored in toml run file - use for graxpert smoothing etc...
 * [x] show only first 5 and last 10 lines for siril failures
+* [ ] https://github.com/geeksville/starbash/issues/5
 * [ ] use pixelmath to merge multichannel output files into a single file
 * [ ] bug: ngc6888 (in the big test data set) needs looser registration requirements
 * [ ] include siril author credits

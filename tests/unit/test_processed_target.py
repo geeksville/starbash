@@ -424,7 +424,7 @@ class TestProcessedTargetCleanup:
             patch("starbash.processed_target.toml_from_template") as mock_template,
             patch("starbash.processed_target.Repo") as mock_repo_class,
         ):
-            mock_template.return_value = {}
+            mock_template.return_value = {"repo": {"kind": "processed-target"}, "about": {}}
             mock_repo = MagicMock()
             mock_repo.get.return_value = {}
             mock_repo_class.return_value = mock_repo
@@ -442,7 +442,7 @@ class TestProcessedTargetCleanup:
             patch("starbash.processed_target.toml_from_template") as mock_template,
             patch("starbash.processed_target.Repo") as mock_repo_class,
         ):
-            mock_template.return_value = {}
+            mock_template.return_value = {"repo": {"kind": "processed-target"}, "about": {}}
             mock_repo = MagicMock()
             mock_repo.get.return_value = {}
             mock_repo_class.return_value = mock_repo
@@ -499,7 +499,7 @@ class TestProcessedTargetContextManager:
             patch("starbash.processed_target.toml_from_template") as mock_template,
             patch("starbash.processed_target.Repo") as mock_repo_class,
         ):
-            mock_template.return_value = {}
+            mock_template.return_value = {"repo": {"kind": "processed-target"}, "about": {}}
             mock_repo = MagicMock()
             mock_repo.get.return_value = {}
             mock_repo_class.return_value = mock_repo
