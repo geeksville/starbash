@@ -42,7 +42,7 @@ If you are interested in alpha-testing we ❤️ you.  This README should have e
 ### From the alpha 2 (0.2.0) release (2025/12/12 ish)
 * Include a stretched 'thumbnail'(FIXME - link example thumbnail) jpg proof-of-concept render in the output directories
 * Generates a per-target [report/config file](FIXME - link example processed toml) which can be customized if the detected defaults or preprocessing are not what you want.
-* '[Recipes](https://github.com/geeksville/starbash-recipes)' are now user-editable - provides repeatable/human-readable/shareable descriptions of all processing steps.
+* '[Recipes](https://github.com/geeksville/starbash-recipes)' are now user-editable - provides repeatable/human-[readable](doc/toml/example/processed-repo/example-m20.toml)/shareable descriptions of all processing steps.
 * Repos can be on the local disk or shared via HTTPS/GitHub/etc.  This is particularly useful for recipe repos.
 * [Graxpert](https://graxpert.com/) based [recipe stages](https://github.com/geeksville/starbash-recipes/tree/main/graxpert) added (support for Pixinsight-based recipes will probably be coming at some point...).
 
