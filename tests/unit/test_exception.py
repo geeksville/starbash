@@ -2,7 +2,13 @@
 
 import pytest
 
-from starbash.exception import NotEnoughFilesError, UserHandledError, raise_missing_repo
+from starbash.exception import (
+    NonFatalException,
+    NoSuitableMastersException,
+    NotEnoughFilesError,
+    UserHandledError,
+    raise_missing_repo,
+)
 
 
 class TestUserHandledError:
@@ -71,10 +77,47 @@ class TestNotEnoughFilesError:
         error = NotEnoughFilesError("Need at least 3 files")
         assert str(error) == "Need at least 3 files"
 
-    def test_not_enough_files_error_is_user_handled_error(self):
-        """Test that NotEnoughFilesError is a subclass of UserHandledError."""
-        assert issubclass(NotEnoughFilesError, UserHandledError)
-
     def test_not_enough_files_error_is_value_error(self):
-        """Test that NotEnoughFilesError is a subclass of ValueError through UserHandledError."""
+        """Test that NotEnoughFilesError is a subclass of ValueError."""
         assert issubclass(NotEnoughFilesError, ValueError)
+
+    def test_not_enough_files_error_is_non_fatal(self):
+        """Test that NotEnoughFilesError is a subclass of NonFatalException."""
+        assert issubclass(NotEnoughFilesError, NonFatalException)
+
+    def test_not_enough_files_error_with_files_list(self):
+        """Test that NotEnoughFilesError can store a list of files."""
+        files = ["file1.fits", "file2.fits"]
+        error = NotEnoughFilesError("Need at least 3 files", files=files)
+        assert error.files == files
+
+
+class TestNonFatalException:
+    """Tests for NonFatalException exception."""
+
+    def test_non_fatal_exception_creation(self):
+        """Test that NonFatalException can be created with a message."""
+        error = NonFatalException("Test non-fatal error")
+        assert str(error) == "Test non-fatal error"
+
+    def test_non_fatal_exception_is_value_error(self):
+        """Test that NonFatalException is a subclass of ValueError."""
+        assert issubclass(NonFatalException, ValueError)
+
+
+class TestNoSuitableMastersException:
+    """Tests for NoSuitableMastersException exception."""
+
+    def test_no_suitable_masters_exception_creation(self):
+        """Test that NoSuitableMastersException can be created with a kind."""
+        error = NoSuitableMastersException("bias")
+        assert "bias" in str(error)
+        assert error.kind == "bias"
+
+    def test_no_suitable_masters_exception_is_non_fatal(self):
+        """Test that NoSuitableMastersException is a subclass of NonFatalException."""
+        assert issubclass(NoSuitableMastersException, NonFatalException)
+
+    def test_no_suitable_masters_exception_is_value_error(self):
+        """Test that NoSuitableMastersException is a subclass of ValueError."""
+        assert issubclass(NoSuitableMastersException, ValueError)

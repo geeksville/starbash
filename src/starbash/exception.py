@@ -45,4 +45,10 @@ class NoSuitableMastersException(NonFatalException):
         self.kind = kind
 
 
-__all__ = ["UserHandledError", "NotEnoughFilesError", "NoSuitableMastersException"]
+__all__ = [
+    "UserHandledError",
+    "NonFatalException",
+    "NotEnoughFilesError",
+    "NoSuitableMastersException",
+    "raise_missing_repo",
+]
