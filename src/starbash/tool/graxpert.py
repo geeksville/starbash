@@ -29,6 +29,8 @@ class GraxpertBuiltinTool(Tool):
         else:
             raise ValueError("GraxpertTool requires commands specified as a list")
 
+        # it is very important that we import graxpert.api_run here and not at the top level, we don't want to pull in graxpert unless user
+        # is using it.
         from graxpert import api_run
 
         api_run(expanded_args, kwargs)

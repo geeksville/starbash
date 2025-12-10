@@ -37,6 +37,7 @@ from starbash.database import (
 )
 from starbash.dwarf3 import extend_dwarf3_headers
 from starbash.exception import UserHandledError, raise_missing_repo
+from starbash.linux import linux_init
 from starbash.os import symlink_or_copy
 from starbash.paths import get_user_config_dir, get_user_config_path
 from starbash.score import ScoredCandidate, score_candidates
@@ -147,6 +148,7 @@ class Starbash:
         setup_logging(starbash.console)
 
         windows_init()
+        linux_init()
 
         try:
             faulthandler.enable(sys.stderr)  # catch native stack traces if we crash
