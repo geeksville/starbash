@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import glob
 import logging
 import shutil
@@ -5,7 +7,7 @@ from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from doit.action import BaseAction, TaskFailed
 from doit.cmd_base import TaskLoader2
@@ -18,11 +20,14 @@ from rich.progress import TaskID, track
 from repo import Repo
 from starbash import InputDef
 from starbash.database import ImageRow
+from starbash.doit_types import TaskDict
 from starbash.exception import UserHandledError
 from starbash.os import symlink_or_copy
 from starbash.paths import get_user_cache_dir
-from starbash.processing_like import ProcessingLike
 from starbash.tool.base import Tool
+
+if TYPE_CHECKING:
+    from starbash.processing_like import ProcessingLike
 
 # for early testing
 my_builtin_task = {
@@ -36,8 +41,6 @@ __all__ = [
     "ToolAction",
     "my_builtin_task",
 ]
-
-type TaskDict = dict[str, Any]  # a doit task dictionary
 
 
 @dataclass
@@ -99,40 +102,6 @@ class FileInfo:
             return [self.full]
         else:
             return []
-
-
-max_contexts = 3  # FIXME, eventually make customizable via user preferences
-
-
-def get_processing_dir() -> Path:
-    """Get the base directory for processing contexts."""
-    cache_dir = get_user_cache_dir()
-    processing_dir = cache_dir / "processing"
-    processing_dir.mkdir(parents=True, exist_ok=True)
-    return processing_dir
-
-
-def cleanup_old_contexts() -> None:
-    """Remove oldest context directories if we exceed max_contexts."""
-    processing_dir = get_processing_dir()
-    if not processing_dir.exists():
-        return
-
-    # Get all subdirectories in processing_dir
-    contexts = [d for d in processing_dir.iterdir() if d.is_dir()]
-
-    # If we have more than max_contexts, delete the oldest ones
-    if len(contexts) > max_contexts:
-        # Sort by modification time (oldest first)
-        contexts.sort(key=lambda d: d.stat().st_mtime)
-
-        # Calculate how many to delete
-        num_to_delete = len(contexts) - max_contexts
-
-        # Delete the oldest directories
-        for context_dir in contexts[:num_to_delete]:
-            logging.info(f"Removing old processing context: {context_dir}")
-            shutil.rmtree(context_dir, ignore_errors=True)
 
 
 def doit_do_copy(task_dict: TaskDict):

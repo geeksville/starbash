@@ -28,11 +28,10 @@ from starbash.doit import (
     FileInfo,
     ProcessingResult,
     StarbashDoit,
-    TaskDict,
-    cleanup_old_contexts,
     doit_do_copy,
     doit_post_process,
 )
+from starbash.doit_types import TaskDict, cleanup_old_contexts
 from starbash.exception import (
     NonFatalException,
     NoSuitableMastersException,

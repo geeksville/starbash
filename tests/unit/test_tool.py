@@ -290,7 +290,7 @@ class TestToolBaseClass:
                 self.received_cwd = None
                 self.received_context_copy = None
 
-            def _run(self, cwd: str, commands: str, context: dict = {}) -> None:
+            def _run(self, cwd: str, commands: str, context: dict = {}, **kwargs) -> None:
                 self.received_cwd = cwd
                 # Make a copy of context to verify temp_dir was present during execution
                 self.received_context_copy = dict(context)

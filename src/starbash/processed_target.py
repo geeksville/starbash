@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import shutil
 import tempfile
@@ -9,7 +11,7 @@ import tomlkit
 from repo import Repo, repo_suffix
 from starbash import StageDict
 from starbash.database import SessionRow
-from starbash.doit import TaskDict, cleanup_old_contexts, get_processing_dir
+from starbash.doit_types import TaskDict, cleanup_old_contexts, get_processing_dir
 from starbash.parameters import ParameterStore
 from starbash.processing_like import ProcessingLike
 from starbash.safety import get_safe
@@ -289,7 +291,7 @@ class ProcessedTarget:
         self.p.processed_target = None
 
     # FIXME - i'm not yet sure if we want to use context manager style usage here
-    def __enter__(self) -> "ProcessedTarget":
+    def __enter__(self) -> ProcessedTarget:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
