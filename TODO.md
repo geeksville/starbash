@@ -65,7 +65,7 @@ Changes since alpha 1...
 * [x] add support for http URLs also.  use https://pypi.org/project/requests-cache/ and session = CachedSession(stale_if_error=True)
 * [x] move the recipe repos to [their own github ](https://github.com/geeksville/starbash-recipes/)- stop pulling them as python resources
 * [x] add dwarf3 files to integration tests - fix ghcr.io stuff
-* [ ] explain about PATH https://github.com/geeksville/starbash/issues/5
+* [x] explain about PATH https://github.com/geeksville/starbash/issues/5
 
 (The following work items were all completed as part of the doit transition)
 * [x] get the input files

@@ -291,8 +291,11 @@ class ExternalTool(Tool):
         except MissingToolError:
             logger.warning(
                 textwrap.dedent(f"""\
-                    The {self.name} executable was not found.  Some features will be unavailable until you install it.
-                    Click [link={self.install_url}]here[/link] for installation instructions.""")
+                    The {self.name} executable was not found.  Most features will be unavailable until you install it.
+                    Click [link={self.install_url}]here[/link] for installation instructions.
+
+                    If you have already installed {self.name}, make sure it is in your system PATH.
+                    Instructions for Windows are [link=https://www.architectryan.com/2018/03/17/add-to-the-path-on-windows-10/]here[/link], for Linux or OS-X try [link=https://stackoverflow.com/questions/14637979/how-to-permanently-set-path-on-linux-mac]this[/link].""")
             )
 
     @property
