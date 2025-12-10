@@ -63,26 +63,6 @@ excluded = [
 # value = 0.5
 #
 # [[overrides]]
-# name = "bge_ai_version" # AI version for graxpert background extraction
-# value = "1.0.1"
-#
-# [[overrides]]
-# name = "smoothing_option" # Smoothing option for graxpert background extraction
-# value = 0.5
-#
-# [[overrides]]
-# name = "bge_ai_version" # AI version for graxpert background extraction
-# value = "1.0.1"
-#
-# [[overrides]]
-# name = "smoothing_option" # Smoothing option for graxpert background extraction
-# value = 0.5
-#
-# [[overrides]]
-# name = "bge_ai_version" # AI version for graxpert background extraction
-# value = "1.0.1"
-#
-# [[overrides]]
 # name = "thumbnail_size" # Maximum dimension for the thumbnail image
 # value = 1920
 #
