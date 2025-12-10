@@ -224,7 +224,7 @@ def merge_to(base_name: str, fi: FileInfo) -> None:
 
     # Create symlinks/copies with sequential names in the subdirectory
     for index, source_file in track(
-        enumerate(collected_files, start=1), description="Collecting job inputs"
+        enumerate(collected_files, start=1), description="Collecting job inputs", transient=True
     ):
         dest_name = f"{base_name}_{index:05d}.fits"
         dest_path = output_dir / dest_name

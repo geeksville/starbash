@@ -61,8 +61,9 @@ HaOiii = ["HaOiii", "HaO3", "Duo"]
 
 # Filter names for none/clear filters
 # Astro is the name Dwarf3 uses for their IR cut filter
+# VIS is the name Dwarf3 uses for their 'clear' filter
 # IRCUT/LP are the names Seestar uses for their filters
-None = ["None", "Astro", "IRCUT", "LP"]
+None = ["None", "Astro", "IRCUT", "LP", "VIS"]
 
 camera_osc = ["OSC", "ZWO ASI2600MC Duo"]
 camera_seestar = ["Seestar", "Seestar S50", "Seestar S30", "Seestar S30 Pro"]

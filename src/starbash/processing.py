@@ -34,6 +34,7 @@ from starbash.doit import (
     doit_post_process,
 )
 from starbash.exception import (
+    NonFatalException,
     NoSuitableMastersException,
     NotEnoughFilesError,
     UserHandledError,
@@ -62,7 +63,7 @@ __all__ = [
 ]
 
 
-class NoPriorTaskException(Exception):
+class NoPriorTaskException(NonFatalException):
     """Exception raised when a prior task specified in 'after' cannot be found."""
 
 
@@ -890,10 +891,8 @@ class Processing(ProcessingLike):
                 level,
                 f"Skipping stage '{stage.get('name')}' - insufficient input files: {e}",
             )
-        except NoPriorTaskException as e:
-            logging.debug(
-                f"Skipping stage '{stage.get('name')}' - required prior task was skipped {e}"
-            )
+        except NonFatalException as e:
+            logging.debug(f"Skipping stage '{stage.get('name')}' - {e}")
         except UserHandledError as e:
             logging.warning(f"Skipping stage '{stage.get('name')}' - {e}")
 

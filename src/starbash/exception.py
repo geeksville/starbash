@@ -25,7 +25,11 @@ def raise_missing_repo(kind: str) -> NoReturn:
     )
 
 
-class NotEnoughFilesError(UserHandledError):
+class NonFatalException(ValueError):
+    """An exception that means we have to skip the current stage/task, but don't tell the user"""
+
+
+class NotEnoughFilesError(NonFatalException):
     """Exception raised when not enough input files are provided for a processing stage."""
 
     def __init__(self, message: str, files: list[str] = []):
@@ -33,7 +37,7 @@ class NotEnoughFilesError(UserHandledError):
         self.files = files
 
 
-class NoSuitableMastersException(UserHandledError):
+class NoSuitableMastersException(NonFatalException):
     """Exception raised when no suitable master calibration files are found."""
 
     def __init__(self, kind: str):

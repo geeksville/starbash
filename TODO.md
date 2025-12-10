@@ -126,12 +126,13 @@
 * [x] test case m20 failing due to two tasks targeting stacked_Ha.fits
 * [x] test and adjust (m31?) multisession/mixed device stacking
 * [ ] store siril/graxpert/anytool logs in the output directory...
-* [ ] ic test failing on ic434 - make auto master processing smarter
+* [ ] ic test failing on ic434 - make auto master processing smarter - this will fix the integration test
 * [x] fix: getting removed in preflight because stage exclusions need to be session specific
 * [x] while developing default to pulling recipes from local submodule
-* [ ] automatically do process masters before first run?
 * [x] add parameterizations support - so scripts can have named preferences that get stored in toml run file - use for graxpert smoothing etc...
+* [ ] show only first 5 and last 10 lines for siril failures
 * [ ] use pixelmath to merge multichannel output files into a single file
+* [ ] bug: ngc6888 (in the big test data set) needs looser registration requirements
 * [ ] split out most of osc.py?
 * [x] input_files should be cleared from imported contexts.
 * [x] ask friends to send me the result of session list (with extra diagnostics turned on)
@@ -144,12 +145,14 @@
 * [x] make "repo list" only show user repos
 * [x] cleanup how different stages dependencies work together: bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
 * [x] too many cache dirs, delete after tasks
+* [x] no need for a cheaper modification checker - current checker only uses the expensive md5 if the file timestamp differs and the size has not changed.  But if that is too expensive TimestampChecker is available.
 * [ ] include thanks for siril,graxpert,starnet,doit
 * [ ] improve user readability of process report files
 * [ ] **second alpha release approximately here**
 
 ## Do second alpha here
 
+* [ ] experiment with parallel task execution: https://github.com/pydoit/doit/blob/00c136f5dfe7e9039d0fed6dddd6d45c84c307b4/doc/cmd-run.rst#parallel-execution
 * [ ] use caching fetch to speed up graxpert downloads
 * [ ] find a way to run the integration tests on a Windows VM (for #1 testing)
 * [x] make test data even smaller

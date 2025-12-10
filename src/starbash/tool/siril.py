@@ -27,7 +27,7 @@ def link_or_copy_to_dir(input_files: list[Path], dest_dir: str):
         else "Copying input files (fix your OS settings!)..."
     )
 
-    for f in track(input_files, description=description):
+    for f in track(input_files, description=description, transient=True):
         dest_file = os.path.join(dest_dir, os.path.basename(str(f)))
 
         # if a script is re-run we might already have the input file symlinks
