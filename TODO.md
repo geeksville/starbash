@@ -136,7 +136,7 @@ Changes since alpha 1...
 * [ ] use pixelmath to merge multichannel output files into a single file
 * [ ] compare one of my duo duo test cases 'hand workflow' to the automated result
 * [x] bug: ngc6888 (in the big test data set) needs looser registration requirements
-* [ ] include siril author credits
+* [x] include siril author credits
 * [x] Anonymize SITELONG and SITELAT in output files, to prevent users from accidentally leaking PII
 * [x] split out most of osc.py?
 * [x] input_files should be cleared from imported contexts.
