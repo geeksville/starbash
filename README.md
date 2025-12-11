@@ -1,14 +1,16 @@
 # [Starbash](https://github.com/geeksville/starbash)
 
-<img src="https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/img/icon.jpg" alt="Starbash: Astrophotography workflows simplified" width="30%" align="right" style="margin-bottom: 20px;">
-
 [![PyPI - Version](https://img.shields.io/pypi/v/starbash)](https://pypi.org/project/starbash/)
 [![Continuous Integration](https://github.com/geeksville/starbash/actions/workflows/ci.yml/badge.svg)](https://github.com/geeksville/starbash/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/github/geeksville/starbash/graph/badge.svg?token=47RE10I7O1)](https://codecov.io/github/geeksville/starbash)
 
 A tool for automating/standardizing/sharing astrophotography workflows.
 
-* Automatic - with sensible defaults that you can change as needed.
+## What is starbash?
+
+<img src="https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/img/icon.jpg" alt="Starbash: Astrophotography workflows simplified" width="30%" align="right" style="margin-bottom: 20px;">
+
+* Automatic - with sensible defaults that you can change as needed.  Just a few keystrokes to preprocess an entire repo of raw images.
 * Easy - provides a 'seestar-like' autoprocessing all your sessions (by default).  You can optionally do manual postprocessing with all this 'grunt work' preprocessing.
 * Fast<sup>1</sup> - even with large image repositories.  Automatic master bias and flat generation.  Automatic preprocessing/ stacking/background-elimination with reasonable defaults.
 * Multi-session - by default.  So your workflows can stack from multiple nights (and still use the correct flats etc...).
@@ -20,7 +22,22 @@ A tool for automating/standardizing/sharing astrophotography workflows.
 <sub>**Caveats:**
 1. 'Fast' in terms of you 'just need to click run and magically (ahem) everything just happens.'  But if you ask it to process many images it can take hours - just come back when it is done.</sub>
 
-<br clear="right">
+## What is starbash NOT
+
+### Not a new image processing tool (like Siril)
+It is important to understand that Starbash is primarily a tool for **repeatable**, **sharable**, **semi-automated** workflows.  It is tool agnostic and really just focuses on the relationship between tools, images and sessions.  It builds upon the great work of existing tools (currently mainly Siril and Graxpert) so we can grow an ecosystem of recipes.
+
+### Not a set of scripts
+
+It is more a tool for moving away from (sometimes long and complex) opaque scripts.  "Recipes" are kinda like scripts except they are small and atomic and use dependencies to be automatically installed at the appropriate stage of workflows.  But the actual operations performed by a recipe can be for any of the supported tools.
+
+For instance: if you don't like a particular "stack" stage recipe you can swap out just that portion of the workflow for an alternate implementation.  Or make your own and share it with others.  (With full automatic versioning so that workflows hopefully always keep working/evolving)
+
+Starbash understands FITS metadata and how to run tools based on that metadata, but the actual image transformations are entirely up to you and anyone who writes a recipe.
+
+We provide a few example recipes to enable auto-selection of common workflows (see below for example links).  But hopefully others will either add to these recipes or host their own recipe repos.
+
+If you are familar with the software enginering tools "npm, make and git", the goal of this project is to provide an analogous sharable workflows for astrophotography.
 
 # Current status
 
@@ -48,11 +65,18 @@ If you are interested in alpha-testing we ❤️ you.  This README should have e
 
 ## Features coming soon
 
-* Better recipe 'writers guide' documentation.
-* Support for mono-camera workflows (the alpha only has osc recipes).
+* Recipe 'writers guide' documentation.  Currently iterating based on usage reports 😄
+* Support for mono-camera workflows (the alpha only includes osc recipes).
 * The target report can be used to auto-generate a human-friendly 'postable/shareable' report about that image.
 * Target reports are shareable so that you can request comments from others and others can rerender with different settings.
 * Namespaces for recipes are disambiguated to be globally unique
+
+## Features (possibly) coming eventually
+
+* [IPFS](https://ipfs.tech/) based sharing of images and the workflows used to build those images (if you wish)
+* Nice graph view of raw images, recipes and operations that contributed to a final image.  Also possibly exposed via IPFS.
+* Pixinsight?
+* Autostakkert?
 
 See the [TODO](TODO.md) file for work items and approximate schedule.
 
@@ -177,8 +201,6 @@ If you don't want the automated processing you can still ask Starbash to prepare
 
 ## Supported telescope software
 
-FIXME explain FITS and directory paths
-
 * N.I.N.A. - tested, seems fairly okay.
 * Asiair - tested, seems fairly okay.
 * Seestar - tested, seems fairly okay.
@@ -192,26 +214,19 @@ Starbash is a tool agnostic workflow manager.  But it wouldn't be possible witho
 * [Graxpert](https://graxpert.com/) - for background and noise elimination
 * [Python](https://www.python.org/) (you can add Python code to recipes if necessary)
 
-## Supported tools (future?)
-
-* Pixinsight?
-* Autostakkert?
-
 ## Credits
 * Various reddit users who submitted anonymous crash reports from alpha 1
 * [@codegistics](https://github.com/codegistics) for kindly donating Dwarf3 test data and invaluable debugging assistance.
 * The developers of Siril and Graxpert - which are wonderful tools.
-* The [doit](https://pydoit.org/) automation building tool, which substantially simiplified this tool's development.
+* The [doit](https://pydoit.org/) an **amazing** automation building tool, which substantially simiplified this tool's development.
 
 ## Design
 
 FIXME - write this
-
-FIXME - what this tool is
 a way to avoid opaque script blobs that are tied to a particular tool.
 instead a way to make sharable/extendable workflows from atomic mini-tools
 A way to capture preprocessing steps used to create an image
-FIXME - what this tool isn't
+Include lots of thanks
 Influences from make, npm, github.
 
 ## Development

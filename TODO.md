@@ -66,8 +66,6 @@ Changes since alpha 1...
 * [x] move the recipe repos to [their own github ](https://github.com/geeksville/starbash-recipes/)- stop pulling them as python resources
 * [x] add dwarf3 files to integration tests - fix ghcr.io stuff
 * [x] explain about PATH https://github.com/geeksville/starbash/issues/5
-
-(The following work items were all completed as part of the doit transition)
 * [x] get the input files
 * [x] get the output files
 * [x] build and look at the list of doit tasks
@@ -100,7 +98,6 @@ Changes since alpha 1...
 * [x] verify build takes zero time if no changes
 * [x] scored candidates are no longer storing their confidence strings in the TOML!!!
 * [x] ic434 dataset for dwarf3 is not generating flat masters
-
 * [x] fix windows CI
 * [x] allow toml target files to be customized
 * [x] store flats in directory names based on INSTRUMENT not camera
@@ -155,6 +152,7 @@ Changes since alpha 1...
 * [x] include thanks for siril,graxpert,starnet,doit
 * [x] improve user readability of process report files
 * [x] make a use_drizzle prefs option, make it work on a per project or per user basis (drizzle uses LOTS of disk space)
+* [ ] resolve remaing README FIXMEs
 * [ ] add warning about trusting recipe sources...
 * [ ] **second alpha release approximately here**
 
