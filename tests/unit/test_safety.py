@@ -67,6 +67,4 @@ class TestGetListOfStrings:
     def test_get_list_of_strings_with_empty_list(self):
         """Test that get_list_of_strings handles empty list."""
         d = {"key": []}
-        # Empty list is falsy, so get_safe will raise
-        with pytest.raises(ValueError, match="Config is missing 'key' field"):
-            get_list_of_strings(d, "key")
+        assert get_list_of_strings(d, "key") == []

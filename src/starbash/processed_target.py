@@ -311,8 +311,8 @@ class ProcessedTarget:
             first_sess = self.p.sessions[0]
             metadata = first_sess.get("metadata", {})
             overrides["target"] = metadata.get("OBJECT", "N/A")
-            overrides["target_ra"] = metadata.get("RA", "N/A")
-            overrides["target_dec"] = metadata.get("DEC", "N/A")
+            overrides["target_ra"] = metadata.get("OBJCTRA") or metadata.get("RA", "N/A")
+            overrides["target_dec"] = metadata.get("OBJCTDEC") or metadata.get("DEC", "N/A")
 
         for sess in self.p.sessions:
             num_images = sess.get("num_images", 0)
