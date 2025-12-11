@@ -262,7 +262,7 @@ class TestStarbashInit:
         # Create user config with analytics disabled
         config_dir = setup_test_environment["config_dir"]
         config_file = config_dir / "starbash.toml"
-        config_file.write_text("[analytics]\nenabled = false\n")
+        config_file.write_text("[repo]\n\n[analytics]\nenabled = false\n")
 
         with Starbash() as app:
             # Analytics setup should not be called
@@ -273,7 +273,7 @@ class TestStarbashInit:
         # Create user config with analytics enabled
         config_dir = setup_test_environment["config_dir"]
         config_file = config_dir / "starbash.toml"
-        config_file.write_text("[analytics]\nenabled = true\n")
+        config_file.write_text("[repo]\n\n[analytics]\nenabled = true\n")
 
         with Starbash() as app:
             # Analytics setup should be called
@@ -340,7 +340,7 @@ class TestStarbashInit:
         config_dir = setup_test_environment["config_dir"]
         config_file = config_dir / "starbash.toml"
         config_file.write_text(
-            '[analytics]\nenabled = true\ninclude_user = true\n[user]\nemail = "test@example.com"\n'
+            '[repo]\n\n[analytics]\nenabled = true\ninclude_user = true\n[user]\nemail = "test@example.com"\n'
         )
 
         with Starbash() as app:

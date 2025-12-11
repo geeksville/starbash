@@ -271,6 +271,7 @@ class Starbash:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> bool:
+        from starbash import _is_test_env
         from starbash.exception import UserHandledError
 
         handled = False
@@ -289,8 +290,10 @@ class Starbash:
                     # Show the full exception for developers
                     starbash.console.print_exception(show_locals=True)
 
-                # But in any case, make our app exit with an error code
-                raise typer.Exit(code=1)
+                # In test environments, let exceptions propagate naturally for better test diagnostics
+                if not _is_test_env:
+                    # But in any case, make our app exit with an error code
+                    raise typer.Exit(code=1)
         else:
             self.close()
 
