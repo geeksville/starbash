@@ -134,7 +134,8 @@ Changes since alpha 1...
 * [x] add parameterizations support - so scripts can have named preferences that get stored in toml run file - use for graxpert smoothing etc...
 * [x] show only first 5 and last 10 lines for siril failures
 * [ ] use pixelmath to merge multichannel output files into a single file
-* [ ] bug: ngc6888 (in the big test data set) needs looser registration requirements
+* [ ] compare one of my duo duo test cases 'hand workflow' to the automated result
+* [x] bug: ngc6888 (in the big test data set) needs looser registration requirements
 * [ ] include siril author credits
 * [x] Anonymize SITELONG and SITELAT in output files, to prevent users from accidentally leaking PII
 * [x] split out most of osc.py?
@@ -144,6 +145,7 @@ Changes since alpha 1...
 * [x] generate an auto-stretched output as jpg thumbnails.
 * [x] make master-selection user customizable per target
 * [ ] do auto star removal as a separate stage
+* [ ] ping current users / other devs for new feedback
 * [ ] write a small tutorial/manual for recipes and parameters - explain make philosophy, reusability rather than brittlness, agnostic engine, sharability/tracability
 * [x] add "darkorbias" as an input type.  make default recipes work with dark frames - not just bias frames - REQUIRED for dwarf3
 * [x] make "repo list" only show user repos
@@ -169,6 +171,7 @@ Changes after alpha 2... (not yet prioritized, need to schedule for about a mont
 * [x] check for required/recommended tools at start.
 * [x] for debugging purposes generate a mastername.sb.toml file per master - to see input selection choices
 * [ ] include temperature in bias filenames.
+* [ ] Possibly package as a Siril extension (might need to send in PRs for Siril?) to give Siril built in multisession/sharable recipes support?
 * [x] name the progess dirs so they can be semi-persistent (speed up reruns)
 * [ ] let user spec a max cache size, if we exceed that just delete older build dirs from that cache as needed.  This would allow quick rebuilds for the last N targets rendered.
 * [x] move processing code out of app
@@ -302,7 +305,7 @@ Changes after alpha 2... (not yet prioritized, need to schedule for about a mont
 │ m27  Mixed Dual and Seestar - dies due to not enough disk for drizzle         │       2025-07-10:light_LP_gain80 │ ✗ Failed  │ Tool: 'siril -d                                         │
 │                 │                                  │           │ /home/vscode/.cache/starbash/processing/m27 -s -'       │
 │                 │                                  │           │ failed                                                  │
-│ ngc6888 - probably also needs too much disk in drizzle        │       2025-07-07:light_LP_gain80 │ ✗ Failed  │ Tool: 'siril -d                                         │
+                                 │
 │                 │                                  │           │ /home/vscode/.cache/starbash/processing/ngc6888 -s -'   │
 │                 │                                  │           │ failed                                                  │
 │ ic1396 - probably also big         │  2025-09-02:light_HaOiii_gain100 │ ✗ Failed  │ Error during python script execution                    │

@@ -101,9 +101,11 @@ One of the main goals of starbash is to provide 'seestar-like' automatic image p
 
 ![auto session](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/vhs/process-auto.gif)
 
-How to use:
+How to use TLDR: just type "**sb process auto**" and it will probably do okay for your first attempt.
 
-* Step 1 - Select some sessions.  Example commands to use (when running commands the tool will provide feedback on what the current session set contains):
+Read on for the 'long/complete' instructions:
+
+* Step 1 - **Optional! If you skip this Starbash will default to attempting to process all of your sessions.  Go get a coffee and come back to see how it did 😊** Select some sessions.  Example commands to use (when running commands the tool will provide feedback on what the current session set contains):
 
 ```
 sb select any # selects all sessions in your repo
@@ -120,17 +122,12 @@ you should get a list of all the Messier objects you have in your images.
 In fact, tab completion works on virtually any starbash option - pressing
 tab for dates will show you dates you have image sessions for instance...
 
-* Step 2 - Generate 'master' images.  This will auto-stack your raw BIAS, DARK, FLAT etc... frames as single frame masters.  You only need to perform this step once:
-
-```
-sb process masters
-```
-
-* Step 3 - Do auto-process.  This will process all of the sessions you currently have selected.  It will group outputs by target name and it will auto-select flat frames on a per-session-date basis.  At the end of processing a list of targets and their processing will be printed.
+* Step 2 - Do auto-process.  This will process all of the sessions you currently have selected.  It will group outputs by target name and it will auto-select flat frames on a per-session-date basis.  At the end of processing a list of targets and their processing will be printed.  Any needed master frames will be generated as well.
 
 ```
 sb process auto
 ```
+
 ![auto finished](doc/img/auto_finish.png)
 
 The output directory (in addition to the processed fits outputs & jpeg thumbnails) will also contain a 'starbash.toml'.  That file contains information about what choices were made during processing (which masters selected, which recipes selected..., selected Siril options, etc...).

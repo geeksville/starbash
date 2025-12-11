@@ -38,9 +38,12 @@ class ToolError(UserHandledError):
     def ask_user_handled(self) -> bool:
         from starbash import console  # Lazy import to avoid circular dependency
 
-        console.print(
-            f"'{self.command}' failed while running [bold red]{self.arguments}[/bold red]"
-        )
+        args = self.arguments
+        # remove any blank lines from args (to make log output shorter)
+        if args:
+            args = "\n".join(line for line in args.splitlines() if line.strip())
+
+        console.print(f"'{self.command}' failed while running [bold red]{args}[/bold red]")
         return True
 
     def __rich__(self) -> Any:
