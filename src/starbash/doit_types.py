@@ -41,5 +41,5 @@ def cleanup_old_contexts() -> None:
 
         # Delete the oldest directories
         for context_dir in contexts[:num_to_delete]:
-            logging.info(f"Removing old processing context: {context_dir}")
+            logging.debug(f"Removing old processing context: {context_dir}")
             shutil.rmtree(context_dir, ignore_errors=True)

@@ -58,7 +58,7 @@ This is a rough list of feature/bug workitems.  See headers below to see when pa
 
 Changes since alpha 1...
 
-* [ ] bug #1 - fix dwarf3 investigation by @codegistics
+* [x] bug #1 - fix dwarf3 investigation by @codegistics (probably fixed?)
 * [x] bug #2 - osx path finding fixes by @jmachuca77
 * [x] always regen masters after adding a repo
 * [x] don't warn for "[tool-warnings] Reading sequence failed, file cannot be opened: *.seq. Reading sequence failed, file cannot be opened: *.seq." because harmless
@@ -106,7 +106,6 @@ Changes since alpha 1...
 * [x] store flats in directory names based on INSTRUMENT not camera
 * [x] Substantially improve progress display
 * [x] "sb process masters" shows empty results list
-
 * [x] do background_removal() as a separate stage via graxpert
 * [x] too many outputs from stacking job.
 * [x] remove 2 second pause in graxpert launch
@@ -153,14 +152,15 @@ Changes since alpha 1...
 * [x] no need for a cheaper modification checker - current checker only uses the expensive md5 if the file timestamp differs and the size has not changed.  But if that is too expensive TimestampChecker is available.
 * [x] include thanks for siril,graxpert,starnet,doit
 * [x] improve user readability of process report files
+* [x] make a use_drizzle prefs option, make it work on a per project or per user basis (drizzle uses LOTS of disk space)
 * [ ] add warning about trusting recipe sources...
 * [ ] **second alpha release approximately here**
 
 ### Do second alpha (0.2.0) here
 
-Changes after alpha 2...
+Changes after alpha 2... (not yet prioritized, need to schedule for about a month later, mostly driven by user reports/analytics...)
 
-* [ ] make a use_drizzle prefs option, make it work on a per project or per user basis (drizzle uses LOTS of disk space)
+* [ ] disabled overrides spam extra comments to starbash.toml, fix that by using "overrides_disabled"?
 * [ ] experiment with parallel task execution: https://github.com/pydoit/doit/blob/00c136f5dfe7e9039d0fed6dddd6d45c84c307b4/doc/cmd-run.rst#parallel-execution.  Though locks would need around final run logging
 * [ ] use caching fetch to speed up graxpert downloads
 * [ ] find a way to run the integration tests on a Windows VM (for #1 testing)
@@ -278,7 +278,7 @@ Changes after alpha 2...
 * [ ] get a real app icon (instead of current placeholder)
 * [ ] experiment with auto generation of report text
 
-* [ ] make python less of security nightmare
+* [ ] make python more secure/restrictive.  Currently recipes are running general python code that can do anything.
 * [ ] install bandit security tests https://bandit.readthedocs.io/en/latest/integrations.html
 * [ ] allow selecting targets using OBJCTRA and OBJECTDEC + an angle of view - because it makes name differences meaningless.  possibly start with a name and then query a DB to find RA/DEC then look for the local images.
 * [ ] Possibly store the DB queries as the description for the sesssion inputs?

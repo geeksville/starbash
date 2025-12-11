@@ -58,6 +58,33 @@ class MissingToolError(UserHandledError):
         return str(self)  # FIXME do something better here?
 
 
+BAD_WORDS = [
+    "error",
+    "failed",
+    "abort",
+    "warning",
+    "cannot",
+    "unable",
+    "fatal",
+    "No image",
+    "Not enough",
+]
+
+
+def color_line(line: str) -> str:
+    """Siril/other tools are bad at marking error lines, so we look for 'bad' words and color those lines red."""
+    lower_line = line.lower()
+    for bad_word in BAD_WORDS:
+        if bad_word in lower_line:
+            return f"[red]{line}[/red]"
+    return line
+
+
+def color_lines(lines: list[str]) -> str:
+    """Color lines based on presence of 'bad' words."""
+    return "\n".join(color_line(line) for line in lines)
+
+
 def tool_emit_logs(lines: str, log_level: int = logging.INFO) -> None:
     """Emit log lines from a tool to the logger at the specified log level.
 
@@ -77,10 +104,10 @@ def tool_emit_logs(lines: str, log_level: int = logging.INFO) -> None:
 
         if len(split_lines) <= total_preview_lines:
             # If there are few enough lines, just show them all at the specified log level
-            logger.log(log_level, f"[tool] {lines}")
+            logger.log(log_level, f"[tool] {color_lines(split_lines)}")
         else:
             # Show first few lines as INFO
-            first_lines = "\n".join(split_lines[:NUM_PRELUDE_LINES])
+            first_lines = color_lines(split_lines[:NUM_PRELUDE_LINES])
             logger.info(f"[tool] {first_lines}")
 
             # Show ellipsis to indicate omitted lines
@@ -88,7 +115,7 @@ def tool_emit_logs(lines: str, log_level: int = logging.INFO) -> None:
             logger.info(f"[dim][tool] … ({omitted_count} lines omitted) …[/dim]")
 
             # Show last few lines at the specified log level
-            last_lines = "\n".join(split_lines[-NUM_WARNING_LINES:])
+            last_lines = color_lines(split_lines[-NUM_WARNING_LINES:])
             logger.log(log_level, f"[tool] {last_lines}")
 
 

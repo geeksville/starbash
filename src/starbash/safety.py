@@ -8,7 +8,7 @@ from typing import Any
 def get_safe[T](d: dict[str, T], key: Any) -> T:
     """Get a value from the given dictionary key, raising an error if missing."""
     names: T | None = d.get(key)
-    if not names:
+    if names is None:
         raise ValueError(f"Config is missing '{key}' field")
     return names
 
