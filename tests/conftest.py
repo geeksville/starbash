@@ -49,23 +49,28 @@ def setup_test_environment(tmp_path):
 
     config_dir = tmp_path / "config"
     data_dir = tmp_path / "data"
+    cache_dir = tmp_path / "cache"
     documents_dir = tmp_path / "documents"
     config_dir.mkdir(parents=True, exist_ok=True)
     data_dir.mkdir(parents=True, exist_ok=True)
+    cache_dir.mkdir(parents=True, exist_ok=True)
     documents_dir.mkdir(parents=True, exist_ok=True)
 
-    # Set the override directories for this test (including documents_dir to prevent writing to real user Documents)
-    paths.set_test_directories(config_dir, data_dir, documents_dir_override=documents_dir)
+    # Set the override directories for this test (including cache_dir and documents_dir to prevent writing to real user directories)
+    paths.set_test_directories(
+        config_dir, data_dir, cache_dir_override=cache_dir, documents_dir_override=documents_dir
+    )
 
     yield {
         "config_dir": config_dir,
         "data_dir": data_dir,
+        "cache_dir": cache_dir,
         "documents_dir": documents_dir,
         "tmp_path": tmp_path,
     }
 
     # Clean up: reset to None after test
-    paths.set_test_directories(None, None)
+    paths.set_test_directories(None, None, None, None)
 
     # Restore original global state to prevent test pollution
     starbash.verbose_output = original_verbose
