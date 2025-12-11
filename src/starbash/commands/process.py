@@ -14,6 +14,7 @@ from starbash.commands.__init__ import (
 from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
 from starbash.doit import FileInfo
+from starbash.paths import get_user_config_path
 from starbash.processed_target import ProcessedTarget
 from starbash.processing import Processing, ProcessingResult
 from starbash.rich import to_rich_link
@@ -110,7 +111,9 @@ def print_results(
     from rich.table import Table
 
     if not results:
-        console.print(f"[yellow]{title}: No results, do you have a target selected?[/yellow]")
+        console.print(
+            f"[yellow]{title}: No results, do you have a target selected?  If this is your first time here run 'sb user setup'[/yellow]"
+        )
         return
 
     table = Table(title=title, show_header=True, header_style=TABLE_HEADER_STYLE)
@@ -212,6 +215,14 @@ def auto(
         import starbash
 
         starbash.process_masters = False
+
+    # Users might run "process auto" as their first command without reading any docs...
+    if not get_user_config_path().exists():
+        from starbash import console
+
+        console.print("[red]No app setup found.[/red]  Please run 'sb user setup'.")
+        raise typer.Exit(1)
+
     with Starbash("process.auto") as sb:
         with Processing(sb) as proc:
             from starbash import console
@@ -223,7 +234,6 @@ def auto(
             else:
                 console.print("[yellow]Auto-processing all selected sessions...[/yellow]")
 
-            try:
                 results = proc.run_all_stages()
 
                 title = "Autoprocessed"
@@ -236,10 +246,6 @@ def auto(
                         title += f" to {fi.repo.resolve_path()}"
 
                 print_results(title, results, console)
-
-            except Exception:
-                console.print_exception(show_locals=True)
-                raise typer.Exit(code=1)
 
 
 @app.command(

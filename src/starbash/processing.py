@@ -497,7 +497,7 @@ class Processing(ProcessingLike):
         # for parallism etc...?
         # self.doit.run(["list", "--all", "--status"])
 
-        logging.info("Running doit tasks...")
+        logging.debug("Running doit tasks...")
         doit_args: list[str] = []
         if starbash.force_regen:
             doit_args.append("-a")  # force rebuild

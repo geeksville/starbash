@@ -152,6 +152,7 @@ def _ask_user_config(sb: Starbash) -> None:
 
 
 def do_reinit(sb: Starbash) -> None:
+    """Do guided 1st time setup for starbash."""
     from starbash import console
 
     console.print()

@@ -284,7 +284,16 @@ class Starbash:
                 raise typer.Exit(code=1)
             else:
                 handled = analytics_exception(exc)
-        self.close()
+                self.close()
+                if not handled:
+                    # Show the full exception for developers
+                    starbash.console.print_exception(show_locals=True)
+
+                # But in any case, make our app exit with an error code
+                raise typer.Exit(code=1)
+        else:
+            self.close()
+
         return handled
 
     def _add_session(self, header: dict) -> None:
@@ -439,7 +448,7 @@ class Starbash:
                 absolute_path = repo.resolve_path(relative_path)
                 image["abspath"] = str(absolute_path)
             else:
-                logging.error(f"Repo not found for URL: {repo_url}, skipping image...")
+                raise UserHandledError(f"Repo not found for URL: {repo_url}, session skipped.")
 
         return image
 

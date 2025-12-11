@@ -152,6 +152,7 @@ Changes since alpha 1...
 * [x] include thanks for siril,graxpert,starnet,doit
 * [x] improve user readability of process report files
 * [x] make a use_drizzle prefs option, make it work on a per project or per user basis (drizzle uses LOTS of disk space)
+* [x] confirm that a virgin install gives a good error message for "sb process auto"
 * [ ] resolve remaing README FIXMEs
 * [ ] add warning about trusting recipe sources...
 * [ ] **second alpha release approximately here**
