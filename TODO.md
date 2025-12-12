@@ -157,10 +157,14 @@ Changes since alpha 1...
 Changes after alpha 2... (not yet prioritized, need to schedule for about a month later, mostly driven by user reports/analytics...)
 
 * [ ] change "exclude_by_default" to use the new parameters system instead.
+* [ ] do auto star removal as a separate stage
 * [ ] don't show source files in log view when running a non developer build?
 * [ ] use pixelmath to merge multichannel output files into a single file
 * [ ] compare one of my duo duo test cases 'hand workflow' to the automated result
-* [ ] do auto star removal as a separate stage
+* [ ] talk with Siril devs about "merge" improvements, possibly make and send in a PR
+* [ ] easy picker UI so users can set aliases or change master/exclusion settings without editing toml files
+* [ ] add initial IPFS support (via a new tool subclass?)
+* [ ] experiment with telescopus tool (filling in fields of image info with backpointers requesting feedback)
 * [ ] add warning about trusting recipe sources, because recipes can contain python code.
 * [ ] write a small tutorial/manual for recipes and parameters - explain make philosophy, reusability rather than brittlness, agnostic engine, sharability/tracability
 * [ ] pull pixelmathish things etc... into small post-stack stages
@@ -289,7 +293,6 @@ Changes after alpha 2... (not yet prioritized, need to schedule for about a mont
 * [ ] Possibly store the DB queries as the description for the sesssion inputs?
 * [ ] eventually do a simple gui using https://flet.dev/docs/
 * [ ] validate TOML files at load time to look for invalid keys (detect possible typos in recipe files etc...)
-* [ ] experiment with telescopus upload (filling in fields of image info with backpointers requesting feedback)
 * [ ] make a "gen_test_db() function that can be used to generate either a huge or a tiny DB with 'real looking' test data (for performance tesing and CI).  Have it use a couple of real stripped FITS files.
 
 (stale) List of currently failing runs (probably just running out of disk space?):
