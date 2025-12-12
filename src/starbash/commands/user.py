@@ -178,11 +178,9 @@ def do_reinit(sb: Starbash) -> None:
             Recommended next steps (to get your first auto-generated images):
             1. Add your source raw image repositories (starbash will only READ from these):
                [cyan]sb repo add /path/to/your/raw_images[/cyan]
-            2. Ask starbash to auto-generate 'master' darks, biases and flats:
-                [cyan]sb process masters[/cyan]
-            3. Process your images using automated workflows:
+            2. Process your images using automated workflows:
                 [cyan]sb process auto[/cyan]
-            4. (Highly recommended) Tell your shell to auto-complete starbash commands:
+            3. (Highly recommended) Tell your shell to auto-complete starbash commands:
                 [cyan]sb shell-complete --install-completion[/cyan]
 
             This project is currently very 'alpha' but we are eager to have it work for you.
