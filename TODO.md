@@ -156,6 +156,7 @@ Changes since alpha 1...
 
 Changes after alpha 2... (not yet prioritized, need to schedule for about a month later, mostly driven by user reports/analytics...)
 
+* [ ] change "exclude_by_default" to use the new parameters system instead.
 * [ ] don't show source files in log view when running a non developer build?
 * [ ] use pixelmath to merge multichannel output files into a single file
 * [ ] compare one of my duo duo test cases 'hand workflow' to the automated result
