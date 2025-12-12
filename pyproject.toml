@@ -25,6 +25,7 @@ sentry-sdk = "^2.42.1"
 update-checker = "^0.18.0"
 requests-cache = "^1.2.1"
 doit = "^0.36.0"
+textual = "^6.8.0"
 
 # Note: to use graxpert from the local tree rather than pypi use:
 # graxpert = {path = "GraXpert", extras = ["cpuonly"], develop = true}
@@ -37,6 +38,7 @@ pytest-xdist = "^3.8.0"
 pre-commit = "^4.3.0"
 ruff = "^0.14.4"
 basedpyright = "^1.33.0"
+textual-dev = "^1.8.0"
 
 # We don't currently use this text based sql client
 # harlequin = "^2.4.1"

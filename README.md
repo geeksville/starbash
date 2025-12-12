@@ -219,6 +219,7 @@ Starbash is a tool agnostic workflow manager.  But it wouldn't be possible witho
 * [@codegistics](https://github.com/codegistics) for kindly donating Dwarf3 test data and invaluable debugging assistance.
 * The developers of Siril and Graxpert - which are wonderful tools.
 * The [doit](https://pydoit.org/) an **amazing** automation building tool, which substantially simiplified this tool's development.
+* Any parts of the user interface that look good are probably due to the awesome [rich](https://github.com/Textualize/rich) library.
 
 ## Development
 

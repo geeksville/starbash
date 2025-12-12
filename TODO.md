@@ -159,7 +159,7 @@ Changes after alpha 2... (not yet prioritized, need to schedule for about a mont
 * [ ] include some example thumbnails in the README.
 * [ ] improve code coverage tests by making a micro FITS test files that do at least one full autoprocess, this will get us coverage on essentially all remaining lines.
 * [ ] include the session query expression in the report toml, so that any regens of the same folder keep those same settings (until changed)
-* [ ] change "exclude_by_default" to use the new parameters system instead.
+* [-] NOT NEEDED: exclude_by_default works better for this application. change "exclude_by_default" to use the new parameters system instead.
 * [ ] do the auto star removal as a separate stage
 * [ ] don't show source files in log view when running a non developer build?
 * [ ] use pixelmath to merge multichannel output files into a single file
@@ -298,31 +298,54 @@ Changes after alpha 2... (not yet prioritized, need to schedule for about a mont
 * [ ] validate TOML files at load time to look for invalid keys (detect possible typos in recipe files etc...)
 * [ ] make a "gen_test_db() function that can be used to generate either a huge or a tiny DB with 'real looking' test data (for performance tesing and CI).  Have it use a couple of real stripped FITS files.
 
-(stale) List of currently failing runs (probably just running out of disk space?):
+## Textual work items
 
-                                   Autoprocessed to /workspaces/starbash/images/processed
-┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ Target          ┃                          Session ┃  Status   ┃ Notes                                                   ┃
-┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+Alas Textual died as a company earlier this year https://textual.textualize.io/blog/2025/05/07/the-future-of-textualize/
 
-│ ic1848 HUGE!!!         │ 2025-09-16:light_SiiOiii_gain100 │ ✓ Success │ seqextract_haoiii_ic1848_s78 →                          │
-│                 │                                  │           │ Ha_bkg_pp_light_s78_.seq, OIII_bkg_pp_light_s78_.seq    │
-│ ic1848          │ 2025-09-16:light_SiiOiii_gain100 │ ✗ Failed  │ Tool: 'siril -d                                         │
-│                 │                                  │           │ /home/vscode/.cache/starbash/processing/ic1848 -s -'    │
-│                 │                                  │           │ failed                                                  │
-│ m27  Mixed Dual and Seestar - dies due to not enough disk for drizzle         │       2025-07-10:light_LP_gain80 │ ✗ Failed  │ Tool: 'siril -d                                         │
-│                 │                                  │           │ /home/vscode/.cache/starbash/processing/m27 -s -'       │
-│                 │                                  │           │ failed                                                  │
-                                 │
-│                 │                                  │           │ /home/vscode/.cache/starbash/processing/ngc6888 -s -'   │
-│                 │                                  │           │ failed                                                  │
-│ ic1396 - probably also big         │  2025-09-02:light_HaOiii_gain100 │ ✗ Failed  │ Error during python script execution                    │
+ui/alias_editor.py - shows an editor pane for user repo.aliases. using
+toml_table_editor: allows adding new keys.  existing table is listed 'tree style'
+include a raw editor based on TextArea
 
-│ m45 - probably just disk space            │    2025-09-16:light_None_gain100 │ ✗ Failed  │ Tool: 'siril -d                                         │
-│                 │                                  │           │ /home/vscode/.cache/starbash/processing/m45 -s -'       │
-│                 │                                  │           │ failed                                                  │
+* make a TomlEditor widget - initially based on TextArea, but eventually some sort of tree view.  Have it be "reactive" https://textual.textualize.io/tutorial/ to auto update the view when the config changes (i.e. as a run progresses)
 
-│ m31 - probably just drizzle disk space            │    2025-09-01:light_None_gain100 │ ✗ Failed  │ Tool: 'siril -d                                         │
-│                 │                                  │           │ /home/vscode/.cache/starbash/processing/m31 -s -'       │
-│                 │                                  │           │ failed                                                  │
-└─────────────────┴──────────────────────────────────┴───────────┴─────────────────────────────────────────────────────────┘
+* TaskListView: make a reactive Task watcher view that watches a list of Tasks and updates as the build progresses
+Initially use https://textual.textualize.io/guide/reactivity/#recompose when we see tasks change.
+
+* Normal app layout is a big LogView on the right and a TaskView on the left.  After completion a ResultsListView will show list of results.
+
+* A ResultView includes an "edit config" button to open the TargetEditor beneath the ResultView (to edit the toml).  Or possibly make a new "Screen" for that https://textual.textualize.io/guide/screens/#screen-stack
+
+Initially enable borders and border titles on all widgets: https://textual.textualize.io/guide/widgets/#border-titles
+
+Example of usign a rich table: https://textual.textualize.io/guide/widgets/#rich-renderables
+
+Using a 'loading indicator' for not yet ready views (not completed tasks?  once task is completed show the command output from that task): https://textual.textualize.io/guide/widgets/#loading-indicator
+
+Possibly use https://textual.textualize.io/guide/screens/#modal-screens to make a pop-up picker view for used/excluded or masters?  But probably better as: https://textual.textualize.io/widget_gallery/#optionlist
+
+Eventually use this for log view? https://textual.textualize.io/guide/widgets/#render-line-method
+
+Possibly have a "Settings screen" a "Processing screen" and a "Target editor" screen? https://textual.textualize.io/guide/screens/#modes.  But probably better to do this instead: https://textual.textualize.io/widget_gallery/#tabbedcontent
+
+Use a worker thread to run the "processing task" https://textual.textualize.io/guide/workers/#thread-workers
+
+Use the command pallet for all user commands: https://textual.textualize.io/guide/command_palette/#launching-the-command-palette
+
+How to test: https://textual.textualize.io/guide/testing/
+
+Possibly run textual in a web browser: https://github.com/Textualize/textual-serve
+
+Use something inspired by https://textual.textualize.io/api/logging/ for logging but different, because we need those logs to go in a queue for a custom widget intead...
+Use this to implement: https://textual.textualize.io/widget_gallery/#richlog
+
+### tutorial
+
+Good referance: https://textual.textualize.io/guide/app/
+* Set a title/subtitle: https://textual.textualize.io/guide/app/#title-and-subtitle
+* Layouts of containers: https://textual.textualize.io/guide/layout/#composing-with-context-managers
+
+"textual[syntax]"
+
+see demo with
+
+python -m textual
