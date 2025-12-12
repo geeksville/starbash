@@ -139,7 +139,7 @@ Changes since alpha 1...
 * [x] provide link to generated starbash.toml files
 * [x] generate an auto-stretched output as jpg thumbnails.
 * [x] make master-selection user customizable per target
-* [ ] ping current users / other devs for new feedback
+* [x] ping current users / other devs for new feedback
 * [x] add "darkorbias" as an input type.  make default recipes work with dark frames - not just bias frames - REQUIRED for dwarf3
 * [x] make "repo list" only show user repos
 * [x] cleanup how different stages dependencies work together: bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
@@ -149,14 +149,14 @@ Changes since alpha 1...
 * [x] improve user readability of process report files
 * [x] make a use_drizzle prefs option, make it work on a per project or per user basis (drizzle uses LOTS of disk space)
 * [x] confirm that a virgin install gives a good error message for "sb process auto"
-* [ ] don't show source files in log view when running a non developer build
-* [ ] resolve remaing README FIXMEs
-* [ ] **second alpha release approximately here**
+* [x] resolve remaing README FIXMEs
+* [x] **second alpha release approximately here**
 
 ### Do second alpha (0.2.0) here
 
 Changes after alpha 2... (not yet prioritized, need to schedule for about a month later, mostly driven by user reports/analytics...)
 
+* [ ] don't show source files in log view when running a non developer build?
 * [ ] use pixelmath to merge multichannel output files into a single file
 * [ ] compare one of my duo duo test cases 'hand workflow' to the automated result
 * [ ] do auto star removal as a separate stage

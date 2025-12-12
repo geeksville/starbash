@@ -56,7 +56,7 @@ If you are interested in alpha-testing we ❤️ you.  This README should have e
 * Automatically performs **complete** preprocessing on OSC (broadband, narrowband, or dual Duo filter).  i.e., gives you 'seestar-level' auto-preprocessing, so you only need to do the (optional) custom post-processing.
 * Uses Siril recipes for its pre-processing operations (support for Pixinsight-based recipes will probably be coming at some point...).
 
-### From the alpha 2 (0.2.0) release (2025/12/12 ish)
+### From the alpha 2 (0.2.0) release (2025/12/12)
 * Include a stretched 'thumbnail'(FIXME/link/example/thumbnail) jpg proof-of-concept render in the output directories
 * Generates a per-target [report/config file](doc/toml/example/processed-repo/example-m20.toml) which can be customized if the detected defaults or preprocessing are not what you want.
 * '[Recipes](https://github.com/geeksville/starbash-recipes)' are now user-editable - provides repeatable/human-[readable](doc/toml/example/processed-repo/example-m20.toml)/shareable descriptions of all processing steps. [example Siril OSC stacking](https://github.com/geeksville/starbash-recipes/blob/6d255f48591c4991ddc1168ffa5c38050a500771/osc/osc_simple.toml), [example Graxpert BGE](https://github.com/geeksville/starbash-recipes/blob/6d255f48591c4991ddc1168ffa5c38050a500771/graxpert/background.toml), [example thumbnail generation](https://github.com/geeksville/starbash-recipes/blob/6d255f48591c4991ddc1168ffa5c38050a500771/common/thumbnail.toml)...
