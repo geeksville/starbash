@@ -11,7 +11,7 @@ A tool for automating/standardizing/sharing astrophotography workflows.
 <img src="https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/img/icon.jpg" alt="Starbash: Astrophotography workflows simplified" width="30%" align="right" style="margin-bottom: 20px;">
 
 * Automatic - with sensible defaults that you can change as needed.  Just a few keystrokes to preprocess an entire repo of raw images.
-* Easy - provides a 'seestar-like' autoprocessing all your sessions (by default).  You can optionally do manual postprocessing with all this 'grunt work' preprocessing.
+* Easy - provides a 'seestar-like' autoprocessing all your sessions (by default).  You can optionally do manual postprocessing with all this 'grunt work' preprocessing automated.
 * Fast<sup>1</sup> - even with large image repositories.  Automatic master bias and flat generation.  Automatic preprocessing/ stacking/background-elimination with reasonable defaults.
 * Multi-session - by default.  So your workflows can stack from multiple nights (and still use the correct flats etc...).
 * Shareable - you can share/use recipes for image preprocessing flows.  The eventual goal is a transition away from opaque burried scripts.  Recipes can come from multiple repos and you or other orgs can host recipes.
