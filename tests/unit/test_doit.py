@@ -73,6 +73,7 @@ class TestStarbashDoit:
         captured = capsys.readouterr()
         assert "help" in captured.out.lower() or "usage" in captured.out.lower()
 
+    @pytest.mark.slow
     def test_run_sample_task(self, capfd):
         """Test that run method can execute the sample task."""
         doit = StarbashDoit()

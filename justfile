@@ -1,4 +1,4 @@
-# This is a set of justfile recipes for developer tasks
+# This is a set of [just](https://github.com/casey/just) recipes for developer tasks
 
 default:
     just --list
