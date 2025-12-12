@@ -57,8 +57,8 @@ If you are interested in alpha-testing we ❤️ you.  This README should have e
 * Uses Siril recipes for its pre-processing operations (support for Pixinsight-based recipes will probably be coming at some point...).
 
 ### From the alpha 2 (0.2.0) release (2025/12/12 ish)
-* Include a stretched 'thumbnail'(FIXME - link example thumbnail) jpg proof-of-concept render in the output directories
-* Generates a per-target [report/config file](FIXME - link example processed toml) which can be customized if the detected defaults or preprocessing are not what you want.
+* Include a stretched 'thumbnail'(FIXME/link/example/thumbnail) jpg proof-of-concept render in the output directories
+* Generates a per-target [report/config file](doc/toml/example/processed-repo/example-m20.toml) which can be customized if the detected defaults or preprocessing are not what you want.
 * '[Recipes](https://github.com/geeksville/starbash-recipes)' are now user-editable - provides repeatable/human-[readable](doc/toml/example/processed-repo/example-m20.toml)/shareable descriptions of all processing steps. [example Siril OSC stacking](https://github.com/geeksville/starbash-recipes/blob/6d255f48591c4991ddc1168ffa5c38050a500771/osc/osc_simple.toml), [example Graxpert BGE](https://github.com/geeksville/starbash-recipes/blob/6d255f48591c4991ddc1168ffa5c38050a500771/graxpert/background.toml), [example thumbnail generation](https://github.com/geeksville/starbash-recipes/blob/6d255f48591c4991ddc1168ffa5c38050a500771/common/thumbnail.toml)...
 * Repos can be on the local disk or shared via HTTPS/GitHub/etc.  This is particularly useful for recipe repos.
 * [Graxpert](https://graxpert.com/) based [recipe stages](https://github.com/geeksville/starbash-recipes/tree/main/graxpert) added (support for Pixinsight-based recipes will probably be coming at some point...).
@@ -219,15 +219,6 @@ Starbash is a tool agnostic workflow manager.  But it wouldn't be possible witho
 * [@codegistics](https://github.com/codegistics) for kindly donating Dwarf3 test data and invaluable debugging assistance.
 * The developers of Siril and Graxpert - which are wonderful tools.
 * The [doit](https://pydoit.org/) an **amazing** automation building tool, which substantially simiplified this tool's development.
-
-## Design
-
-FIXME - write this
-a way to avoid opaque script blobs that are tied to a particular tool.
-instead a way to make sharable/extendable workflows from atomic mini-tools
-A way to capture preprocessing steps used to create an image
-Include lots of thanks
-Influences from make, npm, github.
 
 ## Development
 

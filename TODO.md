@@ -130,8 +130,6 @@ Changes since alpha 1...
 * [x] while developing default to pulling recipes from local submodule
 * [x] add parameterizations support - so scripts can have named preferences that get stored in toml run file - use for graxpert smoothing etc...
 * [x] show only first 5 and last 10 lines for siril failures
-* [ ] use pixelmath to merge multichannel output files into a single file
-* [ ] compare one of my duo duo test cases 'hand workflow' to the automated result
 * [x] bug: ngc6888 (in the big test data set) needs looser registration requirements
 * [x] include siril author credits
 * [x] Anonymize SITELONG and SITELAT in output files, to prevent users from accidentally leaking PII
@@ -141,9 +139,7 @@ Changes since alpha 1...
 * [x] provide link to generated starbash.toml files
 * [x] generate an auto-stretched output as jpg thumbnails.
 * [x] make master-selection user customizable per target
-* [ ] do auto star removal as a separate stage
 * [ ] ping current users / other devs for new feedback
-* [ ] write a small tutorial/manual for recipes and parameters - explain make philosophy, reusability rather than brittlness, agnostic engine, sharability/tracability
 * [x] add "darkorbias" as an input type.  make default recipes work with dark frames - not just bias frames - REQUIRED for dwarf3
 * [x] make "repo list" only show user repos
 * [x] cleanup how different stages dependencies work together: bug: see m31.  If a target has been taken by both seestar and nina, we pick an OSC recipe that then barfs because no bias-masters found for the seestar.  we should support mix-and match for recipe stages.  use the light frame stage for seestar but the final stack stage from osc?
@@ -153,14 +149,20 @@ Changes since alpha 1...
 * [x] improve user readability of process report files
 * [x] make a use_drizzle prefs option, make it work on a per project or per user basis (drizzle uses LOTS of disk space)
 * [x] confirm that a virgin install gives a good error message for "sb process auto"
+* [ ] don't show source files in log view when running a non developer build
 * [ ] resolve remaing README FIXMEs
-* [ ] add warning about trusting recipe sources...
 * [ ] **second alpha release approximately here**
 
 ### Do second alpha (0.2.0) here
 
 Changes after alpha 2... (not yet prioritized, need to schedule for about a month later, mostly driven by user reports/analytics...)
 
+* [ ] use pixelmath to merge multichannel output files into a single file
+* [ ] compare one of my duo duo test cases 'hand workflow' to the automated result
+* [ ] do auto star removal as a separate stage
+* [ ] add warning about trusting recipe sources, because recipes can contain python code.
+* [ ] write a small tutorial/manual for recipes and parameters - explain make philosophy, reusability rather than brittlness, agnostic engine, sharability/tracability
+* [ ] pull pixelmathish things etc... into small post-stack stages
 * [ ] disabled overrides spam extra comments to starbash.toml, fix that by using "overrides_disabled"?
 * [ ] experiment with parallel task execution: https://github.com/pydoit/doit/blob/00c136f5dfe7e9039d0fed6dddd6d45c84c307b4/doc/cmd-run.rst#parallel-execution.  Though locks would need around final run logging
 * [ ] use caching fetch to speed up graxpert downloads
