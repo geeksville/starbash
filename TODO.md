@@ -156,10 +156,11 @@ Changes since alpha 1...
 
 Changes after alpha 2... (not yet prioritized, need to schedule for about a month later, mostly driven by user reports/analytics...)
 
+* [ ] include some example thumbnails in the README.
 * [ ] improve code coverage tests by making a micro FITS test files that do at least one full autoprocess, this will get us coverage on essentially all remaining lines.
 * [ ] include the session query expression in the report toml, so that any regens of the same folder keep those same settings (until changed)
 * [ ] change "exclude_by_default" to use the new parameters system instead.
-* [ ] do auto star removal as a separate stage
+* [ ] do the auto star removal as a separate stage
 * [ ] don't show source files in log view when running a non developer build?
 * [ ] use pixelmath to merge multichannel output files into a single file
 * [ ] compare one of my duo duo test cases 'hand workflow' to the automated result
