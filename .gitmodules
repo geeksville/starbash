@@ -1,6 +1,3 @@
 [submodule "starbash-recipes"]
 	path = starbash-recipes
 	url = https://github.com/geeksville/starbash-recipes.git
-[submodule "GraXpert"]
-	path = GraXpert
-	url = https://github.com/geeksville/GraXpert.git
