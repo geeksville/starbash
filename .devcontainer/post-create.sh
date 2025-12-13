@@ -4,6 +4,12 @@ set -e
 echo "source /workspaces/starbash/.devcontainer/on-shell-start.sh" >> ~/.bashrc
 echo "source /workspaces/starbash/.devcontainer/on-shell-start.sh" >> ~/.zshrc
 
+# Fix git credential helper to use container's gh path instead of host's homebrew path
+git config --global --unset-all credential.'https://github.com'.helper 2>/dev/null || true
+git config --global --add credential.'https://github.com'.helper '!/usr/bin/gh auth git-credential'
+git config --global --unset-all credential.'https://gist.github.com'.helper 2>/dev/null || true
+git config --global --add credential.'https://gist.github.com'.helper '!/usr/bin/gh auth git-credential'
+
 # Setup initial poetry venv (we store it in project so we can add the sb/starbash scripts to the path)
 # already done and persistent
 # poetry config virtualenvs.in-project true --local
