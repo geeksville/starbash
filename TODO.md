@@ -157,6 +157,7 @@ Changes since alpha 1...
 Changes after alpha 2... (not yet prioritized, need to schedule for about a month later, mostly driven by user reports/analytics...)
 
 * [ ] include some example thumbnails in the README.
+* [ ] add a color balance/correction stage
 * [ ] improve code coverage tests by making a micro FITS test files that do at least one full autoprocess, this will get us coverage on essentially all remaining lines.
 * [ ] include the session query expression in the report toml, so that any regens of the same folder keep those same settings (until changed)
 * [-] NOT NEEDED: exclude_by_default works better for this application. change "exclude_by_default" to use the new parameters system instead.
@@ -300,13 +301,23 @@ Changes after alpha 2... (not yet prioritized, need to schedule for about a mont
 
 ## Textual work items
 
+## Layout
+
+* Main - show info about app, # of sessions # of images, # processed
+* User settings screen - add aliases (use TomlNode) or overrides
+* **Implement this view first as a test**: Processing run screen - list of TaskView widgets on left, Log view on right.  If you highlight a TaskView the logs (or other info about that task) will be added as a new view in the vertical pane on the right.  Or really - I think that pane will always exist but just be empty/unshown sometimes.  Do
+* Targets view screen - shows all past processed targets as a list view on left.  If you select one the toml editor and other links (to open images etc) will open in the tab on the right
+
+
+Use Tree widget to show Toml nodes.  Subclass to add a "Add entry" button which should be turned on based on options to the constructor.
+
 Alas Textual died as a company earlier this year https://textual.textualize.io/blog/2025/05/07/the-future-of-textualize/
 
 ui/alias_editor.py - shows an editor pane for user repo.aliases. using
 toml_table_editor: allows adding new keys.  existing table is listed 'tree style'
 include a raw editor based on TextArea
 
-* make a TomlEditor widget - initially based on TextArea, but eventually some sort of tree view.  Have it be "reactive" https://textual.textualize.io/tutorial/ to auto update the view when the config changes (i.e. as a run progresses)
+* make a TomlEditor widget - initially based on TextArea, but eventually some sort of see the textual json_tree.py example.  Have it be "reactive" https://textual.textualize.io/tutorial/ to auto update the view when the config changes (i.e. as a run progresses)
 
 * TaskListView: make a reactive Task watcher view that watches a list of Tasks and updates as the build progresses
 Initially use https://textual.textualize.io/guide/reactivity/#recompose when we see tasks change.

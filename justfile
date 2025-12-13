@@ -196,3 +196,21 @@ test-slow: test process-one
 test-integration:
     poetry run pytest -m integration -n 0 -v
 
+#
+# The following is for experimenting with Textual UI stuff
+#
+
+# Run the textual demo app
+textual-demo:
+    python -m textual
+
+textual-code-demo:
+    python ./textual/examples/code_browser.py
+
+# Run starbash in UI mode
+ui:
+    python ./src/starbash/ui/main.py
+
+# Get a readable copy of the textual source for reference
+download-textual:
+    -git clone https://github.com/Textualize/textual.git

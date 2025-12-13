@@ -165,6 +165,15 @@
             "console": "integratedTerminal",
             "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
             "justMyCode": false
+        },
+        {
+            "name": "Python Debugger: Textual UI (standalone)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/starbash/ui/main.py",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
+            "justMyCode": false
         }
     ]
 }
