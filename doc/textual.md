@@ -51,6 +51,9 @@ Possibly run textual in a web browser: https://github.com/Textualize/textual-ser
 Use something inspired by https://textual.textualize.io/api/logging/ for logging but different, because we need those logs to go in a queue for a custom widget intead...
 Use this to implement: https://textual.textualize.io/widget_gallery/#richlog
 
+To display images add "kitty protocol" support # Display an image (if you are inside the kitty terminal)
+kitty +kitten icat my_image.png
+
 ### tutorial
 
 Good referance: https://textual.textualize.io/guide/app/

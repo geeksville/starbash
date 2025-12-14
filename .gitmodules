@@ -1,3 +1,6 @@
 [submodule "starbash-recipes"]
 	path = starbash-recipes
 	url = https://github.com/geeksville/starbash-recipes.git
+[submodule "siril-scripts"]
+	path = siril-scripts
+	url = https://github.com/geeksville/siril-scripts.git
