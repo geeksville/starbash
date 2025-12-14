@@ -31,6 +31,11 @@ textual = "^6.8.0"
 # graxpert = {path = "GraXpert", extras = ["cpuonly"], develop = true}
 graxpert = {version = "^3.2.0a1", extras = ["cpuonly"]}
 
+# The following two libs are only needed for the experiment of running siril scripts directly...
+# experimenting with siril-scripts/processing/VeraLux_HyperMetric_Stretch.py
+#numpy = "2.2.6"
+#pyqt6 = "^6.10.1"
+
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.4.2,<9.0.0"
 pytest-cov = "^6.0.0"
@@ -91,6 +96,23 @@ target-version = "py312"
 
 # Exclude a variety of commonly ignored directories
 exclude = [".git", ".venv", "__pycache__", "build", "dist"]
+
+[tool.ruff.format]
+# Only format files in src/ and tests/ - exclude everything else
+exclude = [
+    "doc/**",
+    "examples/**",
+    "siril-scripts/**",
+    "htmlcov/**",
+    "images/**",
+    "siril/**",
+    "starbash-recipes/**",
+    "test-data/**",
+    "GraXpert/**",
+    "textual/**",
+    "bin/**",
+    "*.py"  # Exclude root-level Python files
+]
 
 [tool.ruff.lint]
 # Enable these rule sets

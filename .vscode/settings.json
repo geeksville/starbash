@@ -5,14 +5,18 @@
     "files.trimTrailingWhitespace": true,
     // This enables the "format on save" feature for all languages that
     // have a configured formatter.
+    // Note: Ruff is configured (in pyproject.toml) to only format files in src/ and tests/
     "editor.formatOnSave": true,
     // Exclude GraXpert directory from file watcher (performance)
     "files.watcherExclude": {
         "GraXpert/**": true
     },
-    // Exclude GraXpert from Ruff formatting and linting
+    // Exclude GraXpert and siril-scripts from Ruff formatting and linting
     "ruff.exclude": [
-        "GraXpert/**"
+        "GraXpert/**",
+        "siril-scripts/**",
+        "doc/**",
+        "examples/**"
     ],
     // ---- Python-Specific Settings ----
     // This block specifies settings just for Python files.

@@ -214,3 +214,7 @@ ui:
 # Get a readable copy of the textual source for reference
 download-textual:
     -git clone https://github.com/Textualize/textual.git
+
+# Download a copy of siril for experimenting with script export
+download-siril:
+    -git clone https://gitlab.com/free-astro/siril.git
