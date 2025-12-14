@@ -1,8 +1,7 @@
 {
     // ---- General Editor Settings ----
-    // This tells VS Code to automatically remove any trailing whitespace
-    // from all files when you save them.
-    "files.trimTrailingWhitespace": true,
+    // Disable automatic trailing whitespace removal globally
+    "files.trimTrailingWhitespace": false,
     // This enables the "format on save" feature for all languages that
     // have a configured formatter.
     // Note: Ruff is configured (in pyproject.toml) to only format files in src/ and tests/
@@ -23,6 +22,8 @@
     "[python]": {
         // Use Ruff for both formatting and linting
         "editor.defaultFormatter": "charliermarsh.ruff",
+        // Note: files.trimTrailingWhitespace is disabled globally to avoid
+        // modifying external scripts in siril-scripts/
         "editor.codeActionsOnSave": {
             "source.fixAll.ruff": "explicit",
             "source.organizeImports.ruff": "explicit"

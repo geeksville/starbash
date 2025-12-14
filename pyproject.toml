@@ -95,7 +95,7 @@ line-length = 100
 target-version = "py312"
 
 # Exclude a variety of commonly ignored directories
-exclude = [".git", ".venv", "__pycache__", "build", "dist"]
+exclude = [".git", ".venv", "__pycache__", "build", "dist", "reference", "siril-scripts"]
 
 [tool.ruff.format]
 # Only format files in src/ and tests/ - exclude everything else
@@ -105,7 +105,7 @@ exclude = [
     "siril-scripts/**",
     "htmlcov/**",
     "images/**",
-    "siril/**",
+    "reference/**",
     "starbash-recipes/**",
     "test-data/**",
     "GraXpert/**",

@@ -185,6 +185,8 @@ lint: format _lint _typecheck
 format:
     poetry run ruff check --fix src/ tests/
     poetry run ruff format src/ tests/
+    # Remove trailing whitespace
+    sed -i 's/[[:space:]]*$//' src/**/*.py tests/**/*.py
 
 # standard quick test
 test:
@@ -213,8 +215,8 @@ ui:
 
 # Get a readable copy of the textual source for reference
 download-textual:
-    -git clone https://github.com/Textualize/textual.git
+    -git clone https://github.com/Textualize/textual.git reference/textual
 
 # Download a copy of siril for experimenting with script export
 download-siril:
-    -git clone https://gitlab.com/free-astro/siril.git
+    -git clone https://gitlab.com/free-astro/siril.git reference/siril
