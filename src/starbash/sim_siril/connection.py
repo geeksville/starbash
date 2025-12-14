@@ -1,9 +1,18 @@
 import logging
 from contextlib import AbstractContextManager
+from typing import Any
+
+from astropy.io import fits
+from numpy import ndarray
+
+from starbash import InputDef
 
 
 class SirilInterface:
     """Experimenting with proving a mock interface to allow siril scripts to be run directly..."""
+
+    # This static is
+    Context: dict[str, Any] = {}
 
     def __init__(self) -> None:
         pass
@@ -25,10 +34,14 @@ class SirilInterface:
         logging.info(f"SirilInterface.undo_save_state: {description}")
         return True
 
-    def get_image_pixeldata(self) -> Any:
+    def get_image_pixeldata(self) -> ndarray:
         # https://siril.readthedocs.io/en/latest/Python-API.html#sirilpy.connection.SirilInterface.get_image_pixeldata
-        logging.info("SirilInterface.get_image_pixeldata called")
-        return None
+        logging.debug("SirilInterface.get_image_pixeldata called")
+        input: InputDef = SirilInterface.Context["stage_input"]
+        inputf = input[0]
+        f = inputf.full_paths[0] # FIXME, we currently we assume we only care about the first input
+        (image_data, header) = fits.getdata(f, header=True)
+        return image_data
 
     def set_image_pixeldata(self, img) -> bool:
         # https://siril.readthedocs.io/en/latest/Python-API.html#sirilpy.connection.SirilInterface.set_image_pixeldata

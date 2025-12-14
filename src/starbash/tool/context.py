@@ -1,7 +1,10 @@
 """Context expansion utilities for tool templates."""
 
+import importlib
 import logging
 import re
+import types
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -149,6 +152,32 @@ def expand_context_unsafe(s: str, context: dict) -> str:
     return expanded
 
 
+class MyPrinter(RestrictedPython.PrintCollector):
+    def write(self, text):
+        logger.info(f"Script print: {text}")
+        super().write(text)
+
+
+def my__import__(
+    name: str,
+    globals: Mapping[str, object] | None = None,
+    locals: Mapping[str, object] | None = None,
+    fromlist: Sequence[str] | None = (),
+    level: int = 0,
+) -> types.ModuleType:
+    """A custom __import__ function for RestrictedPython that allows safe imports.
+
+    Note: This is currently very unsafe as it allows all imports.
+    A more restrictive policy should be implemented here.
+    """
+    if name == "sirilpy":
+        name = "starbash.sim_siril"
+        return importlib.import_module(name)
+        # Use our sim version instead, we use import_module because we want the inner sim_siril module not just the package
+
+    return __import__(name, globals, locals, fromlist, level)
+
+
 def make_safe_globals(extra_globals: dict = {}) -> dict:
     """Generate a set of RestrictedPython globals for AstoGlue exec/eval usage"""
     # Define the global and local namespaces for the restricted execution.
@@ -167,16 +196,45 @@ def make_safe_globals(extra_globals: dict = {}) -> dict:
     def getitem_glue(baseobj, index):
         return baseobj[index]
 
+    def getattr_glue(obj, name, default=None):
+        """Safe attribute access policy that allows special methods like __init__."""
+        # Allow access to common special methods needed for basic Python functionality
+        allowed_special = {
+            "__init__",
+            "__class__",
+            "__dict__",
+            "__doc__",
+            "__name__",
+            "__module__",
+            "__repr__",
+            "__str__",
+        }
+
+        # If it's an allowed special method, allow it
+        if name in allowed_special:
+            return getattr(obj, name, default)
+
+        # If it starts with underscore, block it (security)
+        if name.startswith("_"):
+            raise AttributeError(f'"{name}" is an invalid attribute name because it starts with "_".')
+
+        # Otherwise allow normal attribute access
+        return getattr(obj, name, default)
+
     extras = {
-        "__import__": __import__,  # FIXME very unsafe
+        "__import__": my__import__,  # FIXME very unsafe
         "_getitem_": getitem_glue,  # why isn't the default guarded getitem found?
         "_getiter_": iter,  # Allows for loops and other iterations.
+        "_unpack_sequence_": RestrictedPython.Guards.guarded_unpack_sequence,  # Required for tuple unpacking
         "_write_": write_test,
+        "_print_": MyPrinter,
+        "_getattr_": getattr_glue,  # Custom attribute access policy
         # Add common built-in types
         "list": list,
         "dict": dict,
         "str": str,
         "int": int,
+        "object": object,
         "all": all,
     }
     builtins.update(extras)
@@ -184,10 +242,13 @@ def make_safe_globals(extra_globals: dict = {}) -> dict:
     execution_globals = {
         # Required for RestrictedPython
         "__builtins__": builtins,
-        "__name__": "__starbash_script__",
+        "__name__": "__starbash_script__", # Loaded scripts can check for this name to know we are in starbash
         "__metaclass__": type,
         # Extra globals auto imported into the scripts context
-        "logger": logging.getLogger("script"),  # Allow logging within the script
+        "logger": logging.getLogger("script"),  # Allow logging within the script,
+
+        # Used by siril scripts without importing
+        "staticmethod": staticmethod,
     }
     execution_globals.update(extra_globals)
     return execution_globals

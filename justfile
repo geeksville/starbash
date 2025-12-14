@@ -198,6 +198,12 @@ test-slow: test process-one
 test-integration:
     poetry run pytest -m integration -n 0 -v
 
+# Test in-place siril script usage
+test-scripts:
+    sb select m13 # An easy test target from the small dataset
+    sb repo add ./siril-scripts/processing/VeraLux_HyperMetric_Stretch.toml
+    sb process auto
+    
 #
 # The following is for experimenting with Textual UI stuff
 #

@@ -588,9 +588,15 @@ class Processing(ProcessingLike):
             # try to load it from a file
             script_filename = stage.get("script-file", tool.default_script_file)
             if script_filename:
-                source = stage.source  # type: ignore (was monkeypatched by repo)
+                source: Repo = stage.source  # type: ignore (was monkeypatched by repo)
                 try:
                     script = source.read(script_filename)
+                    try:
+                        script_filename = source.resolve_path(script_filename) # Try to let the tool give the full filepath in error messages
+                    except Exception:
+                        pass # some repos might not be on a local disk.  In that case just use the base name
+                    tool_parameters["script_file"] = str(script_filename)
+
                 except OSError as e:
                     raise ValueError(f"Error reading script file '{script_filename}'") from e
 

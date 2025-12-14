@@ -7,7 +7,7 @@ from rich.console import Console
 
 # Common type aliases for clarity
 type StageDict = dict[str, Any]  # a processing stage definition from our toml
-type InputDef = dict[str, Any]  # an input definition within a stage
+type InputDef = dict[Any, Any]  # an input definition within a stage
 type OutputDef = dict[str, Any]  # an output definition within a stage
 type RequireDef = dict[str, Any]  # a requires definition within an input
 type Metadata = dict[str, Any]  # image metadata dictionary
