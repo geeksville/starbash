@@ -224,6 +224,35 @@ class TestMakeSafeGlobals:
         test_obj = {"key": "value"}
         assert write_func(test_obj) == test_obj
 
+    def test_includes_common_math_functions(self):
+        """Test that common math functions like min, max, sum are available."""
+        result = make_safe_globals()
+        builtins = result["__builtins__"]
+        assert "min" in builtins
+        assert "max" in builtins
+        assert "sum" in builtins
+        assert "abs" in builtins
+        assert "round" in builtins
+        # Verify they actually work
+        assert builtins["min"](1, 2, 3) == 1
+        assert builtins["max"](1, 2, 3) == 3
+        assert builtins["sum"]([1, 2, 3]) == 6
+
+    def test_includes_utility_builtins(self):
+        """Test that RestrictedPython utility_builtins are available (math, random, string modules)."""
+        result = make_safe_globals()
+        builtins = result["__builtins__"]
+        # Check for utility_builtins items
+        assert "math" in builtins
+        assert "random" in builtins
+        assert "string" in builtins
+        assert "set" in builtins
+        assert "frozenset" in builtins
+        # Verify math module works
+        import math as stdlib_math
+        assert builtins["math"].sqrt(16) == stdlib_math.sqrt(16)
+        assert builtins["math"].pi == stdlib_math.pi
+
 
 class TestStripComments:
     """Tests for strip_comments function."""

@@ -156,8 +156,11 @@ Changes since alpha 1...
 
 Changes after alpha 2... (not yet prioritized, need to schedule for about a month later, mostly driven by user reports/analytics...)
 
-* [ ] experiment with VeraLux Hypermetric Stretch? https://www.youtube.com/watch?v=LsD8SNXO_M8 https://www.cloudynights.com/forums/topic/987003-new-stretching-script-in-siril-veralux/.  check city astro bge? /home/kevinh/.var/app/org.siril.Siril/data/siril-scripts/processing/VeraLux_HyperMetric_Stretch.py
-
+* [x] experiment with VeraLux Hypermetric Stretch? https://www.youtube.com/watch?v=LsD8SNXO_M8 https://www.cloudynights.com/forums/topic/987003-new-stretching-script-in-siril-veralux/.  
+* [ ] pass options into siril scripts when used by starbash (use toml parameters for UI)
+* [ ] add auto camera detection to veralux script
+* [ ] ping Ciril and the veralux author to discuss ideas
+* [ ] see how  city astro bge is using graxpert? 
 * [ ] include some example thumbnails in the README. "turn this into that"
 * [ ] add a color balance/correction stage
 * [ ] improve code coverage tests by making a micro FITS test files that do at least one full autoprocess, this will get us coverage on essentially all remaining lines.

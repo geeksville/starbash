@@ -505,7 +505,12 @@ class Repo:
         """
         # Construct the full URL by joining the base URL with the filepath
         if filepath:
-            url = self.url.rstrip("/") + "/" + filepath.lstrip("/")
+            # If the URL points to a .toml file, strip the filename to get the directory
+            base_url = self.url
+            if self._is_direct_toml_file():
+                # Strip the .toml filename to get the parent directory URL
+                base_url = base_url.rsplit("/", 1)[0]
+            url = base_url.rstrip("/") + "/" + filepath.lstrip("/")
         else:
             url = self.url
 

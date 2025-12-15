@@ -15,7 +15,7 @@ class SirilInterface:
     Context: dict[str, Any] = {}
 
     def __init__(self) -> None:
-        pass
+        self.image_headers: dict[str, Any] = {}
 
     def log(self, message: str, color: Any) -> bool:
         # https://siril.readthedocs.io/en/latest/Python-API.html#sirilpy.connection.SirilInterface.log
@@ -35,17 +35,28 @@ class SirilInterface:
         return True
 
     def get_image_pixeldata(self) -> ndarray:
+        """Read image data from the input defined in the Context."""
         # https://siril.readthedocs.io/en/latest/Python-API.html#sirilpy.connection.SirilInterface.get_image_pixeldata
+        # FIXME currently we just provide "{input[0].full_paths[0]}"
         logging.debug("SirilInterface.get_image_pixeldata called")
         input: InputDef = SirilInterface.Context["stage_input"]
         inputf = input[0]
         f = inputf.full_paths[0] # FIXME, we currently we assume we only care about the first input
         (image_data, header) = fits.getdata(f, header=True)
+        self.header = header
         return image_data
 
-    def set_image_pixeldata(self, img) -> bool:
+    def set_image_pixeldata(self, img: ndarray) -> bool:
         # https://siril.readthedocs.io/en/latest/Python-API.html#sirilpy.connection.SirilInterface.set_image_pixeldata
-        logging.info(f"SirilInterface.set_image_pixeldata: {img}")
+        # currently we just write to "{output.full_paths[0]}"
+        output = SirilInterface.Context["output"]
+        path = output.full_paths[0]
+        logging.debug(f"SirilInterface.set_image_pixeldata: {path}")
+
+        # Write FITS file with header from input and new image data
+        hdu = fits.PrimaryHDU(data=img, header=self.header)
+        hdu.writeto(path, overwrite=True)
+
         return True
 
     def image_lock(self) -> AbstractContextManager:

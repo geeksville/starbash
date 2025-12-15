@@ -236,8 +236,18 @@ def make_safe_globals(extra_globals: dict = {}) -> dict:
         "int": int,
         "object": object,
         "all": all,
+        # Add common built-in functions for math operations
+        "min": min,
+        "max": max,
+        "sum": sum,
+        "abs": abs,  # Note: abs is already in safe_builtins, but explicit is better
+        "round": round,  # Note: round is already in safe_builtins
     }
     builtins.update(extras)
+
+    # Add RestrictedPython's utility_builtins for safe access to math, random, string modules
+    from RestrictedPython.Utilities import utility_builtins
+    builtins.update(utility_builtins)
 
     execution_globals = {
         # Required for RestrictedPython

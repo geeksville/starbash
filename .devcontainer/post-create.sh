@@ -4,6 +4,10 @@ set -e
 echo "source /workspaces/starbash/.devcontainer/on-shell-start.sh" >> ~/.bashrc
 echo "source /workspaces/starbash/.devcontainer/on-shell-start.sh" >> ~/.zshrc
 
+# Enable VS Code shell integration
+echo '[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path bash)"' >> ~/.bashrc
+echo '[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"' >> ~/.zshrc
+
 # Fix git credential helper to use container's gh path instead of host's homebrew path
 git config --global --unset-all credential.'https://github.com'.helper 2>/dev/null || true
 git config --global --add credential.'https://github.com'.helper '!/usr/bin/gh auth git-credential'
