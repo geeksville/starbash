@@ -200,7 +200,7 @@ test-integration:
 
 # Test in-place siril script usage
 test-scripts:
-    sb select m13 # An easy test target from the small dataset
+    sb select target m13 # An easy test target from the small dataset
     sb repo add ./siril-scripts/processing/VeraLux_HyperMetric_Stretch.toml
     sb process auto
     

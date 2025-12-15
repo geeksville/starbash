@@ -47,9 +47,9 @@ def analytics_setup(allowed: bool = False, user_email: str | None = None) -> Non
             ],  # This line removes the aggressive unhandled exception catcher
             integrations=[
                 LoggingIntegration(
-                    level=starbash.log_filter_level,  # Capture INFO and above as breadcrumbs
+                    level=starbash.log_filter_level,  # Capture INFO and above as breadcrumbs (used for exception reports)
                     event_level=None,  # Don't automatically convert error messages to sentry events
-                    sentry_logs_level=starbash.log_filter_level,  # Capture INFO and above as logs
+                    sentry_logs_level=logging.INFO,  # Capture INFO and above as logs (general usage)
                 ),
             ],
         )
