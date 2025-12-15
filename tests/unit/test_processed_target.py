@@ -9,8 +9,8 @@ import pytest
 import tomlkit
 
 from repo import Repo
-from starbash.processed_target import (
-    ProcessedTarget,
+from starbash.processed_target import ProcessedTarget
+from starbash.stages import (
     get_from_toml,
     set_excluded,
     set_used,

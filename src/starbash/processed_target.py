@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import shutil
 import tempfile
-from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
@@ -11,200 +10,16 @@ import tomlkit
 
 from repo import Repo, repo_suffix
 from starbash import StageDict, to_shortdate
-from starbash.database import SessionRow
-from starbash.doit_types import TaskDict, cleanup_old_contexts, get_processing_dir
+from starbash.doit_types import cleanup_old_contexts, get_processing_dir
 from starbash.parameters import ParameterStore
 from starbash.processing_like import ProcessingLike
 from starbash.safety import get_safe
-from starbash.toml import CommentedString, toml_from_list, toml_from_template
+from starbash.stages import get_from_toml, set_excluded
+from starbash.toml import toml_from_template
 
 __all__ = [
     "ProcessedTarget",
 ]
-
-
-def stage_with_comment(stage: StageDict) -> CommentedString:
-    """Create a CommentedString for the given stage."""
-    name = stage.get("name", "unnamed_stage")
-    description = stage.get("description", None)
-    return CommentedString(value=name, comment=description)
-
-
-def set_used(self: dict, used_stages: list[StageDict]) -> None:
-    """Set the used lists for the given section."""
-    name = "stages"
-    used = [stage_with_comment(s) for s in used_stages]
-    node = self.setdefault(name, {})
-    node["used"] = toml_from_list(used)
-
-
-def set_excluded(self: dict, stages_to_exclude: list[StageDict]) -> None:
-    """Set the excluded lists for the given section."""
-    name = "stages"
-    excluded = [stage_with_comment(s) for s in stages_to_exclude]
-
-    node = self.setdefault(name, {})
-    node["excluded"] = toml_from_list(excluded)
-
-
-def get_from_toml(self: dict, key_name: str) -> list[str]:
-    """Any consumers of this function probably just want the raw string (key_name is usually excluded or used)"""
-    dict_name = "stages"
-    node = self.setdefault(dict_name, {})
-    excluded: list[CommentedString] = node.get(key_name, [])
-    return [a.value for a in excluded]
-
-
-def task_to_stage(task: TaskDict) -> StageDict:
-    """Extract the stage from the given task's context."""
-    return task["meta"]["stage"]
-
-
-def task_to_session(task: TaskDict) -> SessionRow | None:
-    """Extract the session from the given task's context."""
-    context = task["meta"]["context"]
-    session = context.get("session")
-    return session
-
-
-def sort_stages(stages: list[StageDict]) -> list[StageDict]:
-    """Sort the given list of stages by priority and dependency order.
-    
-    Stages are sorted such that:
-    1. Dependencies (specified via 'after' in inputs) are respected
-    2. Within dependency levels, higher priority stages come first
-    3. Stages without dependencies come before those with dependencies (unless overridden by priority)
-    """
-    import re
-
-    def get_after(s: StageDict) -> Generator[str, None, None]:
-        """Get the names of stages that should come after this one.  Each entry is a regex that matches to stage name"""
-        for input in s.get("inputs", []):
-            after: str | None = input.get("after")
-            if after:
-                yield after
-
-    # Build a mapping of stage names to their stage dicts for quick lookup
-    stage_by_name: dict[str, StageDict] = {s.get("name", ""): s for s in stages}
-
-    # Build dependency graph: for each stage, find which stages it depends on
-    # If stage A has "after = B", then A depends on B, meaning B must come before A
-    dependencies: dict[str, set[str]] = {}
-    for stage in stages:
-        stage_name = stage.get("name", "")
-        dependencies[stage_name] = set()
-
-        for after_pattern in get_after(stage):
-            # Match the after pattern against all stage names
-            try:
-                pattern = re.compile(f"^{after_pattern}$")
-                for candidate_name in stage_by_name.keys():
-                    if pattern.match(candidate_name):
-                        dependencies[stage_name].add(candidate_name)
-            except re.error as e:
-                logging.warning(f"Invalid regex pattern '{after_pattern}' in stage '{stage_name}': {e}")
-
-    # Topological sort using Kahn's algorithm with priority-based ordering
-    # Track which dependencies remain for each stage
-    remaining_deps: dict[str, set[str]] = {
-        name: deps.copy() for name, deps in dependencies.items()
-    }
-
-    # Start with stages that have no dependencies
-    available = [name for name in stage_by_name.keys() if len(remaining_deps[name]) == 0]
-    # Sort available stages by priority (higher priority first)
-    available.sort(key=lambda name: stage_by_name[name].get("priority", 0), reverse=True)
-
-    sorted_stages: list[StageDict] = []
-    visited_names: set[str] = set()
-
-    while available:
-        # Pick the highest priority available stage
-        current_name = available.pop(0)
-        visited_names.add(current_name)
-        sorted_stages.append(stage_by_name[current_name])
-
-        # For each stage, check if current_name was one of its dependencies
-        # If so, remove it and check if all dependencies are now satisfied
-        for stage_name in stage_by_name.keys():
-            if stage_name not in visited_names and current_name in remaining_deps[stage_name]:
-                remaining_deps[stage_name].discard(current_name)
-                # If all dependencies are satisfied, add to available
-                if len(remaining_deps[stage_name]) == 0 and stage_name not in available:
-                    available.append(stage_name)
-
-        # Re-sort available stages by priority
-        available.sort(key=lambda name: stage_by_name[name].get("priority", 0), reverse=True)
-
-    # Check for cycles (any remaining stages with non-zero dependencies)
-    remaining = [name for name in stage_by_name.keys() if name not in visited_names]
-    if remaining:
-        logging.warning(
-            f"Circular dependencies detected in stages: {remaining}. "
-            f"These stages will be appended in priority order."
-        )
-        # Add remaining stages in priority order as fallback
-        remaining_stages = sorted(
-            [stage_by_name[name] for name in remaining],
-            key=lambda s: s.get("priority", 0),
-            reverse=True
-        )
-        sorted_stages.extend(remaining_stages)
-
-    logging.debug(f"Stages in dependency and priority order: {[s.get('name') for s in sorted_stages]}")
-    return sorted_stages
-
-def tasks_to_stages(tasks: list[TaskDict]) -> list[StageDict]:
-    """Extract unique stages from the given list of tasks, sorted by priority."""
-    stage_dict: dict[str, StageDict] = {}
-    for task in tasks:
-        stage = task["meta"]["stage"]
-        stage_dict[stage["name"]] = stage
-
-    stages = sort_stages(list(stage_dict.values()))
-    return stages
-
-
-def set_used_stages_from_tasks(tasks: list[dict]) -> None:
-    """Given a list of tasks, set the used stages in each session touched by those tasks."""
-
-    # Inside each session we touched, collect a list of used stages (initially as a list of strings but then in the final)
-    # cleanup converted into toml lists with set_used.
-    # We rely on the fact that a single session row instance is shared between all tasks for that session.
-
-    if not tasks:
-        return
-
-    typ_task = tasks[0]
-    pt: ProcessedTarget | None = typ_task["meta"]["processed_target"]
-    assert pt, "ProcessedTarget must be set in Processing for sessionless tasks"
-
-    # step 1: clear our temp lists
-    default_stages: list[StageDict] = []
-    for task in tasks:
-        session = task_to_session(task)
-        if session:
-            session["_temp_used_stages"] = []
-
-    # step 2: collect used stages
-    for task in tasks:
-        stage = task_to_stage(task)
-        session = task_to_session(task)
-        used = session["_temp_used_stages"] if session else default_stages
-        if stage not in used:
-            used.append(stage)
-
-    # step 3: commit used stages to toml (and remove temp lists)
-    for task in tasks:
-        session = task_to_session(task)
-        if session:
-            used_stages: list[StageDict] = session.pop("_temp_used_stages", [])
-            if used_stages:
-                set_used(session, used_stages)
-
-    # Commit our default used stages too
-    if default_stages:
-        set_used(pt.default_stages, default_stages)
 
 
 class ProcessedTarget:

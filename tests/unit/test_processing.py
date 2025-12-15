@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from starbash.processed_target import tasks_to_stages
-from starbash.processing import (
-    _inputs_by_kind,
-    _make_imagerow,
-    _stage_to_doc,
+from starbash.stages import (
     create_default_task,
+    inputs_by_kind,
+    make_imagerow,
+    stage_to_doc,
+    tasks_to_stages,
 )
 
 
@@ -26,7 +26,7 @@ class TestMakeImagerow:
         dir_path = Path("/test/directory")
         filename = "image.fits"
 
-        result = _make_imagerow(dir_path, filename)
+        result = make_imagerow(dir_path, filename)
 
         assert "abspath" in result
         assert "path" in result
@@ -38,7 +38,7 @@ class TestMakeImagerow:
         dir_path = Path("/test/directory")
         filename = "subdir/nested/image.fits"
 
-        result = _make_imagerow(dir_path, filename)
+        result = make_imagerow(dir_path, filename)
 
         assert result["abspath"] == str(dir_path / filename)
         assert result["path"] == filename
@@ -52,7 +52,7 @@ class TestStageToDoc:
         task = {}
         stage = {"description": "Process bias frames"}
 
-        _stage_to_doc(task, stage)
+        stage_to_doc(task, stage)
 
         assert task["doc"] == "Process bias frames"
 
@@ -61,16 +61,16 @@ class TestStageToDoc:
         task = {}
         stage = {}
 
-        _stage_to_doc(task, stage)
+        stage_to_doc(task, stage)
 
         assert task["doc"] == "No description provided"
 
     def test_stage_to_doc_overwrites_existing(self):
-        """Test that _stage_to_doc overwrites existing doc."""
-        task = {"doc": "Old description"}
+        """Test that stage_to_doc overwrites existing doc."""
+        task = {"doc": "Old doc"}
         stage = {"description": "New description"}
 
-        _stage_to_doc(task, stage)
+        stage_to_doc(task, stage)
 
         assert task["doc"] == "New description"
 
@@ -89,7 +89,7 @@ class TestInputsByKind:
             ]
         }
 
-        session_inputs = _inputs_by_kind(stage, "session")
+        session_inputs = inputs_by_kind(stage, "session")
 
         assert len(session_inputs) == 2
         assert all(inp["kind"] == "session" for inp in session_inputs)
@@ -105,7 +105,7 @@ class TestInputsByKind:
             ]
         }
 
-        results = _inputs_by_kind(stage, "master")
+        results = inputs_by_kind(stage, "master")
 
         assert len(results) == 0
         assert results == []
@@ -114,15 +114,15 @@ class TestInputsByKind:
         """Test when stage has no inputs."""
         stage = {}
 
-        results = _inputs_by_kind(stage, "session")
+        results = inputs_by_kind(stage, "session")
 
         assert len(results) == 0
 
     def test_inputs_by_kind_empty_inputs(self):
-        """Test when stage has empty inputs list."""
+        """Test empty result when stage has empty inputs list."""
         stage = {"inputs": []}
 
-        results = _inputs_by_kind(stage, "session")
+        results = inputs_by_kind(stage, "session")
 
         assert len(results) == 0
 
@@ -745,9 +745,9 @@ class TestProcessingUtilityIntegration:
             ]
         }
 
-        sessions = _inputs_by_kind(stage, "session")
-        masters = _inputs_by_kind(stage, "master")
-        files = _inputs_by_kind(stage, "file")
+        sessions = inputs_by_kind(stage, "session")
+        masters = inputs_by_kind(stage, "master")
+        files = inputs_by_kind(stage, "file")
 
         assert len(sessions) == 3
         assert len(masters) == 1

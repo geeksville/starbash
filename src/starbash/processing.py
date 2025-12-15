@@ -40,20 +40,24 @@ from starbash.exception import (
     raise_missing_repo,
 )
 from starbash.filtering import FallbackToImageException, filter_by_requires
-from starbash.processed_target import (
-    ProcessedTarget,
-    get_from_toml,
-    set_excluded,
-    set_used_stages_from_tasks,
-    sort_stages,
-    task_to_session,
-    task_to_stage,
-    tasks_to_stages,
-)
+from starbash.processed_target import ProcessedTarget
 from starbash.processing_like import ProcessingLike
 from starbash.rich import to_rich_string, to_tree
 from starbash.safety import get_list_of_strings, get_safe
 from starbash.score import score_candidates
+from starbash.stages import (
+    create_default_task,
+    inputs_by_kind,
+    inputs_with_key,
+    make_imagerow,
+    remove_excluded_tasks,
+    set_excluded,
+    set_used_stages_from_tasks,
+    sort_stages,
+    stage_to_doc,
+    task_to_session,
+    tasks_to_stages,
+)
 from starbash.toml import toml_from_list
 from starbash.tool import tools
 from starbash.tool.context import expand_context_dict, expand_context_list, expand_context_unsafe
@@ -65,79 +69,6 @@ __all__ = [
 
 class NoPriorTaskException(NonFatalException):
     """Exception raised when a prior task specified in 'after' cannot be found."""
-
-
-def _make_imagerow(dir: Path, path: str) -> ImageRow:
-    """Make a stub imagerow definition with just an abspath (no metadata or other standard columns)"""
-    return {"abspath": str(dir / path), "path": path}
-
-
-def _stage_to_doc(task: TaskDict, stage: StageDict) -> None:
-    """Given a stage definition, populate the "doc" string of the task dictionary."""
-    task["doc"] = stage.get("description", "No description provided")
-
-
-def _inputs_with_key(stage: StageDict, key: str) -> list[InputDef]:
-    """Returns all imputs which contain a particular key."""
-    inputs: list[InputDef] = stage.get("inputs", [])
-    return [inp for inp in inputs if key in inp]
-
-
-def _inputs_by_kind(stage: StageDict, kind: str) -> list[InputDef]:
-    """Returns all imputs of a particular kind from the given stage definition."""
-    inputs: list[InputDef] = stage.get("inputs", [])
-    return [inp for inp in inputs if inp.get("kind") == kind]
-
-
-def remove_excluded_tasks(tasks: list[TaskDict]) -> list[TaskDict]:
-    """Look in our session['stages'] dict to see if this task is allowed to be processed"""
-
-    def task_allowed(task: TaskDict) -> bool:
-        stage = task_to_stage(task)
-        session = task_to_session(task)
-        if not session:
-            pt: ProcessedTarget = task["meta"]["processed_target"]
-            assert pt, "ProcessedTarget must be set in Processing for sessionless tasks"
-            session = pt.default_stages
-
-        excluded_stages = get_from_toml(session, "excluded")
-        return stage.get("name") not in excluded_stages
-
-    return [t for t in tasks if task_allowed(t)]
-
-
-def create_default_task(tasks: list[TaskDict]) -> TaskDict:
-    """Create a default task that depends on all given tasks.
-
-    This task can be used to represent the overall processing of a target.
-
-    Args:
-        tasks: List of TaskDict objects to depend on.
-
-    Returns:
-        A TaskDict representing the default task.
-    """
-    default_task_name = "process_all"
-    task_deps = []
-    for task in tasks:
-        # We consider tasks that are writing to the final output repos
-        # 'high value' and what we should run by default
-        stage = task["meta"]["stage"]
-        outputs = stage.get("outputs", [])
-        for output in outputs:
-            output_kind = get_safe(output, "kind")
-            if output_kind == "master" or output_kind == "processed":
-                high_value_task = task
-                task_deps.append(high_value_task["name"])
-                break  # no need to check other outputs for this task
-
-    task_dict: TaskDict = {
-        "name": default_task_name,
-        "task_dep": task_deps,
-        "actions": None,  # No actions, just depends on other tasks
-        "doc": "Top level task to process all stages for all targets",
-    }
-    return task_dict
 
 
 def _clone_context(context: dict[str, Any]) -> dict[str, Any]:
@@ -741,9 +672,9 @@ class Processing(ProcessingLike):
         self.stage = stage
 
         # Find what kinds of inputs the stage is REQUESTING
-        # masters_in = _inputs_by_kind(stage, "master")  # TODO: Use for input resolution
-        has_session_in = len(_inputs_by_kind(stage, "session")) > 0
-        has_session_extra_in = len(_inputs_by_kind(stage, "session-extra")) > 0
+        # masters_in = inputs_by_kind(stage, "master")  # TODO: Use for input resolution
+        has_session_in = len(inputs_by_kind(stage, "session")) > 0
+        has_session_extra_in = len(inputs_by_kind(stage, "session-extra")) > 0
 
         assert (not has_session_in) or (not has_session_extra_in), (
             "Stage cannot have both 'session' and 'session-extra' inputs simultaneously."
@@ -860,7 +791,7 @@ class Processing(ProcessingLike):
         else:
             # add the actions THIS will store a SNAPSHOT of the context AT THIS TIME for use if the task/action is later executed
             self._stage_to_action(task_dict, stage)
-            _stage_to_doc(task_dict, stage)  # add the doc string
+            stage_to_doc(task_dict, stage)  # add the doc string
 
         doit_post_process(task_dict)
 
@@ -871,7 +802,7 @@ class Processing(ProcessingLike):
 
         Args:
             stage: The stage definition from TOML"""
-        has_job_multiplex_in = len(_inputs_with_key(stage, "multiplex")) > 0
+        has_job_multiplex_in = len(inputs_with_key(stage, "multiplex")) > 0
 
         try:
             # We need to init our context from whatever the prior stage was using.
@@ -1284,7 +1215,7 @@ class Processing(ProcessingLike):
                 raise ValueError("Output definition must specify at least one file.")
 
             return FileInfo(
-                repo=repo, base=str(dir), image_rows=[_make_imagerow(dir, f) for f in filenames]
+                repo=repo, base=str(dir), image_rows=[make_imagerow(dir, f) for f in filenames]
             )
 
         def _resolve_output_job() -> FileInfo:
