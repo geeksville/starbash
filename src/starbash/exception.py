@@ -1,7 +1,17 @@
 from typing import Any, NoReturn
 
 
-class UserHandledError(ValueError):
+class NonSoftwareError(Exception):
+    """An error outside the control of the software, exit the app with an error code, but no need to
+    report it as a software bug.
+
+    Used for OS errors etc after we've determined we can't do anything more useful."""
+
+    def __rich__(self) -> Any:
+        return self.__str__()  # At least this is something readable...
+
+
+class UserHandledError(NonSoftwareError):
     """An exception that terminates processing of the current file, but we want to help the user fix the problem."""
 
     def ask_user_handled(self) -> bool:
@@ -13,9 +23,6 @@ class UserHandledError(ValueError):
 
         console.print(f"Error: {self}")
         return False
-
-    def __rich__(self) -> Any:
-        return self.__str__()  # At least this is something readable...
 
 
 def raise_missing_repo(kind: str) -> NoReturn:

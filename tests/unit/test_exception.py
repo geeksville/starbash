@@ -20,8 +20,12 @@ class TestUserHandledError:
         assert str(error) == "Test error message"
 
     def test_user_handled_error_is_value_error(self):
-        """Test that UserHandledError is a subclass of ValueError."""
-        assert issubclass(UserHandledError, ValueError)
+        """Test that UserHandledError is a subclass of Exception (via NonSoftwareError)."""
+        from starbash.exception import NonSoftwareError
+
+        assert issubclass(UserHandledError, NonSoftwareError)
+        assert issubclass(UserHandledError, Exception)
+        assert not issubclass(UserHandledError, ValueError)
 
     def test_user_handled_error_rich_method(self):
         """Test that __rich__ returns the string representation."""

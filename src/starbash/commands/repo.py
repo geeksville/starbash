@@ -143,10 +143,9 @@ def repo_url_to_repo(sb: Starbash, repo_url: str | None) -> Repo | None:
 
         return regular_repos[repo_index]
     except ValueError:
-        console.print(
+        raise ValueError(
             f"[red]Error: '{repo_url}' is not valid.  Please enter a repository number or URL.[/red]"
         )
-        raise typer.Exit(code=1)
 
 
 @app.command()
