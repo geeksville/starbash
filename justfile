@@ -183,10 +183,10 @@ _typecheck:
 lint: format _lint _typecheck
 
 format:
-    poetry run ruff check --fix src/ tests/
-    poetry run ruff format src/ tests/
     # Remove trailing whitespace
     sed -i 's/[[:space:]]*$//' src/**/*.py tests/**/*.py
+    poetry run ruff check --fix src/ tests/
+    poetry run ruff format src/ tests/
 
 # standard quick test
 test:

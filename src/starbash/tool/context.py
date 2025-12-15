@@ -225,7 +225,7 @@ def make_safe_globals(extra_globals: dict = {}) -> dict:
         "__import__": my__import__,  # FIXME very unsafe
         "_getitem_": getitem_glue,  # why isn't the default guarded getitem found?
         "_getiter_": iter,  # Allows for loops and other iterations.
-        "_unpack_sequence_": RestrictedPython.Guards.guarded_unpack_sequence,  # Required for tuple unpacking
+        "_unpack_sequence_": RestrictedPython.Guards.guarded_unpack_sequence,  # Required for tuple unpacking  # pyright: ignore[reportAttributeAccessIssue]
         "_write_": write_test,
         "_print_": MyPrinter,
         "_getattr_": getattr_glue,  # Custom attribute access policy

@@ -14,7 +14,6 @@ from starbash.doit_types import cleanup_old_contexts, get_processing_dir
 from starbash.parameters import ParameterStore
 from starbash.processing_like import ProcessingLike
 from starbash.safety import get_safe
-from starbash.stages import get_from_toml, set_excluded
 from starbash.toml import toml_from_template
 
 __all__ = [
@@ -124,6 +123,8 @@ class ProcessedTarget:
 
     def _set_default_stages(self) -> None:
         """If we have newly discovered stages which should be excluded by default, add them now."""
+        from starbash.stage_utils import get_from_toml, set_excluded
+
         excluded = get_from_toml(self.default_stages, "excluded")
         used: list[str] = get_from_toml(self.default_stages, "used")
 

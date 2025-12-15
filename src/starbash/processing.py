@@ -472,7 +472,7 @@ class Processing(ProcessingLike):
         self,
     ) -> list[StageDict]:
         """Get all pipeline stages defined in the merged configuration.
-        
+
         Results are cached after the first call for performance.
         """
         if self._stages_cache is not None:

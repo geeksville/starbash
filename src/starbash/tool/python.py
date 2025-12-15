@@ -10,7 +10,7 @@ from typing import Any
 
 import RestrictedPython
 from RestrictedPython.Guards import INSPECT_ATTRIBUTES
-from RestrictedPython.transformer import copy_locations
+from RestrictedPython.transformer import ALLOWED_FUNC_NAMES, FORBIDDEN_FUNC_NAMES, copy_locations
 
 from starbash.exception import UserHandledError
 from starbash.sim_siril.connection import SirilInterface
@@ -76,20 +76,23 @@ class PermissiveNodeTransformer(RestrictedPython.RestrictingNodeTransformer):
         if name is None:
             return
 
-        return # FIXME - this override is a temp hacks so that __name__ can work in our test scripts
+        # FIXME, nasty hack to allow __name__ to work in our test of siril scripts
+        allow_magic_methods= True
+
+        allowed_func_names = set(ALLOWED_FUNC_NAMES)
+        allowed_func_names.add('__name__')
 
         if (name.startswith('_')
                 and name != '_'
                 and not (allow_magic_methods
-                         and name in ALLOWED_FUNC_NAMES
+                         and name in allowed_func_names
                          and node.col_offset != 0)):
             self.error(
                 node,
                 f'"{name}" is an invalid variable name because it '
                 'starts with "_"')
         elif name.endswith('__roles__'):
-            self.error(node, '"%s" is an invalid variable name because '
-                       'it ends with "__roles__".' % name)
+            self.error(node, '"%s" is an invalid variable name because it ends with "__roles__".' % name)  # noqa: UP031
         elif name in FORBIDDEN_FUNC_NAMES:
             self.error(node, f'"{name}" is a reserved name.')
 
@@ -126,7 +129,7 @@ class PermissiveNodeTransformer(RestrictedPython.RestrictingNodeTransformer):
             node = self.node_contents_visit(node)
             new_node = ast.Call(
                 func=ast.Name('_getattr_', ast.Load()),
-                args=[node.value, ast.Constant(node.attr)],
+                args=[node.value, ast.Constant(node.attr)],  # pyright: ignore[reportAttributeAccessIssue]
                 keywords=[])
 
             copy_locations(new_node, node)
@@ -136,11 +139,11 @@ class PermissiveNodeTransformer(RestrictedPython.RestrictingNodeTransformer):
             node = self.node_contents_visit(node)
             new_value = ast.Call(
                 func=ast.Name('_write_', ast.Load()),
-                args=[node.value],
+                args=[node.value],  # pyright: ignore[reportAttributeAccessIssue]
                 keywords=[])
 
-            copy_locations(new_value, node.value)
-            node.value = new_value
+            copy_locations(new_value, node.value)  # pyright: ignore[reportAttributeAccessIssue]
+            node.value = new_value  # pyright: ignore[reportAttributeAccessIssue]
             return node
 
         else:  # pragma: no cover
@@ -168,7 +171,8 @@ class PythonTool(Tool):
             logger.info(f"Executing python script in {cwd} using RestrictedPython")
             try:
                 # Hopefully the user provided a filepath
-                script_filename: str = kwargs.get("script_file", "<python script>")
+                script_filename = kwargs.get("script_file", "<python script>")
+                assert isinstance(script_filename, str)
 
                 # Cache the source code so tracebacks show proper line numbers
                 lines = commands.splitlines(keepends=True)

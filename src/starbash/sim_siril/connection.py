@@ -42,7 +42,10 @@ class SirilInterface:
         input: InputDef = SirilInterface.Context["stage_input"]
         inputf = input[0]
         f = inputf.full_paths[0] # FIXME, we currently we assume we only care about the first input
-        (image_data, header) = fits.getdata(f, header=True)
+        read_result = fits.getdata(f, header=True)
+        if not read_result:
+            raise OSError(f"SirilInterface.get_image_pixeldata: failed to read {f}")
+        (image_data, header) = read_result
         self.header = header
         return image_data
 

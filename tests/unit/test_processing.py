@@ -344,7 +344,7 @@ class TestTasksToStages:
 
     def test_tasks_to_stages_priority_overrides_when_no_deps(self):
         """Test that higher priority stages come first when there are no dependencies.
-        
+
         This catches bugs where dependency logic interferes with priority ordering
         for independent stages.
         """
@@ -385,7 +385,7 @@ class TestTasksToStages:
 
     def test_tasks_to_stages_dependency_overrides_priority(self):
         """Test that dependencies override priority - even when dependent stage has higher priority.
-        
+
         This is the key test that would have caught the original bug where veralux
         (depending on background) was placed before background despite the dependency.
         """
@@ -421,7 +421,7 @@ class TestTasksToStages:
 
     def test_tasks_to_stages_complex_dependency_chain(self):
         """Test a complex realistic scenario with multiple stages and dependencies.
-        
+
         This simulates the real-world case from the bug report with multiple
         stages having different priorities and dependencies.
         """
