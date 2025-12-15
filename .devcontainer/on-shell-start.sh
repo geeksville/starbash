@@ -4,7 +4,14 @@
 
 # Set Ptyxis terminal tab title to "starbash-dev" (if under that terminal)
 if [[ -n "$PTYXIS_VERSION" ]]; then
-    echo -ne "\033]0;starbash-dev\007"
+    # For zsh, disable auto-title and use precmd hook to persist the title
+    if [[ -n "$ZSH_VERSION" ]]; then
+        DISABLE_AUTO_TITLE="true"
+        precmd() { printf '\033]0;%s\007' "starbash-dev"; }
+    else
+        # For bash, just set it once
+        printf '\033]0;%s\007' "starbash-dev"
+    fi
 fi
 
 echo "🚀 Starbash dev shell started!"
