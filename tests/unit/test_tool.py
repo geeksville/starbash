@@ -393,13 +393,15 @@ class TestPythonTool:
 
     def test_python_tool_restores_directory_on_error(self):
         """Test that directory is restored even on error."""
+        from starbash.tool.python import PythonScriptError
+
         tool = PythonTool()
         original_cwd = os.getcwd()
 
         code = "raise RuntimeError('test')"
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            with pytest.raises(ValueError):  # Exceptions are wrapped in ValueError
+            with pytest.raises(PythonScriptError):  # Exceptions are wrapped in PythonScriptError
                 tool.run(code, {}, temp_dir)
             # Verify cwd was restored after error
             assert os.getcwd() == original_cwd

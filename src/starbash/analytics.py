@@ -85,7 +85,7 @@ def is_development_environment() -> bool:
     return False
 
 
-def analytics_exception(exc: Exception) -> bool:
+def analytics_exception(exc: BaseException) -> bool:
     """Report an exception to the analytics service, if enabled.
     return True to suppress exception propagation/log messages"""
 

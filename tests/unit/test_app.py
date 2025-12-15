@@ -641,20 +641,24 @@ class TestRemoveRepoRef:
                 assert ref.get("dir") != str(test_repo)
 
     def test_remove_repo_ref_not_found(self, setup_test_environment, mock_analytics):
-        """Test removing a non-existent repo raises ValueError."""
+        """Test removing a non-existent repo raises UserHandledError."""
+        from starbash.exception import UserHandledError
+
         with Starbash() as app:
-            with pytest.raises(ValueError, match="not found in user configuration"):
+            with pytest.raises(UserHandledError, match="not found in user configuration"):
                 app.remove_repo_ref("file:///nonexistent/path")
 
     def test_remove_repo_ref_no_refs(self, setup_test_environment, mock_analytics):
-        """Test removing when no repo-ref list exists raises ValueError."""
+        """Test removing when no repo-ref list exists raises UserHandledError."""
+        from starbash.exception import UserHandledError
+
         with Starbash() as app:
             # Clear repo-refs if they exist
             if "repo-ref" in app.user_repo.config:
                 del app.user_repo.config["repo-ref"]
                 app.user_repo.write_config()
 
-            with pytest.raises(ValueError, match="No repository references found"):
+            with pytest.raises(UserHandledError, match="not found in user configuration"):
                 app.remove_repo_ref("file:///some/path")
 
 
