@@ -3,6 +3,7 @@ import logging
 import sys
 from importlib.metadata import version
 from pathlib import Path
+from sqlite3 import OperationalError
 from string import Template
 from typing import Any
 
@@ -36,7 +37,7 @@ from starbash.database import (
     get_column_name,
 )
 from starbash.dwarf3 import extend_dwarf3_headers
-from starbash.exception import UserHandledError, raise_missing_repo
+from starbash.exception import NonSoftwareError, UserHandledError, raise_missing_repo
 from starbash.linux import linux_init
 from starbash.os import symlink_or_copy
 from starbash.paths import get_user_config_dir, get_user_config_path
@@ -119,6 +120,21 @@ def copy_images_to_dir(images: list[ImageRow], output_dir: Path) -> None:
         console.print(f"  Linked: {linked_count} files")
     if error_count > 0:
         console.print(f"  [red]Errors: {error_count} files[/red]")
+
+
+def remap_expected_errors(exc: BaseException | None) -> BaseException | None:
+    """Remap certain expected exceptions to UserHandledError for consistent handling."""
+
+    if exc is None:
+        return None
+
+    if isinstance(exc, OperationalError):
+        return NonSoftwareError(f"[red]Database IO error:[/red] {exc}")
+    elif isinstance(exc, FileNotFoundError):
+        return NonSoftwareError(f"[red]OS error:[/red] {exc}")
+    # Add more remappings as needed
+
+    return exc
 
 
 class Starbash:
@@ -275,12 +291,18 @@ class Starbash:
         from starbash import _is_test_env
         from starbash.exception import UserHandledError
 
+        exc = remap_expected_errors(exc)
+
         handled = False
         # Don't suppress typer.Exit - it's used for controlled exit codes
         if exc and not isinstance(exc, typer.Exit) and not isinstance(exc, KeyboardInterrupt):
-            # For UserHandledError, call ask_user_handled() and don't suppress
-            if isinstance(exc, UserHandledError):
-                exc.ask_user_handled()
+            # For errors we expect, just print error message and exit cleanly
+            if isinstance(exc, NonSoftwareError):
+                # For UserHandledError, call ask_user_handled() and don't suppress
+                if isinstance(exc, UserHandledError):
+                    exc.ask_user_handled()
+                else:
+                    starbash.console.print(exc)
                 self.close()
                 # Raise typer.Exit to ensure proper exit code
                 raise typer.Exit(code=1)
