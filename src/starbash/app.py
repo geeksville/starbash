@@ -311,7 +311,7 @@ class Starbash:
                 self.close()
                 if not handled:
                     # Show the full exception for developers
-                    starbash.console.print_exception(show_locals=True)
+                    starbash.console.print_exception(show_locals=False) # Locals are too verbose
 
                 # In test environments, let exceptions propagate naturally for better test diagnostics
                 if not _is_test_env:

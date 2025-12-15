@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import shutil
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +67,93 @@ def task_to_session(task: TaskDict) -> SessionRow | None:
     return session
 
 
+def sort_stages(stages: list[StageDict]) -> list[StageDict]:
+    """Sort the given list of stages by priority and dependency order.
+    
+    Stages are sorted such that:
+    1. Dependencies (specified via 'after' in inputs) are respected
+    2. Within dependency levels, higher priority stages come first
+    3. Stages without dependencies come before those with dependencies (unless overridden by priority)
+    """
+    import re
+
+    def get_after(s: StageDict) -> Generator[str, None, None]:
+        """Get the names of stages that should come after this one.  Each entry is a regex that matches to stage name"""
+        for input in s.get("inputs", []):
+            after: str | None = input.get("after")
+            if after:
+                yield after
+
+    # Build a mapping of stage names to their stage dicts for quick lookup
+    stage_by_name: dict[str, StageDict] = {s.get("name", ""): s for s in stages}
+
+    # Build dependency graph: for each stage, find which stages it depends on
+    # If stage A has "after = B", then A depends on B, meaning B must come before A
+    dependencies: dict[str, set[str]] = {}
+    for stage in stages:
+        stage_name = stage.get("name", "")
+        dependencies[stage_name] = set()
+
+        for after_pattern in get_after(stage):
+            # Match the after pattern against all stage names
+            try:
+                pattern = re.compile(f"^{after_pattern}$")
+                for candidate_name in stage_by_name.keys():
+                    if pattern.match(candidate_name):
+                        dependencies[stage_name].add(candidate_name)
+            except re.error as e:
+                logging.warning(f"Invalid regex pattern '{after_pattern}' in stage '{stage_name}': {e}")
+
+    # Topological sort using Kahn's algorithm with priority-based ordering
+    # Track which dependencies remain for each stage
+    remaining_deps: dict[str, set[str]] = {
+        name: deps.copy() for name, deps in dependencies.items()
+    }
+
+    # Start with stages that have no dependencies
+    available = [name for name in stage_by_name.keys() if len(remaining_deps[name]) == 0]
+    # Sort available stages by priority (higher priority first)
+    available.sort(key=lambda name: stage_by_name[name].get("priority", 0), reverse=True)
+
+    sorted_stages: list[StageDict] = []
+    visited_names: set[str] = set()
+
+    while available:
+        # Pick the highest priority available stage
+        current_name = available.pop(0)
+        visited_names.add(current_name)
+        sorted_stages.append(stage_by_name[current_name])
+
+        # For each stage, check if current_name was one of its dependencies
+        # If so, remove it and check if all dependencies are now satisfied
+        for stage_name in stage_by_name.keys():
+            if stage_name not in visited_names and current_name in remaining_deps[stage_name]:
+                remaining_deps[stage_name].discard(current_name)
+                # If all dependencies are satisfied, add to available
+                if len(remaining_deps[stage_name]) == 0 and stage_name not in available:
+                    available.append(stage_name)
+
+        # Re-sort available stages by priority
+        available.sort(key=lambda name: stage_by_name[name].get("priority", 0), reverse=True)
+
+    # Check for cycles (any remaining stages with non-zero dependencies)
+    remaining = [name for name in stage_by_name.keys() if name not in visited_names]
+    if remaining:
+        logging.warning(
+            f"Circular dependencies detected in stages: {remaining}. "
+            f"These stages will be appended in priority order."
+        )
+        # Add remaining stages in priority order as fallback
+        remaining_stages = sorted(
+            [stage_by_name[name] for name in remaining],
+            key=lambda s: s.get("priority", 0),
+            reverse=True
+        )
+        sorted_stages.extend(remaining_stages)
+
+    logging.debug(f"Stages in dependency and priority order: {[s.get('name') for s in sorted_stages]}")
+    return sorted_stages
+
 def tasks_to_stages(tasks: list[TaskDict]) -> list[StageDict]:
     """Extract unique stages from the given list of tasks, sorted by priority."""
     stage_dict: dict[str, StageDict] = {}
@@ -73,9 +161,7 @@ def tasks_to_stages(tasks: list[TaskDict]) -> list[StageDict]:
         stage = task["meta"]["stage"]
         stage_dict[stage["name"]] = stage
 
-    # Sort stages by priority (if priority not present assume 0), higher priority first
-    stages = sorted(stage_dict.values(), key=lambda s: s.get("priority", 0), reverse=True)
-    logging.debug(f"Stages in priority order: {[s.get('name') for s in stages]}")
+    stages = sort_stages(list(stage_dict.values()))
     return stages
 
 

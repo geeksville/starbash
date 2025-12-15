@@ -45,6 +45,7 @@ from starbash.processed_target import (
     get_from_toml,
     set_excluded,
     set_used_stages_from_tasks,
+    sort_stages,
     task_to_session,
     task_to_stage,
     tasks_to_stages,
@@ -184,6 +185,8 @@ class Processing(ProcessingLike):
 
         self.progress = Progress(console=starbash.console, refresh_per_second=2)
         self.progress.start()
+
+        self._stages_cache: list[StageDict] | None = None  # Cache for stages property
 
     # --- Lifecycle ---
     def close(self) -> None:
@@ -537,7 +540,13 @@ class Processing(ProcessingLike):
     def stages(
         self,
     ) -> list[StageDict]:
-        """Get all pipeline stages defined in the merged configuration."""
+        """Get all pipeline stages defined in the merged configuration.
+        
+        Results are cached after the first call for performance.
+        """
+        if self._stages_cache is not None:
+            return self._stages_cache
+
         name = "stages"
 
         # 1. Get all pipeline definitions (the `[[stages]]` tables with name and priority).
@@ -550,7 +559,10 @@ class Processing(ProcessingLike):
             # .unwrap() - I'm trying an experiment of not unwrapping stage - which would be nice because
             # stage has a useful 'source' backpointer.
             s_unwrapped.extend(stage)
-        return s_unwrapped
+
+        result = sort_stages(s_unwrapped)
+        self._stages_cache = result
+        return result
 
     def _stage_to_action(self, task: TaskDict, stage: StageDict) -> None:
         """Given a stage definition, populate the "actions" list of the task dictionary.

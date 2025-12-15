@@ -191,6 +191,325 @@ class TestTasksToStages:
         assert stages[0]["description"] == "Test stage"
         assert stages[0]["custom_field"] == "value"
 
+    def test_tasks_to_stages_respects_after_dependencies(self):
+        """Test that stages with 'after' dependencies are ordered correctly."""
+        tasks = [
+            {
+                "meta": {
+                    "stage": {
+                        "name": "stack",
+                        "priority": 100,
+                        "inputs": [{"kind": "job", "after": "light"}],
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "light",
+                        "priority": 200,
+                    }
+                }
+            },
+        ]
+
+        stages = tasks_to_stages(tasks)
+
+        assert len(stages) == 2
+        # Despite stack having lower priority, light should come first because stack depends on it
+        assert stages[0]["name"] == "light"
+        assert stages[1]["name"] == "stack"
+
+    def test_tasks_to_stages_regex_after_dependencies(self):
+        """Test that stages with regex 'after' patterns match correctly."""
+        tasks = [
+            {
+                "meta": {
+                    "stage": {
+                        "name": "seqextract_haoiii",
+                        "priority": 500,
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "light_calibration",
+                        "priority": 600,
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "stack_dual_duo",
+                        "priority": 330,
+                        "inputs": [{"kind": "job", "after": "seqextract_haoiii"}],
+                    }
+                }
+            },
+        ]
+
+        stages = tasks_to_stages(tasks)
+
+        assert len(stages) == 3
+        # seqextract should come before stack_dual_duo due to dependency
+        seqextract_idx = next(i for i, s in enumerate(stages) if s["name"] == "seqextract_haoiii")
+        stack_idx = next(i for i, s in enumerate(stages) if s["name"] == "stack_dual_duo")
+        assert seqextract_idx < stack_idx
+
+    def test_tasks_to_stages_wildcard_after_dependencies(self):
+        """Test that stages with wildcard 'after' patterns work correctly."""
+        tasks = [
+            {
+                "meta": {
+                    "stage": {
+                        "name": "light_session1",
+                        "priority": 600,
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "light_session2",
+                        "priority": 600,
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "background",
+                        "priority": 400,
+                        "inputs": [{"kind": "job", "after": "stack.*"}],
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "stack_final",
+                        "priority": 500,
+                    }
+                }
+            },
+        ]
+
+        stages = tasks_to_stages(tasks)
+
+        assert len(stages) == 4
+        # stack_final should come before background due to dependency
+        stack_idx = next(i for i, s in enumerate(stages) if s["name"] == "stack_final")
+        bg_idx = next(i for i, s in enumerate(stages) if s["name"] == "background")
+        assert stack_idx < bg_idx
+
+    def test_tasks_to_stages_chain_dependencies(self):
+        """Test that chained dependencies (A->B->C) are resolved correctly."""
+        tasks = [
+            {
+                "meta": {
+                    "stage": {
+                        "name": "final",
+                        "priority": 100,
+                        "inputs": [{"kind": "job", "after": "middle"}],
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "middle",
+                        "priority": 200,
+                        "inputs": [{"kind": "job", "after": "start"}],
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "start",
+                        "priority": 300,
+                    }
+                }
+            },
+        ]
+
+        stages = tasks_to_stages(tasks)
+
+        assert len(stages) == 3
+        assert stages[0]["name"] == "start"
+        assert stages[1]["name"] == "middle"
+        assert stages[2]["name"] == "final"
+
+    def test_tasks_to_stages_priority_overrides_when_no_deps(self):
+        """Test that higher priority stages come first when there are no dependencies.
+        
+        This catches bugs where dependency logic interferes with priority ordering
+        for independent stages.
+        """
+        tasks = [
+            {
+                "meta": {
+                    "stage": {
+                        "name": "low_priority",
+                        "priority": 100,
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "high_priority",
+                        "priority": 500,
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "medium_priority",
+                        "priority": 300,
+                    }
+                }
+            },
+        ]
+
+        stages = tasks_to_stages(tasks)
+
+        assert len(stages) == 3
+        # Without dependencies, should be sorted by priority (highest first)
+        assert stages[0]["name"] == "high_priority"
+        assert stages[1]["name"] == "medium_priority"
+        assert stages[2]["name"] == "low_priority"
+
+    def test_tasks_to_stages_dependency_overrides_priority(self):
+        """Test that dependencies override priority - even when dependent stage has higher priority.
+        
+        This is the key test that would have caught the original bug where veralux
+        (depending on background) was placed before background despite the dependency.
+        """
+        tasks = [
+            {
+                "meta": {
+                    "stage": {
+                        "name": "veralux",
+                        "priority": 900,  # Very high priority
+                        "inputs": [{"kind": "job", "after": "background.*"}],
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "background",
+                        "priority": 100,  # Low priority
+                    }
+                }
+            },
+        ]
+
+        stages = tasks_to_stages(tasks)
+
+        assert len(stages) == 2
+        # Despite veralux having much higher priority, background must come first
+        assert stages[0]["name"] == "background", (
+            "Dependency must be satisfied before dependent stage, "
+            "regardless of priority"
+        )
+        assert stages[1]["name"] == "veralux"
+
+    def test_tasks_to_stages_complex_dependency_chain(self):
+        """Test a complex realistic scenario with multiple stages and dependencies.
+        
+        This simulates the real-world case from the bug report with multiple
+        stages having different priorities and dependencies.
+        """
+        tasks = [
+            {
+                "meta": {
+                    "stage": {
+                        "name": "stack_dual_duo",
+                        "priority": 330,
+                        "inputs": [{"kind": "job", "after": "seqextract_haoiii"}],
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "seqextract_haoiii",
+                        "priority": 500,
+                        "inputs": [{"kind": "job", "after": "light.*"}],
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "light_vs_bias",
+                        "priority": 600,
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "background",
+                        "priority": 400,
+                        "inputs": [{"kind": "job", "after": "stack.*"}],
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "veralux",
+                        "priority": 350,
+                        "inputs": [{"kind": "job", "after": "background.*"}],
+                    }
+                }
+            },
+            {
+                "meta": {
+                    "stage": {
+                        "name": "thumbnail",
+                        "priority": 100,
+                        "inputs": [{"kind": "job", "after": "stack.*"}],
+                    }
+                }
+            },
+        ]
+
+        stages = tasks_to_stages(tasks)
+
+        assert len(stages) == 6
+
+        # Get indices for dependency verification
+        light_idx = next(i for i, s in enumerate(stages) if s["name"] == "light_vs_bias")
+        seqextract_idx = next(i for i, s in enumerate(stages) if s["name"] == "seqextract_haoiii")
+        stack_idx = next(i for i, s in enumerate(stages) if s["name"] == "stack_dual_duo")
+        background_idx = next(i for i, s in enumerate(stages) if s["name"] == "background")
+        veralux_idx = next(i for i, s in enumerate(stages) if s["name"] == "veralux")
+        thumbnail_idx = next(i for i, s in enumerate(stages) if s["name"] == "thumbnail")
+
+        # Verify dependency chain: light -> seqextract -> stack
+        assert light_idx < seqextract_idx, "light must come before seqextract (dependency)"
+        assert seqextract_idx < stack_idx, "seqextract must come before stack (dependency)"
+
+        # Verify stack -> background -> veralux chain
+        assert stack_idx < background_idx, "stack must come before background (dependency)"
+        assert background_idx < veralux_idx, "background must come before veralux (dependency)"
+
+        # Verify stack -> thumbnail
+        assert stack_idx < thumbnail_idx, "stack must come before thumbnail (dependency)"
+
+        # Additional check: veralux should come after background despite potentially higher priority
+        assert background_idx < veralux_idx, (
+            "This is the key bug: veralux depends on background.*, "
+            "so background must come first"
+        )
+
 
 class TestRemoveTasksByStageName:
     """Tests for remove_tasks_by_stage_name function."""

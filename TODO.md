@@ -233,7 +233,7 @@ Changes after alpha 2... (not yet prioritized, need to schedule for about a mont
 * [ ] implement recipe/repo inheritence to prevent the copypasta required in the existing OSC scripts
 * [ ] change recipes to use imports
 * [ ] cleanup Repo import code
-* [ ] remove priorities from stages where dependencies should have worked.  hack to fix "Stages in priority order: ['stack_dual_duo', 'light', 'seqextract_haoiii'"
+* [x] remove priorities from stages where dependencies should have worked.  hack to fix "Stages in priority order: ['stack_dual_duo', 'light', 'seqextract_haoiii'"
 * [x] sort the masters list display
 * [x] fix auto generation of processed directory paths
 * [ ] track image quality on a per frame basis
