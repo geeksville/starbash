@@ -128,10 +128,17 @@ def remap_expected_errors(exc: BaseException | None) -> BaseException | None:
     if exc is None:
         return None
 
+    # Some OSErrors definitely don't indicate a code level bug...
+    expected_errors = [ "Read-only file system" ]
+
     if isinstance(exc, OperationalError):
         return NonSoftwareError(f"[red]Database IO error:[/red] {exc}")
     elif isinstance(exc, FileNotFoundError):
         return NonSoftwareError(f"[red]OS error:[/red] {exc}")
+    elif isinstance(exc, OSError):
+        exc_str = str(exc)
+        if any(err in exc_str for err in expected_errors):
+            return NonSoftwareError(f"[red]OS error:[/red] {exc}")
     # Add more remappings as needed
 
     return exc

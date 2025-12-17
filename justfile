@@ -111,6 +111,11 @@ select-small: select-seestar-ir
 process:
     sb process auto
 
+
+# Use my external USB disk for scratch
+process-big:
+    STARBASH_CACHE_DIR=/mnt/fast_stick/starbash_tmp sb process auto
+
 # process one typical session that is at least not huge
 process-one: select-si-ha process
 
@@ -203,7 +208,7 @@ test-scripts:
     sb select target m13 # An easy test target from the small dataset
     # sb repo add ./siril-scripts/processing/VeraLux_HyperMetric_Stretch.toml
     sb process auto
-    
+
 #
 # The following is for experimenting with Textual UI stuff
 #

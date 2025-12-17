@@ -50,15 +50,17 @@
 			"target": "/tmp/.docker.xauth",
 			"type": "bind"
 		},
-		// vscode auto export of git config into my container sometimes seems busted (actually this isn't needed - it only happens if precreate.sh bails)
-		// "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
+		// vscode auto export of git config into my container sometimes seems busted (I'm not sure why this is only needed sometimes)
+		"source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached",
 		// let container see host dbus, so that flatpak can work inside
 		"source=/run/dbus,target=/run/dbus,type=bind",
 		// It is handy to have some test images available in the container
 		"source=${localEnv:HOME}/Pictures/telescope,target=/workspaces/starbash/images,type=bind,consistency=cached",
 		//"source=/mnt/kshared,target=/mnt/kshared,type=bind,consistency=cached",
 		// This is necessary to prevent newer vscode created images from being able to write to /tmp
-		"type=tmpfs,destination=/tmp,tmpfs-mode=1777"
+		"type=tmpfs,destination=/tmp,tmpfs-mode=1777",
+		// My external USB drive
+		"source=/mnt/fast_stick,destination=/mnt/fast_stick,type=bind"
 	],
 	"containerEnv": {
 		// Needed for X11 forwarding
