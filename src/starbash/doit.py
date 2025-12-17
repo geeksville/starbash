@@ -252,11 +252,10 @@ class ToolAction(BaseAction):
                 self.result = self.tool.run(
                     self.commands, context=context, cwd=self.cwd, log_out=logfile, **self.parameters
                 )
-        except ValueError as e:
+        except Exception as e:
             # We pass back any exceptions in task.meta - so that our ConsoleReporter can pick them up (doit normally strips exceptions)
             self.task.meta["exception"] = e
             return TaskFailed("tool failed")
-            # raise e  # Let doit do its normal exception handling though
 
         self.values = {}  # doit requires this attribute to be set
 

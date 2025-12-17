@@ -195,7 +195,7 @@ class PythonTool(Tool):
 
                 exec(byte_code, make_safe_globals(globals), execution_locals)
             except SyntaxError as e:
-                raise PythonScriptError("Syntax error in python script") from e
+                raise PythonScriptError(f"Syntax error in python script: {e}") from e
             except UserHandledError:
                 raise  # No need to wrap this - just pass it through for user handling
             except Exception as e:
