@@ -64,8 +64,13 @@ def get_user_data_dir() -> Path:
 
 
 def get_user_cache_dir() -> Path:
-    """Get the user cache directory. Returns test override if set, otherwise the real user directory."""
-    dir_to_use = _override_cache_dir if _override_cache_dir is not None else cache_dir
+    """Get the user cache directory. Returns test override if set, otherwise checks STARBASH_CACHE_DIR env var, otherwise the real user directory."""
+    if _override_cache_dir is not None:
+        dir_to_use = _override_cache_dir
+    elif env_cache_dir := os.getenv("STARBASH_CACHE_DIR"):
+        dir_to_use = Path(env_cache_dir)
+    else:
+        dir_to_use = cache_dir
     os.makedirs(dir_to_use, exist_ok=True)
     return dir_to_use
 
