@@ -61,9 +61,9 @@ markers = [
 # By default, exclude slow and integration tests
 # --tb=line shows minimal tracebacks (just one line per failure)
 # --tb=short shows shorter tracebacks
-# -rA shows summary of all test outcomes at end
+# -rfE shows summary of failed and error test outcomes at end (not passed)
 # --ignore excludes third-party test directories
-addopts = "-m 'not slow and not integration' -n auto --tb=short -rA --ignore=GraXpert --ignore=textual --ignore=starbash-recipes"
+addopts = "-m 'not slow and not integration' -n auto --tb=short -rfE --ignore=GraXpert --ignore=textual --ignore=starbash-recipes"
 
 # Note: To limit captured output further, you can:
 # 1. Use --tb=line for minimal tracebacks

@@ -140,6 +140,9 @@ jobs:
           hdiutil detach /Volumes/Siril* -quiet
           # Clean up
           rm siril.dmg
+          # Create symlinks to siril and siril-cli in /usr/local/bin
+          sudo ln -s /Applications/Siril.app/Contents/MacOS/siril /usr/local/bin/siril
+          sudo ln -s /Applications/Siril.app/Contents/MacOS/siril-cli /usr/local/bin/siril-cli
 
       - name: Show free disk space
         if: matrix.os == 'ubuntu-latest'
