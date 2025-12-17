@@ -229,7 +229,7 @@ def auto(
 
             if session_num is not None:
                 console.print(
-                    f"[read]Session number base filtering not yet implemented: {session_num}...[/red]"
+                    f"[red]Session number base filtering not yet implemented: {session_num}...[/red]"
                 )
             else:
                 console.print("[yellow]Auto-processing all selected sessions...[/yellow]")
