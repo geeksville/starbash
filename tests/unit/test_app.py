@@ -752,7 +752,7 @@ class TestReindexRepo:
             assert image["FILTER"] == "OIII"
 
     def test_reindex_repo_handles_bad_fits(self, setup_test_environment, mock_analytics, caplog):
-        """Test that reindex_repo handles corrupt FITS files gracefully."""
+        """Test that reindex_repo raises OSError for corrupt FITS files."""
         with Starbash() as app:
             # Create a test repo with a bad FITS file
             test_repo = setup_test_environment["tmp_path"] / "test_repo"
@@ -765,10 +765,9 @@ class TestReindexRepo:
 
             repo = app.repo_manager.add_repo(f"file://{test_repo}")
 
-            # Should not raise, but should log warning
-            app.reindex_repo(repo)
-
-            assert "Failed to read FITS header" in caplog.text
+            # Should raise OSError for corrupt FITS file
+            with pytest.raises(OSError):
+                app.reindex_repo(repo)
 
 
 class TestReindexRepos:

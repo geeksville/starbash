@@ -129,11 +129,13 @@ def remap_expected_errors(exc: BaseException | None) -> BaseException | None:
         return None
 
     # Some OSErrors definitely don't indicate a code level bug...
-    expected_errors = [ "Read-only file system" ]
+    expected_errors = [ "Read-only file system", "No space left on device" ]
+    # Update: I give up, keep seeing misc reports from field.  I think all OSErrors should be considered
+    # 'not a bug' until proven otherwise.
 
     if isinstance(exc, OperationalError):
         return NonSoftwareError(f"[red]Database IO error:[/red] {exc}")
-    elif isinstance(exc, FileNotFoundError):
+    elif isinstance(exc, OSError): # Was FileNotFoundError
         return NonSoftwareError(f"[red]OS error:[/red] {exc}")
     elif isinstance(exc, OSError):
         exc_str = str(exc)
