@@ -95,7 +95,7 @@ jobs:
           key: flatpak-${{ matrix.os }}-${{ hashFiles('.github/workflows/ci.yml') }}
 
       #----------------------------------------------
-      # Install GraXpert and Siril (Linux only)
+      # Install linux dependencies (Linux only)
       #----------------------------------------------
       - name: Install system dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -103,10 +103,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends flatpak pipx
 
-      - name: Install GraXpert (Linux)
-        if: matrix.os == 'ubuntu-latest' && steps.cached-pipx.outputs.cache-hit != 'true'
-        run: |
-          pipx install graxpert[cpuonly]
+      # No longer needed - because we now have a pip dependency from starbash to graxpert
+      #- name: Install GraXpert (Linux)
+      #  if: matrix.os == 'ubuntu-latest' && steps.cached-pipx.outputs.cache-hit != 'true'
+      #  run: |
+      #    pipx install graxpert[cpuonly]
 
       - name: Add pipx to PATH (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -120,12 +121,25 @@ jobs:
           flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           # Install Siril
           flatpak install --user -y flathub org.siril.Siril
-
-      - name: Configure Flatpak and add to PATH (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
           # Let siril see /tmp
           flatpak --user override --filesystem=/tmp org.siril.Siril
+
+      #----------------------------------------------
+      # Download and install Siril (macOS only)
+      #----------------------------------------------
+      - name: Download and install Siril (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          # Download Siril DMG
+          curl -L -o siril.dmg https://free-astro.org/download/siril-1.4.0-arm64.dmg
+          # Mount the DMG
+          hdiutil attach siril.dmg -nobrowse -quiet
+          # Copy Siril.app to /Applications
+          cp -R /Volumes/Siril*/Siril.app /Applications/
+          # Unmount the DMG
+          hdiutil detach /Volumes/Siril* -quiet
+          # Clean up
+          rm siril.dmg
 
       - name: Show free disk space
         if: matrix.os == 'ubuntu-latest'
