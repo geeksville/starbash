@@ -162,7 +162,9 @@ Changes after alpha 2... (not yet prioritized, need to schedule for about a mont
 * [x] pass options into siril scripts when used by starbash (use toml parameters for UI)
 * [x] add auto camera detection to veralux script
 * [ ] ping Ciril and the veralux author to discuss ideas
-* [ ] fix graxpert to not require tk per https://geeksville.sentry.io/issues/7113880331/?query=is%3Aunresolved&referrer=issue-stream 
+* [x] fix graxpert to not require tk per https://geeksville.sentry.io/issues/7113880331/?query=is%3Aunresolved&referrer=issue-stream 
+* [ ] add .sbignore check per https://github.com/geeksville/starbash/discussions/11 
+* [ ] write a 'new recipe tutorial, using this as an example:' https://github.com/geeksville/starbash/discussions/12
 * [ ] see how  city astro bge is using graxpert? 
 * [ ] include some example thumbnails in the README. "turn this into that"
 * [ ] add a color balance/correction stage
