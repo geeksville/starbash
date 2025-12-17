@@ -29,7 +29,7 @@ textual = "^6.8.0"
 
 # Note: to use graxpert from the local tree rather than pypi use:
 # graxpert = {path = "GraXpert", extras = ["cpuonly"], develop = true}
-graxpert = {version = "^3.2.0a1", extras = ["cpuonly"]}
+graxpert = {version = "^3.2.0a2", extras = ["cpuonly"]}
 
 # The following two libs are only needed for the experiment of running siril scripts directly...
 # experimenting with siril-scripts/processing/VeraLux_HyperMetric_Stretch.py
