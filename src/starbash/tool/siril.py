@@ -43,9 +43,9 @@ class SirilTool(ExternalTool):
         # siril_path = "/home/kevinh/packages/Siril-1.4.0~beta3-x86_64.AppImage"
         # Possible siril commands, with preferred option first
         commands: list[str] = [
-            "siril-cli",
-            "siril",
+            "siril-cli", # We prefer the top two options because they work even without a Gtk accessible GUI
             "org.siril.Siril",
+            "siril",
             "Siril",
         ]
 
@@ -66,7 +66,7 @@ class SirilTool(ExternalTool):
 
         siril_path = self.executable_path
         if siril_path == "org.siril.Siril":
-            siril_path = "flatpak run org.siril.Siril"
+            siril_path = "flatpak run --command=siril-cli org.siril.Siril"
 
         link_or_copy_to_dir(input_files, temp_dir)
 

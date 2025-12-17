@@ -29,6 +29,28 @@ def force_local_recipes_for_all_tests():
     app.force_local_recipes = original_value
 
 
+@pytest.fixture(scope="session", autouse=True)
+def force_no_gui_for_all_tests():
+    """Force all tests to run without GUI windows.
+
+    This session-scoped autouse fixture runs once at the beginning of the test session
+    and ensures that external tools (Siril, GraXpert, etc.) will not attempt to open
+    GUI windows during testing. This is essential for headless CI environments.
+    """
+    from starbash.tool import base
+
+    # Save original value
+    original_value = base.force_no_gui
+
+    # Force no GUI for all tests
+    base.force_no_gui = True
+
+    yield
+
+    # Restore original value after all tests complete
+    base.force_no_gui = original_value
+
+
 @pytest.fixture
 def setup_test_environment(tmp_path):
     """Setup a test environment with isolated config and data directories.

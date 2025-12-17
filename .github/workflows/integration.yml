@@ -77,11 +77,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends flatpak pipx
 
-      - name: Install GraXpert
-        if: steps.cached-pipx.outputs.cache-hit != 'true'
-        run: |
-          pipx install graxpert[cpuonly]
-
       - name: Add pipx to PATH
         run: |
           echo "$HOME/.local/bin" >> $GITHUB_PATH

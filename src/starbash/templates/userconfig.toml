@@ -6,6 +6,11 @@
 [repo]
 kind = "preferences"
 
+[tool]
+# Starbash normally finds tools automatically via your PATH.  But if necessary you can define overrides here.  
+# siril.path = "siril"
+# siril.path = "flatpak run --command=siril-cli org.siril.Siril" # To use the flatpak version of siril
+
 #[aliases]
 # aliases can be used to map non standard (or non english) frame names to standard terms
 # This is also used to map filters based on common misspellings or variations.

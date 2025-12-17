@@ -44,7 +44,7 @@ from starbash.paths import get_user_config_dir, get_user_config_path
 from starbash.score import ScoredCandidate, score_candidates
 from starbash.selection import Selection, build_search_conditions
 from starbash.toml import toml_from_template
-from starbash.tool import preflight_tools
+from starbash.tool import init_tools
 from starbash.windows import windows_init
 
 critical_keys = [Database.DATE_OBS_KEY, Database.IMAGETYP_KEY]
@@ -199,7 +199,8 @@ class Starbash:
 
         # Initialize selection state (stored in user config repo)
         self.selection = Selection(self.user_repo)
-        preflight_tools()
+        tool_prefs: dict[str, Any] = self.user_repo.get("tool", {})
+        init_tools(tool_prefs)  # Preflight check all known tools to see if they are available
 
     def _install_local_recipes(self) -> bool:
         """Use our local github submodule for recipes during development.

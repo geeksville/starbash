@@ -1,5 +1,7 @@
 """Tool management and execution for starbash processing stages."""
 
+from typing import Any
+
 from starbash.tool.base import ExternalTool, MissingToolError, Tool, ToolError, tool_run
 from starbash.tool.context import (
     _SafeFormatter,
@@ -31,12 +33,14 @@ __all__ = [
     "PythonTool",
     "PythonScriptError",
     "tools",
-    "preflight_tools",
+    "init_tools",
 ]
 
 
-def preflight_tools() -> None:
+def init_tools(tool_prefs: dict[str, Any]) -> None:
     """Preflight check all known tools to see if they are available"""
+    Tool.Preferences = tool_prefs
+
     for tool in tools.values():
         if isinstance(tool, ExternalTool):
             tool.preflight()

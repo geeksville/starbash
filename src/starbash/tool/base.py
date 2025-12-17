@@ -26,6 +26,10 @@ __all__ = [
     "tool_run",
 ]
 
+# If we want to ensure that child tools don't accidentally try to open GUI windows, we can set this flag.
+# This is especially useful to ensure that the tools will work in a headless environment (such as) github CI runners.
+force_no_gui = False
+
 
 class ToolError(UserHandledError):
     """Exception raised when a tool fails to execute properly."""
@@ -133,6 +137,12 @@ def tool_run(
 
     logger.debug(f"Running {cmd} in {cwd}: stdin={commands}")
 
+    # Remove DISPLAY from environment if force_no_gui is set to prevent GUI windows
+    env = os.environ.copy()
+    if force_no_gui and "DISPLAY" in os.environ:
+        env.pop("DISPLAY", None)
+        logger.debug("Removed DISPLAY from environment to prevent GUI windows")
+
     # Start the process with pipes for streaming
     process = subprocess.Popen(
         cmd,
@@ -142,6 +152,7 @@ def tool_run(
         shell=True,
         text=True,
         cwd=cwd,
+        env=env,
     )
 
     # Wait for process to complete with timeout
@@ -197,6 +208,10 @@ def tool_run(
 
 class Tool:
     """A tool for stage execution"""
+
+    # A hierarchical dictionary of user preferences for this tool.  Typical node path would be: "siril.path"
+    # Normally set by the app constructor based on user configuration toml.
+    Preferences: dict[str, Any] = {}
 
     # Tools and recursively invoke other tools.  So it is important that if we've set a log file destination at the top
     # of our call tree, that variables get passed down to all sub-tools.
@@ -331,6 +346,11 @@ class ExternalTool(Tool):
     @property
     def executable_path(self) -> str:
         """Find the correct executable path to run for the given tool"""
+
+        # Did the user manually specify a path
+        pref_path = Tool.Preferences.get(self.name.lower(), {}).get("path")
+        if pref_path:
+            return pref_path
 
         paths: list[None | str] = [None]  # None means use system PATH
 
