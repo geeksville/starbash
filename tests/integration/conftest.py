@@ -38,13 +38,13 @@ def setup_integration_logging():
     """Configure logging for integration tests to write to /tmp/integration-logout.txt.
 
     This fixture runs automatically for all integration tests (autouse=True) and
-    captures all log messages at DEBUG level and higher to a file.
+    captures all log messages at INFO level and higher to a file.
     """
     log_file = Path("/tmp/sb-integration-log.txt")
 
     # Create a file handler for the log file
     file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
-    file_handler.setLevel(logging.DEBUG)
+    file_handler.setLevel(logging.INFO)
 
     # Create a formatter
     formatter = logging.Formatter(
@@ -56,12 +56,12 @@ def setup_integration_logging():
     # Get the root logger and add our handler
     root_logger = logging.getLogger()
     original_level = root_logger.level
-    root_logger.setLevel(logging.DEBUG)
+    root_logger.setLevel(logging.INFO)
     root_logger.addHandler(file_handler)
 
-    # Also ensure starbash logger is at DEBUG level
+    # Also ensure starbash logger is at INFO level
     starbash_logger = logging.getLogger("starbash")
-    starbash_logger.setLevel(logging.DEBUG)
+    starbash_logger.setLevel(logging.INFO)
 
     yield
 
