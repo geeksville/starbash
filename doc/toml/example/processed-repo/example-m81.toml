@@ -1,0 +1,167 @@
+[repo]
+kind = "processed-target"
+
+# This is auto generated at the root of a Starbash target processing tree
+# it is initially auto populated based on the best guess of starbash, but you
+# can customize as needed.  Any changes you make to this file will be preserved/used
+# in future runs.
+
+# About the target and processing - this section is auto geneated each starbash processing run...
+[about]
+
+summary = """
+Processed data for M 81.
+Generated from 1 imaging sessions.
+Total of 0.13 hours of exposure.
+Filters used: IRCUT.
+Observation dates: 2025-07-14.
+"""
+
+target.id = "M 81"
+target.ra = "149.55417"
+target.dec = "69.276944"
+
+# Information about recipes used for processing or excluded by the user
+# If you'd like to pick something different just comment out the line in USED and uncomment the line in
+# excluded.
+# Whenever stabash is rerun it will update these arrays based on what was actually used for this run.
+
+[stages]
+
+# If your recipes have parameters starbash will auto populate this section with possible overrides.
+used = [
+    "stack_osc", # Basic OSC stacking (no fancy narrowband extraction)
+    "background", # Do background subtraction with graxpert
+    "veralux", # Do VeraLux HyperMetric Stretching
+    "thumbnail", # Generate a stretched thumbnail image
+    ]
+excluded = [
+    "deconv-obj", # Do object deconvolution with graxpert
+    "denoise", # Do denoising with graxpert
+    ]
+#
+# [[overrides]]
+# name = "light_options" # Light frame calibration options for OSC cameras
+# value = "-cfa -equalize_cfa"
+#
+# [[overrides]]
+# name = "light_options" # Light frame calibration options for OSC cameras
+# value = "-cfa -equalize_cfa"
+#
+# [[overrides]]
+# name = "light_options" # Light frame calibration options for OSC cameras
+# value = "-cfa -equalize_cfa"
+#
+# [[overrides]]
+# name = "stack_registration" # Registration options for Siril stacking
+# value = "rej g 0.3 0.05"
+#
+# [[overrides]]
+# name = "stack_filtering" # Filtering options for Siril (controls which frames are accepted for stacking)
+# value = "-filter-wfwhm=3k"
+#
+# [[overrides]]
+# name = "stack_drizzle" # Drizzle option for Siril stacking, set to empty string to disable, or -drizzle to enable
+# value = ""
+#
+# [[overrides]]
+# name = "stack_options" # Misc options for Siril stacking
+# value = "-norm=addscale -output_norm -rgb_equal -32b"
+#
+# [[overrides]]
+# name = "smoothing_option" # Smoothing option for graxpert background extraction
+# value = 0.5
+#
+# [[overrides]]
+# name = "bge_ai_version" # AI version for graxpert background extraction
+# value = "1.0.1"
+#
+[[overrides]] # Uncomment and modify any of the following to override parameters:
+name = "hms_background" # What background level should be targeted for VeraLux HyperMetric Stretch
+value = 0.10
+#
+# [[overrides]]
+# name = "thumbnail_size" # Maximum dimension for the thumbnail image
+# value = 1920
+#
+# [[overrides]]
+# name = "thumbnail_quality" # Quality setting for the thumbnail image (1-100)
+# value = 80
+
+[processing.citation]
+
+# (Not yet implemented)
+# The creator of this image session
+# (if not present this section will be auto generated at processing time)
+# this whole secion is auto copied from userprefs.sb.toml
+# The format of this session is compatible with the Citation File Format (CFF)
+# see https://github.com/citation-file-format/citation-file-format/blob/main/schema-guide.md
+# for details.
+# The only difference is to facilitate toml parsing we use an = sign instead of :
+# if/when .cff file exports are required we'll do that conversion then.
+
+
+
+
+
+
+# Summary information for each session processed.  Included with sessions is [stages] which allows per session
+# recipe exclusions/inclusions to be specified.
+[[sessions]]
+id = 48
+start = "2025-07-14T04:24:32.087685"
+end = "2025-07-14T07:09:22.482974"
+filter = "IRCUT"
+imagetyp = "Light"
+object = "m81"
+telescop = "S50_153dd4e2"
+num_images = 16
+exptime_total = 480.0
+exptime = 30.0
+image_doc_id = 105
+repo_url = "file:///test-data/seestar"
+
+[sessions.metadata]
+SIMPLE = true
+BITPIX = 16
+NAXIS = 2
+NAXIS1 = 1080
+NAXIS2 = 1920
+EXTEND = true
+COMMENT = "  and Astrophysics', volume 376, page 359; bibcode: 2001A&A...376..359H"
+BZERO = 32768
+BSCALE = 1
+CREATOR = "ZWO Seestar S50"
+PRODUCER = "ZWO"
+XORGSUBF = 0
+YORGSUBF = 0
+FOCALLEN = 250
+APERTURE = 5.0
+EQMODE = 1
+PROGRAM = "4.70"
+XBINNING = 1
+YBINNING = 1
+CCDXBIN = 1
+CCDYBIN = 1
+XPIXSZ = 2.90000009536743
+YPIXSZ = 2.90000009536743
+IMAGETYP = "Light"
+EXPOSURE = 30.0
+EXPTIME = 30.0
+CCD-TEMP = 23.875
+RA = 149.55417
+DEC = 69.276944
+DATE-OBS = "2025-07-14T04:24:32.087685"
+FILTER = "IRCUT"
+INSTRUME = "Seestar S50"
+BAYERPAT = "GRBG"
+GAIN = 80
+FOCUSPOS = 1791
+TELESCOP = "S50_153dd4e2"
+OBJECT = "M 81"
+TOTALEXP = 30.0
+
+[sessions.stages]
+used = [
+    "light_no_darks", # Calibrate OSC lights that have no dark frames available
+    ]

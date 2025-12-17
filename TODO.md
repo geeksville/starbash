@@ -157,8 +157,10 @@ Changes since alpha 1...
 Changes after alpha 2... (not yet prioritized, need to schedule for about a month later, mostly driven by user reports/analytics...)
 
 * [x] experiment with VeraLux Hypermetric Stretch? https://www.youtube.com/watch?v=LsD8SNXO_M8 https://www.cloudynights.com/forums/topic/987003-new-stretching-script-in-siril-veralux/.  
-* [ ] pass options into siril scripts when used by starbash (use toml parameters for UI)
-* [ ] add auto camera detection to veralux script
+* [x] make veralux test case only be used for bare OSC data (not duo filters) 
+* [ ] offer veralux for "Narrowband SHO" using its built-in rule
+* [x] pass options into siril scripts when used by starbash (use toml parameters for UI)
+* [x] add auto camera detection to veralux script
 * [ ] ping Ciril and the veralux author to discuss ideas
 * [ ] see how  city astro bge is using graxpert? 
 * [ ] include some example thumbnails in the README. "turn this into that"

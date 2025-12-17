@@ -390,7 +390,7 @@ class TestPythonTool:
             with pytest.raises(PythonScriptError) as exc_info:
                 tool.run(code, {}, temp_dir)
             # RestrictedPython provides detailed syntax error messages
-            assert "Syntax error in python script" in str(exc_info.value)
+            assert "Script syntax error" in str(exc_info.value)
 
     def test_python_tool_runtime_error_raises(self):
         """Test that runtime errors are wrapped in PythonScriptError."""
@@ -402,7 +402,7 @@ class TestPythonTool:
             with pytest.raises(PythonScriptError) as exc_info:
                 tool.run(code, {}, temp_dir)
             # The error is wrapped, so we get the generic message
-            assert "Error during python script execution" in str(exc_info.value)
+            assert "Python script error" in str(exc_info.value)
 
     def test_python_tool_changes_directory(self):
         """Test that Python tool changes to the working directory."""

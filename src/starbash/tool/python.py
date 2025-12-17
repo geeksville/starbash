@@ -195,10 +195,10 @@ class PythonTool(Tool):
 
                 exec(byte_code, make_safe_globals(globals), execution_locals)
             except SyntaxError as e:
-                raise PythonScriptError(f"Syntax error in python script: {e}") from e
+                raise PythonScriptError(f"[red]Script syntax error[/red]: {e}") from e
             except UserHandledError:
                 raise  # No need to wrap this - just pass it through for user handling
             except Exception as e:
-                raise PythonScriptError("Error during python script execution") from e
+                raise PythonScriptError(f"[red]Python script error[/red]: {e}") from e
         finally:
             os.chdir(original_cwd)
