@@ -5,7 +5,10 @@ on:
 
 jobs:
   integration-test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     environment: ci
 
     steps:
@@ -37,7 +40,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-ubuntu-latest-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-${{ matrix.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       #----------------------------------------------
       # Install dependencies if cache does not exist
@@ -47,61 +50,95 @@ jobs:
         run: poetry install --no-interaction --with dev
 
       #----------------------------------------------
-      # Cache pipx installations
+      # Cache pipx installations (Linux only)
       #----------------------------------------------
       - name: Load cached pipx
+        if: matrix.os == 'ubuntu-latest'
         id: cached-pipx
         uses: actions/cache@v4
         with:
           path: |
             ~/.local/pipx
             ~/.local/bin
-          key: pipx-ubuntu-latest-${{ hashFiles('.github/workflows/integration.yml') }}
+          key: pipx-${{ matrix.os }}-${{ hashFiles('.github/workflows/integration.yml') }}
 
       #----------------------------------------------
-      # Cache Flatpak installations
+      # Cache Flatpak installations (Linux only)
       #----------------------------------------------
       - name: Load cached Flatpak
+        if: matrix.os == 'ubuntu-latest'
         id: cached-flatpak
         uses: actions/cache@v4
         with:
           path: |
             ~/.local/share/flatpak
-          key: flatpak-ubuntu-latest-${{ hashFiles('.github/workflows/integration.yml') }}
+          key: flatpak-${{ matrix.os }}-${{ hashFiles('.github/workflows/integration.yml') }}
 
       #----------------------------------------------
-      # Install GraXpert and Siril
+      # Install system dependencies (Linux only)
       #----------------------------------------------
-      - name: Install system dependencies
+      - name: Install system dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends flatpak pipx
 
-      - name: Add pipx to PATH
+      - name: Add pipx to PATH (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - name: Install Siril via Flatpak
-        if: steps.cached-flatpak.outputs.cache-hit != 'true'
+      - name: Install Siril via Flatpak (Linux)
+        if: matrix.os == 'ubuntu-latest' && steps.cached-flatpak.outputs.cache-hit != 'true'
         run: |
           # Add flathub remote
           flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           # Install Siril
           flatpak install --user -y flathub org.siril.Siril
-
-      - name: Configure Flatpak and add to PATH
-        run: |
-          # Let siril see /tmp
           flatpak --user override --filesystem=/tmp org.siril.Siril
 
-      - name: Make scratch directory
+      #----------------------------------------------
+      # Download and install Siril (macOS only)
+      #----------------------------------------------
+      - name: Download and install Siril (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          # Download Siril DMG
+          curl -L -o siril.dmg https://free-astro.org/download/siril-1.4.0-arm64.dmg
+          # Mount the DMG
+          hdiutil attach siril.dmg -nobrowse -quiet
+          # Copy Siril.app to /Applications
+          cp -R /Volumes/Siril*/Siril.app /Applications/
+          # Unmount the DMG
+          hdiutil detach /Volumes/Siril* -quiet
+          # Clean up
+          rm siril.dmg
+          # Create symlinks to siril and siril-cli in /usr/local/bin
+          sudo ln -s /Applications/Siril.app/Contents/MacOS/siril /usr/local/bin/siril
+          sudo ln -s /Applications/Siril.app/Contents/MacOS/siril-cli /usr/local/bin/siril-cli
+
+      #----------------------------------------------
+      # Install crane for container image extraction (macOS only)
+      #----------------------------------------------
+      - name: Install crane (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          # Install crane via Homebrew (lightweight tool for working with container images)
+          brew install crane
+
+      #----------------------------------------------
+      # Make scratch directory (Linux only)
+      #----------------------------------------------
+      - name: Make scratch directory (Linux)
+        if: matrix.os == 'ubuntu-latest'
         # /dev/sdb1 seems to have lots of free space
         run: sudo mkdir -p /mnt/scratch/tmp && sudo chown -R $(id -u):$(id -g) /mnt/scratch
 
       #----------------------------------------------
-      # Extract test-data from Docker image
+      # Extract test-data from Docker image (Linux)
       #----------------------------------------------
-      - name: Extract test-data from Docker image
+      - name: Extract test-data from Docker image (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           echo "::group::Pull test-data Docker image"
           docker pull ghcr.io/geeksville/starbash/test-data:latest
@@ -128,13 +165,37 @@ jobs:
           echo "Test data extracted successfully"
           echo "::endgroup::"
 
+      #----------------------------------------------
+      # Extract test-data using crane (macOS)
+      #----------------------------------------------
+      - name: Extract test-data using crane (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          echo "::group::Export container image to tarball using crane"
+          crane export ghcr.io/geeksville/starbash/test-data:latest - | tar -xf - -C /tmp
+          echo "::endgroup::"
+
+          sudo ln -s /tmp/test-data /test-data
+
+          echo "::group::Verify extracted data"
+          ls -la /test-data/
+          echo "Test data extracted successfully"
+          echo "::endgroup::"
+
       - name: Show free disk space
         run: df -h
 
       #----------------------------------------------
       # Run integration tests
       #----------------------------------------------
-      - name: Run integration tests
+      - name: Run integration tests (Linux)
+        if: matrix.os == 'ubuntu-latest'
         env:
           SENTRY_ENVIRONMENT: ci
         run: TMPDIR=/mnt/scratch/tmp poetry run pytest -m integration -n 0 -v
+
+      - name: Run integration tests (macOS)
+        if: matrix.os == 'macos-latest'
+        env:
+          SENTRY_ENVIRONMENT: ci
+        run: poetry run pytest -m integration -n 0 -v
