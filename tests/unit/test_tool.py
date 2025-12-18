@@ -488,6 +488,39 @@ class TestToolRun:
             tool_run("echo hello", temp_dir)
             # If we get here without exception, the command succeeded
 
+    def test_tool_run_with_spaces_in_command_path(self):
+        """Test that tool_run handles command paths with spaces correctly."""
+        import shutil
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Test 1: Full path to system command (e.g., /usr/bin/echo)
+            echo_path = shutil.which("echo")
+            if not echo_path:
+                pytest.skip("echo command not found in PATH")
+
+            # This should work - full path with no spaces
+            tool_run(f"{echo_path} arg1", temp_dir)
+
+            # Test 2: Create a temp directory with spaces in the name
+            spaces_dir_name = "temp dir with spaces"
+            spaces_dir = os.path.join(temp_dir, spaces_dir_name)
+            os.makedirs(spaces_dir, exist_ok=True)
+
+            # Create a symlink to echo in the directory with spaces
+            symlink_path = os.path.join(spaces_dir, "echo")
+            try:
+                os.symlink(echo_path, symlink_path)
+            except OSError:
+                # Symlink creation might fail on some systems (e.g., Windows without privileges)
+                pytest.skip("Cannot create symlinks on this system")
+
+            # Test with unquoted path - this will fail because shell splits on spaces
+            with pytest.raises(ToolError):
+                tool_run(f"{symlink_path} arg1", temp_dir)
+
+            # Test with properly quoted path - this should work
+            tool_run(f'"{symlink_path}" arg1', temp_dir)
+
     @pytest.mark.skipif(os.name == "nt", reason="Shell redirection syntax not supported on Windows")
     def test_tool_run_with_stderr_warning(self, caplog):
         """Test that stderr output is logged as warning."""
