@@ -92,11 +92,12 @@ def test_data_dir():
             pytrace=False,
         )
 
-    test_data_path = Path("/test-data")
+    # Check for STARBASH_TEST_DATA environment variable, otherwise use default
+    test_data_path = Path(os.environ.get("STARBASH_TEST_DATA", "/test-data"))
 
     if not test_data_path.exists():
         pytest.skip(
-            "Integration tests require /test-data directory. "
+            f"Integration tests require test data directory at {test_data_path}. "
             "See tests/integration/README.md for setup instructions."
         )
 

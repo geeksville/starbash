@@ -157,11 +157,10 @@ jobs:
           docker rm test-data-container
           echo "::endgroup::"
 
-          sudo ln -s /mnt/scratch/test-data /
-          sudo chown $(id -u):$(id -g) /test-data
+          sudo chown $(id -u):$(id -g) /mnt/scratch/test-data
 
           echo "::group::Verify extracted data"
-          ls -la /test-data/
+          ls -la /mnt/scratch/test-data
           echo "Test data extracted successfully"
           echo "::endgroup::"
 
@@ -175,10 +174,8 @@ jobs:
           crane export ghcr.io/geeksville/starbash/test-data:latest - | tar -xf - -C /tmp
           echo "::endgroup::"
 
-          sudo ln -s /tmp/test-data /test-data
-
           echo "::group::Verify extracted data"
-          ls -la /test-data/
+          ls -la /tmp/test-data/
           echo "Test data extracted successfully"
           echo "::endgroup::"
 
@@ -192,10 +189,12 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         env:
           SENTRY_ENVIRONMENT: ci
+          STARBASH_TEST_DATA: /mnt/scratch/test-data
         run: TMPDIR=/mnt/scratch/tmp poetry run pytest -m integration -n 0 -v
 
       - name: Run integration tests (macOS)
         if: matrix.os == 'macos-latest'
         env:
           SENTRY_ENVIRONMENT: ci
+          STARBASH_TEST_DATA: /tmp/test-data
         run: poetry run pytest -m integration -n 0 -v
