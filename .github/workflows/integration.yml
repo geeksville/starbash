@@ -197,12 +197,31 @@ jobs:
         run: poetry run pytest -m integration -n 0 -v
 
       #----------------------------------------------
-      # Upload integration test log
+      # Post integration test log to job summary
       #----------------------------------------------
-      - name: Upload integration test log
+      - name: Post integration test log to job summary
+        if: always()
+        run: |
+          if [ -f /tmp/process-auto.log ]; then
+            echo "## Integration Test Log - ${{ matrix.os }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            # Strip blank lines from the log for brevity
+            grep -v '^$' /tmp/process-auto.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Integration test log not found at /tmp/process-auto.log" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      #----------------------------------------------
+      # Upload integration test logs
+      #----------------------------------------------
+      - name: Upload integration test logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: integration-log-${{ matrix.os }}
-          path: /tmp/sb-integration-log.txt
+          name: integration-logs-${{ matrix.os }}
+          path: |
+            /tmp/sb-integration-log.txt
+            /tmp/process-auto.log
           if-no-files-found: warn
