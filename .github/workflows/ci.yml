@@ -187,7 +187,7 @@ jobs:
           path: coverage.xml
 
       - name: Upload junit artifacts
-        if: (!cancelled())
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Test Results (${{ matrix.os }})
@@ -198,9 +198,10 @@ jobs:
       # Needed for EnricoMi/publish-unit-test-result-action
       checks: write
       pull-requests: write
-        
-    # Single upload job that runs once (on linux) after the matrix test job completes
+
+    # Single upload job that runs after test job completes, even if tests failed
     needs: test
+    if: always()
     runs-on: ubuntu-latest
     environment: ci
     steps:
@@ -219,11 +220,11 @@ jobs:
       #----------------------------------------------
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2
-        if: always()
         with:
           files: "artifacts/**/pytest.xml"
           # check_name: CI Test Results
           comment_mode: off
+          report_suite_logs: info
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
