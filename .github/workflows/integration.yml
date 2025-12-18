@@ -81,7 +81,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends flatpak pipx
+          sudo apt-get install -y --no-install-recommends flatpak pipx libegl1
 
       - name: Add pipx to PATH (Linux)
         if: matrix.os == 'ubuntu-latest'
