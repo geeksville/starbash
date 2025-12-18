@@ -248,7 +248,7 @@ class ToolAction(BaseAction):
 
         logging.info(f"Running {self.tool.name} for {self.task.name} {desc}")
         try:
-            with open(logfile_path, "a") as logfile:
+            with open(logfile_path, "a", encoding="utf-8") as logfile:
                 self.result = self.tool.run(
                     self.commands, context=context, cwd=self.cwd, log_out=logfile, **self.parameters
                 )

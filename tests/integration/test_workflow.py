@@ -288,7 +288,7 @@ class TestProcessAutoWorkflow:
         # Store full stdout to temp/process-auto.log for manual debugging
         import tempfile
         log_path = Path(tempfile.gettempdir()) / "process-auto.log"
-        with open(log_path, "w") as log_file:
+        with open(log_path, "w", encoding="utf-8") as log_file:
             log_file.write(result.stdout)
 
         # Command should complete successfully
