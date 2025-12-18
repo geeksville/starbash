@@ -98,6 +98,15 @@ jobs:
           flatpak --user override --filesystem=/tmp org.siril.Siril
 
       #----------------------------------------------
+      # Install crane for container image extraction (Linux only)
+      #----------------------------------------------
+      - name: Install crane (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          # Install crane for extracting container images without Docker
+          curl -sL "https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin crane
+
+      #----------------------------------------------
       # Download and install Siril (macOS only)
       #----------------------------------------------
       - name: Download and install Siril (macOS)
@@ -135,29 +144,17 @@ jobs:
         run: sudo mkdir -p /mnt/scratch/tmp && sudo chown -R $(id -u):$(id -g) /mnt/scratch
 
       #----------------------------------------------
-      # Extract test-data from Docker image (Linux)
+      # Extract test-data using crane (Linux)
       #----------------------------------------------
-      - name: Extract test-data from Docker image (Linux)
+      - name: Extract test-data using crane (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          echo "::group::Pull test-data Docker image"
-          docker pull ghcr.io/geeksville/starbash/test-data:latest
+          echo "::group::Export container image to tarball using crane"
+          mkdir -p /mnt/scratch
+          crane export ghcr.io/geeksville/starbash/test-data:latest - | tar -xf - -C /mnt/scratch
           echo "::endgroup::"
 
-          echo "::group::Create container from image"
-          docker create --name test-data-container ghcr.io/geeksville/starbash/test-data:latest
-          echo "::endgroup::"
-
-          echo "::group::Create mount point and copy data"
-          mkdir -p /mnt/scratch/test-data
-          docker cp test-data-container:/test-data/. /mnt/scratch/test-data
-          echo "::endgroup::"
-
-          echo "::group::Clean up container"
-          docker rm test-data-container
-          echo "::endgroup::"
-
-          sudo chown $(id -u):$(id -g) /mnt/scratch/test-data
+          sudo chown -R $(id -u):$(id -g) /mnt/scratch/test-data
 
           echo "::group::Verify extracted data"
           ls -la /mnt/scratch/test-data
@@ -198,3 +195,14 @@ jobs:
           SENTRY_ENVIRONMENT: ci
           STARBASH_TEST_DATA: /tmp/test-data
         run: poetry run pytest -m integration -n 0 -v
+
+      #----------------------------------------------
+      # Upload integration test log
+      #----------------------------------------------
+      - name: Upload integration test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-log-${{ matrix.os }}
+          path: /tmp/sb-integration-log.txt
+          if-no-files-found: warn
