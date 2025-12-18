@@ -140,8 +140,9 @@ def tool_run(
     # Remove DISPLAY from environment if force_no_gui is set to prevent GUI windows
     env = os.environ.copy()
     if force_no_gui and "DISPLAY" in os.environ:
-        env.pop("DISPLAY", None)
-        logger.debug("Removed DISPLAY from environment to prevent GUI windows")
+        #env.pop("DISPLAY", None)
+        #logger.debug("Removed DISPLAY from environment to prevent GUI windows")
+        pass
 
     # Start the process with pipes for streaming
     process = subprocess.Popen(
