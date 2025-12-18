@@ -149,6 +149,29 @@ jobs:
           sudo ln -s /Applications/Siril.app/Contents/MacOS/siril /usr/local/bin/siril
           sudo ln -s /Applications/Siril.app/Contents/MacOS/siril-cli /usr/local/bin/siril-cli
 
+      #----------------------------------------------
+      # Download and install Siril (Windows only)
+      #----------------------------------------------
+      - name: Download and install Siril (Windows)
+        if: matrix.os == 'windows-2025'
+        shell: pwsh
+        run: |
+          # Download Siril installer
+          $installer = "siril-setup.exe"
+          Invoke-WebRequest -Uri "https://free-astro.org/download/siril-1.4.0-setup.exe" -OutFile $installer
+          
+          # Run installer in silent mode (Inno Setup uses /VERYSILENT /NORESTART)
+          # /DIR specifies installation directory
+          Start-Process -FilePath $installer -ArgumentList "/VERYSILENT", "/NORESTART", "/DIR=C:\Program Files\Siril" -Wait
+          
+          # Add Siril to PATH
+          $sirilPath = "C:\Program Files\Siril\bin"
+          Add-Content -Path $env:GITHUB_PATH -Value $sirilPath
+          Write-Host "Added to PATH: $sirilPath"
+          
+          # Clean up installer
+          Remove-Item $installer
+
       - name: Show free disk space
         if: matrix.os == 'ubuntu-latest'
         run: df -h
