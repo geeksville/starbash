@@ -11,18 +11,22 @@ Run with: pytest -m integration tests/integration/ -n 0
 Note: These tests must run sequentially (not in parallel) to build upon each other's state.
 """
 
+import os
+import tempfile
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
 from starbash.main import app
+from tests.integration.conftest import get_log_dir
 
 # Configure CliRunner to disable Rich formatting
 runner = CliRunner(env={"NO_COLOR": "1"})
 
 # Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
+
 
 
 @pytest.fixture(scope="module")
@@ -287,7 +291,7 @@ class TestProcessAutoWorkflow:
         result = runner.invoke(app, ["process", "auto"])
         # Store full stdout to temp/process-auto.log for manual debugging
         import tempfile
-        log_path = Path(tempfile.gettempdir()) / "process-auto.log"
+        log_path = get_log_dir()/ "process-auto.log"
         with open(log_path, "w", encoding="utf-8") as log_file:
             log_file.write(result.stdout)
 

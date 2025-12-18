@@ -10,6 +10,7 @@ they build upon each other's state. Always use: pytest -m integration -n 0
 
 import logging
 import os
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -33,6 +34,10 @@ def limit_max_contexts():
     doit_types.max_contexts = original_max_contexts
 
 
+def get_log_dir() -> Path:
+    """Get the directory for integration test logs."""
+    return Path(os.environ.get("STARBASH_LOG_DIR", tempfile.gettempdir()))
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_integration_logging():
     """Configure logging for integration tests to write to temp/sb-integration-log.txt.
@@ -43,7 +48,7 @@ def setup_integration_logging():
     """
     import tempfile
 
-    log_file = Path(tempfile.gettempdir()) / "sb-integration.log"
+    log_file = get_log_dir() / "sb-integration.log"
 
     # Create a file handler for the log file
     file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")

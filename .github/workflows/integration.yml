@@ -278,6 +278,7 @@ jobs:
         env:
           SENTRY_ENVIRONMENT: ci
           STARBASH_TEST_DATA: /mnt/scratch/test-data
+          STARBASH_LOG_DIR: /tmp
         run: TMPDIR=/mnt/scratch/tmp poetry run pytest -m "" -n 0 -v --cov --cov-report=term --cov-report=xml --junit-xml=pytest.xml
 
       - name: Run integration tests (macOS)
@@ -285,6 +286,7 @@ jobs:
         env:
           SENTRY_ENVIRONMENT: ci
           STARBASH_TEST_DATA: /tmp/test-data
+          STARBASH_LOG_DIR: /tmp
         run: poetry run pytest -m integration -n 0 -v --junit-xml=pytest.xml
 
       - name: Run integration tests (Windows)
@@ -294,6 +296,7 @@ jobs:
           SENTRY_ENVIRONMENT: ci
           TEMP: ${{ runner.temp }}
           TMP: ${{ runner.temp }}
+          STARBASH_LOG_DIR: ${{ runner.temp }}
         run: |
           $env:STARBASH_TEST_DATA = "$env:TEMP\test-data"
           poetry run pytest -m integration -n 0 -v  --junit-xml=pytest.xml
