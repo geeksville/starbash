@@ -10,12 +10,11 @@ from starbash.dwarf3 import extend_dwarf3_headers
 
 # Use STARBASH_TEST_DATA environment variable if set, otherwise use local test-data
 # This allows tests to work both locally and in CI where test data is extracted to a different location
-REPO_ROOT = Path(__file__).parent.parent.parent  # Go up from tests/unit/ to workspace root
-TEST_DATA_BASE = Path(os.environ.get("STARBASH_TEST_DATA", str(REPO_ROOT / "test-data")))
-TEST_DATA_ROOT = TEST_DATA_BASE / "inflated" / "dwarf3"
+TEST_DATA_BASE = Path(os.environ.get("STARBASH_TEST_DATA", "/test-data"))
+TEST_DATA_ROOT = TEST_DATA_BASE / "dwarf3"
 
 
-@pytest.mark.slow
+# @pytest.mark.slow
 class TestDwarf3HeaderExtension:
     """Test the extend_dwarf3_headers function for various Dwarf3 file types."""
 

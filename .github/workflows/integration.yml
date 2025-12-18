@@ -355,14 +355,14 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload coverage to Codecov
-        if: ${{ !cancelled() }} && matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
 
       - name: Upload test results to Codecov
-        if: ${{ !cancelled() }} && matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

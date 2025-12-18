@@ -700,14 +700,16 @@ class Starbash:
 
         # Convert absolute path to relative path within repo
         relative_path = f.relative_to(path)
+        # Use POSIX-style forward slashes for consistency across platforms
+        relative_path_str = relative_path.as_posix()
 
-        found = self.db.get_image(repo.url, str(relative_path))
+        found = self.db.get_image(repo.url, relative_path_str)
 
         # for debugging sometimes we want to limit scanning to a single directory or file
         # debug_target = "masters-raw/2025-09-09/DARK"
         debug_target = None
         if debug_target:
-            if str(relative_path).startswith(debug_target):
+            if relative_path_str.startswith(debug_target):
                 logging.error("Debugging %s...", f)
                 found = False
             else:
@@ -733,8 +735,8 @@ class Starbash:
                 for key, value in extra_metadata.items():
                     headers.setdefault(key, value)
 
-                # Store relative path in database
-                headers["path"] = str(relative_path)
+                # Store relative path in database (use POSIX-style forward slashes for consistency)
+                headers["path"] = relative_path_str
                 if self._extend_image_header(headers, f):
                     image_doc_id = self.db.upsert_image(headers, repo.url)
                     headers[Database.ID_KEY] = image_doc_id
