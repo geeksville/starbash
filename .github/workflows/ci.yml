@@ -8,11 +8,6 @@ on:
 
 jobs:
   test:
-    permissions:
-      # Needed for EnricoMi/publish-unit-test-result-action
-      checks: write
-      pull-requests: write
-
     # Run the test job on a matrix of OSes. Add 'windows-2025' as requested.
     # Note: if GitHub does not provide a 'windows-2025' runner this job will fail;
     # you can replace it with 'windows-2022' which is commonly available.
@@ -182,18 +177,7 @@ jobs:
       - name: Run tests
         env:
           SENTRY_ENVIRONMENT: ci
-        run: poetry run pytest --cov --cov-report=term --cov-report=xml --junit-xml=pytest-results.xml
-
-      #----------------------------------------------
-      # Publish test results (Linux only)
-      #----------------------------------------------
-      - name: Publish test results
-        uses: EnricoMi/publish-unit-test-result-action@v2
-        if: always() && matrix.os == 'ubuntu-latest'
-        with:
-          files: pytest-results.xml
-          check_name: CI Test Results
-          comment_mode: off
+        run: poetry run pytest --cov --cov-report=term --cov-report=xml --junit-xml=pytest.xml
 
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-latest'
@@ -202,14 +186,19 @@ jobs:
           name: coverage-xml
           path: coverage.xml
 
-      - name: Upload junit artifact
-        if: matrix.os == 'ubuntu-latest'
+      - name: Upload junit artifacts
+        if: (!cancelled())
         uses: actions/upload-artifact@v4
         with:
-          name: junit-xml
-          path: pytest-results.xml
+          name: Test Results (${{ matrix.os }})
+          path: pytest.xml
 
   upload:
+    permissions:
+      # Needed for EnricoMi/publish-unit-test-result-action
+      checks: write
+      pull-requests: write
+        
     # Single upload job that runs once (on linux) after the matrix test job completes
     needs: test
     runs-on: ubuntu-latest
@@ -220,38 +209,31 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Download coverage artifact
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: coverage-xml
-          path: .
+          path: artifacts
 
-      - name: Download junit artifact
-        uses: actions/download-artifact@v4
+      #----------------------------------------------
+      # Publish test results 
+      #----------------------------------------------
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
         with:
-          name: junit-xml
-          path: .
-
-      - name: Check CODECOV_TOKEN is available
-        # DO NOT print the token itself. This only checks presence.
-        shell: bash
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        run: |
-          if [ -n "$CODECOV_TOKEN" ]; then
-            echo "CODECOV_TOKEN set? yes"
-          else
-            echo "CODECOV_TOKEN set? no"
-          fi
+          files: "artifacts/**/pytest.xml"
+          # check_name: CI Test Results
+          comment_mode: off
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage.xml
+          files: "artifacts/**/coverage.xml"
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: "artifacts/**/pytest.xml"
