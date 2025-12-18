@@ -8,6 +8,11 @@ on:
 
 jobs:
   test:
+    permissions:
+      # Needed for EnricoMi/publish-unit-test-result-action
+      checks: write
+      pull-requests: write
+
     # Run the test job on a matrix of OSes. Add 'windows-2025' as requested.
     # Note: if GitHub does not provide a 'windows-2025' runner this job will fail;
     # you can replace it with 'windows-2022' which is commonly available.
@@ -154,7 +159,18 @@ jobs:
       - name: Run tests
         env:
           SENTRY_ENVIRONMENT: ci
-        run: poetry run pytest --cov --cov-report=term --cov-report=xml --junitxml=junit.xml
+        run: poetry run pytest --cov --cov-report=term --cov-report=xml --junit-xml=pytest-results.xml
+
+      #----------------------------------------------
+      # Publish test results (Linux only)
+      #----------------------------------------------
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always() && matrix.os == 'ubuntu-latest'
+        with:
+          files: pytest-results.xml
+          check_name: CI Test Results
+          comment_mode: off
 
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-latest'
@@ -168,7 +184,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: junit-xml
-          path: junit.xml
+          path: pytest-results.xml
 
   upload:
     # Single upload job that runs once (on linux) after the matrix test job completes
