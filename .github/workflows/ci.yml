@@ -8,12 +8,12 @@ on:
 
 jobs:
   test:
-    # Run the test job on a matrix of OSes. Add 'windows-2025' as requested.
-    # Note: if GitHub does not provide a 'windows-2025' runner this job will fail;
+    # Run the test job on a matrix of OSes. Add 'windows-latest' as requested.
+    # Note: if GitHub does not provide a 'windows-latest' runner this job will fail;
     # you can replace it with 'windows-2022' which is commonly available.
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-2025, macos-latest] # Temporarily disabled:
+        os: [ubuntu-latest, windows-latest, macos-latest] # Temporarily disabled:
     runs-on: ${{ matrix.os }}
     environment: ci
 
@@ -30,7 +30,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Poetry (Linux/macOS)
-        if: matrix.os != 'windows-2025'
+        if: matrix.os != 'windows-latest'
         uses: snok/install-poetry@v1
         with:
           version: 2.2.1
@@ -40,7 +40,7 @@ jobs:
           installer-parallel: true
 
       - name: Install Poetry via pip (Windows)
-        if: matrix.os == 'windows-2025'
+        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           # Install Poetry directly via pip to avoid pipx path issues on Windows.
@@ -148,7 +148,7 @@ jobs:
       # Download and install Siril (Windows only)
       #----------------------------------------------
       - name: Download and install Siril (Windows)
-        if: matrix.os == 'windows-2025'
+        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           # Download Siril installer

@@ -43,7 +43,7 @@ def setup_integration_logging():
     """
     import tempfile
 
-    log_file = Path(tempfile.gettempdir()) / "sb-integration-log.txt"
+    log_file = Path(tempfile.gettempdir()) / "sb-integration.log"
 
     # Create a file handler for the log file
     file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
