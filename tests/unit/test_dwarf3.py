@@ -14,7 +14,8 @@ TEST_DATA_BASE = Path(os.environ.get("STARBASH_TEST_DATA", "/test-data"))
 TEST_DATA_ROOT = TEST_DATA_BASE / "dwarf3"
 
 
-# @pytest.mark.slow
+# Don't run these tests on regular CI, because they require the test-data volume
+@pytest.mark.slow
 class TestDwarf3HeaderExtension:
     """Test the extend_dwarf3_headers function for various Dwarf3 file types."""
 
