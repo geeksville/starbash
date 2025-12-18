@@ -322,7 +322,7 @@ jobs:
         if: always() && matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $logPath = "$env:TEMP\process-auto.log"
+          $logPath = "${{ runner.temp }}\process-auto.log"
           if (Test-Path $logPath) {
             Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## Integration Test Log - ${{ matrix.os }}"
             Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ""
