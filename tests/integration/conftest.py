@@ -35,12 +35,15 @@ def limit_max_contexts():
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_integration_logging():
-    """Configure logging for integration tests to write to /tmp/integration-logout.txt.
+    """Configure logging for integration tests to write to temp/sb-integration-log.txt.
 
     This fixture runs automatically for all integration tests (autouse=True) and
     captures all log messages at INFO level and higher to a file.
+    Uses platform-appropriate temp directory (TEMP on Windows, /tmp on Unix).
     """
-    log_file = Path("/tmp/sb-integration-log.txt")
+    import tempfile
+
+    log_file = Path(tempfile.gettempdir()) / "sb-integration-log.txt"
 
     # Create a file handler for the log file
     file_handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")

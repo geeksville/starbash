@@ -308,7 +308,7 @@ class TestToolBaseClass:
         """Test that _run() raises NotImplementedError."""
         tool = Tool("test")
         with pytest.raises(NotImplementedError):
-            tool.run("commands", {}, "/tmp")
+            tool.run("commands", {}, tempfile.gettempdir())
 
     def test_run_creates_temp_directory(self):
         """Test that run creates and cleans up temp directory."""

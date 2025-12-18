@@ -285,8 +285,10 @@ class TestProcessAutoWorkflow:
         print("\n--- sb repo list output ---\n", result_select.stdout)
 
         result = runner.invoke(app, ["process", "auto"])
-        # Store full stdout to /tmp/process-auto.log for manual debugging
-        with open("/tmp/process-auto.log", "w") as log_file:
+        # Store full stdout to temp/process-auto.log for manual debugging
+        import tempfile
+        log_path = Path(tempfile.gettempdir()) / "process-auto.log"
+        with open(log_path, "w") as log_file:
             log_file.write(result.stdout)
 
         # Command should complete successfully

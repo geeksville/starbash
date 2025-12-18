@@ -7,7 +7,7 @@ jobs:
   integration-test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-2025]
     runs-on: ${{ matrix.os }}
     environment: ci
 
@@ -23,7 +23,8 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Poetry
+      - name: Install Poetry (Linux/macOS)
+        if: matrix.os != 'windows-2025'
         uses: snok/install-poetry@v1
         with:
           version: 2.2.1
@@ -31,6 +32,19 @@ jobs:
           virtualenvs-in-project: true
           virtualenvs-path: .venv
           installer-parallel: true
+
+      - name: Install Poetry via pip (Windows)
+        if: matrix.os == 'windows-2025'
+        shell: pwsh
+        run: |
+          # Install Poetry directly via pip to avoid pipx path issues on Windows.
+          # pipx warns about spaces in paths (e.g., "C:\Program Files (x86)\pipx_bin").
+          & python -m pip install --upgrade pip
+          & python -m pip install --user poetry
+          # Add the user Scripts directory to PATH so poetry.exe is available
+          $scriptsPath = [System.IO.Path]::Combine($env:APPDATA, "Python", "Python312", "Scripts")
+          Add-Content -Path $env:GITHUB_PATH -Value $scriptsPath
+          Write-Host "Added to PATH: $scriptsPath"
 
       #----------------------------------------------
       # Load cached venv if cache exists
@@ -98,15 +112,6 @@ jobs:
           flatpak --user override --filesystem=/tmp org.siril.Siril
 
       #----------------------------------------------
-      # Install crane for container image extraction (Linux only)
-      #----------------------------------------------
-      - name: Install crane (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          # Install crane for extracting container images without Docker
-          curl -sL "https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin crane
-
-      #----------------------------------------------
       # Download and install Siril (macOS only)
       #----------------------------------------------
       - name: Download and install Siril (macOS)
@@ -127,6 +132,54 @@ jobs:
           sudo ln -s /Applications/Siril.app/Contents/MacOS/siril-cli /usr/local/bin/siril-cli
 
       #----------------------------------------------
+      # Download and install Siril (Windows only)
+      #----------------------------------------------
+      - name: Download and install Siril (Windows)
+        if: matrix.os == 'windows-2025'
+        shell: pwsh
+        run: |
+          # Download Siril installer
+          $installer = "siril-setup.exe"
+          Invoke-WebRequest -Uri "https://free-astro.org/download/siril-1.4.0-setup.exe" -OutFile $installer
+          
+          # Run installer in silent mode (Inno Setup uses /VERYSILENT /NORESTART)
+          # /DIR specifies installation directory
+          Start-Process -FilePath $installer -ArgumentList "/VERYSILENT", "/NORESTART", "/DIR=C:\Siril" -Wait
+          
+          # Find where siril.exe actually is
+          Write-Host "::group::Looking for siril.exe"
+          $sirilExe = Get-ChildItem -Path "C:\Siril" -Filter "siril.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($sirilExe) {
+            $sirilDir = $sirilExe.DirectoryName
+            Write-Host "Found siril.exe at: $sirilDir"
+            
+            # Add actual Siril directory to PATH for this step
+            $env:PATH = "$sirilDir;$env:PATH"
+            
+            # Add to GITHUB_PATH for subsequent steps
+            Add-Content -Path $env:GITHUB_PATH -Value $sirilDir
+            Write-Host "Added to PATH: $sirilDir"
+            
+            # Also set SIRIL_PATH environment variable as fallback
+            Add-Content -Path $env:GITHUB_ENV -Value "SIRIL_PATH=$sirilDir"
+          } else {
+            Write-Host "ERROR: siril.exe not found!"
+          }
+          Write-Host "::endgroup::"
+          
+          # Clean up installer
+          Remove-Item $installer
+
+      #----------------------------------------------
+      # Install crane for container image extraction (Linux only)
+      #----------------------------------------------
+      - name: Install crane (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          # Install crane for extracting container images without Docker
+          curl -sL "https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz" | sudo tar -xz -C /usr/local/bin crane
+
+      #----------------------------------------------
       # Install crane for container image extraction (macOS only)
       #----------------------------------------------
       - name: Install crane (macOS)
@@ -134,6 +187,22 @@ jobs:
         run: |
           # Install crane via Homebrew (lightweight tool for working with container images)
           brew install crane
+
+      #----------------------------------------------
+      # Install crane for container image extraction (Windows only)
+      #----------------------------------------------
+      - name: Install crane (Windows)
+        if: matrix.os == 'windows-2025'
+        shell: pwsh
+        run: |
+          # Install crane for Windows
+          $craneUrl = "https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Windows_x86_64.tar.gz"
+          Invoke-WebRequest -Uri $craneUrl -OutFile crane.tar.gz
+          tar -xzf crane.tar.gz crane.exe
+          $cranePath = "$PWD"
+          Move-Item crane.exe C:\Windows\System32\
+          Remove-Item crane.tar.gz
+          Write-Host "Installed crane to C:\Windows\System32"
 
       #----------------------------------------------
       # Make scratch directory (Linux only)
@@ -176,8 +245,30 @@ jobs:
           echo "Test data extracted successfully"
           echo "::endgroup::"
 
-      - name: Show free disk space
+      #----------------------------------------------
+      # Extract test-data using crane (Windows)
+      #----------------------------------------------
+      - name: Extract test-data using crane (Windows)
+        if: matrix.os == 'windows-2025'
+        shell: pwsh
+        run: |
+          Write-Host "::group::Export container image to tarball using crane"
+          crane export ghcr.io/geeksville/starbash/test-data:latest - | tar -xf - -C $env:TEMP
+          Write-Host "::endgroup::"
+
+          Write-Host "::group::Verify extracted data"
+          Get-ChildItem "$env:TEMP\test-data" | Select-Object Name, Length
+          Write-Host "Test data extracted successfully"
+          Write-Host "::endgroup::"
+
+      - name: Show free disk space (Linux/macOS)
+        if: matrix.os != 'windows-2025'
         run: df -h
+
+      - name: Show free disk space (Windows)
+        if: matrix.os == 'windows-2025'
+        shell: pwsh
+        run: Get-PSDrive -PSProvider FileSystem | Select-Object Name, Used, Free, @{Name="UsedGB";Expression={[math]::Round($_.Used/1GB,2)}}, @{Name="FreeGB";Expression={[math]::Round($_.Free/1GB,2)}}
 
       #----------------------------------------------
       # Run integration tests
@@ -196,11 +287,20 @@ jobs:
           STARBASH_TEST_DATA: /tmp/test-data
         run: poetry run pytest -m integration -n 0 -v --junit-xml=pytest-results.xml
 
+      - name: Run integration tests (Windows)
+        if: matrix.os == 'windows-2025'
+        shell: pwsh
+        env:
+          SENTRY_ENVIRONMENT: ci
+        run: |
+          $env:STARBASH_TEST_DATA = "$env:TEMP\test-data"
+          poetry run pytest -m integration -n 0 -v --junit-xml=pytest-results.xml
+
       #----------------------------------------------
       # Post integration test log to job summary
       #----------------------------------------------
-      - name: Post integration test log to job summary
-        if: always()
+      - name: Post integration test log to job summary (Linux/macOS)
+        if: always() && matrix.os != 'windows-2025'
         run: |
           if [ -f /tmp/process-auto.log ]; then
             echo "## Integration Test Log - ${{ matrix.os }}" >> $GITHUB_STEP_SUMMARY
@@ -213,15 +313,41 @@ jobs:
             echo "⚠️ Integration test log not found at /tmp/process-auto.log" >> $GITHUB_STEP_SUMMARY
           fi
 
+      - name: Post integration test log to job summary (Windows)
+        if: always() && matrix.os == 'windows-2025'
+        shell: pwsh
+        run: |
+          $logPath = "$env:TEMP\process-auto.log"
+          if (Test-Path $logPath) {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## Integration Test Log - ${{ matrix.os }}"
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ""
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
+            # Strip blank lines from the log for brevity
+            Get-Content $logPath | Where-Object { $_.Trim() -ne "" } | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '```'
+          } else {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "⚠️ Integration test log not found at $logPath"
+          }
+
       #----------------------------------------------
       # Upload integration test logs
       #----------------------------------------------
-      - name: Upload integration test logs
-        if: always()
+      - name: Upload integration test logs (Linux/macOS)
+        if: always() && matrix.os != 'windows-2025'
         uses: actions/upload-artifact@v4
         with:
           name: integration-logs-${{ matrix.os }}
           path: |
             /tmp/sb-integration-log.txt
             /tmp/process-auto.log
+          if-no-files-found: warn
+
+      - name: Upload integration test logs (Windows)
+        if: always() && matrix.os == 'windows-2025'
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-logs-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}\sb-integration-log.txt
+            ${{ runner.temp }}\process-auto.log
           if-no-files-found: warn
