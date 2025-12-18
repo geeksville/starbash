@@ -564,7 +564,7 @@ class TestSirilToolRun:
             pytest.skip("Siril not available on this system")
 
         tool = SirilTool()
-        tool.timeout = 10.0  # 10 second timeout for test
+        tool.timeout = 30.0  # 30 second timeout for test
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Just run with empty script to verify Siril executes

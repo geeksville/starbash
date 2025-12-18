@@ -157,12 +157,37 @@ jobs:
           
           # Run installer in silent mode (Inno Setup uses /VERYSILENT /NORESTART)
           # /DIR specifies installation directory
-          Start-Process -FilePath $installer -ArgumentList "/VERYSILENT", "/NORESTART", "/DIR=C:\Program Files\Siril" -Wait
+          Start-Process -FilePath $installer -ArgumentList "/VERYSILENT", "/NORESTART", "/DIR=C:\Siril" -Wait
           
-          # Add Siril to PATH
-          $sirilPath = "C:\Program Files\Siril\bin"
-          Add-Content -Path $env:GITHUB_PATH -Value $sirilPath
-          Write-Host "Added to PATH: $sirilPath"
+          # Debug: Check what was installed
+          #Write-Host "::group::Siril installation contents"
+          #if (Test-Path "C:\Siril") {
+          #  Get-ChildItem -Path "C:\Siril" -Recurse | Select-Object FullName
+          #} else {
+          #  Write-Host "ERROR: C:\Siril directory not found!"
+          #}
+          #Write-Host "::endgroup::"
+          
+          # Find where siril.exe actually is
+          Write-Host "::group::Looking for siril.exe"
+          $sirilExe = Get-ChildItem -Path "C:\Siril" -Filter "siril.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($sirilExe) {
+            $sirilDir = $sirilExe.DirectoryName
+            Write-Host "Found siril.exe at: $sirilDir"
+            
+            # Add actual Siril directory to PATH for this step
+            $env:PATH = "$sirilDir;$env:PATH"
+            
+            # Add to GITHUB_PATH for subsequent steps
+            Add-Content -Path $env:GITHUB_PATH -Value $sirilDir
+            Write-Host "Added to PATH: $sirilDir"
+            
+            # Also set SIRIL_PATH environment variable as fallback
+            Add-Content -Path $env:GITHUB_ENV -Value "SIRIL_PATH=$sirilDir"
+          } else {
+            Write-Host "ERROR: siril.exe not found!"
+          }
+          Write-Host "::endgroup::"
           
           # Clean up installer
           Remove-Item $installer
