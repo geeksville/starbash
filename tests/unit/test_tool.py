@@ -557,11 +557,12 @@ class TestSirilToolRun:
     def test_siril_tool_run_with_empty_script(self):
         """Test that SirilTool.run can execute Siril with empty script."""
 
+        # We now install Siril on all of our CI runners, so make this test mandatory.
         # Skip test if Siril is not available
-        siril_commands = ["siril-cli", "siril", "org.siril.Siril"]
-        siril_available = any(shutil.which(cmd) for cmd in siril_commands)
-        if not siril_available:
-            pytest.skip("Siril not available on this system")
+        #siril_commands = ["siril-cli", "siril", "org.siril.Siril"]
+        #siril_available = any(shutil.which(cmd) for cmd in siril_commands)
+        #if not siril_available:
+        #    pytest.skip("Siril not available on this system")
 
         tool = SirilTool()
         tool.timeout = 30.0  # 30 second timeout for test
