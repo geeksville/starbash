@@ -253,11 +253,11 @@ jobs:
         shell: pwsh
         run: |
           Write-Host "::group::Export container image to tarball using crane"
-          crane export ghcr.io/geeksville/starbash/test-data:latest - | tar -xf - -C $env:TEMP
+          crane export ghcr.io/geeksville/starbash/test-data:latest - | tar -xf - -C ${{ runner.temp }}
           Write-Host "::endgroup::"
 
           Write-Host "::group::Verify extracted data"
-          Get-ChildItem "$env:TEMP\test-data" | Select-Object Name, Length
+          Get-ChildItem "${{ runner.temp }}\test-data" | Select-Object Name, Length
           Write-Host "Test data extracted successfully"
           Write-Host "::endgroup::"
 
@@ -273,28 +273,30 @@ jobs:
       #----------------------------------------------
       # Run integration tests
       #----------------------------------------------
-      - name: Run integration tests (Linux)
+      - name: Run all & code-coverage tests when on Linux
         if: matrix.os == 'ubuntu-latest'
         env:
           SENTRY_ENVIRONMENT: ci
           STARBASH_TEST_DATA: /mnt/scratch/test-data
-        run: TMPDIR=/mnt/scratch/tmp poetry run pytest -m integration -n 0 -v --junit-xml=pytest-results.xml
+        run: TMPDIR=/mnt/scratch/tmp poetry run pytest -m "" -n 0 -v --cov --cov-report=term --cov-report=xml --junit-xml=pytest.xml
 
       - name: Run integration tests (macOS)
         if: matrix.os == 'macos-latest'
         env:
           SENTRY_ENVIRONMENT: ci
           STARBASH_TEST_DATA: /tmp/test-data
-        run: poetry run pytest -m integration -n 0 -v --junit-xml=pytest-results.xml
+        run: poetry run pytest -m integration -n 0 -v --junit-xml=pytest.xml
 
       - name: Run integration tests (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         env:
           SENTRY_ENVIRONMENT: ci
+          TEMP: ${{ runner.temp }}
+          TMP: ${{ runner.temp }}
         run: |
           $env:STARBASH_TEST_DATA = "$env:TEMP\test-data"
-          poetry run pytest -m integration -n 0 -v --junit-xml=pytest-results.xml
+          poetry run pytest -m integration -n 0 -v  --junit-xml=pytest.xml
 
       #----------------------------------------------
       # Post integration test log to job summary
@@ -348,6 +350,20 @@ jobs:
         with:
           name: integration-logs-${{ matrix.os }}
           path: |
-            ${{ env.TEMP }}\sb-integration.log
-            ${{ env.TEMP }}\process-auto.log
+            ${{ runner.temp }}/sb-integration.log
+            ${{ runner.temp }}/process-auto.log
           if-no-files-found: warn
+
+      - name: Upload coverage to Codecov
+        if: ${{ !cancelled() }} && matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }} && matrix.os == 'ubuntu-latest'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: pytest.xml     

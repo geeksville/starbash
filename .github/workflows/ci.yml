@@ -251,11 +251,12 @@ jobs:
           comment_mode: off
           report_suite_logs: info
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: "artifacts/**/coverage.xml"
+      # We now submit coverage only through our full integration tests
+      #- name: Upload coverage to Codecov
+      #  uses: codecov/codecov-action@v5
+      #  with:
+      #    token: ${{ secrets.CODECOV_TOKEN }}
+      #    files: "artifacts/**/coverage.xml"
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}

@@ -488,38 +488,37 @@ class TestToolRun:
             tool_run("echo hello", temp_dir)
             # If we get here without exception, the command succeeded
 
+    @pytest.mark.skipif(os.name == "nt", reason="Shell quoting with spaces not supported on Windows cmd.exe")
     def test_tool_run_with_spaces_in_command_path(self):
         """Test that tool_run handles command paths with spaces correctly."""
-        import shutil
+        import sys
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Test 1: Full path to system command (e.g., /usr/bin/echo)
-            echo_path = shutil.which("echo")
-            if not echo_path:
-                pytest.skip("echo command not found in PATH")
+            # Test 1: Full path to Python executable
+            python_path = sys.executable
 
             # This should work - full path with no spaces
-            tool_run(f"{echo_path} arg1", temp_dir)
+            tool_run(f'{python_path} -c "pass"', temp_dir)
 
             # Test 2: Create a temp directory with spaces in the name
             spaces_dir_name = "temp dir with spaces"
             spaces_dir = os.path.join(temp_dir, spaces_dir_name)
             os.makedirs(spaces_dir, exist_ok=True)
 
-            # Create a symlink to echo in the directory with spaces
-            symlink_path = os.path.join(spaces_dir, "echo")
+            # Create a symlink to python in the directory with spaces
+            symlink_path = os.path.join(spaces_dir, "python")
             try:
-                os.symlink(echo_path, symlink_path)
+                os.symlink(python_path, symlink_path)
             except OSError:
                 # Symlink creation might fail on some systems (e.g., Windows without privileges)
                 pytest.skip("Cannot create symlinks on this system")
 
             # Test with unquoted path - this will fail because shell splits on spaces
             with pytest.raises(ToolError):
-                tool_run(f"{symlink_path} arg1", temp_dir)
+                tool_run(f'{symlink_path} -c "pass"', temp_dir)
 
             # Test with properly quoted path - this should work
-            tool_run(f'"{symlink_path}" arg1', temp_dir)
+            tool_run(f'"{symlink_path}" -c "pass"', temp_dir)
 
     @pytest.mark.skipif(os.name == "nt", reason="Shell redirection syntax not supported on Windows")
     def test_tool_run_with_stderr_warning(self, caplog):
