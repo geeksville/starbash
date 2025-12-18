@@ -10,6 +10,7 @@ from starbash.database import Database
 
 __all__ = [
     "extend_dwarf3_headers",
+    "_reset_monotonic_datetime",
 ]
 
 
@@ -47,6 +48,12 @@ def _make_monotonic_datetime() -> str:
 
     # Format as ISO 8601 with milliseconds
     return current.strftime("%Y-%m-%dT%H:%M:%S.000")
+
+
+def _reset_monotonic_datetime() -> None:
+    """Reset the monotonic datetime counter. Used for testing."""
+    if hasattr(_make_monotonic_datetime, "counter"):
+        _make_monotonic_datetime.counter = 0
 
 
 def extend_dwarf3_headers(headers: dict[str, Any], full_image_path: Path) -> bool:

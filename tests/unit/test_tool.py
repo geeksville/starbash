@@ -573,7 +573,7 @@ class TestToolRun:
         """Test that stdout is logged on successful run."""
         import logging
 
-        caplog.set_level(logging.DEBUG)
+        caplog.set_level(logging.DEBUG, logger="starbash.tool.base")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             tool_run("echo successful output", temp_dir)

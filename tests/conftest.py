@@ -63,6 +63,10 @@ def setup_test_environment(tmp_path):
     (verbose_output, force_regen, log_filter_level) to prevent test pollution.
     """
     import starbash
+    from starbash.dwarf3 import _reset_monotonic_datetime
+
+    # Reset dwarf3 monotonic counter to prevent test pollution
+    _reset_monotonic_datetime()
 
     # Save original global state
     original_verbose = starbash.verbose_output

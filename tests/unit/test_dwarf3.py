@@ -1,5 +1,6 @@
 """Tests for Dwarf3 FITS header extension functionality."""
 
+import os
 from pathlib import Path
 
 import pytest
@@ -7,9 +8,11 @@ import pytest
 from starbash.database import Database
 from starbash.dwarf3 import extend_dwarf3_headers
 
-# Calculate repository root relative to this test file
-REPO_ROOT = Path(__file__).parent.parent
-TEST_DATA_ROOT = REPO_ROOT / "test-data" / "inflated" / "dwarf3"
+# Use STARBASH_TEST_DATA environment variable if set, otherwise use local test-data
+# This allows tests to work both locally and in CI where test data is extracted to a different location
+REPO_ROOT = Path(__file__).parent.parent.parent  # Go up from tests/unit/ to workspace root
+TEST_DATA_BASE = Path(os.environ.get("STARBASH_TEST_DATA", str(REPO_ROOT / "test-data")))
+TEST_DATA_ROOT = TEST_DATA_BASE / "inflated" / "dwarf3"
 
 
 @pytest.mark.slow
@@ -130,13 +133,13 @@ class TestDwarf3HeaderExtension:
     def test_light_frame(self, setup_test_environment):
         """Test light frame header extension with shotsInfo.json."""
         headers = {
-            "path": "dwarf3/IC 434 Horsehead Nebula/DWARF_RAW_TELE_IC 434_EXP_60_GAIN_60_2025-10-18-04-51-22-420/IC 434_60s60_Astro_20251018-045926401_16C.fits"
+            "path": "dwarf3/IC 434 Horsehead Nebula/DWARF_RAW_TELE_IC 434_EXP_60_GAIN_60_2025-10-18-04-51-22-420/IC 434_60s60_Astro_20251018-045226559_17C.fits"
         }
         full_path = (
             TEST_DATA_ROOT
             / "IC 434 Horsehead Nebula"
             / "DWARF_RAW_TELE_IC 434_EXP_60_GAIN_60_2025-10-18-04-51-22-420"
-            / "IC 434_60s60_Astro_20251018-045926401_16C.fits"
+            / "IC 434_60s60_Astro_20251018-045226559_17C.fits"
         )
 
         result = extend_dwarf3_headers(headers, full_path)
@@ -145,12 +148,12 @@ class TestDwarf3HeaderExtension:
         assert headers[Database.TELESCOP_KEY] == "D3TELE"
         assert headers["INSTRUME"] == "TELE"
         assert headers[Database.IMAGETYP_KEY] == "light"
-        assert headers[Database.DATE_OBS_KEY] == "2025-10-18T04:59:26.401"
+        assert headers[Database.DATE_OBS_KEY] == "2025-10-18T04:52:26.559"
         assert headers[Database.EXPTIME_KEY] == 60.0
         assert headers[Database.GAIN_KEY] == 60
         assert headers[Database.FILTER_KEY] == "Astro"
         assert headers["OBJECT"] == "IC 434"
-        assert headers["CCD-TEMP"] == 16.0
+        assert headers["CCD-TEMP"] == 17.0
 
     def test_non_dwarf3_file(self, setup_test_environment):
         """Test that non-Dwarf3 files return False and headers are unchanged."""
