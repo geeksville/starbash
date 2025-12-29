@@ -790,7 +790,7 @@ class Starbash:
                     else:
                         self.add_image_and_session(repo, f, force=starbash.force_regen)
                 except OSError as e:
-                    logging.error(f'Skipping file due to "{f}": {e}')
+                    logging.error(f'Skipping "{f}" due to: [red]{e}[/red]')
 
     def reindex_repos(self):
         """Reindex all repositories managed by the RepoManager."""
