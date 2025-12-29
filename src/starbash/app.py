@@ -775,18 +775,22 @@ class Starbash:
                 # used to debug
 
             # Find all FITS files under this repo path
+            all_files = list(path.rglob("*.fit")) + list(path.rglob("*.fits"))
             for f in track(
-                list(path.rglob("*.fit*")),
+                all_files,
                 description=f"Indexing {repo.url}...",
             ):
-                # progress.console.print(f"Indexing {f}...")
-                if repo_kind == "master":
-                    # for master repos we only add to the image table
-                    self.add_image(repo, f, force=True)
-                elif repo_kind == "processed":
-                    pass  # we never add processed images to our db
-                else:
-                    self.add_image_and_session(repo, f, force=starbash.force_regen)
+                try:
+                    # progress.console.print(f"Indexing {f}...")
+                    if repo_kind == "master":
+                        # for master repos we only add to the image table
+                        self.add_image(repo, f, force=True)
+                    elif repo_kind == "processed":
+                        pass  # we never add processed images to our db
+                    else:
+                        self.add_image_and_session(repo, f, force=starbash.force_regen)
+                except OSError as e:
+                    logging.error(f'Skipping file due to "{f}": {e}')
 
     def reindex_repos(self):
         """Reindex all repositories managed by the RepoManager."""

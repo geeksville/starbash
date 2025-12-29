@@ -181,8 +181,9 @@ def merge_to(base_name: str, fi: FileInfo) -> None:
         # If it's a .seq file, find all FITS files with that prefix
         if path.suffix == ".seq":
             seq_prefix = path.stem
-            pattern = str(base_dir / f"{seq_prefix}*.fit*")
-            matching_files = sorted(glob.glob(pattern))
+            pattern1 = str(base_dir / f"{seq_prefix}*.fit")
+            pattern2 = str(base_dir / f"{seq_prefix}*.fits")
+            matching_files = sorted(glob.glob(pattern1) + glob.glob(pattern2))
             collected_files.extend([Path(f) for f in matching_files])
 
     # Create output directory and remove if it already exists
