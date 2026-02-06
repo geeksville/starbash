@@ -4,3 +4,6 @@
 [submodule "siril-scripts"]
 	path = siril-scripts
 	url = https://github.com/geeksville/siril-scripts.git
+[submodule "toml-repo"]
+	path = toml-repo
+	url = https://github.com/geeksville/toml-repo.git
