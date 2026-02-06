@@ -13,7 +13,9 @@ packages = [
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.15"         # RestrictedPython doesn't yet work on 3.15
-toml-repo = {path = "toml-repo", develop = true}
+
+# Note: to use toml-repo from the local submodule rather than pypi use:
+# toml-repo = {path = "toml-repo", develop = true}
 rich = ">=14.2.0,<15.0.0"
 restrictedpython = ">=8.1,<9.0"
 astropy = ">=7.1.1,<8.0.0"
@@ -32,6 +34,7 @@ graxpert = {version = "^3.2.0a2", extras = ["cpuonly"]}
 # experimenting with siril-scripts/processing/VeraLux_HyperMetric_Stretch.py
 numpy = "2.2.6"
 pyqt6 = "^6.10.1"
+toml-repo = "^0.1.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.4.2,<9.0.0"
@@ -145,7 +148,7 @@ ignore = [
 # Enable import validation to catch runtime import errors at analysis time
 include = ["src"]
 exclude = ["**/__pycache__", ".venv", "build", "dist"]
-extraPaths = ["GraXpert"]  # Include local GraXpert package for type checking
+extraPaths = ["GraXpert", "toml-repo"]  # Include local sources for type checking
 typeCheckingMode = "basic"                             # Catches import errors without being overly strict
 reportMissingImports = true
 reportImportCycles = true

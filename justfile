@@ -141,12 +141,20 @@ db-browse-gui:
 # just add the asiair repo if looking for a demo of adding a repo
 
 # instead of pulling graxpert from pypi, use the local checkout
-use-local-graxpert:
+use-graxpert-local:
     poetry add --editable ./GraXpert --extras cpuonly
 
-use-pypi-graxpert:
+use-graxpert-pypi:
     poetry remove GraXpert
     poetry add graxpert --extras cpuonly
+
+# instead of pulling toml-repo from pypi, use the local submodule
+use-toml-repo-local:
+    poetry add --editable ./toml-repo
+
+use-toml-repo-pypi:
+    poetry remove toml-repo
+    poetry add toml-repo
 
 # genera demo videos for the README
 movies: movie-sample movie-process-auto movie-process-siril

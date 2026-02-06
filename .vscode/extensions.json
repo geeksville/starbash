@@ -3,7 +3,7 @@
         "ms-python.python",
         "detachhead.basedpyright",
         "tamasfe.even-better-toml",
-        "github.copilot",
+        "github.copilot-chat",
         "skellock.just",
         "charliermarsh.ruff",
         "bierner.markdown-mermaid"
