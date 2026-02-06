@@ -1,0 +1,92 @@
+[tool.poetry]
+name = "toml-repo"
+version = "0.1.0"
+description = "A TOML-based repository manager with precedence-based configuration merging, imports, and multi-scheme URL support."
+authors = ["Kevin Hester <kevinh@geeksville.com>"]
+readme = "README.md"
+homepage = "https://github.com/geeksville/toml-repo"
+repository = "https://github.com/geeksville/toml-repo"
+license = "GPL-3.0-only"
+packages = [{ include = "toml_repo", from = "src" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Configuration",
+]
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.15"
+tomlkit = ">=0.13.3,<0.14.0"
+multidict = ">=6.7.0,<7.0.0"
+requests-cache = "^1.2.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.4.2,<9.0.0"
+pytest-cov = "^6.0.0"
+ruff = "^0.14.4"
+basedpyright = "^1.33.0"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short -rfE"
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+show_missing = true
+precision = 2
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [".git", ".venv", "__pycache__", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "I",  # isort (import sorting)
+    "W",  # pycodestyle warnings
+    "UP", # pyupgrade
+    "B",  # flake8-bugbear
+]
+ignore = [
+    "E501", # Line too long (handled by formatter)
+    "B904", # Within an `except` clause, raise exceptions with `raise ... from err`
+    "B006", # Do not use mutable data structures for argument defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG001", "ARG002", "E402", "F811", "F401", "F841"]
+
+[tool.basedpyright]
+include = ["src"]
+exclude = ["**/__pycache__", ".venv", "build", "dist"]
+typeCheckingMode = "basic"
+reportMissingImports = true
+reportImportCycles = true
+reportUndefinedVariable = true
+pythonVersion = "3.12"
+pythonPlatform = "Linux"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

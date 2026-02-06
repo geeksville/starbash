@@ -50,10 +50,10 @@ def get_user_config_dir() -> Path:
 
 def get_user_config_path() -> Path:
     """Returns the path to the user config file (starbash.toml)."""
-    from repo import repo_suffix  # Lazy import to avoid circular dependency
+    from toml_repo import get_config_suffix  # Lazy import to avoid circular dependency
 
     config_dir = get_user_config_dir()
-    return config_dir / repo_suffix
+    return config_dir / get_config_suffix()
 
 
 def get_user_data_dir() -> Path:

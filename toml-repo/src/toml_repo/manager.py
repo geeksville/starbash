@@ -1,5 +1,5 @@
 """
-Manages the repository of processing recipes and configurations.
+Manages the repository of TOML-based processing recipes and configurations.
 """
 
 # pyright: reportImportCycles=false
@@ -14,27 +14,22 @@ from typing import TYPE_CHECKING, Any, overload
 from multidict import MultiDict
 
 if TYPE_CHECKING:
-    from repo.repo import Repo
+    from toml_repo.repo import Repo
 
 
 class RepoManager:
     """
-    Manages the collection of starbash repositories.
+    Manages the collection of TOML repositories.
 
     This class is responsible for finding, loading, and providing an API
-    for searching through known repositories defined in TOML configuration
-    files (like appdefaults.sb.toml).
+    for searching through known repositories defined in TOML configuration files.
     """
 
     def __init__(self):
         """
-        Initializes the RepoManager by loading the application default repos.
+        Initializes the RepoManager.
         """
         self.repos: list[Repo] = []
-
-        # We expose the app default preferences as a special root repo with a private URL
-        # root_repo = Repo(self, "pkg://starbash-defaults", config=app_defaults)
-        # self.repos.append(root_repo)
 
         # Most users will just want to read from merged
         self.merged: MultiDict[Any] = MultiDict()
@@ -49,7 +44,7 @@ class RepoManager:
         ]
 
     def add_repo(self, url: str) -> Repo:
-        from repo.repo import Repo  # Local import to avoid circular dependency
+        from toml_repo.repo import Repo  # Local import to avoid circular dependency
 
         logging.debug(f"Adding repo: {url}")
         r = Repo(url)

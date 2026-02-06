@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from typing import Any
 
+from toml_repo import Repo
 from tomlkit import aot, table
 from tomlkit.items import AoT
 
-from repo import Repo
 from starbash.safety import get_safe
 
 

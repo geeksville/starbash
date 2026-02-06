@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 import tomlkit
+
 from toml_repo import RepoManager
 
 
@@ -109,7 +110,7 @@ def test_repo_manager_get_with_real_repos(tmp_path: Path):
 def test_repo_with_direct_toml_file(tmp_path: Path):
     """
     Tests that a Repo can be initialized with a direct .toml file URL
-    instead of a directory containing starbash.toml.
+    instead of a directory containing the config suffix file.
     """
     # Create a custom named TOML file
     custom_toml = tmp_path / "my-custom-config.toml"
@@ -213,7 +214,10 @@ def test_repo_config_url_property(tmp_path: Path):
     Tests that the config_url property returns the correct URL to the config file
     for both directory repos and direct .toml file repos.
     """
+    from toml_repo import set_config_suffix
     from toml_repo.repo import Repo
+
+    set_config_suffix("starbash.toml")
 
     # Test 1: Directory repo (should append /starbash.toml)
     dir_repo_path = tmp_path / "dir-repo"
@@ -242,10 +246,27 @@ def test_repo_config_url_property(tmp_path: Path):
     expected_toml_url = f"file://{toml_file}"
     assert toml_repo.config_url == expected_toml_url
 
-    # Test 3: pkg:// URL (directory form)
-    pkg_repo = Repo("pkg://defaults")
-    assert pkg_repo.config_url == "pkg://defaults/starbash.toml"
 
-    # Test 4: pkg:// URL (direct .toml file)
-    pkg_toml_repo = Repo("pkg://defaults/config.toml")
-    assert pkg_toml_repo.config_url == "pkg://defaults/config.toml"
+def test_config_suffix_customization(tmp_path: Path):
+    """Test that set_config_suffix changes the default config file name."""
+    from toml_repo import set_config_suffix
+    from toml_repo.repo import Repo
+
+    set_config_suffix("myapp.toml")
+
+    # Create a directory-based repo with the custom suffix
+    repo_path = tmp_path / "custom-suffix-repo"
+    repo_path.mkdir()
+    (repo_path / "myapp.toml").write_text(
+        """
+        [repo]
+        kind = "custom-suffix"
+        [settings]
+        value = "works"
+        """
+    )
+
+    repo = Repo(f"file://{repo_path}")
+    assert repo.kind() == "custom-suffix"
+    assert repo.get("settings.value") == "works"
+    assert repo.config_url == f"file://{repo_path}/myapp.toml"

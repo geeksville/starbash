@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from starbash.database import SearchCondition
 
-from repo import Repo
+from toml_repo import Repo
+
 from starbash.aliases import normalize_target_name
 
 __all__ = [

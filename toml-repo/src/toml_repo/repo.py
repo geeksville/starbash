@@ -16,14 +16,52 @@ from .http_client import http_session
 if TYPE_CHECKING:
     from .manager import RepoManager
 
-repo_suffix = "starbash.toml"
+# --- Module-level configuration ---
+# These defaults can be overridden by the host application via the setter functions
+# exported from the package.
+
+_config_suffix: str = "repo.toml"
+"""The default filename to look for inside repo directories."""
+
+_pkg_resource_root: str | None = None
+"""The Python package name used for pkg:// URL resolution.
+Must be set by the host application before using pkg:// URLs."""
+
+
+def get_config_suffix() -> str:
+    """Return the current config suffix (e.g. 'starbash.toml')."""
+    return _config_suffix
+
+
+def set_config_suffix(suffix: str) -> None:
+    """Set the filename to look for inside repo directories.
+
+    Args:
+        suffix: The filename, e.g. ``"starbash.toml"`` or ``"myapp.toml"``.
+    """
+    global _config_suffix
+    _config_suffix = suffix
+
+
+def set_pkg_resource_root(package_name: str) -> None:
+    """Set the Python package name used for ``pkg://`` URL resolution.
+
+    For example, calling ``set_pkg_resource_root("starbash")`` means that
+    ``pkg://defaults`` will resolve to ``importlib.resources.files("starbash") / "defaults"``.
+
+    Args:
+        package_name: The importable package name (e.g. ``"starbash"``).
+    """
+    global _pkg_resource_root
+    _pkg_resource_root = package_name
+
 
 REPO_REF = "repo-ref"
 
 
 class Repo:
     """
-    Represents a single starbash repository.
+    Represents a single TOML-based repository.
     """
 
     def __init__(self, url_or_path: str | Path, default_toml: TOMLDocument | None = None):
@@ -33,10 +71,13 @@ class Repo:
             url_or_path: Either a string URL (e.g. file://, pkg://, http://...) or a Path.
                 If a Path is provided it will be converted to a file:// URL using its
                 absolute, resolved form.
+            default_toml: Optional fallback TOMLDocument to use when the config file
+                is missing or invalid.
 
         Note:
             If the URL/path ends with .toml, it's treated as a direct TOML file.
-            Otherwise, it's treated as a directory containing a starbash.toml file.
+            Otherwise, it's treated as a directory containing a config file named
+            by ``get_config_suffix()`` (default: ``"repo.toml"``).
 
         Import Resolution:
             After loading the TOML config, this constructor processes any 'import' keys
@@ -271,7 +312,7 @@ class Repo:
     def __str__(self) -> str:
         """Return a concise one-line description of this repo.
 
-        Example: "Repo(kind=recipe, local=True, url=file:///path/to/repo)"
+        Example: "Repo(kind=recipe, url=file:///path/to/repo)"
         """
         return f"Repo(kind={self.kind()}, url={self.url})"
 
@@ -297,14 +338,14 @@ class Repo:
         Returns the URL to the configuration file for this repository.
 
         For direct .toml file URLs, returns the URL as-is.
-        For directory URLs, appends '/starbash.toml' to the URL.
+        For directory URLs, appends the config suffix to the URL.
 
         Returns:
-            The complete URL to the starbash.toml configuration file.
+            The complete URL to the configuration file.
         """
         if self._is_direct_toml_file():
             return self.url
-        return f"{self.url.rstrip('/')}/{repo_suffix}"
+        return f"{self.url.rstrip('/')}/{_config_suffix}"
 
     def add_repo_ref(self, manager: RepoManager, dir: Path) -> Repo | None:
         """
@@ -351,7 +392,7 @@ class Repo:
             base_path = self.get_path()
             if base_path is None:
                 raise ValueError("Cannot resolve path for non-local repository")
-            config_path = base_path / repo_suffix
+            config_path = base_path / _config_suffix
 
         if self.config.as_string() == self._as_read:
             logging.debug(f"Config unchanged, not writing: {config_path}")
@@ -373,11 +414,13 @@ class Repo:
 
     def is_scheme(self, scheme: str = "file") -> bool:
         """
-        Read-only attribute indicating whether the repository URL points to a
-        local file system path (file:// scheme).
+        Check whether the repository URL uses the given scheme.
+
+        Args:
+            scheme: The URL scheme to check for (default: "file").
 
         Returns:
-            bool: True if the URL is a local file path, False otherwise.
+            bool: True if the URL starts with ``scheme://``, False otherwise.
         """
         return self.url.startswith(f"{scheme}://")
 
@@ -457,17 +500,6 @@ class Repo:
         target_path = (base_path / filepath) if filepath else base_path
         target_path = target_path.resolve()
 
-        # Security check to prevent accessing files outside the repo directory.
-        # FIXME SECURITY - temporarily disabled because I want to let file urls say things like ~/foo.
-        # it would false trigger if user homedir path has a symlink in it (such as /home -> /var/home)
-        #   base_path = PosixPath('/home/kevinh/.config/starbash')                   │                                                                                          │
-        #   filepath = 'starbash.toml'                                              │                                                                                          │
-        #   self = <repr-error 'maximum recursion depth exceeded'>              │                                                                                          │
-        #   target_path = PosixPath('/var/home/kevinh/.config/starbash/starbash.toml')
-        #
-        # if base_path not in target_path.parents and target_path != base_path:
-        #    raise PermissionError("Attempted to access file outside of repository")
-
         return target_path
 
     def _read_file(self, filepath: str) -> str:
@@ -523,13 +555,13 @@ class Repo:
 
     def _read_resource(self, filepath: str) -> str:
         """
-        Read a resource from the installed starbash package using a pkg:// URL.
+        Read a resource from a Python package using a ``pkg://`` URL.
 
-        Assumptions (simplified per project constraints):
-        - All pkg URLs point somewhere inside the already-imported 'starbash' package.
-        - The URL is treated as a path relative to the starbash package root.
+        The package name must be configured via ``set_pkg_resource_root()`` before
+        using ``pkg://`` URLs.
 
         Examples:
+            With ``set_pkg_resource_root("starbash")``:
             url: pkg://defaults   + filepath: "starbash.toml"
               -> reads starbash/defaults/starbash.toml
 
@@ -539,14 +571,23 @@ class Repo:
 
         Returns:
             The content of the resource as a string (UTF-8).
+
+        Raises:
+            ValueError: If ``set_pkg_resource_root()`` has not been called.
         """
-        # Path portion after pkg://, interpreted relative to the 'starbash' package
+        if _pkg_resource_root is None:
+            raise ValueError(
+                "pkg:// URLs require calling set_pkg_resource_root() first "
+                "to specify the Python package to load resources from."
+            )
+
+        # Path portion after pkg://, interpreted relative to the configured package
         subpath = self.url[len("pkg://") :].strip("/")
 
         if filepath:
-            res = resources.files("starbash").joinpath(subpath).joinpath(filepath)
+            res = resources.files(_pkg_resource_root).joinpath(subpath).joinpath(filepath)
         else:
-            res = resources.files("starbash").joinpath(subpath)
+            res = resources.files(_pkg_resource_root).joinpath(subpath)
         return res.read_text()
 
     def _load_config(
@@ -556,7 +597,7 @@ class Repo:
         Loads the repository's configuration file.
 
         For URLs ending with .toml, reads that file directly.
-        Otherwise, reads starbash.toml from the directory.
+        Otherwise, reads the config suffix file from the directory.
 
         If the config file does not exist, it logs a warning and returns an empty dict.
 
@@ -572,9 +613,9 @@ class Repo:
                 config_content = self.read("")
                 logging.debug(f"Loading repo config from {self.url}")
             else:
-                # Read starbash.toml from the directory
-                config_content = self.read(repo_suffix)
-                logging.debug(f"Loading repo config from {repo_suffix}")
+                # Read the config suffix file from the directory
+                config_content = self.read(_config_suffix)
+                logging.debug(f"Loading repo config from {_config_suffix}")
             parsed = tomlkit.parse(config_content)
 
             # All repos must have a "repo" table inside, otherwise we assume the file is invalid and should
@@ -618,6 +659,7 @@ class Repo:
         Args:
             key: The dot-separated key to search for (e.g., "repo.kind").
             default: The value to return if the key is not found.
+            do_create: If True, creates intermediate tables and stores the default.
 
         Returns:
             The found value or the default.

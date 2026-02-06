@@ -301,7 +301,7 @@ def test_repo_get_with_aot_default():
     """Test Repo.get() behavior with AoT default - potential bug location."""
     from pathlib import Path
 
-    from repo import Repo
+    from toml_repo import Repo
 
     # Create a minimal TOML document
     doc = tomlkit.document()

@@ -16,8 +16,8 @@ from doit.exceptions import BaseFail
 from doit.reporter import ConsoleReporter
 from doit.task import Task, dict_to_task
 from rich.progress import TaskID, track
+from toml_repo import Repo
 
-from repo import Repo
 from starbash import InputDef
 from starbash.database import ImageRow
 from starbash.doit_types import TaskDict

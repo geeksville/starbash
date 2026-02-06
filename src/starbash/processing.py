@@ -9,10 +9,10 @@ from typing import Any
 
 from multidict import MultiDict
 from rich.progress import Progress
+from toml_repo import Repo
 from tomlkit.items import AoT
 
 import starbash
-from repo import Repo
 from starbash import InputDef, OutputDef, StageDict
 from starbash.aliases import get_aliases, normalize_target_name
 from starbash.app import Starbash

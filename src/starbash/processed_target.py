@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 
 import tomlkit
+from toml_repo import Repo, get_config_suffix
 
-from repo import Repo, repo_suffix
 from starbash import StageDict, to_shortdate
 from starbash.doit_types import cleanup_old_contexts, get_processing_dir
 from starbash.parameters import ParameterStore
@@ -47,7 +47,7 @@ class ProcessedTarget:
         dir = Path(self.p.context["output"].base)
         if output_kind != "master":
             # Get the path to the starbash.toml file
-            config_path = dir / repo_suffix
+            config_path = dir / get_config_suffix()
             log_path = dir / "starbash.log"
             repo_path = dir
         else:

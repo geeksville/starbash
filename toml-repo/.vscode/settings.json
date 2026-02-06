@@ -1,0 +1,24 @@
+{
+    // ---- General Editor Settings ----
+    "files.trimTrailingWhitespace": false,
+    "editor.formatOnSave": true,
+    // ---- Python-Specific Settings ----
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+        }
+    },
+    // Disable Pylance type checking - using BasedPyright extension instead
+    "python.analysis.typeCheckingMode": "off",
+    // BasedPyright settings
+    "basedpyright.analysis.typeCheckingMode": "basic",
+    // Python testing
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.debugpy.justMyCode": false
+}

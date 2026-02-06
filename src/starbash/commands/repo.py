@@ -3,9 +3,9 @@ from textwrap import dedent
 from typing import Annotated
 
 import typer
+from toml_repo import Repo
 
 import starbash
-from repo import Repo
 from starbash import console
 from starbash.app import Starbash
 from starbash.paths import get_user_documents_dir

@@ -1,8 +1,9 @@
-"""Tests for TOML import resolution in repo.Repo."""
+"""Tests for TOML import resolution in toml_repo.Repo."""
 
 from pathlib import Path
 
 import pytest
+
 from toml_repo.repo import Repo
 
 

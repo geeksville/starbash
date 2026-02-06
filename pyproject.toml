@@ -9,13 +9,11 @@ repository = "https://github.com/geeksville/starbash"
 documentation = "https://github.com/geeksville/starbash/blob/main/README.md" # FIXME provide something better
 packages = [
     { include = "starbash", from = "src" },
-    { include = "repo", from = "src" },
 ]
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.15"         # RestrictedPython doesn't yet work on 3.15
-tomlkit = ">=0.13.3,<0.14.0"
-multidict = ">=6.7.0,<7.0.0"
+toml-repo = {path = "toml-repo", develop = true}
 rich = ">=14.2.0,<15.0.0"
 restrictedpython = ">=8.1,<9.0"
 astropy = ">=7.1.1,<8.0.0"
@@ -23,7 +21,6 @@ platformdirs = ">=4.5.0,<5.0.0"
 typer = "^0.20.0"
 sentry-sdk = "^2.42.1"
 update-checker = "^0.18.0"
-requests-cache = "^1.2.1"
 doit = "^0.36.0"
 textual = "^6.8.0"
 

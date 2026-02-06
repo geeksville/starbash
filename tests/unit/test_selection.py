@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 import tomlkit
+from toml_repo import Repo, RepoManager, get_config_suffix
 
-from repo import Repo, RepoManager, repo_suffix
 from starbash.selection import Selection
 
 
@@ -17,7 +17,7 @@ def temp_repo_dir(tmp_path):
     repo_dir.mkdir(exist_ok=True)
 
     # Create a minimal starbash.toml file
-    toml_path = repo_dir / repo_suffix
+    toml_path = repo_dir / get_config_suffix()
     toml_path.write_text("")
 
     return repo_dir
@@ -111,7 +111,7 @@ class TestSelectionSave:
         selection._save()
 
         # Verify the config file was written
-        config_path = user_repo.get_path() / repo_suffix
+        config_path = user_repo.get_path() / get_config_suffix()
         assert config_path.exists()
 
     def test_save_creates_parent_directory(self, tmp_path):
@@ -120,7 +120,7 @@ class TestSelectionSave:
         nested_path.mkdir(parents=True, exist_ok=True)
 
         # Create repo in nested path
-        toml_path = nested_path / repo_suffix
+        toml_path = nested_path / get_config_suffix()
         toml_path.write_text("")
 
         manager = RepoManager()
@@ -143,7 +143,7 @@ class TestSelectionSave:
         selection._save()
 
         # Reload repo and verify all fields
-        config_path = user_repo.get_path() / repo_suffix
+        config_path = user_repo.get_path() / get_config_suffix()
         config = tomlkit.parse(config_path.read_text())
         selection_section = config.get("selection", {})
         assert selection_section.get("targets") == ["M31"]

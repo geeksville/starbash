@@ -12,9 +12,9 @@ import typer
 from astropy.io import fits
 from rich.logging import RichHandler
 from rich.progress import track
+from toml_repo import Repo, RepoManager, get_config_suffix
 
 import starbash
-from repo import Repo, RepoManager, repo_suffix
 from starbash.aliases import (
     Aliases,
     get_aliases,
@@ -379,7 +379,7 @@ class Starbash:
         p = Path(path)
         console = starbash.console
 
-        repo_toml = p / repo_suffix  # the starbash.toml file at the root of the repo
+        repo_toml = p / get_config_suffix()  # the starbash.toml file at the root of the repo
         if repo_toml.exists():
             logging.debug("Using existing repository config file: %s", repo_toml)
         else:
@@ -387,7 +387,7 @@ class Starbash:
                 console.print(f"Creating {repo_type} repository: {p}")
                 toml_from_template(
                     f"repo/{repo_type}",
-                    p / repo_suffix,
+                    p / get_config_suffix(),
                     overrides={
                         "REPO_TYPE": repo_type,
                         "REPO_PATH": str(p),

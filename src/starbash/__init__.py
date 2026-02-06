@@ -5,6 +5,12 @@ from typing import Any
 
 from rich.console import Console
 
+# Configure toml_repo for starbash's conventions before any repo operations
+from toml_repo import set_config_suffix, set_pkg_resource_root
+
+set_config_suffix("starbash.toml")
+set_pkg_resource_root("starbash")
+
 # Common type aliases for clarity
 type StageDict = dict[str, Any]  # a processing stage definition from our toml
 type InputDef = dict[Any, Any]  # an input definition within a stage

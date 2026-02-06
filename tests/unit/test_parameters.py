@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 import tomlkit
+from toml_repo.repo import Repo
 
-from repo.repo import Repo
 from starbash.parameters import Parameter, ParameterStore
 
 
