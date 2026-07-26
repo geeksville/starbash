@@ -156,6 +156,12 @@ Changes since alpha 1...
 
 Changes after alpha 2... (not yet prioritized, need to schedule for about a month later, mostly driven by user reports/analytics...)
 
+* [ ] just rule to store .config/.local in workspace.
+* [ ] make recipe based on this idea? https://www.reddit.com/r/astrophotography/comments/1v6ooug/an_extreme_lucky_imaging_test_on_m13/ 
+* [ ] include per-frame report in the processed directory, so that user can reprocess with different recommended culling thresholds.
+* [ ] allow scripts to include progress messages (i.e. inside stack_osc.toml)
+* [ ] delete more intermediates - so the cache dir doesn't get so huge
+* [ ] the doit.json file can be 230K possibly use sqlite instead?
 * [x] experiment with VeraLux Hypermetric Stretch? https://www.youtube.com/watch?v=LsD8SNXO_M8 https://www.cloudynights.com/forums/topic/987003-new-stretching-script-in-siril-veralux/.  
 * [x] make veralux test case only be used for bare OSC data (not duo filters) 
 * [ ] offer veralux for "Narrowband SHO" using its built-in rule

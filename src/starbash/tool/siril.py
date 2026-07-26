@@ -51,6 +51,13 @@ class SirilTool(ExternalTool):
 
         super().__init__("Siril", commands, "https://siril.org/")
 
+    """Siril can run for a long time on big jobs."""
+    def set_defaults(self) -> None:
+        super().set_defaults()
+        self.timeout = (
+            8 * 60 * 60.0  # 8 hours - Big Siril jobs can take a LONG time
+        )
+
     def _run(
         self, cwd: str, commands: str, context: dict = {}, log_out: io.TextIOWrapper | None = None
     ) -> None:
