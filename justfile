@@ -49,16 +49,30 @@ common-init: clean-cache clean-config clean-masters install-completion use-local
     echo "Reiniting a developer config..."
     sb user name "Kevin Hester"
     sb user email "kevinh@geeksville.com"
-    sb repo add --master ./images/masters
-    sb repo add --processed ./images/processed
+    sb repo add --master /mnt/pool/big/kevinh/telescope/masters
+    sb repo add --processed /mnt/pool/big/kevinh/telescope/processed
 
 # Use our 'big' test database
-reinit-big: common-init
-    sb repo add ./images/from_asiair
-    sb repo add ./images/from_seestar
-    sb repo add ./images/from_astroboy
+reinit-big: use-usb-cache common-init
+    sb repo add /mnt/pool/big/kevinh/telescope/from_asiair
+    sb repo add /mnt/pool/big/kevinh/telescope/from_seestar
+    sb repo add /mnt/pool/big/kevinh/telescope/from_astroboy
     sb info
     sb select list --brief
+
+# Use a remote cache for starbash temp files
+use-remote-cache:
+    rm -rf ~/.cache/starbash
+    mkdir -p ~/.cache
+    mkdir -p /mnt/pool/big/kevinh/telescope/starbash/cache
+    ln -s /mnt/pool/big/kevinh/telescope/starbash/cache ~/.cache/starbash
+
+# Use a USB cache for starbash temp files
+use-usb-cache:
+    rm -rf ~/.cache/starbash
+    mkdir -p ~/.cache
+    mkdir -p /mnt/fast_stick/starbash/cache
+    ln -s /mnt/fast_stick/starbash/cache ~/.cache/starbash
 
 # our small standard set of test images (from ghcr.io/geeksville/starbash/test-data:latest)
 reinit: common-init
@@ -94,6 +108,11 @@ select-seestar:
 select-seestar-ir:
     sb select any
     sb select target m81
+
+# select my current test target
+select-current:
+    sb select any
+    sb select target "sh2115"
 
 # test target that has Si and HaOiii filters
 select-si-ha:

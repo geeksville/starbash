@@ -13,7 +13,7 @@
 		// add the github cli tool (gh)
 		"ghcr.io/devcontainers/features/github-cli:1": {},
 		// use https://just.systems/ for developer scripts via https://github.com/guiyomh/features/tree/main/src/just
-		"ghcr.io/guiyomh/features/just:0": {},
+		"ghcr.io/guiyomh/features/just:0": {}
 		// install the podman command (for building ghcr.io containers)
 		// DOESN'T WORK just do an "apt install docker.io" instead (which does successfully use podman.sock)
 		// "ghcr.io/devcontainers-extra/features/podman-homebrew:1": {}
@@ -59,8 +59,10 @@
 		//"source=/mnt/kshared,target=/mnt/kshared,type=bind,consistency=cached",
 		// This is necessary to prevent newer vscode created images from being able to write to /tmp
 		"type=tmpfs,destination=/tmp,tmpfs-mode=1777",
-		// My external USB drive
-		"source=/mnt/fast_stick,destination=/mnt/fast_stick,type=bind"
+		// My big NAS
+		"source=/mnt/pool/big/kevinh/telescope/,destination=/mnt/pool/big/kevinh/telescope/,type=bind",
+		// My 1TB fast SSD
+		"source=/mnt/fast_stick/,destination=/mnt/fast_stick/,type=bind"
 	],
 	"containerEnv": {
 		// Needed for X11 forwarding
@@ -70,7 +72,7 @@
 		"PYTHONPYCACHEPREFIX": "/workspaces/starbash/.pycache",
 		"SENTRY_ENVIRONMENT": "development", // For sentry.io reporting
 		// Allows 'docker' commands to work inside the container via the host's podman
-		"DOCKER_HOST": "unix:///run/user/1000/podman/podman.sock",
+		"DOCKER_HOST": "unix:///run/user/1000/podman/podman.sock"
 	},
 	"remoteUser": "vscode",
 	"postCreateCommand": "bash .devcontainer/post-create.sh",
