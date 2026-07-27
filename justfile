@@ -53,7 +53,7 @@ common-init: clean-cache clean-config clean-masters install-completion use-local
     sb repo add --processed /mnt/pool/big/kevinh/telescope/processed
 
 # Use our 'big' test database
-reinit-big: use-usb-cache common-init
+reinit-big: use-workspace-config use-usb-cache common-init
     sb repo add /mnt/pool/big/kevinh/telescope/from_asiair
     sb repo add /mnt/pool/big/kevinh/telescope/from_seestar
     sb repo add /mnt/pool/big/kevinh/telescope/from_astroboy
@@ -73,6 +73,16 @@ use-usb-cache:
     mkdir -p ~/.cache
     mkdir -p /mnt/fast_stick/starbash/cache
     ln -s /mnt/fast_stick/starbash/cache ~/.cache/starbash
+
+# keep the config/cache files in the workspace so that it lives even if the container is recreated
+use-workspace-config:
+    rm -rf ~/.cache/starbash
+    mkdir -p ~/.cache
+    ln -s `pwd`/.cache ~/.cache/starbash
+    rm -rf ~/.config/starbash
+    ln -s `pwd`/.config ~/.config/starbash
+    rm -rf ~/.local/share/starbash
+    ln -s `pwd`/.local ~/.local/share/starbash
 
 # our small standard set of test images (from ghcr.io/geeksville/starbash/test-data:latest)
 reinit: common-init

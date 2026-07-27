@@ -14,3 +14,7 @@ junit.xml
 
 starbash*.tar.gz
 starbash*.whl
+
+.local
+.config
+.cache
