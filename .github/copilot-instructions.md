@@ -84,6 +84,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
   - `when`: matches stage name (e.g., `session.config`, `session.light`, `session.stack`)
   - `script` or `script-file` (resolved relative to repo via `stage.source`)
   - `context` (dict merged into runtime context), `input` (glob patterns for files)
+  - `temporaries` (list of glob patterns, e.g. `["in*", "r_in*"]`): intermediate files/dirs to delete from `process_dir` after the stage runs. Patterns are context-expanded, matched top-level only (non-recursive), and removed on both success and failure via `cleanup_temporaries()` in `starbash.doit` (called from `ToolAction.execute`). Patterns containing `/`, `..`, or absolute paths are skipped.
 - **Context expansion** (`expand_context()`):
   - Uses Python `str.format_map` with `_SafeFormatter` that preserves unexpanded `{vars}`
   - Iterative expansion (max 10 iterations) for nested placeholders

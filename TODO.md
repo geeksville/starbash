@@ -156,7 +156,13 @@ Changes since alpha 1...
 
 Changes after alpha 2... (not yet prioritized, need to schedule for about a month later, mostly driven by user reports/analytics...)
 
-* [ ] just rule to store .config/.local in workspace.
+* [ ] keep a personal equipment list, use it to add extra details to to the auto imported equipment.
+* [ ] generate nice readable per run and user summary reports (show calendar of activity on targets etc?  Check for existing NINA plugins?)
+* [ ] turn on drizzle by default
+* [ ] bacgkround subtraction doesn't work properly on stack_dual_duo output - because each channel is in its own file.  do graxpert bge on each channel **first** before recombining
+* [ ] make sure src dirs like "ic 1396" and "ic1396" are treated identically
+* [ ] why does removing stack_osc from starbash.toml not work?
+* [x] just rule to store .config/.local in workspace.
 * [ ] make recipe based on this idea? https://www.reddit.com/r/astrophotography/comments/1v6ooug/an_extreme_lucky_imaging_test_on_m13/ 
 * [ ] include per-frame report in the processed directory, so that user can reprocess with different recommended culling thresholds.
 * [ ] allow scripts to include progress messages (i.e. inside stack_osc.toml)

@@ -26,6 +26,7 @@
 		"--user=1000:1000",
 		// Recommended https://rocm.docs.amd.com/projects/install-on-linux/en/docs-6.2.0/how-to/docker.html
 		"--security-opt=seccomp=unconfined",
+		"--name=starbash-geeksville", // For easier management		
 		// Not needed for now
 		// "--ulimit=core=-1:-1" // Allow core dumps
 		// NOTE: Not allowed in github CI devcontainers

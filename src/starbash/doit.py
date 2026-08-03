@@ -25,6 +25,7 @@ from starbash.exception import UserHandledError
 from starbash.os import symlink_or_copy
 from starbash.paths import get_user_cache_dir
 from starbash.tool.base import Tool
+from starbash.tool.context import expand_context_list
 
 if TYPE_CHECKING:
     from starbash.processing_like import ProcessingLike
@@ -123,6 +124,47 @@ def add_action(task_dict: TaskDict, action: Callable):
     """Add an action to the task dictionary's actions list."""
     actions: list = task_dict.setdefault("actions", [])
     actions.append(action)
+
+
+def cleanup_temporaries(stage: Any, context: dict[str, Any]) -> None:
+    """Delete intermediate files/dirs declared by a stage's ``temporaries`` key.
+
+    Each entry in ``temporaries`` is a glob pattern (e.g. ``"in*"``, ``"r_in*"``,
+    ``"pp_{light_base}*"``). Patterns are expanded against the runtime ``context`` and
+    matched against the top level of the stage's ``process_dir``. Both matching files
+    and directories are removed. Runs regardless of whether the stage succeeded.
+
+    Args:
+        stage: The stage definition (dict-like) that ran, or None.
+        context: The task's snapshot context (must contain ``process_dir``).
+    """
+    patterns: list[str] = stage.get("temporaries", []) if stage else []
+    if not patterns:
+        return
+
+    process_dir = context.get("process_dir")
+    if not process_dir:
+        logging.warning("Cannot clean temporaries: no 'process_dir' in context")
+        return
+
+    base = Path(process_dir)
+    for pattern in expand_context_list(patterns, context):
+        p = pattern.strip()
+        # Guard against patterns that would escape process_dir or match nothing sane.
+        if not p or "/" in p or ".." in p or Path(p).is_absolute():
+            logging.warning(f"Skipping unsafe 'temporaries' pattern: {pattern!r}")
+            continue
+
+        for match in glob.glob(str(base / p)):
+            match_path = Path(match)
+            try:
+                if match_path.is_dir() and not match_path.is_symlink():
+                    shutil.rmtree(match_path)
+                else:
+                    match_path.unlink()
+                logging.debug(f"Removed temporary: {match_path}")
+            except OSError as e:
+                logging.warning(f"Failed to remove temporary {match_path}: {e}")
 
 
 def doit_post_process(task_dict: TaskDict):
@@ -257,6 +299,9 @@ class ToolAction(BaseAction):
             # We pass back any exceptions in task.meta - so that our ConsoleReporter can pick them up (doit normally strips exceptions)
             self.task.meta["exception"] = e
             return TaskFailed("tool failed")
+        finally:
+            # Remove any intermediate files this stage declared as temporaries (success or failure).
+            cleanup_temporaries(self.task.meta.get("stage"), context)
 
         self.values = {}  # doit requires this attribute to be set
 

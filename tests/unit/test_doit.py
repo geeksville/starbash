@@ -6,7 +6,7 @@ from contextlib import redirect_stdout
 
 import pytest
 
-from starbash.doit import StarbashDoit, my_builtin_task
+from starbash.doit import StarbashDoit, cleanup_temporaries, my_builtin_task
 
 
 class TestStarbashDoit:
@@ -123,6 +123,63 @@ class TestBuiltinTask:
         """Test that actions is a list."""
         assert isinstance(my_builtin_task["actions"], list)
         assert len(my_builtin_task["actions"]) == 1
+
+
+class TestCleanupTemporaries:
+    """Tests for cleanup_temporaries()."""
+
+    def _make_tree(self, base):
+        """Create a representative set of files/dirs in ``base``."""
+        (base / "in.seq").write_text("seq")
+        seq_dir = base / "in"
+        seq_dir.mkdir()
+        (seq_dir / "in_0001.fits").write_text("data")
+        (base / "r_in.seq").write_text("seq")
+        (base / "r_in_0001.fits").write_text("data")
+        (base / "stacked.fits").write_text("result")  # must be preserved
+
+    def test_removes_matching_files_and_dirs(self, tmp_path):
+        self._make_tree(tmp_path)
+        stage = {"temporaries": ["in*", "r_in*"]}
+        context = {"process_dir": str(tmp_path)}
+
+        cleanup_temporaries(stage, context)
+
+        assert not (tmp_path / "in.seq").exists()
+        assert not (tmp_path / "in").exists()
+        assert not (tmp_path / "r_in.seq").exists()
+        assert not (tmp_path / "r_in_0001.fits").exists()
+        # Non-matching output file is preserved.
+        assert (tmp_path / "stacked.fits").exists()
+
+    def test_expands_context_variables(self, tmp_path):
+        (tmp_path / "pp_light_s23.seq").write_text("seq")
+        (tmp_path / "keep.fits").write_text("keep")
+        stage = {"temporaries": ["pp_{light_base}*"]}
+        context = {"process_dir": str(tmp_path), "light_base": "light_s23"}
+
+        cleanup_temporaries(stage, context)
+
+        assert not (tmp_path / "pp_light_s23.seq").exists()
+        assert (tmp_path / "keep.fits").exists()
+
+    def test_empty_or_missing_temporaries_is_noop(self, tmp_path):
+        (tmp_path / "keep.fits").write_text("keep")
+        cleanup_temporaries({"temporaries": []}, {"process_dir": str(tmp_path)})
+        cleanup_temporaries({}, {"process_dir": str(tmp_path)})
+        cleanup_temporaries(None, {"process_dir": str(tmp_path)})
+        assert (tmp_path / "keep.fits").exists()
+
+    def test_unsafe_patterns_are_skipped(self, tmp_path):
+        outside = tmp_path.parent / "outside.fits"
+        outside.write_text("do not delete")
+        try:
+            stage = {"temporaries": ["../outside.fits", "/etc/passwd", "sub/foo*"]}
+            cleanup_temporaries(stage, {"process_dir": str(tmp_path)})
+            assert outside.exists()
+        finally:
+            outside.unlink(missing_ok=True)
+
 
 
 class TestDoitIntegration:

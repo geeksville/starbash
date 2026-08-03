@@ -52,5 +52,6 @@
     "python.testing.pytestEnabled": true,
     "python.debugpy.justMyCode": false,
     // Turned off because we manually enable it in the post-create.sh 
-    "terminal.integrated.shellIntegration.enabled": false
+    "terminal.integrated.shellIntegration.enabled": false,
+    "python.languageServer": "None"
 }
