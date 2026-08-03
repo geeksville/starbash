@@ -37,7 +37,7 @@ numpy = "2.2.6"
 pyqt6 = "^6.10.1"
 
 [tool.poetry.group.dev.dependencies]
-pytest = ">=8.4.2,<9.0.0"
+pytest = ">=8.4.2,<10.0.0"
 pytest-cov = "^6.0.0"
 pytest-xdist = "^3.8.0"
 pre-commit = "^4.3.0"
