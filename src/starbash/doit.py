@@ -497,12 +497,12 @@ class StarbashDoit(TaskLoader2):
         """Required by baseclass"""
         # Store the doit database in the user's cache directory instead of the workspace
         cache_dir = get_user_cache_dir()
-        dep_file = str(cache_dir / "doit.json")
+        dep_file = str(cache_dir / "doit.db")
         return {
             "verbosity": 2,
             "dep_file": dep_file,
             "reporter": MyReporter,
-            "backend": "json",
+            "backend": "dbm", # the json backend is slow and buggy, use dbm instead
         }
 
     def load_tasks(self, cmd, pos_args):
