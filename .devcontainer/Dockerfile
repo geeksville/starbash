@@ -75,5 +75,8 @@ RUN cd /tmp && \
 RUN apt-get update
 RUN apt-get -y install --no-install-recommends docker.io
 
+# I want man pages
+RUN unminimize
+
 # Make container smaller.  Do this last, so that if we change the container it is fast to use existing apts
 RUN rm -rf /var/lib/apt/lists/*
