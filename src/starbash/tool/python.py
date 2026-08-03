@@ -8,9 +8,14 @@ import os
 import traceback
 from typing import Any
 
-import RestrictedPython
-from RestrictedPython.Guards import INSPECT_ATTRIBUTES
-from RestrictedPython.transformer import ALLOWED_FUNC_NAMES, FORBIDDEN_FUNC_NAMES, copy_locations
+from RestrictedPython.compile import compile_restricted
+from RestrictedPython.transformer import (
+    ALLOWED_FUNC_NAMES,
+    FORBIDDEN_FUNC_NAMES,
+    INSPECT_ATTRIBUTES,
+    RestrictingNodeTransformer,
+    copy_locations,
+)
 
 from starbash.exception import UserHandledError
 from starbash.sim_siril.connection import SirilInterface
@@ -63,7 +68,7 @@ class PythonScriptError(UserHandledError):
         return True
 
 
-class PermissiveNodeTransformer(RestrictedPython.RestrictingNodeTransformer):
+class PermissiveNodeTransformer(RestrictingNodeTransformer):
     """FIXME we temporarily allow more access than RestrictedPython usually grants"""
 
     def check_name(self, node, name, allow_magic_methods=False):
@@ -183,7 +188,7 @@ class PythonTool(Tool):
                     script_filename
                 )
 
-                byte_code = RestrictedPython.compile_restricted(
+                byte_code = compile_restricted(
                     commands, filename=script_filename, mode="exec", policy=PermissiveNodeTransformer
                 )
                 # No locals yet

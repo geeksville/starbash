@@ -8,7 +8,9 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-import RestrictedPython
+from RestrictedPython.compile import compile_restricted
+from RestrictedPython.Guards import guarded_unpack_sequence, safe_builtins
+from RestrictedPython.PrintCollector import PrintCollector as _PrintCollector
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +123,7 @@ def expand_context_unsafe(s: str, context: dict) -> str:
 
         try:
             # Compile the expression with RestrictedPython
-            byte_code = RestrictedPython.compile_restricted(
+            byte_code = compile_restricted(
                 expr, filename="<template expression>", mode="eval"
             )
 
@@ -152,7 +154,7 @@ def expand_context_unsafe(s: str, context: dict) -> str:
     return expanded
 
 
-class MyPrinter(RestrictedPython.PrintCollector):
+class MyPrinter(_PrintCollector):
     def write(self, text):
         logger.info(f"Script print: {text}")
         super().write(text)
@@ -184,7 +186,7 @@ def make_safe_globals(extra_globals: dict = {}) -> dict:
     # FIXME - this is still unsafe, policies need to be added to limit import/getattr etc...
     # see https://restrictedpython.readthedocs.io/en/latest/usage/policy.html#implementing-a-policy
 
-    builtins = RestrictedPython.safe_builtins.copy()
+    builtins = safe_builtins.copy()
 
     def write_test(obj):
         """``_write_`` is a guard function taking a single argument.  If the
@@ -225,7 +227,7 @@ def make_safe_globals(extra_globals: dict = {}) -> dict:
         "__import__": my__import__,  # FIXME very unsafe
         "_getitem_": getitem_glue,  # why isn't the default guarded getitem found?
         "_getiter_": iter,  # Allows for loops and other iterations.
-        "_unpack_sequence_": RestrictedPython.Guards.guarded_unpack_sequence,  # Required for tuple unpacking  # pyright: ignore[reportAttributeAccessIssue]
+        "_unpack_sequence_": guarded_unpack_sequence,  # Required for tuple unpacking
         "_write_": write_test,
         "_print_": MyPrinter,
         "_getattr_": getattr_glue,  # Custom attribute access policy
