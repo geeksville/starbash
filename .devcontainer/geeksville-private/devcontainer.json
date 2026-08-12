@@ -62,8 +62,8 @@
 		"type=tmpfs,destination=/tmp,tmpfs-mode=1777",
 		// My big NAS
 		"source=/mnt/pool/big/kevinh/telescope/,destination=/mnt/pool/big/kevinh/telescope/,type=bind",
-		// My 1TB fast SSD
-		"source=/mnt/fast_stick/,destination=/mnt/fast_stick/,type=bind"
+		// My nTB fast SSD
+		"source=/mnt/big_stick/kevinh,destination=/mnt/fast_stick/,type=bind"
 	],
 	"containerEnv": {
 		// Needed for X11 forwarding

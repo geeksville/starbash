@@ -43,7 +43,7 @@ def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str
         cd ..
         """
     else:
-        input_base = f"{variant}_bkg_pp_light"
+        input_base = f"r_{variant}_bkg_pp_light"
 
         # The sequence name for all frames of this variant across all sessions
         # e.g. Ha_bkg_pp_light_cHaOiii
