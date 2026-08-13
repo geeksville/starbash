@@ -300,6 +300,40 @@ class TestProcessedTargetStages:
             # Verify that get was called
             assert mock_repo.get.called
 
+    def test_user_exclusions_from_toml_are_retained(
+        self, mock_processing_like, temp_processing_dir
+    ):
+        """Regression: exclusions read from the target's starbash.toml must survive init.
+
+        Previously __init__ reset self.default_stages to {} *after* _init_from_toml()
+        populated it, so user-added exclusions (e.g. "stack_osc") were silently dropped
+        and the excluded stage would still run.
+        """
+        mock_processing_like.stages = [
+            {"name": "stack_osc"},
+            {"name": "stack_single_duo"},
+        ]
+
+        with (
+            patch("starbash.processed_target.toml_from_template") as mock_template,
+            patch("starbash.processed_target.Repo") as mock_repo_class,
+        ):
+            mock_template.return_value = {}
+            mock_repo = MagicMock()
+
+            def mock_get(*args, **kwargs):
+                if args[0] == "stages":
+                    return {"excluded": [CommentedString("stack_osc", None)]}
+                return {}
+
+            mock_repo.get.side_effect = mock_get
+            mock_repo_class.return_value = mock_repo
+
+            pt = ProcessedTarget(mock_processing_like, "test")
+
+            # The user's exclusion must still be present after construction.
+            assert get_from_toml(pt.default_stages, "excluded") == ["stack_osc"]
+
     def test_set_default_stages_with_used_list(self, mock_processing_like, temp_processing_dir):
         """Test that stages in used list are not excluded by default."""
         mock_processing_like.stages = [

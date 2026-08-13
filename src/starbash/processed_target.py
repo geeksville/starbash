@@ -69,10 +69,11 @@ class ProcessedTarget:
         self.repo = Repo(
             repo_path, default_toml=default_toml
         )  # a structured Repo object for reading/writing this config
-        self._init_from_toml()
 
-        # Contains "used" and "excluded" lists - used for sessionless tasks
+        # Contains "used" and "excluded" lists - used for sessionless tasks.
+        # Populated by _init_from_toml() from the target's starbash.toml.
         self.default_stages: dict[str, Any] = {}
+        self._init_from_toml()
         self._set_default_stages()
 
         self.config_valid = (

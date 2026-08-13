@@ -64,3 +64,5 @@ All decisions are now locked in:
 - **Match scope** — top level of `process_dir` only (non-recursive).
 - **Interpretation** — plain glob patterns; recipe TOML entries use explicit
   wildcards (e.g. `"in*"`, `"r_in*"`), so no implicit `*` handling is needed.
+
+## stage m2
