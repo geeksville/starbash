@@ -3,6 +3,8 @@
 import io
 import json
 import logging
+import os
+import re
 from typing import Any
 
 from rich.progress import (
@@ -15,11 +17,24 @@ from rich.progress import (
 )
 
 from starbash.tool.base import ExternalTool, tool_run_streaming
-from starbash.tool.context import expand_context_list, expand_context_unsafe
+from starbash.tool.context import expand_context_unsafe
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["RCAstroTool", "parse_json_line"]
+
+_PLACEHOLDER_RE = re.compile(r"^\s*\{[^{}]+\}\s*$")
+
+
+def _is_placeholder(s: str) -> bool:
+    """True if s is a single ``{...}`` template placeholder (no surrounding literal text)."""
+    return bool(_PLACEHOLDER_RE.match(s))
+
+
+def _is_unset(expanded: str) -> bool:
+    """True if an expanded value represents an unset parameter (empty or ``None``)."""
+    return expanded == "" or expanded == "None"
+
 
 
 def parse_json_line(line: str) -> dict | None:
@@ -56,11 +71,38 @@ class RCAstroTool(ExternalTool):
         self.timeout = 2 * 60 * 60.0  # 2 hours - CPU deconvolution can be slow
 
     def build_args(self, commands: str | list[str], context: dict) -> list[str]:
-        """Expand recipe arguments and ensure ``--json`` is present."""
-        if isinstance(commands, list):
-            args = expand_context_list(commands, context)
-        else:
+        """Expand recipe arguments and ensure ``--json`` is present.
+
+        A ``--flag {parameters.x}`` pair whose value comes from an *unset* parameter
+        (no default and no user override, so it expands to ``None``) is dropped
+        entirely, so rc-astro falls back to its own built-in default for that option.
+        """
+        if not isinstance(commands, list):
             args = expand_context_unsafe(commands, context).split()
+            if "--json" not in args:
+                args = ["--json", *args]
+            return args
+
+        raw = [str(s) for s in commands]
+        args: list[str] = []
+        i = 0
+        while i < len(raw):
+            token = raw[i]
+            expanded = expand_context_unsafe(token, context)
+            # Treat "--flag <value>" as a pair (rc-astro flags always take a value).
+            if token.startswith("--") and i + 1 < len(raw) and not raw[i + 1].startswith("--"):
+                value_raw = raw[i + 1]
+                value = expand_context_unsafe(value_raw, context)
+                if _is_placeholder(value_raw) and _is_unset(value):
+                    i += 2  # unset parameter -> omit the flag and its value
+                    continue
+                args.append(expanded)
+                args.append(value)
+                i += 2
+                continue
+            args.append(expanded)
+            i += 1
+
         if "--json" not in args:
             args = ["--json", *args]
         return args
@@ -78,6 +120,16 @@ class RCAstroTool(ExternalTool):
 
         args = self.build_args(commands, context)
         cmd = f"{self.executable_path} " + " ".join(args)
+
+        # rc-astro refuses to run if the output already exists; remove it first.
+        try:
+            out_idx = args.index("--output")
+            out_path = args[out_idx + 1]
+            if os.path.exists(out_path):
+                logger.debug(f"Removing existing output file: {out_path}")
+                os.remove(out_path)
+        except (ValueError, IndexError):
+            pass
 
         with Progress(
             SpinnerColumn(),

@@ -697,6 +697,30 @@ class TestRCAstroTool:
         )
         assert args == ["--json", "bxt", "in.fits", "--sharpen-stars", "0.5"]
 
+    def test_build_args_drops_unset_parameter_flag(self):
+        """A --flag whose value comes from an unset (None) parameter is omitted."""
+
+        class _Params:
+            pass
+
+        params = _Params()
+        params.set_val = "0.5"
+        params.unset_val = None  # no default, no override
+
+        tool = RCAstroTool()
+        args = tool.build_args(
+            [
+                "nxt",
+                "in.fits",
+                "--denoise",
+                "{parameters.set_val}",
+                "--denoise-intensity",
+                "{parameters.unset_val}",
+            ],
+            {"parameters": params},
+        )
+        assert args == ["--json", "nxt", "in.fits", "--denoise", "0.5"]
+
     def test_registered_in_tools(self):
         assert isinstance(tools.get("rc-astro"), RCAstroTool)
 
@@ -802,4 +826,64 @@ class TestBlurExterminatorRecipe:
         ordered = sort_stages([blur, background])
         names = [s.get("name") for s in ordered]
         assert names.index("background") < names.index("blur_exterminator")
+
+
+class TestNoiseExterminatorRecipe:
+    """Tests that the noise-exterminator recipe is wired correctly."""
+
+    # Recipe parameters (defaults are intentionally commented out so rc-astro uses
+    # its own built-in defaults and conflicting bands are not passed together).
+    EXPECTED_PARAMS = [
+        "nxt_denoise",
+        "nxt_denoise_intensity",
+        "nxt_denoise_color",
+        "nxt_denoise_hf",
+        "nxt_denoise_lf",
+        "nxt_denoise_intensity_hf",
+        "nxt_denoise_intensity_lf",
+        "nxt_denoise_color_hf",
+        "nxt_denoise_color_lf",
+        "nxt_frequency_scale",
+        "nxt_iterations",
+    ]
+
+    def _load_recipe(self):
+        import tomlkit
+
+        recipe = (
+            Path(__file__).parents[2]
+            / "starbash-recipes"
+            / "rc-astro"
+            / "noise-exterminator.toml"
+        )
+        return tomlkit.parse(recipe.read_text())
+
+    def test_parameters_present_without_defaults(self):
+        doc = self._load_recipe()
+        params = {p["name"]: p for p in doc["parameters"]}
+        for name in self.EXPECTED_PARAMS:
+            assert name in params, f"missing parameter {name}"
+            # Defaults are commented out so rc-astro applies its own defaults.
+            assert "default" not in params[name]
+
+    def test_stage_uses_rc_astro_after_blur(self):
+        doc = self._load_recipe()
+        stage = doc["stages"][0]
+        assert stage["name"] == "noise_exterminator"
+        assert stage["tool"]["name"] == "rc-astro"
+        assert stage["inputs"][0]["after"] == "blur_exterminator"
+        assert stage["outputs"][0]["auto"]["prefix"] == "nx_"
+
+    def test_stage_sorts_after_blur(self):
+        from starbash.stages import sort_stages
+
+        doc = self._load_recipe()
+        noise = doc["stages"][0]
+        background = {"name": "background", "inputs": [{"after": "stack_.*"}]}
+        blur = {"name": "blur_exterminator", "inputs": [{"after": "background.*"}]}
+        ordered = sort_stages([noise, blur, background])
+        names = [s.get("name") for s in ordered]
+        assert names.index("background") < names.index("blur_exterminator")
+        assert names.index("blur_exterminator") < names.index("noise_exterminator")
+
 

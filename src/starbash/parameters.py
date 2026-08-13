@@ -57,7 +57,8 @@ class ParameterStore:
                 source=repo,
                 name=name,
                 description=param.get("description"),
-                default=get_safe(param, "default"),
+                # default is optional; when absent the tool uses its own built-in default.
+                default=param.get("default"),
             )
             self._parameters.append(p)
 

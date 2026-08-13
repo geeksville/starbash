@@ -137,17 +137,54 @@ def tool_run(
     log_out: io.TextIOWrapper | None = None,
 ) -> None:
     """Executes an external tool with an optional script of commands in a given working directory."""
-
     logger.debug(f"Running {cmd} in {cwd}: stdin={commands}")
 
-    # Remove DISPLAY from environment if force_no_gui is set to prevent GUI windows
-    env = os.environ.copy()
-    if force_no_gui and "DISPLAY" in os.environ:
-        #env.pop("DISPLAY", None)
-        #logger.debug("Removed DISPLAY from environment to prevent GUI windows")
-        pass
+    def _stderr_fixup(stdout_captured: list[str], stderr_lines: list[str]) -> list[str]:
+        # Siril writes errors to stdout with "Aborting"; surface those alongside real stderr.
+        abort_lines = [
+            line for line in "".join(stdout_captured).splitlines() if "Aborting" in line
+        ]
+        combined = stderr_lines + abort_lines
+        # Drop a bogus harmless Siril noise line that confuses users.
+        return [line for line in combined if "Reading sequence failed, file cannot be opened" not in line]
 
-    # Start the process with pipes for streaming
+    tool_run_streaming(
+        cmd,
+        cwd,
+        timeout=timeout,
+        log_out=log_out,
+        commands=commands,
+        arguments=commands,
+        stderr_fixup=_stderr_fixup,
+    )
+
+
+def tool_run_streaming(
+    cmd: str,
+    cwd: str,
+    on_line: Callable[[str], None] | None = None,
+    timeout: float | None = None,
+    log_out: io.TextIOWrapper | None = None,
+    commands: str | None = None,
+    arguments: str | None = None,
+    stderr_fixup: Callable[[list[str], list[str]], list[str]] | None = None,
+) -> None:
+    """Execute an external tool, invoking on_line for each stdout line as it arrives.
+
+    Unlike a blocking communicate()-based runner, this streams stdout line-by-line so
+    callers can react to incremental output (e.g. JSON progress events).  A reader
+    thread feeds a queue so the timeout fires correctly even for silent processes.
+    stderr is collected and handled after the process exits.  A non-zero exit code
+    raises ToolError.
+    """
+    import queue
+    import threading
+    import time
+
+    logger.debug(f"Streaming {cmd} in {cwd}")
+
+    env = os.environ.copy()
+
     process = subprocess.Popen(
         cmd,
         stdin=subprocess.PIPE if commands else None,
@@ -158,127 +195,80 @@ def tool_run(
         cwd=cwd,
         env=env,
     )
-
-    # Wait for process to complete with timeout
-    try:
-        stdout_lines, stderr_lines = process.communicate(input=commands, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        stdout_lines, stderr_lines = process.communicate()
-        raise RuntimeError(f"Tool timed out after {timeout} seconds")
-
-    returncode = process.returncode
-
-    # print stdout BEFORE stderr so the user can more easily see error message near the exception
-    if returncode != 0:
-        # log stdout with error priority because the tool failed
-        log_level = logging.ERROR
-    else:
-        log_level = logging.DEBUG
-    tool_emit_logs(stdout_lines, log_level=log_level)
-
-    # If log_out is provided, also write stdout to that file
-    if log_out and stdout_lines:
-        log_out.write(stdout_lines)
-        log_out.flush()  # Just in case the user is 'tailing' the file
-
-    # Check stdout for "Aborting" messages and append them to stderr (because the only useful Siril error messages appear on such a line)
-    abort_lines = [line for line in stdout_lines.splitlines() if "Aborting" in line]
-    stderr_level = logging.ERROR if returncode != 0 else logging.WARNING
-    if abort_lines:
-        stderr_lines = (
-            stderr_lines + "\n" + "\n".join(abort_lines) if stderr_lines else "\n".join(abort_lines)
-        )
-
-    if stderr_lines:
-        # drop any line that contains "Reading sequence failed, file cannot be opened"
-        # because it is a bogus harmless message from siril and confuses users.
-        filtered_lines = [
-            line
-            for line in stderr_lines.splitlines()
-            if "Reading sequence failed, file cannot be opened" not in line
-        ]
-        if filtered_lines:
-            logger.log(stderr_level, f"[tool-warnings] {'\n'.join(filtered_lines)}")
-
-    if returncode != 0:
-        # log stdout with warn priority because the tool failed
-        raise ToolError(
-            f"{cmd} failed with exit code {returncode}", command=cmd, arguments=commands
-        )
-    else:
-        logger.debug("Tool command successful.")
-
-
-def tool_run_streaming(
-    cmd: str,
-    cwd: str,
-    on_line: Callable[[str], None],
-    timeout: float | None = None,
-    log_out: io.TextIOWrapper | None = None,
-) -> None:
-    """Execute an external tool, invoking on_line for each stdout line as it arrives.
-
-    Unlike tool_run(), this streams stdout line-by-line so callers can react to
-    incremental output (e.g. JSON progress events). stderr is collected and handled
-    after the process exits. A non-zero exit code raises ToolError.
-    """
-    import time
-
-    logger.debug(f"Streaming {cmd} in {cwd}")
-
-    env = os.environ.copy()
-
-    process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        shell=True,
-        text=True,
-        cwd=cwd,
-        env=env,
-    )
     assert process.stdout is not None
+
+    if commands:
+        assert process.stdin is not None
+
+        def _write_stdin() -> None:
+            try:
+                process.stdin.write(commands)  # type: ignore[union-attr]
+                process.stdin.close()  # type: ignore[union-attr]
+            except BrokenPipeError:
+                pass
+
+        threading.Thread(target=_write_stdin, daemon=True).start()
+
+    line_queue: queue.Queue[str | None] = queue.Queue()
+
+    def _reader() -> None:
+        try:
+            for line in process.stdout:  # type: ignore[union-attr]
+                line_queue.put(line)
+        except Exception:
+            pass
+        finally:
+            line_queue.put(None)  # EOF sentinel
+
+    threading.Thread(target=_reader, daemon=True).start()
 
     deadline = (time.monotonic() + timeout) if timeout else None
     stdout_captured: list[str] = []
 
     try:
-        for line in process.stdout:
-            stdout_captured.append(line)
-            if log_out:
-                log_out.write(line)
-                log_out.flush()  # Just in case the user is 'tailing' the file
+        while True:
+            remaining = max(0.0, deadline - time.monotonic()) if deadline else None
             try:
-                on_line(line)
-            except Exception:
-                logger.exception("Error in tool output line handler")
-            if deadline is not None and time.monotonic() > deadline:
+                line = line_queue.get(timeout=remaining)
+            except queue.Empty:
                 process.kill()
                 process.wait()
                 if process.stderr:
                     process.stderr.close()
                 raise RuntimeError(f"Tool timed out after {timeout} seconds")
+            if line is None:  # EOF
+                break
+            stdout_captured.append(line)
+            if log_out:
+                log_out.write(line)
+                log_out.flush()  # Just in case the user is 'tailing' the file
+            if on_line:
+                try:
+                    on_line(line)
+                except Exception:
+                    logger.exception("Error in tool output line handler")
     finally:
         process.stdout.close()
 
-    stderr_lines = process.stderr.read() if process.stderr else ""
+    stderr_text = process.stderr.read() if process.stderr else ""
     if process.stderr:
         process.stderr.close()
     returncode = process.wait()
 
-    stdout_lines = "".join(stdout_captured)
+    stdout_str = "".join(stdout_captured)
     if returncode != 0:
-        # log stdout with error priority because the tool failed
-        tool_emit_logs(stdout_lines, log_level=logging.ERROR)
+        tool_emit_logs(stdout_str, log_level=logging.ERROR)
 
-    if stderr_lines:
+    stderr_list = stderr_text.splitlines() if stderr_text else []
+    if stderr_fixup:
+        stderr_list = stderr_fixup(stdout_captured, stderr_list)
+    if stderr_list:
         stderr_level = logging.ERROR if returncode != 0 else logging.WARNING
-        logger.log(stderr_level, f"[tool-warnings] {stderr_lines}")
+        logger.log(stderr_level, f"[tool-warnings] {'\n'.join(stderr_list)}")
 
     if returncode != 0:
         raise ToolError(
-            f"{cmd} failed with exit code {returncode}", command=cmd, arguments=None
+            f"{cmd} failed with exit code {returncode}", command=cmd, arguments=arguments
         )
     else:
         logger.debug("Tool command successful.")

@@ -80,7 +80,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 ## Stages, tasks, and context (recipe processing)
 - Pipeline stages defined in TOML with `[[stages]]` having `name` and `priority`
 - Work items are `[[stage]]` tables across repos:
-  - `tool`: one of `siril`, `graxpert`, `python`, `rc-astro` (see `starbash.tool.tools`). `rc-astro` runs the RC-Astro CLI (BlurXTerminator today), always injects `--json`, and streams JSON progress events to a live Rich progress bar via `tool_run_streaming()`.
+  - `tool`: one of `siril`, `graxpert`, `python`, `rc-astro` (see `starbash.tool.tools`). `rc-astro` runs the RC-Astro CLI (BlurXTerminator `bxt` and NoiseXTerminator `nxt`; nxt runs after blur-exterminator by default), always injects `--json`, and streams JSON progress events to a live Rich progress bar via `tool_run_streaming()`.
   - `when`: matches stage name (e.g., `session.config`, `session.light`, `session.stack`)
   - `script` or `script-file` (resolved relative to repo via `stage.source`)
   - `context` (dict merged into runtime context), `input` (glob patterns for files)

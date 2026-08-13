@@ -221,13 +221,131 @@ rc-astro --json bxt /mnt/pool/big/kevinh/telescope/processed/ngc6888/bk_stacked_
 {"event":"status","phase":"saving","message":"Saving","output":"/mnt/pool/big/kevinh/telescope/processed/ngc6888/foo.fits"}
 {"event":"status","phase":"complete","message":"Done","output":"/mnt/pool/big/kevinh/telescope/processed/ngc6888/foo.fits"}
 
-### noise-exterminator
+## stage m3: noise-exterminator
 
-this we will do later after bxt works.  but fyi
+Building on stage m2 (which added `RCAstroTool` and the streaming JSON progress
+plumbing), add `starbash-recipes/rc-astro/noise-exterminator.toml` — a recipe that
+runs NoiseXTerminator (`nxt`) on the outputs of blur-exterminator by default.
 
-Supported formats:
+**No tool code changes required.** `RCAstroTool` already runs any `rc-astro`
+subcommand, auto-injects `--json`, and drives the live progress bar. m3 is purely a
+new recipe + tests + docs.
 
-nxt [OPTIONS] [input_file...]
+### Goals
+
+1. New recipe `starbash-recipes/rc-astro/noise-exterminator.toml` with a single
+   `nxt` stage using `tool.name = "rc-astro"`.
+2. By default, run **after blur-exterminator** (`after = "blur_exterminator"`),
+   consuming its `bx_`-prefixed outputs.
+3. Expose the full nxt option surface as recipe `[[parameters]]` (all with the
+   CLI's documented defaults), so users can tune any strength.
+4. Emit outputs with the `nx_` prefix.
+
+### Decisions (locked in)
+
+- **Subcommand:** `nxt` (positional after the injected `--json`).
+- **Output:** explicit `--output {output.full_paths[0]}` (mirrors bxt; do not rely
+  on the CLI's default `<input>-<product>.<ext>` naming).
+- **Ordering:** `after = "blur_exterminator"` (exact stage name).
+- **Output prefix:** `nx_`.
+- **Parameters:** expose every nxt flag as a recipe parameter with its documented
+  default (see mapping below).
+
+### Parameter mapping
+
+Each recipe parameter maps 1:1 to an nxt long flag; defaults match the CLI docs.
+
+| Parameter name            | Flag                            | Default |
+| ------------------------- | ------------------------------- | ------- |
+| `nxt_denoise`             | `--denoise`                     | `0.90`  |
+| `nxt_denoise_intensity`   | `--denoise-intensity`           | `0.90`  |
+| `nxt_denoise_color`       | `--denoise-color`               | `0.90`  |
+| `nxt_denoise_hf`          | `--denoise-high-freq`           | `0.90`  |
+| `nxt_denoise_lf`          | `--denoise-low-freq`            | `0.90`  |
+| `nxt_denoise_intensity_hf`| `--denoise-intensity-high-freq` | `0.90`  |
+| `nxt_denoise_intensity_lf`| `--denoise-intensity-low-freq`  | `0.90`  |
+| `nxt_denoise_color_hf`    | `--denoise-color-high-freq`     | `0.90`  |
+| `nxt_denoise_color_lf`    | `--denoise-color-low-freq`      | `0.90`  |
+| `nxt_frequency_scale`     | `--frequency-scale`             | `5.0`   |
+| `nxt_iterations`          | `--iterations`                  | `2`     |
+
+### Recipe: `starbash-recipes/rc-astro/noise-exterminator.toml`
+
+Model on `blur-exterminator.toml`. Sketch:
+
+```toml
+[repo]
+kind = "recipe"
+
+[[parameters]]
+name = "nxt_denoise"
+default = 0.90
+description = "NoiseXTerminator overall denoise strength (0..1)"
+
+# ... one [[parameters]] block per row in the mapping table above ...
+
+[[parameters]]
+name = "nxt_iterations"
+default = 2
+description = "Number of denoising iterations (1..5)"
+
+[[stages]]
+name = "noise_exterminator"
+description = "Denoise with NoiseXTerminator (rc-astro nxt)"
+tool.name = "rc-astro"
+
+# Note: --json is injected automatically by RCAstroTool, do not add it here.
+script = [
+    "nxt",
+    "{input[0].full_paths[0]}",
+    "--output", "{output.full_paths[0]}",
+    "--denoise", "{parameters.nxt_denoise}",
+    "--denoise-intensity", "{parameters.nxt_denoise_intensity}",
+    "--denoise-color", "{parameters.nxt_denoise_color}",
+    "--denoise-high-freq", "{parameters.nxt_denoise_hf}",
+    "--denoise-low-freq", "{parameters.nxt_denoise_lf}",
+    "--denoise-intensity-high-freq", "{parameters.nxt_denoise_intensity_hf}",
+    "--denoise-intensity-low-freq", "{parameters.nxt_denoise_intensity_lf}",
+    "--denoise-color-high-freq", "{parameters.nxt_denoise_color_hf}",
+    "--denoise-color-low-freq", "{parameters.nxt_denoise_color_lf}",
+    "--frequency-scale", "{parameters.nxt_frequency_scale}",
+    "--iterations", "{parameters.nxt_iterations}",
+]
+
+[[stages.inputs]]
+kind = "job"
+after = "blur_exterminator"   # run on blur-exterminator outputs
+multiplex = true
+
+[[stages.inputs.requires]]
+kind = "min_count"
+value = 1
+
+[[stages.outputs]]
+kind = "processed"
+auto.prefix = "nx_"
+```
+
+### Tests
+
+- **Recipe wiring:** load `noise-exterminator.toml`; assert `tool.name == "rc-astro"`,
+  the stage name is `noise_exterminator`, `after == "blur_exterminator"`, and the
+  output prefix is `nx_`.
+- **Parameter defaults:** assert every parameter in the mapping table is present with
+  its documented default value.
+- **Stage ordering:** run `sort_stages([noise_stage, blur_stage])` and assert
+  `blur_exterminator` sorts before `noise_exterminator`. (Optionally chain
+  background → blur → noise to confirm the full order.)
+- Follow m2's testing style (assert real parsed state, not mock calls).
+
+### Docs to update
+
+- `.github/copilot-instructions.md` / `AGENTS.md` — mention that `rc-astro` now also
+  provides NoiseXTerminator (`nxt`), running after blur-exterminator by default.
+
+### example usage
+
+rc-astro --json nxt [OPTIONS] [input_file...]
 
 POSITIONALS:
   input_file (text)           One or more input image files (wildcards allowed). Each output

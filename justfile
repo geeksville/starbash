@@ -60,7 +60,7 @@ common-init: clean-cache clean-config clean-masters install-completion use-local
     sb repo add --processed /mnt/pool/big/kevinh/telescope/processed
 
 # Use our 'big' test database
-reinit-big: # do subtasks below to guarantee ordering
+reinit-big: install-rc-astro # do subtasks below to guarantee ordering
     just use-workspace-config
     just use-usb-cache
     just common-init

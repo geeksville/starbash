@@ -30,8 +30,9 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   Holds `[stages]` `used`/`excluded` lists that control which recipes run. `_init_from_toml()`
   reads them into `self.default_stages`; `remove_excluded_tasks()` (in `stages.py`) applies them.
 - **Tools**: `src/starbash/tool/` — runners for Siril (Flatpak, stdin script), GraXpert (CLI),
-  Python (RestrictedPython sandbox), and rc-astro (BlurXTerminator CLI; always passes `--json`
-  and streams JSON progress events to a live Rich progress bar via `tool_run_streaming`).
+  Python (RestrictedPython sandbox), and rc-astro (BlurXTerminator `bxt` + NoiseXTerminator `nxt`
+  CLI; always passes `--json` and streams JSON progress events to a live Rich progress bar via
+  `tool_run_streaming`).
 - **Paths**: `src/starbash/paths.py` — platformdirs-based; override in tests via
   `paths.set_test_directories(...)`.
 
