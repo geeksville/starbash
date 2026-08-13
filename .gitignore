@@ -18,3 +18,4 @@ starbash*.whl
 .local
 .config
 .cache
+private/

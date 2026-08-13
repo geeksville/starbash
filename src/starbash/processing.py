@@ -810,6 +810,7 @@ class Processing(ProcessingLike):
 
             if not has_job_multiplex_in:
                 self.context.pop("stage_input", None)  # Force new stage inputs to be resolved
+                logging.debug(f"Stage '{stage.get('name')}' is not multiplexed (single task)")
                 self._create_task_dict(stage)
             else:
                 self._resolve_all_input_files(
@@ -822,6 +823,10 @@ class Processing(ProcessingLike):
                 multiplexed_inputs = get_safe(job_inputs, 0)
                 rows = multiplexed_inputs.image_rows
                 assert rows, "I think always guaranteed have image rows here?"
+                logging.debug(
+                    f"Stage '{stage.get('name')}' is multiplexed over {len(rows)} input file(s): "
+                    f"{[r.get('path') for r in rows]}"
+                )
                 for index, image_row in enumerate(rows):
                     fi = FileInfo(
                         base=multiplexed_inputs.base, image_rows=[image_row]

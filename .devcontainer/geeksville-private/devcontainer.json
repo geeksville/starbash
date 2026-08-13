@@ -21,6 +21,7 @@
 	// "forwardPorts": [5000]
 	"runArgs": [
 		"--privileged", // Allow full hw access from host, also allows writing core dump files
+		"--hostname=toolbx",
 		// "--network=host", // Use host network rather than our bridged container network
 		"--ipc=host", // Needed to make python SharedMemory work
 		"--user=1000:1000",
