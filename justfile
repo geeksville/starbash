@@ -32,6 +32,13 @@ install-starnet:
     chmod a+x ~/packages/starnet/starnet++
     rm /tmp/starnet.zip
 
+install-rc-astro:
+    #!/usr/bin/env bash
+    # Install the RC-Astro binaries (for testing)
+    wget -O /tmp/rcastro.sh https://www.rc-astro-cdn.com/cli/rc-astro-cli-1.1.3-linux-x64.sh
+    chmod a+x /tmp/rcastro.sh
+    /tmp/rcastro.sh
+
 # Run starnet (for testing)
 starnet infile outfile="starless.tif" stride="256":
     LD_LIBRARY_PATH=~/packages/starnet ~/packages/starnet/starnet++ {{infile}} {{outfile}} {{stride}}
@@ -53,7 +60,11 @@ common-init: clean-cache clean-config clean-masters install-completion use-local
     sb repo add --processed /mnt/pool/big/kevinh/telescope/processed
 
 # Use our 'big' test database
-reinit-big: use-workspace-config use-usb-cache common-init
+reinit-big: # do subtasks below to guarantee ordering
+    just use-workspace-config
+    just use-usb-cache
+    just common-init
+    just use-local-recipes
     sb repo add /mnt/pool/big/kevinh/telescope/from_asiair
     sb repo add /mnt/pool/big/kevinh/telescope/from_seestar
     sb repo add /mnt/pool/big/kevinh/telescope/from_astroboy

@@ -13,6 +13,7 @@ from starbash.tool.context import (
 )
 from starbash.tool.graxpert import GraxpertBuiltinTool, GraxpertExternalTool
 from starbash.tool.python import PythonScriptError, PythonTool
+from starbash.tool.rcastro import RCAstroTool
 from starbash.tool.siril import SirilTool
 
 __all__ = [
@@ -32,6 +33,7 @@ __all__ = [
     "GraxpertExternalTool",
     "PythonTool",
     "PythonScriptError",
+    "RCAstroTool",
     "tools",
     "init_tools",
 ]
@@ -49,5 +51,5 @@ def init_tools(tool_prefs: dict[str, Any]) -> None:
 # A dictionary mapping tool names to their respective tool instances.
 tools: dict[str, Tool] = {
     tool.name.lower(): tool
-    for tool in list[Tool]([SirilTool(), GraxpertBuiltinTool(), PythonTool()])
+    for tool in list[Tool]([SirilTool(), GraxpertBuiltinTool(), PythonTool(), RCAstroTool()])
 }

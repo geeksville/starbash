@@ -13,6 +13,7 @@ from starbash.tool import (
     GraxpertExternalTool,
     PythonScriptError,
     PythonTool,
+    RCAstroTool,
     SirilTool,
     Tool,
     ToolError,
@@ -24,6 +25,8 @@ from starbash.tool import (
     tool_run,
     tools,
 )
+from starbash.tool.base import tool_run_streaming
+from starbash.tool.rcastro import parse_json_line
 
 
 class TestSafeFormatter:
@@ -628,3 +631,175 @@ class TestGraxpertToolRun:
                 # Just verify the tool was found
                 if "not found" in str(e).lower():
                     pytest.fail("GraXpert command not found")
+
+
+class TestParseJsonLine:
+    """Tests for rc-astro JSON line parsing."""
+
+    def test_parses_progress_event(self):
+        obj = parse_json_line('{"event":"progress","done":50.0,"eta":10.0}')
+        assert obj is not None
+        assert obj["event"] == "progress"
+        assert obj["done"] == 50.0
+
+    def test_parses_status_event(self):
+        obj = parse_json_line('{"event":"status","phase":"saving","message":"Saving"}')
+        assert obj is not None
+        assert obj["message"] == "Saving"
+
+    def test_blank_line_returns_none(self):
+        assert parse_json_line("   ") is None
+
+    def test_non_json_line_returns_none(self):
+        assert parse_json_line("some diagnostic text") is None
+
+    def test_non_object_json_returns_none(self):
+        # Valid JSON, but not a dict
+        assert parse_json_line("[1, 2, 3]") is None
+
+    def test_sample_stream_progress_and_status(self):
+        """Feed the design-doc sample lines and assert progress + status are captured."""
+        sample = [
+            '{"event":"info","topic":"version","cliVersion":"1.1.3","schemaVersion":4}',
+            '{"event":"status","phase":"initializing","message":"Initializing"}',
+            '{"event":"progress","done":0.6,"mpPerSec":0.1,"eta":237.1}',
+            '{"event":"progress","done":100.0,"mpPerSec":0.2,"eta":0.0}',
+            '{"event":"status","phase":"complete","message":"Done","output":"foo.fits"}',
+            "not a json line",
+        ]
+        parsed = [parse_json_line(line) for line in sample]
+        # last (non-json) line ignored
+        assert parsed[-1] is None
+        progress = [p for p in parsed if p and p["event"] == "progress"]
+        assert [p["done"] for p in progress] == [0.6, 100.0]
+        statuses = [p["message"] for p in parsed if p and p["event"] == "status"]
+        assert statuses == ["Initializing", "Done"]
+
+
+class TestRCAstroTool:
+    """Tests for RCAstroTool argument construction and execution."""
+
+    def test_build_args_injects_json(self):
+        tool = RCAstroTool()
+        args = tool.build_args(["bxt", "in.fits", "--output", "out.fits"], {})
+        assert args == ["--json", "bxt", "in.fits", "--output", "out.fits"]
+
+    def test_build_args_does_not_duplicate_json(self):
+        tool = RCAstroTool()
+        args = tool.build_args(["--json", "bxt", "in.fits"], {})
+        assert args.count("--json") == 1
+
+    def test_build_args_expands_context(self):
+        tool = RCAstroTool()
+        args = tool.build_args(
+            ["bxt", "{input}", "--sharpen-stars", "{strength}"],
+            {"input": "in.fits", "strength": "0.5"},
+        )
+        assert args == ["--json", "bxt", "in.fits", "--sharpen-stars", "0.5"]
+
+    def test_registered_in_tools(self):
+        assert isinstance(tools.get("rc-astro"), RCAstroTool)
+
+    def test_run_builds_expected_command(self, monkeypatch):
+        """RCAstroTool.run should build the full rc-astro command and stream output."""
+        captured: dict[str, str] = {}
+
+        def fake_stream(cmd, cwd, on_line, timeout=None, log_out=None):
+            captured["cmd"] = cmd
+            # Handler must tolerate progress, status and non-json lines
+            on_line('{"event":"progress","done":100.0,"eta":0.0}')
+            on_line('{"event":"status","phase":"complete","message":"Done"}')
+            on_line("not json")
+
+        monkeypatch.setattr("starbash.tool.rcastro.tool_run_streaming", fake_stream)
+        monkeypatch.setattr(Tool, "Preferences", {"rc-astro": {"path": "/usr/bin/rc-astro"}})
+
+        tool = RCAstroTool()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tool.run(
+                [
+                    "bxt",
+                    "in.fits",
+                    "--output",
+                    "out.fits",
+                    "--sharpen-stars",
+                    "0.5",
+                    "--sharpen-nonstellar",
+                    "0.5",
+                ],
+                context={},
+                cwd=temp_dir,
+            )
+
+        assert captured["cmd"] == (
+            "/usr/bin/rc-astro --json bxt in.fits --output out.fits "
+            "--sharpen-stars 0.5 --sharpen-nonstellar 0.5"
+        )
+
+
+class TestToolRunStreaming:
+    """Tests for the streaming subprocess runner."""
+
+    def test_streaming_collects_lines(self):
+        lines: list[str] = []
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tool_run_streaming(
+                """echo '{"event":"progress","done":50.0}'""",
+                temp_dir,
+                on_line=lines.append,
+            )
+        assert any("progress" in line for line in lines)
+
+    def test_streaming_failure_raises(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with pytest.raises(ToolError, match="failed with exit code 1"):
+                tool_run_streaming("false", temp_dir, on_line=lambda line: None)
+
+    def test_streaming_timeout(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with pytest.raises(RuntimeError, match="timed out"):
+                # emit a line every ~0.2s so the deadline check fires between lines
+                tool_run_streaming(
+                    "for i in 1 2 3 4 5 6 7 8 9 10; do echo $i; sleep 0.2; done",
+                    temp_dir,
+                    on_line=lambda line: None,
+                    timeout=0.3,
+                )
+
+
+class TestBlurExterminatorRecipe:
+    """Tests that the blur-exterminator recipe is wired correctly."""
+
+    def _load_recipe(self):
+        import tomlkit
+
+        recipe = (
+            Path(__file__).parents[2]
+            / "starbash-recipes"
+            / "rc-astro"
+            / "blur-exterminator.toml"
+        )
+        return tomlkit.parse(recipe.read_text())
+
+    def test_parameters_have_defaults(self):
+        doc = self._load_recipe()
+        params = {p["name"]: p for p in doc["parameters"]}
+        assert params["bxt_sharpen_stars"]["default"] == 0.5
+        assert params["bxt_sharpen_nonstellar"]["default"] == 0.5
+
+    def test_stage_uses_rc_astro_after_background(self):
+        doc = self._load_recipe()
+        stage = doc["stages"][0]
+        assert stage["tool"]["name"] == "rc-astro"
+        assert stage["inputs"][0]["after"] == "background.*"
+
+    def test_stage_sorts_after_background(self):
+        from starbash.stages import sort_stages
+
+        doc = self._load_recipe()
+        blur = doc["stages"][0]
+        background = {"name": "background", "inputs": [{"after": "stack_.*"}]}
+        ordered = sort_stages([blur, background])
+        names = [s.get("name") for s in ordered]
+        assert names.index("background") < names.index("blur_exterminator")
+

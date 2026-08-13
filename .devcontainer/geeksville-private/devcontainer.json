@@ -21,7 +21,7 @@
 	// "forwardPorts": [5000]
 	"runArgs": [
 		"--privileged", // Allow full hw access from host, also allows writing core dump files
-		"--hostname=toolbx",
+		// "--hostname=starbash-geeksville", // For easier management
 		// "--network=host", // Use host network rather than our bridged container network
 		"--ipc=host", // Needed to make python SharedMemory work
 		"--user=1000:1000",
@@ -64,7 +64,9 @@
 		// My big NAS
 		"source=/mnt/pool/big/kevinh/telescope/,destination=/mnt/pool/big/kevinh/telescope/,type=bind",
 		// My nTB fast SSD
-		"source=/mnt/big_stick/kevinh,destination=/mnt/fast_stick/,type=bind"
+		"source=/mnt/big_stick/kevinh,destination=/mnt/fast_stick/,type=bind",
+		// My RC-Astro config/license files
+		"source=${localEnv:HOME}${localEnv:USERPROFILE}/.config/RC-Astro,target=/home/vscode/.config/RC-Astro,type=bind,consistency=cached"
 	],
 	"containerEnv": {
 		// Needed for X11 forwarding

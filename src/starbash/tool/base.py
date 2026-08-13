@@ -8,6 +8,8 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+from collections.abc import Callable
+from contextlib import nullcontext
 from typing import Any
 
 from rich.live import Live
@@ -24,6 +26,7 @@ __all__ = [
     "MissingToolError",
     "ExternalTool",
     "tool_run",
+    "tool_run_streaming",
 ]
 
 # If we want to ensure that child tools don't accidentally try to open GUI windows, we can set this flag.
@@ -207,6 +210,80 @@ def tool_run(
         logger.debug("Tool command successful.")
 
 
+def tool_run_streaming(
+    cmd: str,
+    cwd: str,
+    on_line: Callable[[str], None],
+    timeout: float | None = None,
+    log_out: io.TextIOWrapper | None = None,
+) -> None:
+    """Execute an external tool, invoking on_line for each stdout line as it arrives.
+
+    Unlike tool_run(), this streams stdout line-by-line so callers can react to
+    incremental output (e.g. JSON progress events). stderr is collected and handled
+    after the process exits. A non-zero exit code raises ToolError.
+    """
+    import time
+
+    logger.debug(f"Streaming {cmd} in {cwd}")
+
+    env = os.environ.copy()
+
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True,
+        text=True,
+        cwd=cwd,
+        env=env,
+    )
+    assert process.stdout is not None
+
+    deadline = (time.monotonic() + timeout) if timeout else None
+    stdout_captured: list[str] = []
+
+    try:
+        for line in process.stdout:
+            stdout_captured.append(line)
+            if log_out:
+                log_out.write(line)
+                log_out.flush()  # Just in case the user is 'tailing' the file
+            try:
+                on_line(line)
+            except Exception:
+                logger.exception("Error in tool output line handler")
+            if deadline is not None and time.monotonic() > deadline:
+                process.kill()
+                process.wait()
+                if process.stderr:
+                    process.stderr.close()
+                raise RuntimeError(f"Tool timed out after {timeout} seconds")
+    finally:
+        process.stdout.close()
+
+    stderr_lines = process.stderr.read() if process.stderr else ""
+    if process.stderr:
+        process.stderr.close()
+    returncode = process.wait()
+
+    stdout_lines = "".join(stdout_captured)
+    if returncode != 0:
+        # log stdout with error priority because the tool failed
+        tool_emit_logs(stdout_lines, log_level=logging.ERROR)
+
+    if stderr_lines:
+        stderr_level = logging.ERROR if returncode != 0 else logging.WARNING
+        logger.log(stderr_level, f"[tool-warnings] {stderr_lines}")
+
+    if returncode != 0:
+        raise ToolError(
+            f"{cmd} failed with exit code {returncode}", command=cmd, arguments=None
+        )
+    else:
+        logger.debug("Tool command successful.")
+
+
 class Tool:
     """A tool for stage execution"""
 
@@ -217,6 +294,11 @@ class Tool:
     # Tools and recursively invoke other tools.  So it is important that if we've set a log file destination at the top
     # of our call tree, that variables get passed down to all sub-tools.
     _default_log_out: io.TextIOWrapper | None = None
+
+    # If True, this tool renders its own progress display in _run() (e.g. a Rich
+    # Progress bar), so Tool.run() suppresses the default spinner to avoid nested
+    # Live displays.
+    manages_own_progress: bool = False
 
     def __init__(self, name: str) -> None:
         self.name: str = name
@@ -248,10 +330,22 @@ class Tool:
         from starbash import console  # Lazy import to avoid circular dependency
 
         temp_dir = None
-        spinner = Spinner(
-            "arc", text=f"Tool running: [bold]{self.name}[/bold]...", speed=2.0, style=SPINNER_STYLE
+        spinner = (
+            None
+            if self.manages_own_progress
+            else Spinner(
+                "arc",
+                text=f"Tool running: [bold]{self.name}[/bold]...",
+                speed=2.0,
+                style=SPINNER_STYLE,
+            )
         )
-        with Live(spinner, console=console, refresh_per_second=5, transient=True):
+        display = (
+            nullcontext()
+            if spinner is None
+            else Live(spinner, console=console, refresh_per_second=5, transient=True)
+        )
+        with display:
             did_set_default_log = (
                 False  # Assume we are not the top entry into the chain of tool calls
             )
@@ -275,7 +369,8 @@ class Tool:
 
                 self._run(cwd, commands, context=context, log_out=my_log, **kwargs)
             finally:
-                spinner.update(text=f"Tool completed: [bold]{self.name}[/bold].")
+                if spinner is not None:
+                    spinner.update(text=f"Tool completed: [bold]{self.name}[/bold].")
                 if temp_dir:
                     shutil.rmtree(temp_dir)
                     context.pop("temp_dir", None)
