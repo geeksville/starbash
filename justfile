@@ -32,9 +32,10 @@ install-starnet:
     chmod a+x ~/packages/starnet/starnet++
     rm /tmp/starnet.zip
 
+# install the rc-astro CLI tool 
 install-rc-astro:
     #!/usr/bin/env bash
-    # Install the RC-Astro binaries (for testing)
+    [ -f /usr/local/bin/rc-astro ] && exit 0
     wget -O /tmp/rcastro.sh https://www.rc-astro-cdn.com/cli/rc-astro-cli-1.1.3-linux-x64.sh
     chmod a+x /tmp/rcastro.sh
     /tmp/rcastro.sh
@@ -51,19 +52,22 @@ use-local-recipes:
 use-standard-recipes:
     sb repo remove file:///workspaces/starbash/starbash-recipes
 
-# wipe install and do standard reinit
-common-init: clean-cache clean-config clean-masters install-completion use-local-recipes
+# configure for a developer (myself) with my name/email and local repos
+reinit-dev:
     echo "Reiniting a developer config..."
     sb user name "Kevin Hester"
     sb user email "kevinh@geeksville.com"
     sb repo add --master /mnt/pool/big/kevinh/telescope/masters
     sb repo add --processed /mnt/pool/big/kevinh/telescope/processed
 
-# Use our 'big' test database
+# wipe install and do standard reinit
+common-init: clean-cache clean-config clean-masters install-completion use-local-recipes reinit-dev
+
+# Use our 'big' test database and try not to lose settings if we can help it.  
 reinit-big: install-rc-astro # do subtasks below to guarantee ordering
     just use-workspace-config
     just use-usb-cache
-    just common-init
+    just reinit-dev
     just use-local-recipes
     sb repo add /mnt/pool/big/kevinh/telescope/from_asiair
     sb repo add /mnt/pool/big/kevinh/telescope/from_seestar
@@ -73,27 +77,28 @@ reinit-big: install-rc-astro # do subtasks below to guarantee ordering
 
 # Use a remote cache for starbash temp files
 use-remote-cache:
-    rm -rf ~/.cache/starbash
+    #!/usr/bin/env bash
+    target=/mnt/pool/big/kevinh/telescope/starbash/cache
+    mkdir -p "$target"
     mkdir -p ~/.cache
-    mkdir -p /mnt/pool/big/kevinh/telescope/starbash/cache
-    ln -s /mnt/pool/big/kevinh/telescope/starbash/cache ~/.cache/starbash
+    [ "$(readlink ~/.cache/starbash)" = "$target" ] || { rm -rf ~/.cache/starbash && ln -s "$target" ~/.cache/starbash; }
 
 # Use a USB cache for starbash temp files
 use-usb-cache:
-    rm -rf ~/.cache/starbash
+    #!/usr/bin/env bash
+    target=/mnt/fast_stick/starbash/cache
+    mkdir -p "$target"
     mkdir -p ~/.cache
-    mkdir -p /mnt/fast_stick/starbash/cache
-    ln -s /mnt/fast_stick/starbash/cache ~/.cache/starbash
+    [ "$(readlink ~/.cache/starbash)" = "$target" ] || { rm -rf ~/.cache/starbash && ln -s "$target" ~/.cache/starbash; }
 
 # keep the config/cache files in the workspace so that it lives even if the container is recreated
 use-workspace-config:
-    rm -rf ~/.cache/starbash
-    mkdir -p ~/.cache
-    ln -s `pwd`/.cache ~/.cache/starbash
-    rm -rf ~/.config/starbash
-    ln -s `pwd`/.config ~/.config/starbash
-    rm -rf ~/.local/share/starbash
-    ln -s `pwd`/.local ~/.local/share/starbash
+    #!/usr/bin/env bash
+    cwd=$(pwd)
+    mkdir -p ~/.cache ~/.config ~/.local/share
+    [ "$(readlink ~/.cache/starbash)" = "$cwd/.cache" ] || { rm -rf ~/.cache/starbash && ln -s "$cwd/.cache" ~/.cache/starbash; }
+    [ "$(readlink ~/.config/starbash)" = "$cwd/.config" ] || { rm -rf ~/.config/starbash && ln -s "$cwd/.config" ~/.config/starbash; }
+    [ "$(readlink ~/.local/share/starbash)" = "$cwd/.local" ] || { rm -rf ~/.local/share/starbash && ln -s "$cwd/.local" ~/.local/share/starbash; }
 
 # our small standard set of test images (from ghcr.io/geeksville/starbash/test-data:latest)
 reinit: common-init
