@@ -38,3 +38,5 @@ if ! grep -q "fpath+=~/.zfunc" ~/.zshrc; then
     echo 'fpath+=~/.zfunc' >> ~/.zshrc
     echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
 fi
+
+just init-devcontainer

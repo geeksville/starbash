@@ -38,6 +38,7 @@
 	// Download and initialize the test-data container
 	"initializeCommand": "bash .devcontainer/create-test-data.sh",
 	"mounts": [
+		"source=/etc/localtime,target=/etc/localtime,type=bind,consistency=cached,readonly",
 		// NOTE: None of the following are allowed in GitHub CI devcontainers
 		// Needed for x11 forwarding, but throws: invalid mount config for type "bind": bind source path does not exist: /run/user/1000
 		// on github CI.

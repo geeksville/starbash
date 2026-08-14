@@ -3,6 +3,8 @@
 default:
     just --list
 
+init-devcontainer: install-starnet install-rc-astro use-workspace-config
+
 clean-cache:
     rm -rf ~/.cache/starbash
 
@@ -26,11 +28,12 @@ install-completion:
 
 # Install the starnet binaries
 install-starnet:
-    wget -O /tmp/starnet.zip https://starnetastro.com/wp-content/uploads/2022/03/StarNetv2CLI_linux.zip
+    #!/usr/bin/env bash
+    [ -f /usr/bin/starnet2 ] && exit 0
+    wget -O /tmp/starnet.deb https://download.starnetastro.com/StarNet2_linux_2.5.4-0214_ORT_x64.deb
     mkdir -p ~/packages
-    unzip -jo /tmp/starnet.zip -d ~/packages/starnet
-    chmod a+x ~/packages/starnet/starnet++
-    rm /tmp/starnet.zip
+    sudo dpkg -i /tmp/starnet.deb
+    rm /tmp/starnet.deb
 
 # install the rc-astro CLI tool 
 install-rc-astro:
@@ -64,7 +67,7 @@ reinit-dev:
 common-init: clean-cache clean-config clean-masters install-completion use-local-recipes reinit-dev
 
 # Use our 'big' test database and try not to lose settings if we can help it.  
-reinit-big: install-rc-astro # do subtasks below to guarantee ordering
+reinit-big: # do subtasks below to guarantee ordering
     just use-workspace-config
     just use-usb-cache
     just reinit-dev
