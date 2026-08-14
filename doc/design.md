@@ -374,3 +374,108 @@ OPTIONS:
                               Pixel scale of the low/high frequency transition band
           --it, --iterations (float in [1, 5], default 2) 
                               Number of denoising iterations to perform
+
+
+## stage m4: starnet star removal
+
+Replace `starbash-recipes/common/starnet.toml` with a valid siril-based recipe that
+runs after `sho` and produces a starless image and a star mask.
+
+### Key behaviour (from actual siril output)
+
+Siril writes its outputs into **the same directory as the input file**, not `process_dir`:
+
+```
+Saving FITS: file /home/vscode/starless_bk_stacked.fit
+Saving FITS: file /home/vscode/starmask_bk_stacked.fit
+```
+
+The naming pattern is `starless_<stem>.fit` and `starmask_<stem>.fit`. Because the
+output directory is owned by the output repo (not an arbitrary temp dir), the recipe
+script must load each siril-generated file and re-save it to the declared output paths.
+
+### Goals
+
+1. Replace the placeholder `starnet.toml` with a complete, working recipe.
+2. Single parameter `starnet_params` (string, default `"-stretch"`) for full flexibility.
+3. `multiplex = true`, `after = "sho"` — one task per upstream SHO file.
+4. Two declared outputs: starless and starmask (see naming below).
+
+### Recipe design
+
+```toml
+[repo]
+kind = "recipe"
+
+[[parameters]]
+name = "starnet_params"
+default = "-stretch"
+description = "Options passed to siril starnet command (e.g. -stretch, -upscale)"
+
+[[stages]]
+name = "starnet"
+description = "Star removal with StarNet via Siril"
+tool.name = "siril"
+
+# siril writes starless_<stem>.fit and starmask_<stem>.fit into the working dir
+# (process_dir). We load each and re-save to the declared output paths.
+script = '''
+    load "{input[0].full_paths[0]}"
+    starnet {parameters.starnet_params}
+    load "starless_{input[0].full_paths[0].stem}.fit"
+    save "{output.full_paths[0]}"
+    load "starmask_{input[0].full_paths[0].stem}.fit"
+    save "{output.full_paths[1]}"
+    '''
+
+[[stages.inputs]]
+kind = "job"
+after = "sho"
+multiplex = true
+
+[[stages.inputs.requires]]
+kind = "min_count"
+value = 1
+
+# Multiple outputs are declared as ONE output block with a name list (see
+# stack_single_duo.toml). name entries are context-expanded, so we derive them
+# from the input stem: output.full_paths[0]=starless, [1]=starmask.
+[[stages.outputs]]
+kind = "processed"
+name = [
+    "starless_{input[0].full_paths[0].stem}.fits",
+    "starmask_{input[0].full_paths[0].stem}.fits",
+]
+```
+
+### Resolved design notes (verified against the code)
+
+1. **Multiple outputs** — use a **single** `[[stages.outputs]]` block with a
+   two-element `name` list (as `stack_single_duo.toml` does). `_resolve_output_files`
+   in [src/starbash/processing.py](../src/starbash/processing.py) stores exactly one
+   `output` FileInfo in context, so the two files must live in one block and are
+   referenced as `output.full_paths[0]` / `output.full_paths[1]`. Two separate blocks
+   would NOT both be visible to the script.
+2. **`name` entries are context-expanded** (`expand_context_unsafe`), so
+   `"starless_{input[0].full_paths[0].stem}.fits"` resolves to e.g.
+   `starless_SHO.fits` — this keeps names unique per input, so `multiplex = true`
+   is safe even if the upstream ever produces more than one file.
+3. **`.fit` vs `.fits`** — siril `starnet` writes `.fit` files into the working dir
+   (`process_dir`, set via `siril-cli -d <dir>`). We `load` those `.fit` files by
+   basename (relative to cwd) and `save` to the declared `.fits` output paths, matching
+   the existing `save "{output.full_paths[0]}"` pattern used by `sho.toml`.
+4. **`Path.stem`** is usable in `{...}` because `full_paths[0]` is a `Path` and
+   RestrictedPython allows attribute access (see `thumbnail.toml`'s
+   `output.full_paths[0].with_suffix('')`).
+
+### Tests
+
+- Load the recipe TOML and assert `tool.name == "siril"`, `after == "sho"`,
+  `multiplex == true`, and `parameters.starnet_params == "-stretch"`.
+- Assert the script contains `starnet {parameters.starnet_params}`.
+- Assert a single output block declares two `name` entries (starless + starmask).
+- Assert stage ordering: `starnet` sorts after `sho` via `sort_stages`.
+
+### Docs to update
+
+- `.github/copilot-instructions.md` — add `starnet` to the siril recipe list.

@@ -887,3 +887,50 @@ class TestNoiseExterminatorRecipe:
         assert names.index("blur_exterminator") < names.index("noise_exterminator")
 
 
+class TestStarnetRecipe:
+    """Tests that the starnet recipe is wired correctly."""
+
+    def _load_recipe(self):
+        import tomlkit
+
+        recipe = (
+            Path(__file__).parents[2] / "starbash-recipes" / "common" / "starnet.toml"
+        )
+        return tomlkit.parse(recipe.read_text())
+
+    def test_parameters_have_defaults(self):
+        doc = self._load_recipe()
+        params = {p["name"]: p for p in doc["parameters"]}
+        assert params["starnet_params"]["default"] == "-stretch"
+
+    def test_stage_uses_siril_after_sho(self):
+        doc = self._load_recipe()
+        stage = doc["stages"][0]
+        assert stage["name"] == "starnet"
+        assert stage["tool"]["name"] == "siril"
+        assert stage["inputs"][0]["after"] == "sho"
+        assert stage["inputs"][0]["multiplex"] is True
+        assert "starnet {parameters.starnet_params}" in stage["script"]
+
+    def test_declares_starless_and_starmask_outputs(self):
+        doc = self._load_recipe()
+        outputs = doc["stages"][0]["outputs"]
+        # Both outputs must live in a single block so the script can reference
+        # output.full_paths[0] (starless) and output.full_paths[1] (starmask).
+        assert len(outputs) == 1
+        names = list(outputs[0]["name"])
+        assert len(names) == 2
+        assert names[0].startswith("starless_")
+        assert names[1].startswith("starmask_")
+
+    def test_stage_sorts_after_sho(self):
+        from starbash.stages import sort_stages
+
+        doc = self._load_recipe()
+        starnet = doc["stages"][0]
+        sho = {"name": "sho", "inputs": [{"after": "noise_exterminator"}]}
+        ordered = sort_stages([starnet, sho])
+        names = [s.get("name") for s in ordered]
+        assert names.index("sho") < names.index("starnet")
+
+
