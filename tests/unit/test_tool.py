@@ -784,7 +784,8 @@ class TestToolRunStreaming:
 
         # Use the current interpreter so this works on Windows (no bash) and Unix alike
         slow_cmd = f'"{sys.executable}" -c "import time; [print(i, flush=True) or time.sleep(0.2) for i in range(10)]"'
-        with tempfile.TemporaryDirectory() as temp_dir:
+        # ignore_cleanup_errors: on Windows, TerminateProcess doesn't immediately release the cwd handle
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as temp_dir:
             with pytest.raises(RuntimeError, match="timed out"):
                 tool_run_streaming(
                     slow_cmd,
