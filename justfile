@@ -41,7 +41,7 @@ install-rc-astro:
     [ -f /usr/local/bin/rc-astro ] && exit 0
     wget -O /tmp/rcastro.sh https://www.rc-astro-cdn.com/cli/rc-astro-cli-1.1.3-linux-x64.sh
     chmod a+x /tmp/rcastro.sh
-    /tmp/rcastro.sh
+    sudo /tmp/rcastro.sh
 
 # Run starnet (for testing)
 starnet infile outfile="starless.tif" stride="256":
