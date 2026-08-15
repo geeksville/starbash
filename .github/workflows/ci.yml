@@ -57,7 +57,7 @@ jobs:
       #----------------------------------------------
       - name: Load cached venv
         id: cached-poetry-dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .venv
           key: venv-${{ matrix.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
@@ -75,7 +75,7 @@ jobs:
       - name: Load cached pipx
         if: matrix.os == 'ubuntu-latest'
         id: cached-pipx
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.local/pipx
@@ -88,7 +88,7 @@ jobs:
       - name: Load cached Flatpak
         if: matrix.os == 'ubuntu-latest'
         id: cached-flatpak
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.local/share/flatpak
