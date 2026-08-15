@@ -780,11 +780,14 @@ class TestToolRunStreaming:
                 tool_run_streaming("false", temp_dir, on_line=lambda line: None)
 
     def test_streaming_timeout(self):
+        import sys
+
+        # Use the current interpreter so this works on Windows (no bash) and Unix alike
+        slow_cmd = f'"{sys.executable}" -c "import time; [print(i, flush=True) or time.sleep(0.2) for i in range(10)]"'
         with tempfile.TemporaryDirectory() as temp_dir:
             with pytest.raises(RuntimeError, match="timed out"):
-                # emit a line every ~0.2s so the deadline check fires between lines
                 tool_run_streaming(
-                    "for i in 1 2 3 4 5 6 7 8 9 10; do echo $i; sleep 0.2; done",
+                    slow_cmd,
                     temp_dir,
                     on_line=lambda line: None,
                     timeout=0.3,
