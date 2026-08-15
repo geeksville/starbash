@@ -30,21 +30,21 @@ def _extract_temperature(filename: str) -> float | None:
     return None
 
 
+_monotonic_counter: int = 0
+
+
 def _make_monotonic_datetime() -> str:
     """Return a guaranteed unique date starting Jan 1, 2000.  Increment by 1 hour per
     each call."""
+    global _monotonic_counter
     from datetime import datetime, timedelta
-
-    # Use a function attribute to track call count
-    if not hasattr(_make_monotonic_datetime, "counter"):
-        _make_monotonic_datetime.counter = 0
 
     # Set base date to Jan 1, 2000 for factory calibration frames
     base = datetime(2000, 1, 1, 0, 0, 0)
 
     # Increment by 1 day per call - to ensure all images are treated as separate sessions
-    current = base + timedelta(days=_make_monotonic_datetime.counter)
-    _make_monotonic_datetime.counter += 1
+    current = base + timedelta(days=_monotonic_counter)
+    _monotonic_counter += 1
 
     # Format as ISO 8601 with milliseconds
     return current.strftime("%Y-%m-%dT%H:%M:%S.000")
@@ -52,8 +52,8 @@ def _make_monotonic_datetime() -> str:
 
 def _reset_monotonic_datetime() -> None:
     """Reset the monotonic datetime counter. Used for testing."""
-    if hasattr(_make_monotonic_datetime, "counter"):
-        _make_monotonic_datetime.counter = 0
+    global _monotonic_counter
+    _monotonic_counter = 0
 
 
 def extend_dwarf3_headers(headers: dict[str, Any], full_image_path: Path) -> bool:

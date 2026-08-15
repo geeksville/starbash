@@ -1,6 +1,7 @@
 import faulthandler
 import logging
 import sys
+import types
 from importlib.metadata import version
 from pathlib import Path
 from sqlite3 import OperationalError
@@ -52,7 +53,7 @@ critical_keys = [Database.DATE_OBS_KEY, Database.IMAGETYP_KEY]
 force_local_recipes = False  # Set to True to always use local recipes for testing
 
 
-def setup_logging(console: rich.console.Console):
+def setup_logging(console: rich.console.Console) -> None:
     """
     Configures basic logging.
     """
@@ -297,7 +298,7 @@ class Starbash:
     def __enter__(self) -> "Starbash":
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> bool:
+    def __exit__(self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: types.TracebackType | None) -> bool:
         from starbash import _is_test_env
         from starbash.exception import UserHandledError
 
@@ -758,7 +759,7 @@ class Starbash:
             # (otherwise invariants will get messed up)
             self._add_session(headers)
 
-    def reindex_repo(self, repo: Repo, subdir: str | None = None):
+    def reindex_repo(self, repo: Repo, subdir: str | None = None) -> None:
         """Reindex all repositories managed by the RepoManager."""
 
         # make sure this new repo is listed in the repos table
@@ -792,7 +793,7 @@ class Starbash:
                 except OSError as e:
                     logging.error(f'Skipping "{f}" due to: [red]{e}[/red]')
 
-    def reindex_repos(self):
+    def reindex_repos(self) -> None:
         """Reindex all repositories managed by the RepoManager."""
         logging.debug("Reindexing all repositories...")
 

@@ -2,7 +2,7 @@ import os
 import platform
 
 
-def linux_init():
+def linux_init() -> None:
     """Perform Linux-specific initialization."""
 
     if platform.system() == "Linux":

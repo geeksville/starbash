@@ -105,7 +105,7 @@ class FileInfo:
             return []
 
 
-def doit_do_copy(task_dict: TaskDict):
+def doit_do_copy(task_dict: TaskDict) -> None:
     """Just add an action that copies files from file_dep to targets"""
     src = task_dict["file_dep"]
     dest = task_dict["targets"]
@@ -120,7 +120,7 @@ def doit_do_copy(task_dict: TaskDict):
     task_dict["actions"] = copy_actions
 
 
-def add_action(task_dict: TaskDict, action: Callable):
+def add_action(task_dict: TaskDict, action: Callable) -> None:
     """Add an action to the task dictionary's actions list."""
     actions: list = task_dict.setdefault("actions", [])
     actions.append(action)
@@ -167,7 +167,7 @@ def cleanup_temporaries(stage: Any, context: dict[str, Any]) -> None:
                 logging.warning(f"Failed to remove temporary {match_path}: {e}")
 
 
-def doit_post_process(task_dict: TaskDict):
+def doit_post_process(task_dict: TaskDict) -> None:
     """Do after execution processing
 
     * Populate master output files in the DB (FIXME I think we can remove this once doit dependencies fully linked)
@@ -175,7 +175,7 @@ def doit_post_process(task_dict: TaskDict):
     * Advance the progress bar
     """
 
-    def closure(targets) -> None:
+    def closure(targets: list) -> None:
         logging.debug(f"Post processing task {task_dict['name']}")
 
         meta = task_dict.get("meta", {})
@@ -243,7 +243,7 @@ def merge_to(base_name: str, fi: FileInfo) -> None:
         symlink_or_copy(str(source_file), str(dest_path))
 
 
-def perhaps_merge_to(fi: FileInfo):
+def perhaps_merge_to(fi: FileInfo) -> None:
     input = fi.definition
     if input:
         merge: str | None = input.get("merge_to")
@@ -267,7 +267,7 @@ class ToolAction(BaseAction):
         self.cwd: str | None = cwd
         self.parameters: dict[str, Any] = parameters
 
-    def execute(self, out=None, err=None):
+    def execute(self, out: Any = None, err: Any = None) -> Any:
         # Doit requires that we set result to **something**. None is fine, though returning TaskFailed or a dictionary or a string.
         assert self.task and self.task.meta  # We always set this to context
         context: dict[str, Any] = self.task.meta["context"]
@@ -371,12 +371,12 @@ class ProcessingResult:
 class MyReporter(ConsoleReporter):
     """A custom reporter that uses rich progress bars to show task progress."""
 
-    def __init__(self, outstream, options):
+    def __init__(self, outstream: Any, options: Any) -> None:
         super().__init__(outstream, options)
         self.job_task = TaskID(0)
         self.processing: ProcessingLike | None = None
 
-    def execute_task(self, task):
+    def execute_task(self, task: Task) -> None:
         """Called just before running a task"""
         # self.outstream.write("MyReporter --> %s\n" % task.title())
 
@@ -405,25 +405,25 @@ class MyReporter(ConsoleReporter):
                 result.update(e or fail)
                 self.processing.add_result(result)
 
-    def skip_uptodate(self, task):
+    def skip_uptodate(self, task: Task) -> None:
         """skipped up-to-date task"""
         self._handle_completion(task, reason="Current", success=None)
 
-    def skip_ignore(self, task):
+    def skip_ignore(self, task: Task) -> None:
         """skipped ignored task"""
         self._handle_completion(task, reason="Ignored", success=None)
 
-    def add_success(self, task):
+    def add_success(self, task: Task) -> None:
         """called when execution finishes successfully (either this or add_failure is guaranteed to be called)"""
         super().add_success(task)
         self._handle_completion(task)
 
-    def add_failure(self, task, fail: BaseFail):
+    def add_failure(self, task: Task, fail: BaseFail) -> None:
         """called when execution finishes with a failure"""
         super().add_failure(task, fail)
         self._handle_completion(task, fail)
 
-    def initialize(self, tasks: OrderedDict[str, Task], selected_tasks):
+    def initialize(self, tasks: OrderedDict[str, Task], selected_tasks: list[str]) -> None:
         """called just after tasks have been loaded before execution starts
 
         tasks will be the full list of tasks we might run
@@ -441,7 +441,7 @@ class MyReporter(ConsoleReporter):
                     "Processing tasks...", total=len(tasks)
                 )
 
-    def complete_run(self):
+    def complete_run(self) -> None:
         """called when finished running all tasks"""
         super().complete_run()
 
@@ -489,7 +489,7 @@ class StarbashDoit(TaskLoader2):
         main = DoitMain(self)
         return main.run(args)
 
-    def setup(self, opt_values) -> None:
+    def setup(self, opt_values: Any) -> None:
         """Required by baseclass"""
         pass
 
@@ -505,7 +505,7 @@ class StarbashDoit(TaskLoader2):
             "backend": "dbm", # the json backend is slow and buggy, use dbm instead
         }
 
-    def load_tasks(self, cmd, pos_args):
+    def load_tasks(self, cmd: Any, pos_args: Any) -> list[Task]:
         """Load tasks for Starbash. (required by baseclass)
 
         Args:

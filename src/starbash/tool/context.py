@@ -27,7 +27,7 @@ __all__ = [
 class _SafeFormatter(dict):
     """A dictionary for safe string formatting that ignores missing keys during expansion."""
 
-    def __missing__(self, key):
+    def __missing__(self, key: str) -> str:
         return "{" + key + "}"
 
 
@@ -117,7 +117,7 @@ def expand_context_unsafe(s: str, context: dict) -> str:
     # Find all expressions in curly braces
     pattern = r"\{([^{}]+)\}"
 
-    def eval_expression(match):
+    def eval_expression(match: re.Match[str]) -> str:
         """Evaluate a single expression and return its string representation."""
         expr = match.group(1).strip()
 
@@ -155,7 +155,7 @@ def expand_context_unsafe(s: str, context: dict) -> str:
 
 
 class MyPrinter(_PrintCollector):
-    def write(self, text):
+    def write(self, text: str) -> None:
         logger.info(f"Script print: {text}")
         super().write(text)
 
@@ -188,17 +188,17 @@ def make_safe_globals(extra_globals: dict = {}) -> dict:
 
     builtins = safe_builtins.copy()
 
-    def write_test(obj):
+    def write_test(obj: Any) -> Any:
         """``_write_`` is a guard function taking a single argument.  If the
         object passed to it may be written to, it should be returned,
         otherwise the guard function should raise an exception.  ``_write_``
         is typically called on an object before a ``setattr`` operation."""
         return obj
 
-    def getitem_glue(baseobj, index):
+    def getitem_glue(baseobj: Any, index: Any) -> Any:
         return baseobj[index]
 
-    def getattr_glue(obj, name, default=None):
+    def getattr_glue(obj: Any, name: str, default: Any = None) -> Any:
         """Safe attribute access policy that allows special methods like __init__."""
         # Allow access to common special methods needed for basic Python functionality
         allowed_special = {

@@ -24,7 +24,7 @@ def is_under_powershell() -> bool:
     return "PSModulePath" in os.environ
 
 
-def windows_init():
+def windows_init() -> None:
     """Perform any Windows-specific initialization if needed."""
 
     # Check if running on Windows without PowerShell

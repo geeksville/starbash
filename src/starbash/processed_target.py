@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import shutil
 import tempfile
+import types
 from pathlib import Path
 from typing import Any
 
@@ -268,5 +269,5 @@ class ProcessedTarget:
     def __enter__(self) -> ProcessedTarget:
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: types.TracebackType | None) -> None:
         self.close()

@@ -19,7 +19,7 @@ def analytics(
             help="Enable or disable analytics (crash reports and usage data).",
         ),
     ],
-):
+) -> None:
     """
     Enable or disable analytics (crash reports and usage data).
     """
@@ -41,7 +41,7 @@ def name(
             help="Your name for attribution in generated images.",
         ),
     ],
-):
+) -> None:
     """
     Set your name for attribution in generated images.
     """
@@ -61,7 +61,7 @@ def email(
             help="Your email for attribution in generated images.",
         ),
     ],
-):
+) -> None:
     """
     Set your email for attribution in generated images.
     """
@@ -194,7 +194,7 @@ def do_reinit(sb: Starbash) -> None:
 
 
 @app.command()
-def setup():
+def setup() -> None:
     """
     Configure starbash via a brief guided process.
 
@@ -206,7 +206,7 @@ def setup():
 
 
 @app.callback(invoke_without_command=True)
-def main_callback(ctx: typer.Context):
+def main_callback(ctx: typer.Context) -> None:
     """Main callback for the Starbash application."""
     if ctx.invoked_subcommand is None:
         from starbash import console

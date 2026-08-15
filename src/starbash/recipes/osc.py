@@ -25,7 +25,7 @@ def fix_sequence_name(path: str) -> str:
     return base
 
 
-def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str):
+def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str) -> None:
     """
     Registers and stacks all pre-processed light frames for a given filter configuration
     across all sessions.
@@ -95,7 +95,7 @@ def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str
     siril.run(commands, context=context, cwd=context["process_dir"])
 
 
-def make_renormalize(channel_num: int):
+def make_renormalize(channel_num: int) -> None:
     """
     Aligns the stacked images (Sii, Ha, OIII) and renormalizes Sii and OIII
     to match the flux of the Ha channel.
@@ -169,7 +169,7 @@ def make_renormalize(channel_num: int):
     logger.info(f"Saved final renormalized images to {results_dir}")
 
 
-def osc_process(has_ha_oiii: bool, has_sii_oiii: bool):
+def osc_process(has_ha_oiii: bool, has_sii_oiii: bool) -> None:
     """Shared code for use by OSC processing scripts"""
 
     logger.info(f"Running osc_process(has_ha_oiii={has_ha_oiii}, has_sii_oiii={has_sii_oiii})")

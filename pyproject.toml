@@ -117,19 +117,22 @@ exclude = [
 [tool.ruff.lint]
 # Enable these rule sets
 select = [
-    "E",  # pycodestyle errors
-    "F",  # pyflakes
-    "I",  # isort (import sorting)
-    "W",  # pycodestyle warnings
-    "UP", # pyupgrade
-    "B",  # flake8-bugbear
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort (import sorting)
+    "W",   # pycodestyle warnings
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "ANN", # flake8-annotations (type annotation enforcement)
 ]
 
 # Ignore specific rules that are too noisy for this codebase
 ignore = [
-    "E501", # Line too long (handled by formatter)
-    "B904", # Within an `except` clause, raise exceptions with `raise ... from err`
-    "B006", # Do not use mutable data structures for argument defaults
+    "E501",   # Line too long (handled by formatter)
+    "B904",   # Within an `except` clause, raise exceptions with `raise ... from err`
+    "B006",   # Do not use mutable data structures for argument defaults
+    "ANN401", # Dynamically typed expressions (Any) are sometimes necessary
+    "ANN204", # Missing return type for __init__ / __new__ / __post_init__
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -142,6 +145,7 @@ ignore = [
     "F401",    # Imported but unused
     "F841",    # Local variable assigned but never used
     "PLC0415", # Import should be at top of file
+    "ANN",     # Type annotations not required in tests
 ]
 
 [tool.basedpyright]
@@ -149,7 +153,7 @@ ignore = [
 include = ["src"]
 exclude = ["**/__pycache__", ".venv", "build", "dist"]
 extraPaths = ["GraXpert", "toml-repo"]  # Include local sources for type checking
-typeCheckingMode = "basic"                             # Catches import errors without being overly strict
+typeCheckingMode = "standard"                          # Standard type checking: catches type errors, missing annotations, etc.
 reportMissingImports = true
 reportImportCycles = true
 reportUndefinedVariable = true

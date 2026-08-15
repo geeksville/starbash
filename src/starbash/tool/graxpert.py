@@ -19,7 +19,12 @@ class GraxpertBuiltinTool(Tool):
         super().__init__("GraXpert")
 
     def _run(
-        self, cwd: str, commands: str | list[str], context: dict = {}, **kwargs: dict[str, Any]
+        self,
+        cwd: str,
+        commands: str | list[str],
+        context: dict = {},
+        log_out: io.TextIOWrapper | None = None,
+        **kwargs: dict[str, Any],
     ) -> None:
         """Executes Graxpert with the specified command line arguments"""
 

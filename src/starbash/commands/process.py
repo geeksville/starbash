@@ -39,7 +39,7 @@ def siril(
             help="Automatically launch Siril GUI after generating directory tree",
         ),
     ] = False,
-):
+) -> None:
     """Generate Siril directory tree and optionally run Siril GUI.
 
     Creates a properly structured directory tree for Siril processing with
@@ -64,7 +64,7 @@ def siril(
 
         # Get images for this session
 
-        def session_to_dir(src_session: SessionRow, subdir_name: str):
+        def session_to_dir(src_session: SessionRow, subdir_name: str) -> None:
             """Copy the images from the specified session to the subdir"""
             img_dir = output_dir / subdir_name
             img_dir.mkdir(parents=True, exist_ok=True)
@@ -196,7 +196,7 @@ def auto(
             help="Don't automatically generated master frames",
         ),
     ] = False,
-):
+) -> None:
     """Automatic processing with sensible defaults.
 
     If session number is specified, processes only that session.
@@ -254,7 +254,7 @@ def auto(
 )
 def doit(
     ctx: typer.Context,
-):
+) -> None:
     """(private) for developer debugging of the underlying 'doit' dependency system.
 
     You probably don't need to use this - unless you are a starbash developer.
@@ -268,7 +268,7 @@ def doit(
 
 
 @app.command()
-def masters():
+def masters() -> None:
     """Generate master flats, darks, and biases from selected raw frames.
 
     Analyzes the current selection to find all available calibration frames
@@ -289,7 +289,7 @@ def masters():
 
 
 @app.callback(invoke_without_command=True)
-def main_callback(ctx: typer.Context):
+def main_callback(ctx: typer.Context) -> None:
     """Process images using automated workflows.
 
     These commands handle calibration, registration, stacking, and

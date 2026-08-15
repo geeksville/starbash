@@ -50,7 +50,7 @@ def main_callback(
         "--verbose",
         help="When providing responses, include all entries.  Normally long responses are truncated.",
     ),
-):
+) -> None:
     """Main callback for the Starbash application."""
     # Set the log level based on --debug flag
     if debug:

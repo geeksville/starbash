@@ -2,6 +2,7 @@
 
 import logging
 from collections import Counter
+from collections.abc import Generator
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -35,7 +36,7 @@ def get_column(sb: Starbash, column_name: str) -> Counter:
     return all_counts
 
 
-def complete_date(incomplete: str, column_name: str):
+def complete_date(incomplete: str, column_name: str) -> Generator[tuple[str, str], None, None]:
     """calls get_column() and assumes the returned str->count object has iso datetime strings as the keys
     it merges the counts for all dates that are on the same local timezone day.
     in the returned str->count, just include the date portion (YYYY-MM-DD)."""
@@ -58,7 +59,7 @@ def complete_date(incomplete: str, column_name: str):
                 yield (date, f"{count} sessions")
 
 
-def complete_column(incomplete: str, column_name: str):
+def complete_column(incomplete: str, column_name: str) -> Generator[tuple[str, str], None, None]:
     # We need to use stderr_logging to prevent confusing the bash completion parser
     starbash.log_filter_level = logging.ERROR  # avoid showing output while doing completion
     with Starbash("repo.complete.column", stderr_logging=True) as sb:
@@ -70,7 +71,7 @@ def complete_column(incomplete: str, column_name: str):
 
 
 @app.command(name="any")
-def clear():
+def clear() -> None:
     """Remove any filters on sessions, etc... (select everything)."""
     with Starbash("selection.clear") as sb:
         sb.selection.clear()
@@ -87,7 +88,7 @@ def target(
             autocompletion=lambda incomplete: complete_column(incomplete, Database.OBJECT_KEY),
         ),
     ],
-):
+) -> None:
     """Limit the current selection to only the named target."""
     with Starbash("selection.target") as sb:
         # For now, replace existing targets with this one
@@ -107,7 +108,7 @@ def telescope(
             autocompletion=lambda incomplete: complete_column(incomplete, Database.TELESCOP_KEY),
         ),
     ],
-):
+) -> None:
     """Limit the current selection to only the named telescope."""
     with Starbash("selection.telescope") as sb:
         # For now, replace existing telescopes with this one
@@ -118,7 +119,7 @@ def telescope(
         do_list_sessions(sb, brief=not starbash.verbose_output)
 
 
-def complete_name(incomplete: str, names: list[str]):
+def complete_name(incomplete: str, names: list[str]) -> Generator[str, None, None]:
     """Return typer style autocompletion from a list of string constants."""
     for name in names:
         if name.startswith(incomplete):
@@ -150,7 +151,7 @@ def date(
             autocompletion=lambda incomplete: complete_date(incomplete, Database.START_KEY),
         ),
     ] = None,
-):
+) -> None:
     """Limit to sessions in the specified date range.
 
     Examples:
@@ -184,7 +185,7 @@ def date(
         do_list_sessions(sb, brief=not starbash.verbose_output)
 
 
-def do_list_sessions(sb: Starbash, brief: bool = False):
+def do_list_sessions(sb: Starbash, brief: bool = False) -> None:
     """List sessions (filtered based on the current selection)"""
 
     sessions = sb.search_session()
@@ -308,7 +309,7 @@ def list_sessions(
         "--brief",
         help="If there are many sessions, show only a few.",
     ),
-):
+) -> None:
     """List sessions (filtered based on the current selection)"""
 
     with Starbash("selection.list") as sb:
@@ -351,7 +352,7 @@ def export(
         str,
         typer.Argument(help="Directory path to export to (if it doesn't exist it will be created)"),
     ],
-):
+) -> None:
     """Export the images for the indicated session number.
 
     Uses symbolic links when possible, otherwise copies files.
@@ -377,7 +378,7 @@ def export(
 
 
 @app.callback(invoke_without_command=True)
-def show_selection(ctx: typer.Context):
+def show_selection(ctx: typer.Context) -> None:
     """List information about the current selection.
 
     This is the default command when no subcommand is specified.

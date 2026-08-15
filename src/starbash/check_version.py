@@ -11,7 +11,7 @@ __all__ = [
 _is_connected: bool | None = None
 
 
-def is_connected(host="8.8.8.8", port=53, timeout=3) -> bool:
+def is_connected(host: str = "8.8.8.8", port: int = 53, timeout: int = 3) -> bool:
     """
     Host: 1.1.1.1 (Cloudflare DNS) or 8.8.8.8 (Google DNS) (it is important to not use domain names)
     Port: 53/tcp
@@ -37,7 +37,7 @@ def is_connected(host="8.8.8.8", port=53, timeout=3) -> bool:
         socket.setdefaulttimeout(old_timeout)
 
 
-def check_version():
+def check_version() -> None:
     """Check if a newer version of starbash is available on PyPI."""
     try:
         if is_connected():

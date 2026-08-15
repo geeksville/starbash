@@ -71,7 +71,7 @@ class PythonScriptError(UserHandledError):
 class PermissiveNodeTransformer(RestrictingNodeTransformer):
     """FIXME we temporarily allow more access than RestrictedPython usually grants"""
 
-    def check_name(self, node, name, allow_magic_methods=False):
+    def check_name(self, node: Any, name: str | None, allow_magic_methods: bool = False) -> None:
         """Check names if they are allowed.
 
         If ``allow_magic_methods is True`` names in `ALLOWED_FUNC_NAMES`
@@ -101,7 +101,7 @@ class PermissiveNodeTransformer(RestrictingNodeTransformer):
         elif name in FORBIDDEN_FUNC_NAMES:
             self.error(node, f'"{name}" is a reserved name.')
 
-    def visit_Attribute(self, node):
+    def visit_Attribute(self, node: ast.Attribute) -> ast.AST:
         """Checks and mutates attribute access/assignment.
 
         'a.b' becomes '_getattr_(a, "b")'
@@ -166,8 +166,9 @@ class PythonTool(Tool):
         self.default_script_file = "starbash.py"
 
     def _run(
-        self, cwd: str, commands: str, context: dict = {}, log_out: io.TextIOWrapper | None = None, **kwargs: dict[str, Any]
+        self, cwd: str, commands: str | list[str], context: dict = {}, log_out: io.TextIOWrapper | None = None, **kwargs: dict[str, Any]
     ) -> None:
+        assert isinstance(commands, str), "Python tool requires commands as a string, not a list"
         original_cwd = os.getcwd()
         try:
             os.chdir(cwd)  # cd to where this script expects to run

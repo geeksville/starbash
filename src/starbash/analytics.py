@@ -1,6 +1,8 @@
 import logging
 import os
 import platform
+import types
+from typing import Any
 
 from sentry_sdk.integrations.excepthook import ExcepthookIntegration
 
@@ -121,17 +123,22 @@ def analytics_exception(exc: BaseException) -> bool:
 class NopAnalytics:
     """Used when users have disabled analytics/crash reporting."""
 
-    def __enter__(self):
+    def __enter__(self) -> "NopAnalytics":
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: types.TracebackType | None,
+    ) -> bool:
         return False
 
-    def set_data(self, key, value):
+    def set_data(self, key: str, value: Any) -> None:
         pass
 
 
-def analytics_start_span(**kwargs):
+def analytics_start_span(**kwargs: Any) -> Any:
     """Start an analytics/tracing span if analytics is enabled, otherwise return a no-op context manager."""
     if analytics_allowed:
         import sentry_sdk
@@ -141,7 +148,7 @@ def analytics_start_span(**kwargs):
         return NopAnalytics()
 
 
-def analytics_start_transaction(**kwargs):
+def analytics_start_transaction(**kwargs: Any) -> Any:
     """Start an analytics/tracing transaction if analytics is enabled, otherwise return a no-op context manager."""
     if analytics_allowed:
         import sentry_sdk

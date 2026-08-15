@@ -5,6 +5,7 @@ import logging
 import os
 import textwrap
 from pathlib import Path
+from typing import Any
 
 from rich.progress import track
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 __all__ = ["SirilTool"]
 
 
-def link_or_copy_to_dir(input_files: list[Path], dest_dir: str):
+def link_or_copy_to_dir(input_files: list[Path], dest_dir: str) -> None:
     """Create symbolic links or copies of input files in the given directory."""
 
     from starbash.os import symlinks_supported
@@ -59,10 +60,16 @@ class SirilTool(ExternalTool):
         )
 
     def _run(
-        self, cwd: str, commands: str, context: dict = {}, log_out: io.TextIOWrapper | None = None
+        self,
+        cwd: str,
+        commands: str | list[str],
+        context: dict = {},
+        log_out: io.TextIOWrapper | None = None,
+        **kwargs: dict[str, Any],
     ) -> None:
         """Executes Siril with a script of commands in a given working directory."""
 
+        assert isinstance(commands, str), "Siril tool requires commands as a string, not a list"
         # Iteratively expand the command string to handle nested placeholders.
         # The loop continues until the string no longer changes.
         expanded = expand_context_unsafe(commands, context)

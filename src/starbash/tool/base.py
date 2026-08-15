@@ -297,7 +297,7 @@ class Tool:
         self.default_script_file: None | str = None
         self.set_defaults()
 
-    def set_defaults(self):
+    def set_defaults(self) -> None:
         # default timeout in seconds, if you need to run a tool longer than this, you should change
         # it before calling run()
         # FIXME, remove this concept and instead just use the new parameters API

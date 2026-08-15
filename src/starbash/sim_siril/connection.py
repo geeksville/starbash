@@ -1,4 +1,5 @@
 import logging
+import types
 from contextlib import AbstractContextManager
 from typing import Any
 
@@ -66,10 +67,10 @@ class SirilInterface:
         # https://siril.readthedocs.io/en/latest/Python-API.html#sirilpy.connection.SirilInterface.image_lock
         # Return a stub context manager
         class StubContextManager(AbstractContextManager):
-            def __enter__(self):
+            def __enter__(self) -> None:
                 pass
 
-            def __exit__(self, exc_type, exc_value, traceback):
+            def __exit__(self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: types.TracebackType | None) -> None:
                 pass
 
         return StubContextManager()

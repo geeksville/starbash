@@ -62,21 +62,21 @@ def dump_column(sb: Starbash, human_name: str, column_name: str) -> None:
 
 
 @app.command()
-def target():
+def target() -> None:
     """List targets (filtered based on the current selection)."""
     with Starbash("info.target") as sb:
         dump_column(sb, "Target", Database.OBJECT_KEY)
 
 
 @app.command()
-def telescope():
+def telescope() -> None:
     """List telescopes/instruments (filtered based on the current selection)."""
     with Starbash("info.telescope") as sb:
         dump_column(sb, "Telescope", Database.TELESCOP_KEY)
 
 
 @app.command()
-def filter():
+def filter() -> None:
     """List all filters (filtered based on the current selection)."""
     with Starbash("info.filter") as sb:
         dump_column(sb, "Filter", Database.FILTER_KEY)
@@ -93,7 +93,7 @@ def master(
         str | None,
         kind_arg,
     ] = None,
-):
+) -> None:
     """List all precalculated master images (darks, biases, flats)."""
     with Starbash("info.master") as sb:
         from starbash import console
@@ -146,13 +146,13 @@ def masters(
         str | None,
         kind_arg,
     ] = None,
-):
+) -> None:
     """Alias for 'info master' command."""
     master(kind)
 
 
 @app.callback(invoke_without_command=True)
-def main_callback(ctx: typer.Context):
+def main_callback(ctx: typer.Context) -> None:
     """Show user preferences location and other app info.
 
     This is the default command when no subcommand is specified.

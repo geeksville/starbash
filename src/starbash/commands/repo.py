@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Generator
 from textwrap import dedent
 from typing import Annotated
 
@@ -13,7 +14,7 @@ from starbash.paths import get_user_documents_dir
 app = typer.Typer(invoke_without_command=True)
 
 
-def repo_enumeration(sb: Starbash):
+def repo_enumeration(sb: Starbash) -> dict[int, Repo]:
     """return a dict of int (1 based) to Repo instances"""
     verbose = False  # assume not verbose for enum picking
     repos = sb.repo_manager.repos if verbose else sb.repo_manager.regular_repos
@@ -21,7 +22,7 @@ def repo_enumeration(sb: Starbash):
     return {i + 1: repo for i, repo in enumerate(repos)}
 
 
-def complete_repo_by_num(incomplete: str):
+def complete_repo_by_num(incomplete: str) -> Generator[tuple[str, str], None, None]:
     # We need to use stderr_logging to prevent confusing the bash completion parser
     starbash.log_filter_level = logging.ERROR  # avoid showing output while doing completion
     with Starbash("repo.complete.num", stderr_logging=True) as sb:
@@ -30,7 +31,7 @@ def complete_repo_by_num(incomplete: str):
                 yield (str(num), repo.url)
 
 
-def complete_repo_by_url(incomplete: str):
+def complete_repo_by_url(incomplete: str) -> Generator[tuple[str, str], None, None]:
     # We need to use stderr_logging to prevent confusing the bash completion parser
     starbash.log_filter_level = logging.ERROR  # avoid showing output while doing completion
     with Starbash("repo.complete.url", stderr_logging=True) as sb:
@@ -42,7 +43,7 @@ def complete_repo_by_url(incomplete: str):
 
 
 @app.command()
-def list():
+def list() -> None:
     """
     lists all repositories.
     """
@@ -64,7 +65,7 @@ def list():
 @app.callback()
 def main(
     ctx: typer.Context,
-):
+) -> None:
     """
     Manage repositories.
 
@@ -88,7 +89,7 @@ def add(
         "--processed",
         help="Mark this new repository for processed output files.",
     ),
-):
+) -> None:
     """
     Add a repository. path is either a local path or a remote URL.
     """
@@ -155,7 +156,7 @@ def remove(
         str,
         typer.Argument(help="Repository number or URL", autocompletion=complete_repo_by_url),
     ],
-):
+) -> None:
     """
     Remove a repository by number (from list).
     Use 'starbash repo' to see the repository numbers.
@@ -182,7 +183,7 @@ def reindex(
             autocompletion=complete_repo_by_url,
         ),
     ] = None,
-):
+) -> None:
     """
     Reindex a repository by number.
     If no number is given, reindex all repositories.

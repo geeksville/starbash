@@ -4,6 +4,7 @@ import copy
 import logging
 import os
 import textwrap
+import types
 from pathlib import Path
 from typing import Any
 
@@ -127,7 +128,7 @@ class Processing(ProcessingLike):
     def __enter__(self) -> "Processing":
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> bool:
+    def __exit__(self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: types.TracebackType | None) -> bool:
         self.close()
         return False
 

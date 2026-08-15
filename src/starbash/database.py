@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import types
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -801,5 +802,5 @@ class Database:
     def __enter__(self) -> Database:
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:
+    def __exit__(self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: types.TracebackType | None) -> None:
         self.close()
