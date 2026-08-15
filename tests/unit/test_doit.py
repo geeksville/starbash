@@ -6,7 +6,16 @@ from contextlib import redirect_stdout
 
 import pytest
 
+from starbash import paths
 from starbash.doit import StarbashDoit, cleanup_temporaries, my_builtin_task
+
+
+@pytest.fixture(autouse=True)
+def isolate_doit_cache(tmp_path):
+    """Give each test its own doit cache dir to prevent xdist workers from fighting over the same gdbm file."""
+    paths.set_test_directories(cache_dir_override=tmp_path / "cache")
+    yield
+    paths.set_test_directories(None, None, None, None)
 
 
 class TestStarbashDoit:
