@@ -63,8 +63,8 @@ reinit-dev:
     echo "Reiniting a developer config..."
     sb user name "Kevin Hester"
     sb user email "kevinh@geeksville.com"
-    sb repo add --master /mnt/pool/big/kevinh/telescope/masters
-    sb repo add --processed /mnt/pool/big/kevinh/telescope/processed
+    sb repo add --master /mnt/pool/big/kevinh/telescope/masters | true
+    sb repo add --processed /mnt/pool/big/kevinh/telescope/processed | true
 
 # wipe install and do standard reinit
 common-init: clean-cache clean-config clean-masters install-completion use-local-recipes reinit-dev

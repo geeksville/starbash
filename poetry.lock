@@ -3215,14 +3215,14 @@ zarr = ["fsspec", "kerchunk", "zarr (>=3.3.0)"]
 
 [[package]]
 name = "toml-repo"
-version = "0.1.4"
+version = "0.1.6"
 description = "A TOML-based repository manager with precedence-based configuration merging, imports, and multi-scheme URL support."
 optional = false
 python-versions = ">=3.12"
 groups = ["main"]
 files = [
-    {file = "toml_repo-0.1.4-py3-none-any.whl", hash = "sha256:f39b86aaf4cf2cb5bbdddbf7fc35b8072a00b74b954763cace240ad0d86582cb"},
-    {file = "toml_repo-0.1.4.tar.gz", hash = "sha256:2cee66542dc95cddc98f5cc0d775ef2ad7a2a8f9377d44c126e054e3d43dd428"},
+    {file = "toml_repo-0.1.6-py3-none-any.whl", hash = "sha256:a98eca3d65a93794cd7ed34553cba71e4994cb67dc5975947a5d23a375a16d91"},
+    {file = "toml_repo-0.1.6.tar.gz", hash = "sha256:808ccc2ef1464a5e007ac46a4100c7cac6f645f07895ab6829db0bd65aca7777"},
 ]
 
 [package.dependencies]
@@ -3631,4 +3631,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "2f89533315c7edd628391fbc70f6455e9b4bc5f27abc0b19830ae1da2f86f5ef"
+content-hash = "04b8eb9d4711840cd52988063eb7945b268e6b7f29457062936df5ef7fddcc0c"

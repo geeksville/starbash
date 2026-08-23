@@ -34,7 +34,7 @@ graxpert = {version = "^3.2.0a2", extras = ["cpuonly"]}
 # experimenting with siril-scripts/processing/VeraLux_HyperMetric_Stretch.py
 numpy = "2.2.6"
 pyqt6 = "^6.10.1"
-toml-repo = "^0.1.2"
+toml-repo = "^0.1.6"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.4.2,<10.0.0"
