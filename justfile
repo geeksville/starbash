@@ -34,14 +34,17 @@ install-starnet:
     mkdir -p ~/packages
     sudo dpkg -i /tmp/starnet.deb
     rm /tmp/starnet.deb
+    echo "Installed starnet binaries"
 
 # install the rc-astro CLI tool 
 install-rc-astro:
     #!/usr/bin/env bash
     [ -f /usr/local/bin/rc-astro ] && exit 0
-    wget -O /tmp/rcastro.sh https://www.rc-astro-cdn.com/cli/rc-astro-cli-1.1.3-linux-x64.sh
+    wget -O /tmp/rcastro.sh https://www.rc-astro-cdn.com/clients/2.6.4/rc-astro-cli-2.6.4-linux-x64.sh
     chmod a+x /tmp/rcastro.sh
-    sudo /tmp/rcastro.sh
+    /tmp/rcastro.sh
+    sudo /tmp/rc-astro-cli/install.sh
+    echo "Installed rc-astro CLI tool"
 
 # Run starnet (for testing)
 starnet infile outfile="starless.tif" stride="256":
