@@ -8,12 +8,16 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+from collections import deque
 from collections.abc import Callable
 from contextlib import nullcontext
 from typing import Any
 
+from rich.console import Group, RenderableType
 from rich.live import Live
+from rich.padding import Padding
 from rich.spinner import Spinner
+from rich.text import Text
 
 from starbash.commands import SPINNER_STYLE
 from starbash.exception import UserHandledError
@@ -95,6 +99,56 @@ def color_lines(lines: list[str]) -> str:
     return "\n".join(color_line(line) for line in lines)
 
 
+class ToolLiveDisplay:
+    """Live renderable: a running spinner plus the most recent tool output lines.
+
+    Fed incrementally by ``tool_run_streaming`` via :meth:`add_line`.  stderr lines
+    render red, stdout lines yellow.  Each line is truncated to a single row so the
+    display stays a fixed height while the tool runs.
+    """
+
+    MAX_LINES = 3
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.spinner = Spinner(
+            "arc",
+            text=f"Tool running: [bold]{name}[/bold]...",
+            speed=2.0,
+            style=SPINNER_STYLE,
+        )
+        self._lines: deque[Text] = deque(maxlen=self.MAX_LINES)
+        self._done = False
+
+    def add_line(self, line: str, is_stderr: bool) -> None:
+        """Append a tool output line, keeping only the most recent MAX_LINES."""
+        text = line.rstrip("\n")
+        if not text.strip():
+            return
+        self._lines.append(
+            Text(
+                text,
+                style="red" if is_stderr else "yellow",
+                no_wrap=True,
+                overflow="ellipsis",
+            )
+        )
+
+    def finish(self) -> None:
+        """Swap the spinner for a static header so the final frame persists."""
+        self._done = True
+
+    def __rich__(self) -> RenderableType:
+        header: RenderableType = (
+            Text(f"Tool completed: {self.name}", style="dim")
+            if self._done
+            else self.spinner
+        )
+        # Indent each output line by 4 spaces beneath the header.
+        lines = [Padding(line, (0, 0, 0, 4)) for line in self._lines]
+        return Group(header, *lines)
+
+
 def tool_emit_logs(lines: str, log_level: int = logging.INFO) -> None:
     """Emit log lines from a tool to the logger at the specified log level.
 
@@ -172,10 +226,10 @@ def tool_run_streaming(
     """Execute an external tool, invoking on_line for each stdout line as it arrives.
 
     Unlike a blocking communicate()-based runner, this streams stdout line-by-line so
-    callers can react to incremental output (e.g. JSON progress events).  A reader
-    thread feeds a queue so the timeout fires correctly even for silent processes.
-    stderr is collected and handled after the process exits.  A non-zero exit code
-    raises ToolError.
+    callers can react to incremental output (e.g. JSON progress events).  Separate
+    reader threads for stdout and stderr feed a shared queue so the timeout fires
+    correctly even for silent processes and both streams are written to log_out in
+    approximate arrival order.  A non-zero exit code raises ToolError.
     """
     import queue
     import threading
@@ -196,6 +250,7 @@ def tool_run_streaming(
         env=env,
     )
     assert process.stdout is not None
+    assert process.stderr is not None
 
     if commands:
         assert process.stdin is not None
@@ -209,57 +264,70 @@ def tool_run_streaming(
 
         threading.Thread(target=_write_stdin, daemon=True).start()
 
-    line_queue: queue.Queue[str | None] = queue.Queue()
+    # Both reader threads push (stream_name, line) tuples so we can interleave the
+    # two streams into log_out in approximate arrival order.  A None line marks EOF
+    # for that reader; the main loop stops once both readers have finished.
+    line_queue: queue.Queue[tuple[str, str | None]] = queue.Queue()
 
-    def _reader() -> None:
+    def _reader(name: str, stream: io.TextIOBase) -> None:
         try:
-            for line in process.stdout:  # type: ignore[union-attr]
-                line_queue.put(line)
+            for line in stream:
+                line_queue.put((name, line))
         except Exception:
             pass
         finally:
-            line_queue.put(None)  # EOF sentinel
+            line_queue.put((name, None))  # EOF sentinel
 
-    threading.Thread(target=_reader, daemon=True).start()
+    threading.Thread(
+        target=_reader, args=("stdout", process.stdout), daemon=True
+    ).start()
+    threading.Thread(
+        target=_reader, args=("stderr", process.stderr), daemon=True
+    ).start()
 
     deadline = (time.monotonic() + timeout) if timeout else None
     stdout_captured: list[str] = []
+    stderr_captured: list[str] = []
+    readers_done = 0
 
     try:
-        while True:
+        while readers_done < 2:
             remaining = max(0.0, deadline - time.monotonic()) if deadline else None
             try:
-                line = line_queue.get(timeout=remaining)
+                stream_name, line = line_queue.get(timeout=remaining)
             except queue.Empty:
                 process.kill()
                 process.wait()
-                if process.stderr:
-                    process.stderr.close()
                 raise RuntimeError(f"Tool timed out after {timeout} seconds")
-            if line is None:  # EOF
-                break
-            stdout_captured.append(line)
+            if line is None:  # EOF for one of the streams
+                readers_done += 1
+                continue
             if log_out:
                 log_out.write(line)
                 log_out.flush()  # Just in case the user is 'tailing' the file
-            if on_line:
-                try:
-                    on_line(line)
-                except Exception:
-                    logger.exception("Error in tool output line handler")
+            active_display = Tool._active_display
+            if active_display is not None:
+                active_display.add_line(line, is_stderr=stream_name == "stderr")
+            if stream_name == "stdout":
+                stdout_captured.append(line)
+                if on_line:
+                    try:
+                        on_line(line)
+                    except Exception:
+                        logger.exception("Error in tool output line handler")
+            else:
+                stderr_captured.append(line)
     finally:
         process.stdout.close()
-
-    stderr_text = process.stderr.read() if process.stderr else ""
-    if process.stderr:
         process.stderr.close()
+
     returncode = process.wait()
 
     stdout_str = "".join(stdout_captured)
     if returncode != 0:
         tool_emit_logs(stdout_str, log_level=logging.ERROR)
 
-    stderr_list = stderr_text.splitlines() if stderr_text else []
+    stderr_list = [line.rstrip("\n") for line in stderr_captured]
     if stderr_fixup:
         stderr_list = stderr_fixup(stdout_captured, stderr_list)
     if stderr_list:
@@ -284,6 +352,10 @@ class Tool:
     # Tools and recursively invoke other tools.  So it is important that if we've set a log file destination at the top
     # of our call tree, that variables get passed down to all sub-tools.
     _default_log_out: io.TextIOWrapper | None = None
+
+    # The live output display owned by the outermost tool in a call chain.  Nested
+    # tools (and tool_run_streaming) feed their output lines into this same display.
+    _active_display: "ToolLiveDisplay | None" = None
 
     # If True, this tool renders its own progress display in _run() (e.g. a Rich
     # Progress bar), so Tool.run() suppresses the default spinner to avoid nested
@@ -320,22 +392,19 @@ class Tool:
         from starbash import console  # Lazy import to avoid circular dependency
 
         temp_dir = None
-        spinner = (
-            None
-            if self.manages_own_progress
-            else Spinner(
-                "arc",
-                text=f"Tool running: [bold]{self.name}[/bold]...",
-                speed=2.0,
-                style=SPINNER_STYLE,
-            )
-        )
+        # Only the outermost tool in a call chain owns the live display; nested tools
+        # (and tool_run_streaming) feed their output into the already-active display.
+        owns_display = not self.manages_own_progress and Tool._active_display is None
+        display_obj = ToolLiveDisplay(self.name) if owns_display else None
         display = (
-            nullcontext()
-            if spinner is None
-            else Live(spinner, console=console, refresh_per_second=5, transient=True)
+            Live(display_obj, console=console, refresh_per_second=8, transient=False)
+            if display_obj is not None
+            else nullcontext()
         )
         with display:
+            if display_obj is not None:
+                Tool._active_display = display_obj
+
             did_set_default_log = (
                 False  # Assume we are not the top entry into the chain of tool calls
             )
@@ -359,8 +428,9 @@ class Tool:
 
                 self._run(cwd, commands, context=context, log_out=my_log, **kwargs)
             finally:
-                if spinner is not None:
-                    spinner.update(text=f"Tool completed: [bold]{self.name}[/bold].")
+                if display_obj is not None:
+                    display_obj.finish()
+                    Tool._active_display = None
                 if temp_dir:
                     shutil.rmtree(temp_dir)
                     context.pop("temp_dir", None)
