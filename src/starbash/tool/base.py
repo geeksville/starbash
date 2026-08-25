@@ -492,7 +492,7 @@ class ExternalTool(Tool):
         except MissingToolError:
             logger.warning(
                 textwrap.dedent(f"""\
-                    The {self.name} executable was not found.  Most features will be unavailable until you install it.
+                    The {self.name} executable was not found.  Related features will be unavailable until you install it.
                     Click [link={self.install_url}]here[/link] for installation instructions.
 
                     If you have already installed {self.name}, make sure it is in your system PATH.
