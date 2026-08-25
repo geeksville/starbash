@@ -1,5 +1,6 @@
 """Tests for the tool module."""
 
+import logging
 import os
 import shutil
 import tempfile
@@ -911,7 +912,7 @@ class TestStarnetRecipe:
         doc = self._load_recipe()
         stage = doc["stages"][0]
         assert stage["name"] == "starnet"
-        assert stage["tool"]["name"] == "siril"
+        assert stage["tool"]["name"] == "starnet"
         assert stage["inputs"][0]["after"] == "palette.*"
         assert stage["inputs"][0]["multiplex"] is True
         assert "starnet {parameters.starnet_params}" in stage["script"]
@@ -1019,6 +1020,69 @@ class TestVeraluxFilter:
         assert len(filename_reqs) == 1
         assert filename_reqs[0]["value"] == "starmask"
         assert filename_reqs[0].get("mode", "include") == "exclude"
+
+
+class TestStarnetTool:
+    """Tests for StarnetTool.is_available (Siril StarNet plugin detection)."""
+
+    def _make_config(self, tmp_path: Path, starnet_exe: str) -> Path:
+        config_dir = tmp_path / "siril"
+        config_dir.mkdir()
+        (config_dir / "config.1.4.ini").write_text(
+            f"[core]\nextension=.fit\nstarnet_exe={starnet_exe}\n"
+        )
+        return config_dir
+
+    def _make_tool(self, monkeypatch, config_dir: Path, siril_available: bool):
+        from starbash.tool import base, starnet
+
+        tool = starnet.StarnetTool()
+        monkeypatch.setattr(tool, "_siril_config_dir", lambda: config_dir)
+        # Force the base ExternalTool availability probe to a known value.
+        monkeypatch.setattr(
+            base.ExternalTool, "is_available", property(lambda self: siril_available)
+        )
+        return tool
+
+    def test_available_when_starnet_configured(self, tmp_path, monkeypatch):
+        config_dir = self._make_config(tmp_path, "/usr/bin/starnet2")
+        tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
+        assert tool.is_available is True
+
+    def test_unavailable_when_starnet_exe_blank(self, tmp_path, monkeypatch, caplog):
+        config_dir = self._make_config(tmp_path, "")
+        tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
+        with caplog.at_level(logging.WARNING):
+            assert tool.is_available is False
+        assert "StarNet is not enabled" in caplog.text
+
+    def test_unavailable_when_no_config_file(self, tmp_path, monkeypatch):
+        config_dir = tmp_path / "siril"
+        config_dir.mkdir()
+        tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
+        assert tool.is_available is False
+
+    def test_unavailable_when_siril_missing(self, tmp_path, monkeypatch):
+        config_dir = self._make_config(tmp_path, "/usr/bin/starnet2")
+        tool = self._make_tool(monkeypatch, config_dir, siril_available=False)
+        assert tool.is_available is False
+
+    def test_result_is_cached(self, tmp_path, monkeypatch):
+        config_dir = self._make_config(tmp_path, "/usr/bin/starnet2")
+        tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
+        assert tool.is_available is True
+
+        calls = {"n": 0}
+        original = tool._starnet_configured
+
+        def counting():
+            calls["n"] += 1
+            return original()
+
+        monkeypatch.setattr(tool, "_starnet_configured", counting)
+        assert tool.is_available is True
+        assert calls["n"] == 0  # cached, not re-probed
+
 
 
 

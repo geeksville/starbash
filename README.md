@@ -164,6 +164,10 @@ If you don't want the automated processing you can still ask Starbash to prepare
 
 ![siril session](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/vhs/process-siril.gif)
 
+### Fully extensible/repeatable/sharable workflows
+
+Early user guide [here](doc/toml/guide.md).
+
 ## Supported commands
 
 ### Repository Management
@@ -212,6 +216,8 @@ Starbash is a tool agnostic workflow manager.  But it wouldn't be possible witho
 
 * [Siril](https://siril.org/)
 * [Graxpert](https://graxpert.com/) - for background and noise elimination
+* [blur exterminator / noise exterminator](https://www.rc-astro.com/stand-alone-rc-astro-tools/)
+* [starnet](https://starnetastro.com/cli-tools/) - for star removal
 * [Python](https://www.python.org/) (you can add Python code to recipes if necessary)
 
 ## Credits
