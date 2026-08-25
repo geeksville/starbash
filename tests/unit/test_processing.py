@@ -752,3 +752,91 @@ class TestProcessingUtilityIntegration:
         assert len(sessions) == 3
         assert len(masters) == 1
         assert len(files) == 1
+
+
+class TestRemoveMissingToolTasks:
+    """Tests for Processing._remove_missing_tool_tasks."""
+
+    @staticmethod
+    def _make_task(name: str, tool_name: str) -> dict:
+        return {"name": name, "meta": {"stage": {"name": name, "tool": {"name": tool_name}}}}
+
+    def _run_filter(self, tasks: list[dict]) -> list[dict]:
+        from starbash.processing import Processing
+
+        # Bypass __init__; the method only relies on module-level `tools`.
+        proc = Processing.__new__(Processing)
+        return proc._remove_missing_tool_tasks(tasks)
+
+    def test_keeps_available_tool_tasks(self, monkeypatch):
+        """Tasks whose tool is available are retained."""
+
+        class FakeTool:
+            is_available = True
+
+        monkeypatch.setattr("starbash.processing.tools", {"siril": FakeTool()})
+
+        tasks = [self._make_task("stack", "siril")]
+        result = self._run_filter(tasks)
+
+        assert len(result) == 1
+
+    def test_drops_missing_tool_tasks(self, monkeypatch, caplog):
+        """Tasks whose tool is unavailable are removed and warned about."""
+
+        class AvailTool:
+            is_available = True
+
+        class MissingTool:
+            is_available = False
+
+        monkeypatch.setattr(
+            "starbash.processing.tools",
+            {"siril": AvailTool(), "rc-astro": MissingTool()},
+        )
+
+        tasks = [
+            self._make_task("stack", "siril"),
+            self._make_task("blur_exterminator", "rc-astro"),
+        ]
+
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            result = self._run_filter(tasks)
+
+        assert [t["name"] for t in result] == ["stack"]
+        assert "blur_exterminator" in caplog.text
+        assert "rc-astro" in caplog.text
+
+    def test_unknown_tool_is_dropped(self, monkeypatch):
+        """A stage referencing a tool not in the registry is removed."""
+        monkeypatch.setattr("starbash.processing.tools", {})
+
+        tasks = [self._make_task("mystery", "nonexistent")]
+        result = self._run_filter(tasks)
+
+        assert result == []
+
+    def test_warns_once_per_stage(self, monkeypatch, caplog):
+        """Multiplexed tasks sharing a stage only emit a single warning."""
+
+        class MissingTool:
+            is_available = False
+
+        monkeypatch.setattr("starbash.processing.tools", {"rc-astro": MissingTool()})
+
+        tasks = [
+            self._make_task("blur_exterminator", "rc-astro"),
+            self._make_task("blur_exterminator", "rc-astro"),
+        ]
+
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            result = self._run_filter(tasks)
+
+        assert result == []
+        warnings = [r for r in caplog.records if "blur_exterminator" in r.message]
+        assert len(warnings) == 1
+

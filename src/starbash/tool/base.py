@@ -369,6 +369,11 @@ class Tool:
         self.default_script_file: None | str = None
         self.set_defaults()
 
+    @property
+    def is_available(self) -> bool:
+        """Whether this tool can be run. Built-in tools are always available."""
+        return True
+
     def set_defaults(self) -> None:
         # default timeout in seconds, if you need to run a tool longer than this, you should change
         # it before calling run()
@@ -464,6 +469,7 @@ class ExternalTool(Tool):
         super().__init__(name)
         self.commands = commands
         self.install_url = install_url
+        self._is_available: bool | None = None  # cached result of is_available probe
         self.extra_dirs: list[
             str
         ] = []  # extra directories we look for the tool in addition to system PATH
@@ -498,6 +504,17 @@ class ExternalTool(Tool):
                     If you have already installed {self.name}, make sure it is in your system PATH.
                     Instructions for Windows are [link=https://www.architectryan.com/2018/03/17/add-to-the-path-on-windows-10/]here[/link], for Linux or OS-X try [link=https://stackoverflow.com/questions/14637979/how-to-permanently-set-path-on-linux-mac]this[/link].""")
             )
+
+    @property
+    def is_available(self) -> bool:
+        """Whether the external executable was found on PATH (probed once and cached)."""
+        if self._is_available is None:
+            try:
+                _ = self.executable_path  # raises if not found
+                self._is_available = True
+            except MissingToolError:
+                self._is_available = False
+        return self._is_available
 
     @property
     def executable_path(self) -> str:

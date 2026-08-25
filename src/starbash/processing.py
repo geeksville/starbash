@@ -57,6 +57,7 @@ from starbash.stages import (
     sort_stages,
     stage_to_doc,
     task_to_session,
+    task_to_stage,
     tasks_to_stages,
 )
 from starbash.toml import toml_from_list
@@ -959,10 +960,38 @@ class Processing(ProcessingLike):
 
         return FileInfo(base=base, image_rows=list(image_rows.values()), definition=input)
 
+    def _remove_missing_tool_tasks(self, tasks: list[TaskDict]) -> list[TaskDict]:
+        """Drop tasks whose stage requires a tool that isn't installed.
+
+        Tools are probed at app startup; here we reject candidate recipes whose tool is
+        unavailable so processing doesn't fail mid-run. A warning is logged once per stage.
+        """
+        warned: set[str] = set()
+
+        def tool_available(task: TaskDict) -> bool:
+            stage = task_to_stage(task)
+            tool_name = get_safe(get_safe(stage, "tool"), "name")
+            tool = tools.get(tool_name)
+            if tool is not None and tool.is_available:
+                return True
+
+            stage_name = stage.get("name", "unknown")
+            if stage_name not in warned:
+                warned.add(stage_name)
+                logging.warning(
+                    f"Ignoring recipe '{stage_name}' because tool '{tool_name}' is missing"
+                )
+            return False
+
+        return [t for t in tasks if tool_available(t)]
+
     def preflight_tasks(self, pt: ProcessedTarget, tasks: list[TaskDict]) -> list[TaskDict]:
         # if user has excluded any stages, we need to respect that (remove matching stages)
 
         tasks = remove_excluded_tasks(tasks)
+
+        # drop any stages whose required tool isn't installed on this machine
+        tasks = self._remove_missing_tool_tasks(tasks)
 
         # multimap from target file to tasks that produce it
         target_to_tasks = MultiDict[TaskDict]()

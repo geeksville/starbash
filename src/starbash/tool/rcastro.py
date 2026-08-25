@@ -64,14 +64,14 @@ class RCAstroTool(ExternalTool):
     manages_own_progress = True
 
     def __init__(self) -> None:
-        super().__init__("rc-astro", ["rc-astro"], "https://www.rc-astro.com/")
+        super().__init__("rc-astro", ["rc-astro"], "https://www.rc-astro.com/stand-alone-rc-astro-tools/")
 
     def set_defaults(self) -> None:
         super().set_defaults()
         self.timeout = 2 * 60 * 60.0  # 2 hours - CPU deconvolution can be slow
 
     def build_args(self, commands: str | list[str], context: dict) -> list[str]:
-        """Expand recipe arguments and ensure ``--json`` is present.
+        """Expand recipe arguments and ensure ``--json`` is pnresent.
 
         A ``--flag {parameters.x}`` pair whose value comes from an *unset* parameter
         (no default and no user override, so it expands to ``None``) is dropped
