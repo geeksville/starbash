@@ -25,6 +25,11 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   `src/starbash/doit.py`. Stages defined via `[[stage]]` TOML entries (`tool`, `when`, `script`/
   `script-file`, `context`, `input`, `temporaries`). Context expansion uses `str.format_map`
   with a safe formatter that preserves unexpanded `{vars}` (see `expand_context`).
+  Input `requires` filters live in `src/starbash/filtering.py` (`_apply_filter`): kinds
+  `metadata`, `camera`, `unprocessed`, `filename`, `min_count`. `filename` keeps candidates whose
+  basename matches a regex `value`, with `mode = "include"` (default) or `"exclude"` (used by
+  VeraLux to stretch only `starless`, and by `merge_stars` which blends the linear starmask back
+  into the stretched starless).
 - **Per-target config**: `src/starbash/processed_target.py` (`ProcessedTarget`). Backed by a
   `starbash.toml` in each target's output dir (e.g. `images/processed/<target>/starbash.toml`).
   Holds `[stages]` `used`/`excluded` lists that control which recipes run. `_init_from_toml()`

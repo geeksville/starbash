@@ -185,6 +185,50 @@ class TestFilterByRequires:
         with pytest.raises(ValueError, match="min_count requires a 'value' field"):
             filter_by_requires(input_def, candidates)
 
+    def test_filter_filename_include(self):
+        """filename/include keeps only basenames matching the regex."""
+        input_def = {"requires": [{"kind": "filename", "value": "starless"}]}
+        candidates = [
+            {"path": "starless_SHO.fits"},
+            {"path": "starmask_SHO.fits"},
+            {"path": "starless_HOO.fits"},
+        ]
+
+        result = filter_by_requires(input_def, candidates)
+        assert [img["path"] for img in result] == ["starless_SHO.fits", "starless_HOO.fits"]
+
+    def test_filter_filename_exclude(self):
+        """filename/exclude keeps only basenames NOT matching the regex."""
+        input_def = {
+            "requires": [{"kind": "filename", "value": "starmask", "mode": "exclude"}]
+        }
+        candidates = [
+            {"path": "starless_SHO.fits"},
+            {"path": "starmask_SHO.fits"},
+        ]
+
+        result = filter_by_requires(input_def, candidates)
+        assert [img["path"] for img in result] == ["starless_SHO.fits"]
+
+    def test_filter_filename_matches_basename_only(self):
+        """The regex is matched against the basename, not directory components."""
+        input_def = {"requires": [{"kind": "filename", "value": "^hms_starless"}]}
+        candidates = [
+            {"path": "/proc/hms_starless/other.fits"},  # dir matches, basename does not
+            {"path": "/proc/hms_starless_SHO.fits"},
+        ]
+
+        result = filter_by_requires(input_def, candidates)
+        assert [img["path"] for img in result] == ["/proc/hms_starless_SHO.fits"]
+
+    def test_filter_filename_unknown_mode(self):
+        """An unknown mode raises ValueError."""
+        input_def = {"requires": [{"kind": "filename", "value": "x", "mode": "nope"}]}
+        candidates = [{"path": "img1.fits"}]
+
+        with pytest.raises(ValueError, match="Unknown filename filter mode"):
+            filter_by_requires(input_def, candidates)
+
     def test_filter_unknown_kind(self):
         """Test that unknown filter kind raises ValueError."""
         input_def = {"requires": [{"kind": "unknown_filter"}]}

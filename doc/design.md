@@ -479,3 +479,187 @@ name = [
 ### Docs to update
 
 - `.github/copilot-instructions.md` — add `starnet` to the siril recipe list.
+
+## stage m5: recombine stars
+
+Add a `merge_stars` recipe that blends a controllable fraction of the removed stars
+back into the VeraLux-stretched starless image, and improve the input/requires engine
+with a filename filter so VeraLux only stretches starless (not starmask) files.
+
+### Pipeline context (verified against actual runs)
+
+For each palette (`SHO`, `HOO`, ...) the current pipeline produces, in the target's
+processed repo directory:
+
+- `starnet` → linear `starless_<palette>.fits` + `starmask_<palette>.fits`.
+- `veralux` (after `starnet.*`, `multiplex`, `auto.prefix = "hms_"`) → currently
+  stretches **every** upstream file, yielding `hms_starless_<palette>.fits` **and**
+  `hms_starmask_<palette>.fits`.
+- `thumbnail` (after `veralux.*`) → a `.jpg` per VeraLux output.
+
+`merge_stars` needs the **stretched** starless (`hms_starless_<palette>.fits`, from
+VeraLux) as the base, and the **unstretched/linear** star mask
+(`starmask_<palette>.fits`, from starnet) as the star layer. Both live in the same
+processed directory, so the recipe derives the sibling `starmask_` path in-script
+(the same technique starnet already uses to load its `starless_<stem>.fit`).
+
+### Decisions (locked in)
+
+- **Star amount** — a single parameter `merge_star_amount` (default `0.5`).
+  `1.0` = all stars, `0.5` = ~half brightness, `0.0` = starless. Implemented by
+  **scaling the star layer's brightness** by the factor (simple approximation; no
+  per-star culling).
+- **Blend** — **screen**: `result = 1 - (1 - starless) * (1 - stars)` (standard
+  astro "add stars back").
+- **Star-mask stretch** — the linear starmask is brought into the stretched image's
+  tonal range with Siril **`autostretch`** (parameter-free); the `merge_star_amount`
+  factor is the one brightness knob.
+- **Star-mask source** — derived in-script as the sibling
+  `starmask_<palette>.fits` of the `hms_starless_<palette>.fits` input (no second
+  input block, no engine pairing).
+- **Output** — `merged_<palette>.fits` (e.g. `merged_SHO.fits`).
+- **VeraLux skips starmask** — via a new general-purpose `filename` requires filter
+  (see below); this also means `hms_starmask_*` is no longer produced, so starmask
+  thumbnails disappear automatically (no thumbnail.toml change needed).
+
+### New requires kind: `filename`
+
+Add a `filename` filter to `_apply_filter()` in
+[src/starbash/filtering.py](../src/starbash/filtering.py), alongside `metadata`,
+`camera`, `unprocessed`, `min_count`.
+
+```toml
+[[stages.inputs.requires]]
+kind = "filename"
+value = "starless"     # regex, matched with re.search against the file's basename
+mode = "include"       # "include" (default) keeps matches; "exclude" keeps non-matches
+```
+
+- Matches `re.search(value, os.path.basename(img["path"]))`.
+- `mode = "include"` (default): keep candidates whose basename matches.
+- `mode = "exclude"`: keep candidates whose basename does **not** match.
+
+### VeraLux change
+
+Add to `siril-scripts/processing/VeraLux_HyperMetric_Stretch.toml`'s job input:
+
+```toml
+[[stages.inputs.requires]]
+kind = "filename"
+value = "starless"
+mode = "include"
+```
+
+so only `starless_<palette>.fits` is stretched; `starmask_<palette>.fits` is skipped.
+
+### Recipe: `starbash-recipes/post/merge_stars.toml`
+
+```toml
+[repo]
+kind = "recipe"
+
+[[parameters]]
+name = "merge_star_amount"
+default = 0.5
+description = "Approximate fraction of stars to keep (1.0 = all stars, 0.5 = ~half, 0.0 = none)"
+
+[[stages]]
+name = "merge_stars"
+description = "Screen-blend the removed stars back into the stretched starless image"
+tool.name = "siril"
+
+# Base = hms_starless_<palette>.fits (VeraLux, already stretched).
+# Star layer = its sibling starmask_<palette>.fits (starnet, linear), autostretched
+# and scaled by merge_star_amount, then screen-blended back in.
+script = '''
+    load "{input[0].full_paths[0]}"
+    save starless
+
+    load "{str(input[0].full_paths[0].parent / (input[0].full_paths[0].stem.replace('hms_starless_', 'starmask_') + '.fits'))}"
+    autostretch
+    save stars
+    pm "$stars$ * {parameters.merge_star_amount}"
+    save stars
+
+    pm "1 - (1 - $starless$) * (1 - $stars$)"
+    save results
+
+    load results
+    save "{output.full_paths[0]}"
+    '''
+
+[[stages.inputs]]
+kind = "job"
+after = "veralux.*"
+multiplex = true
+
+[[stages.inputs.requires]]
+kind = "min_count"
+value = 1
+
+# Belt-and-suspenders: only operate on starless files (VeraLux already skips starmask).
+[[stages.inputs.requires]]
+kind = "filename"
+value = "hms_starless"
+mode = "include"
+
+[[stages.outputs]]
+kind = "processed"
+name = ["{input[0].full_paths[0].stem.replace('hms_starless_', 'merged_')}.fits"]
+```
+
+### Tests
+
+- **Filename filter** (`tests/unit/test_filtering.py`): include keeps matches, exclude
+  keeps non-matches, matches basename only, unknown `mode` raises.
+- **VeraLux filter** wiring: assert a `filename`/`include`/`starless` requires clause
+  is present on the veralux job input.
+- **merge_stars recipe** (`tests/unit/test_tool.py`): `tool.name == "siril"`,
+  `after == "veralux.*"`, `multiplex is True`, `merge_star_amount` default `0.5`,
+  single output named from `merged_`, script screen-blends, and `merge_stars` sorts
+  after `veralux` via `sort_stages`.
+
+### Docs to update
+
+- `.github/copilot-instructions.md` and `AGENTS.md` — document the `filename` requires
+  kind and the `merge_stars` siril recipe.
+
+### How the `filename` filter plugs into the input engine (Option A, implemented)
+
+Job inputs are resolved in `_import_from_prior_stages()`
+([src/starbash/processing.py](../src/starbash/processing.py)). For each prior task it
+runs `filter_by_requires(input, prior_task_inputs)` against that task's **input**
+rows to decide whether to consume its **outputs**. This works for `metadata`/`camera`/
+`unprocessed`/`min_count` because that data is preserved from a stage's input to its
+output, and the rich metadata only exists on the input (session) rows.
+
+A `filename` filter is different: it must match the files actually consumed, i.e. the
+prior stage's **output** names, which differ from its inputs (starnet `SHO.fits` →
+`starless_SHO.fits` + `starmask_SHO.fits`). So the engine splits `requires`:
+
+- non-`filename` kinds gate on the prior stage's **input** rows (unchanged), and
+- `filename` kinds are applied to the collected **output** rows (which carry `path`
+  and `abspath` via `make_imagerow`).
+
+If the filename filter removes every candidate output, `_import_from_prior_stages`
+raises `NotEnoughFilesError` (files=`[]`) so the stage is skipped cleanly instead of
+tripping the `assert rows` in `_create_task_dicts`.
+
+### Future idea: unify all filters on output rows (Option B, not implemented)
+
+Instead of matching different row sets per kind, run `filter_by_requires` on the
+**output** rows for *all* kinds, after enriching those rows with the producing task's
+`default_metadata` (the same `_with_defaults` trick already used on inputs). Then a
+single filter pass could evaluate both `metadata` (e.g. `FILTER=Ha`, inherited) and
+`filename`/`path` (native to the output row), and `min_count` would count the actual
+consumed files. This is conceptually cleaner but changes semantics:
+
+- `min_count` would count outputs instead of upstream inputs;
+- `metadata` gating moves from "any matching upstream input" to "per output file";
+- output rows would need reliable metadata inheritance for every producing stage.
+
+Because those changes risk perturbing existing recipes (sho, stacking, masters), this
+is deferred. If pursued, it could also fold `filename` into a generalized `metadata`
+rule that supports a case-sensitive key plus regex (e.g. `name = "path"`,
+`match = "regex"`), removing the need for a separate `filename` kind.
+

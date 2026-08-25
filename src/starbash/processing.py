@@ -14,7 +14,7 @@ from toml_repo import Repo
 from tomlkit.items import AoT
 
 import starbash
-from starbash import InputDef, OutputDef, StageDict
+from starbash import InputDef, OutputDef, RequireDef, StageDict
 from starbash.aliases import get_aliases, normalize_target_name
 from starbash.app import Starbash
 from starbash.database import (
@@ -900,6 +900,18 @@ class Processing(ProcessingLike):
         # Collect all image rows from prior stage outputs
         child_exception: Exception | None = None
 
+        # `filename` requires match the actual files we consume (the prior stage's
+        # OUTPUT names), which differ from its inputs; every other requires kind
+        # (metadata/camera/unprocessed/min_count) gates on the prior stage's rich
+        # INPUT rows. So split them and apply each to the correct row set.
+        all_requires: list[RequireDef] = input.get("requires", [])
+        filename_requires = [r for r in all_requires if r.get("kind") == "filename"]
+        gating_input: InputDef = (
+            {**input, "requires": [r for r in all_requires if r.get("kind") != "filename"]}
+            if filename_requires
+            else input
+        )
+
         base: str | None = None  # We will set base from the first matching prior task output
         for task in prior_tasks:
             task_context: dict[str, Any] = task["meta"]["context"]  # type: ignore
@@ -911,7 +923,7 @@ class Processing(ProcessingLike):
                     images = file_info.image_rows
                     images = [self._with_defaults(img) for img in images]
                     try:
-                        task_filtered_input = filter_by_requires(input, images)
+                        task_filtered_input = filter_by_requires(gating_input, images)
                         if (
                             task_filtered_input
                         ):  # This task had matching inputs for us, so therefore we want its outputs
@@ -922,7 +934,13 @@ class Processing(ProcessingLike):
                                 and task_output.image_rows
                             ):
                                 base = task_output.base
-                                for img in task_output.image_rows:
+                                # filename filters select which produced files we want.
+                                output_rows = task_output.image_rows
+                                if filename_requires:
+                                    output_rows = filter_by_requires(
+                                        {"requires": filename_requires}, output_rows
+                                    )
+                                for img in output_rows:
                                     image_rows[img["abspath"]] = img
                     except NotEnoughFilesError as e:
                         child_exception = e  # In case we need to raise later
@@ -932,6 +950,12 @@ class Processing(ProcessingLike):
         if child_exception and len(image_rows) == 0:
             # we failed on every child, give up
             raise child_exception
+
+        if filename_requires and len(image_rows) == 0:
+            # Prior outputs existed but none matched the filename filter; skip this stage.
+            raise NotEnoughFilesError(
+                "No prior stage outputs matched the input filename filter", []
+            )
 
         return FileInfo(base=base, image_rows=list(image_rows.values()), definition=input)
 

@@ -912,7 +912,7 @@ class TestStarnetRecipe:
         stage = doc["stages"][0]
         assert stage["name"] == "starnet"
         assert stage["tool"]["name"] == "siril"
-        assert stage["inputs"][0]["after"] == "sho"
+        assert stage["inputs"][0]["after"] == "palette.*"
         assert stage["inputs"][0]["multiplex"] is True
         assert "starnet {parameters.starnet_params}" in stage["script"]
 
@@ -932,9 +932,93 @@ class TestStarnetRecipe:
 
         doc = self._load_recipe()
         starnet = doc["stages"][0]
-        sho = {"name": "sho", "inputs": [{"after": "noise_exterminator"}]}
+        sho = {"name": "palette.sho", "inputs": [{"after": "noise_exterminator"}]}
         ordered = sort_stages([starnet, sho])
         names = [s.get("name") for s in ordered]
-        assert names.index("sho") < names.index("starnet")
+        assert names.index("palette.sho") < names.index("starnet")
+
+
+class TestMergeStarsRecipe:
+    """Tests that the merge_stars recipe is wired correctly."""
+
+    def _load_recipe(self):
+        import tomlkit
+
+        recipe = (
+            Path(__file__).parents[2] / "starbash-recipes" / "post" / "merge_stars.toml"
+        )
+        return tomlkit.parse(recipe.read_text())
+
+    def test_parameter_default(self):
+        doc = self._load_recipe()
+        params = {p["name"]: p for p in doc["parameters"]}
+        assert "merge_star_amount" not in params
+        assert params["merge_star_stretch"]["default"] == 800.0
+
+    def test_stage_uses_siril_after_veralux(self):
+        doc = self._load_recipe()
+        stage = doc["stages"][0]
+        assert stage["name"] == "merge_stars"
+        assert stage["tool"]["name"] == "siril"
+        assert stage["inputs"][0]["after"] == "veralux.*"
+        assert stage["inputs"][0]["multiplex"] is True
+
+    def test_only_processes_starless_inputs(self):
+        doc = self._load_recipe()
+        requires = doc["stages"][0]["inputs"][0]["requires"]
+        filename_reqs = [r for r in requires if r["kind"] == "filename"]
+        assert len(filename_reqs) == 1
+        assert "starless" in filename_reqs[0]["value"]
+        assert filename_reqs[0].get("mode", "include") == "include"
+
+    def test_screen_blends_scaled_stars(self):
+        doc = self._load_recipe()
+        script = doc["stages"][0]["script"]
+        # asinh preserves background; autostretch would lift it.
+        assert "asinh -human {parameters.merge_star_stretch}" in script
+        assert "merge_star_amount" not in script
+        assert "1 - (1 - $starless$) * (1 - $stars$)" in script
+
+    def test_output_named_merged(self):
+        doc = self._load_recipe()
+        outputs = doc["stages"][0]["outputs"]
+        assert len(outputs) == 1
+        names = list(outputs[0]["name"])
+        assert len(names) == 1
+        assert "merged_" in names[0]
+
+    def test_stage_sorts_after_veralux(self):
+        from starbash.stages import sort_stages
+
+        doc = self._load_recipe()
+        merge = doc["stages"][0]
+        veralux = {"name": "veralux", "inputs": [{"after": "starnet.*"}]}
+        ordered = sort_stages([merge, veralux])
+        names = [s.get("name") for s in ordered]
+        assert names.index("veralux") < names.index("merge_stars")
+
+
+class TestVeraluxFilter:
+    """Tests that VeraLux only stretches starless (not starmask) files."""
+
+    def _load_recipe(self):
+        import tomlkit
+
+        recipe = (
+            Path(__file__).parents[2]
+            / "siril-scripts"
+            / "processing"
+            / "VeraLux_HyperMetric_Stretch.toml"
+        )
+        return tomlkit.parse(recipe.read_text())
+
+    def test_skips_starmask_via_filename_filter(self):
+        doc = self._load_recipe()
+        requires = doc["stages"][0]["inputs"][0]["requires"]
+        filename_reqs = [r for r in requires if r["kind"] == "filename"]
+        assert len(filename_reqs) == 1
+        assert filename_reqs[0]["value"] == "starmask"
+        assert filename_reqs[0].get("mode", "include") == "exclude"
+
 
 

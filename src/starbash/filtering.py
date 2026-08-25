@@ -1,4 +1,6 @@
 import logging
+import os
+import re
 
 from starbash import InputDef, Metadata, RequireDef
 from starbash.aliases import get_aliases
@@ -62,6 +64,16 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
         repo_kind = metadata["repo"].kind()  # I think repo is guaranteed to be present
         return repo_kind != "processed" and repo_kind != "master"
 
+    def _filter_filename(metadata: Metadata) -> bool:
+        """Keep images whose basename matches (or, with mode='exclude', does not match) a regex."""
+        pattern = get_safe(requires, "value")
+        mode = requires.get("mode", "include")
+        if mode not in ("include", "exclude"):
+            raise ValueError(f"Unknown filename filter mode: {mode}")
+        basename = os.path.basename(str(metadata.get("path") or metadata.get("abspath") or ""))
+        matched = re.search(pattern, basename) is not None
+        return matched if mode == "include" else not matched
+
     def _filter_min_count(metadata: Metadata) -> bool:
         """Min_count is handled in stage 2, so always return True here."""
         return True
@@ -71,6 +83,7 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
         "metadata": _filter_metadata,
         "camera": _filter_camera,
         "unprocessed": _filter_unprocessed,
+        "filename": _filter_filename,
         "min_count": _filter_min_count,
     }
 
