@@ -703,7 +703,7 @@ version = "3.1.2"
 description = "Pickler class to extend the standard pickle.Pickler functionality"
 optional = false
 python-versions = ">=3.8"
-groups = ["main"]
+groups = ["main", "dev"]
 files = [
     {file = "cloudpickle-3.1.2-py3-none-any.whl", hash = "sha256:9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a"},
     {file = "cloudpickle-3.1.2.tar.gz", hash = "sha256:7fda9eb655c9c230dab534f1983763de5835249750e85fbcef43aaa30a9a2414"},
@@ -905,7 +905,7 @@ version = "0.36.0"
 description = "doit - Automation Tool"
 optional = false
 python-versions = ">=3.8"
-groups = ["main"]
+groups = ["main", "dev"]
 files = [
     {file = "doit-0.36.0-py3-none-any.whl", hash = "sha256:ebc285f6666871b5300091c26eafdff3de968a6bd60ea35dd1e3fc6f2e32479a"},
     {file = "doit-0.36.0.tar.gz", hash = "sha256:71d07ccc9514cb22fe59d98999577665eaab57e16f644d04336ae0b4bae234bc"},
@@ -917,6 +917,21 @@ importlib-metadata = ">=4.4"
 
 [package.extras]
 toml = ["tomli ; python_version < \"3.11\""]
+
+[[package]]
+name = "doit-graph"
+version = "0.3.0"
+description = "doit cmd plugin: create task's dependency-graph image"
+optional = false
+python-versions = "*"
+groups = ["dev"]
+files = [
+    {file = "doit-graph-0.3.0.tar.gz", hash = "sha256:93c1b367afbff868632196cd87248b3c3128f5d53ae95d08b227ab25ae71d6d8"},
+]
+
+[package.dependencies]
+doit = "*"
+pygraphviz = "*"
 
 [[package]]
 name = "execnet"
@@ -1203,7 +1218,7 @@ version = "9.0.0"
 description = "Read metadata from Python packages"
 optional = false
 python-versions = ">=3.10"
-groups = ["main"]
+groups = ["main", "dev"]
 files = [
     {file = "importlib_metadata-9.0.0-py3-none-any.whl", hash = "sha256:2d21d1cc5a017bd0559e36150c21c830ab1dc304dedd1b7ea85d20f45ef3edd7"},
     {file = "importlib_metadata-9.0.0.tar.gz", hash = "sha256:a4f57ab599e6a2e3016d7595cfd72eb4661a5106e787a95bcc90c7105b831efc"},
@@ -2516,6 +2531,42 @@ files = [
 windows-terminal = ["colorama (>=0.4.6)"]
 
 [[package]]
+name = "pygraphviz"
+version = "2.0.1"
+description = "Python interface to Graphviz"
+optional = false
+python-versions = ">=3.10"
+groups = ["dev"]
+files = [
+    {file = "pygraphviz-2.0.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:e9ebfa7e35e2d491007e02c74f01406a16b645431b748c9dbcfb633ff3a1d311"},
+    {file = "pygraphviz-2.0.1-cp310-cp310-macosx_11_0_x86_64.whl", hash = "sha256:efc2788f916855f5afce5653bcc2db00ee056b7a8dd947e69e1a44ae3a6ae074"},
+    {file = "pygraphviz-2.0.1-cp310-cp310-manylinux_2_28_aarch64.whl", hash = "sha256:009e3e41e776dfcb307868fb0c2513c3d612dbed02bae9df720814d3a81237b9"},
+    {file = "pygraphviz-2.0.1-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:f618bcd424201814957e02cfdef3e4e1f151f23afc549988d355fdc9e705c599"},
+    {file = "pygraphviz-2.0.1-cp310-cp310-win_amd64.whl", hash = "sha256:6de47a2ec52f7bcc8acc633701772a166fb8128a7a7ca318fef07c0204ea7c14"},
+    {file = "pygraphviz-2.0.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:9cb8eefde7d02eed48012142b8d0d39ff96d79f4e649263894b52012eb8fadd5"},
+    {file = "pygraphviz-2.0.1-cp311-cp311-macosx_11_0_x86_64.whl", hash = "sha256:3a8773b52f71f1d97b186af7975e8a82f4bdc1353e562d6e55b1f729b855a996"},
+    {file = "pygraphviz-2.0.1-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:c639182f160986a7fdfad9e6946ab97fb90bc0d658cbacd4feada139e4db91e5"},
+    {file = "pygraphviz-2.0.1-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:db453fccc8d8c0e830dd81e37725a24e31a003e56d21b2af41c4e613b16e820d"},
+    {file = "pygraphviz-2.0.1-cp311-cp311-win_amd64.whl", hash = "sha256:db4ed383701b10c9490131420a5dc9afe2b22e7b40b52795657fca1d7f9a151a"},
+    {file = "pygraphviz-2.0.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:9df0588e2db8356eeadcec55edb1cd32cc642dd8b0b0ebfe169bf0567e6cd31a"},
+    {file = "pygraphviz-2.0.1-cp312-cp312-macosx_11_0_x86_64.whl", hash = "sha256:a8b6283075874bf4553081180e59e72470b43c59da5fd7530e9bc4f04a648d51"},
+    {file = "pygraphviz-2.0.1-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:afb25def99ac094e7b733e9913071217ffc0b3d739ee72e2f3b465241ea64224"},
+    {file = "pygraphviz-2.0.1-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:62c3d76165b283cf70a220de0e22889baee56f8fa3403590840d9eb841f627d2"},
+    {file = "pygraphviz-2.0.1-cp312-cp312-win_amd64.whl", hash = "sha256:55d40e8362e5096b9d02f35007caab3246da4a14b72abaf131281dcac24c3dfa"},
+    {file = "pygraphviz-2.0.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:a393abac0af2f427698f98873b19631abf6311aba8eb90a01764c0904d1c842b"},
+    {file = "pygraphviz-2.0.1-cp313-cp313-macosx_11_0_x86_64.whl", hash = "sha256:76802fe84d687e842371e27ff68a3d8015055cf4f3b141ae635ac05b1f7cccd2"},
+    {file = "pygraphviz-2.0.1-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:5367adcae805c8adbc4f2f0f0f63ba51810674077ca8acf3255f71ce107287cd"},
+    {file = "pygraphviz-2.0.1-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:bca869f7894fe95cc33db210e7420bce67a3535a9329cb258856977a808350d9"},
+    {file = "pygraphviz-2.0.1-cp313-cp313-win_amd64.whl", hash = "sha256:721d9d46c1167d9044a00063374b9e34ebca637dab858b523da38e95188b666e"},
+    {file = "pygraphviz-2.0.1-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:2969794de5128a5d5d2f9213d92ebdc724c60ffccae683c0b4141d1e4b160d78"},
+    {file = "pygraphviz-2.0.1-cp314-cp314-macosx_11_0_x86_64.whl", hash = "sha256:fad64151a38dfd3eaf3ab01e3e9d193ab4e7c60cc8e7bc00f6a338e00f69a5d9"},
+    {file = "pygraphviz-2.0.1-cp314-cp314-manylinux_2_28_aarch64.whl", hash = "sha256:19092a42b570e579231d6c897476aed8d24b6c0b5a966d4d50ccb470c9778fe8"},
+    {file = "pygraphviz-2.0.1-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:71b13cfacb5ed6e4f5a966bf679e1d383ac70e0274cc74b29ce4b8e7e2709b46"},
+    {file = "pygraphviz-2.0.1-cp314-cp314-win_amd64.whl", hash = "sha256:8f3a37f5abf0873396243634f30f46dcae118a585cbef13554dd3eed0f9c67e0"},
+    {file = "pygraphviz-2.0.1.tar.gz", hash = "sha256:6f9850617f9444517641d2e14dfdb99ae8294cf7657be86c031fee8f7c54f863"},
+]
+
+[[package]]
 name = "pykrige"
 version = "1.7.3"
 description = "Kriging Toolkit for Python."
@@ -3502,7 +3553,7 @@ version = "4.1.0"
 description = "Backport of pathlib-compatible object wrapper for zip files"
 optional = false
 python-versions = ">=3.10"
-groups = ["main"]
+groups = ["main", "dev"]
 files = [
     {file = "zipp-4.1.0-py3-none-any.whl", hash = "sha256:25ad4e16390cd314347dd8f1de67a2ac538ae658ed4ab9db16029c07c188e97f"},
     {file = "zipp-4.1.0.tar.gz", hash = "sha256:4cb57381f544315db7688e976e922a2b18cdb513d21cc194eb42232ba2a3e602"},
@@ -3631,4 +3682,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "04b8eb9d4711840cd52988063eb7945b268e6b7f29457062936df5ef7fddcc0c"
+content-hash = "196a515910208e52fca6b0b82df86356382d563587a493f49d60685b98b07ff8"

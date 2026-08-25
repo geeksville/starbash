@@ -11,7 +11,8 @@ USER root
 # Add core python packages
 # libxcb-cursor0 is needed for Qt6
 RUN apt-get update && apt-get -y install --no-install-recommends \
-        python3 python3-pip python3-venv python-is-python3 python3-tk sudo git flatpak sqlitebrowser libxcb-cursor0
+        python3 python3-pip python3-venv python-is-python3 python3-tk sudo git flatpak sqlitebrowser libxcb-cursor0 \
+        graphviz
 
 # Create a non-root user if one doesn't exist, and give it sudo rights
 RUN if ! id -u ${USERNAME} > /dev/null 2>&1; then \
@@ -57,6 +58,9 @@ RUN echo >> /home/vscode/.bashrc && \
         echo 'eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"' >> /home/vscode/.bashrc && \
         eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)" && \
         brew install vhs
+
+# so that "open *.svg" works in the container
+RUN xdg-mime default google-chrome.desktop image/svg+xml
 
 USER root
 

@@ -48,7 +48,8 @@ class StarnetTool(SirilTool):
             elif not self._starnet_configured():
                 logger.warning(
                     "StarNet is not enabled in Siril. Set the StarNet executable in "
-                    "Siril's settings (Preferences > Miscellaneous) to use star removal."
+                    "Siril's settings (Preferences > Miscellaneous) to use star removal. "
+                    "You can download StarNet from https://starnetastro.com/cli-tools/"
                 )
                 self._starnet_available = False
             else:

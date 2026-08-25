@@ -268,6 +268,13 @@ test-scripts:
     # sb repo add ./siril-scripts/processing/VeraLux_HyperMetric_Stretch.toml
     sb process auto
 
+# show dependency graph of tasks (requires graphviz installed)
+depends:
+    # options must precede the task name, and use = form:
+    sb process doit graph --reverse --horizontal --show-subtasks --output=/tmp/tasks.dot process_all
+    dot -Tsvg /tmp/tasks.dot -o /tmp/tasks.svg     # or -Tpng
+    open /tmp/tasks.svg
+
 #
 # The following is for experimenting with Textual UI stuff
 #

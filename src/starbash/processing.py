@@ -271,6 +271,36 @@ class Processing(ProcessingLike):
 
         return results
 
+    def build_all_tasks(self) -> list[TaskDict]:
+        """Build the full task tree for every selected target without running it.
+
+        Used by developer inspection commands (``sb process doit graph/list/info``) so
+        those doit subcommands have the complete dependency graph to report on.
+        """
+        sessions = self.sb.search_session()
+        targets: set[str] = set()
+        for s in sessions:
+            target = s.get(get_column_name(Database.OBJECT_KEY))
+            if target:
+                targets.add(normalize_target_name(target))
+
+        all_tasks: list[TaskDict] = []
+        if starbash.process_masters:
+            all_tasks.extend(self._create_master_tasks())
+        for t in targets:
+            all_tasks.extend(self._create_tasks(sessions, [t]))
+        return all_tasks
+
+    def load_tasks_for_inspection(self) -> None:
+        """Populate doit with the full task tree (plus the ``process_all`` aggregate task).
+
+        Leaves the tasks loaded but unexecuted so a following doit passthrough command
+        (graph, list, info, ...) can inspect them.
+        """
+        tasks = self.build_all_tasks()
+        tasks.append(create_default_task(tasks))
+        self.doit.set_tasks(tasks)
+
     def _set_session_in_context(self, session: SessionRow) -> None:
         """adds to context from the indicated session:
 

@@ -45,6 +45,9 @@ ruff = "^0.14.4"
 basedpyright = "^1.33.0"
 textual-dev = "^1.8.0"
 
+# Adds the `graph` command to doit (GraphViz output) for `sb process doit graph`.
+doit-graph = "^0.3.0"
+
 # We don't currently use this text based sql client
 # harlequin = "^2.4.1"
 

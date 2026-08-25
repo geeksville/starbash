@@ -264,6 +264,8 @@ def doit(
             from starbash import console
 
             console.print("[red]This command is currently for developers only...[/red]")
+            # Build the full task tree so doit subcommands (graph/list/info) have data to show.
+            proc.load_tasks_for_inspection()
             proc.doit.run(ctx.args)
 
 
