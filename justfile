@@ -144,7 +144,8 @@ select-seestar-ir:
 # select my current test target
 select-current:
     sb select any
-    sb select target "ngc6888"
+    #sb select target "ngc6888"
+    sb select target "sh2-91"
 
 # test target that has Si and HaOiii filters
 select-si-ha:
