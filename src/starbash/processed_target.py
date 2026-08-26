@@ -250,6 +250,10 @@ class ProcessedTarget:
         self._update_from_context()
         self._generate_report()
         self.parameter_store.write_stage_overrides(self.repo)
+        # Drop the template's placeholder empty [[stages]] entry before writing.
+        from starbash.stage_utils import prune_empty_stages
+
+        prune_empty_stages(self.default_stages)
         if self.config_valid:
             self.repo.write_config()
         else:

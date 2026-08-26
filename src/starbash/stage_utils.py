@@ -24,6 +24,7 @@ __all__ = [
     "upsert_stage",
     "mark_used",
     "mark_excluded",
+    "prune_empty_stages",
 ]
 
 
@@ -103,3 +104,16 @@ def mark_excluded(container: MutableMapping[str, Any], stages: list[StageDict]) 
     """Mark each stage as ``excluded = true`` in the ``[[stages]]`` AoT."""
     for stage in stages:
         upsert_stage(container, stage, excluded=True)
+
+
+def prune_empty_stages(container: MutableMapping[str, Any]) -> None:
+    """Remove ``[[stages]]`` entries that have no ``name``.
+
+    The processed-target template ships a placeholder empty ``[[stages]]`` (to fix
+    where the array lands in the file); once real entries are added it becomes a
+    bogus nameless entry, so drop any nameless entries before writing.
+    """
+    aot = get_stages_aot(container)
+    empty_indices = [i for i, item in enumerate(aot) if not item.get("name")]
+    for i in reversed(empty_indices):  # reverse so indices stay valid during removal
+        del aot[i]

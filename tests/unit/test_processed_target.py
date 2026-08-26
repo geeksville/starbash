@@ -15,6 +15,7 @@ from starbash.stage_utils import (
     is_excluded,
     mark_excluded,
     mark_used,
+    prune_empty_stages,
     upsert_stage,
 )
 
@@ -68,6 +69,25 @@ class TestStageAotHelpers:
         upsert_stage(container, stage)
         upsert_stage(container, stage)
         assert len(container["stages"]) == 1
+
+    def test_prune_removes_nameless_entries(self):
+        import tomlkit
+
+        aot = tomlkit.aot()
+        aot.append(tomlkit.table())  # placeholder empty entry (like the template)
+        container = {"stages": aot}
+        upsert_stage(container, {"name": "real_stage"})
+
+        assert len(container["stages"]) == 2
+        prune_empty_stages(container)
+        assert [s.get("name") for s in container["stages"]] == ["real_stage"]
+
+    def test_prune_no_op_when_all_named(self):
+        container: dict = {}
+        upsert_stage(container, {"name": "a"})
+        upsert_stage(container, {"name": "b"})
+        prune_empty_stages(container)
+        assert len(container["stages"]) == 2
 
     def test_mark_excluded_and_is_excluded(self):
         container: dict = {}
