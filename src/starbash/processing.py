@@ -52,6 +52,7 @@ from starbash.stages import (
     create_default_task,
     inputs_by_kind,
     inputs_with_key,
+    is_excluded,
     make_imagerow,
     mark_excluded,
     remove_excluded_tasks,
@@ -1005,6 +1006,25 @@ class Processing(ProcessingLike):
         if not isinstance(prior_tasks, list):
             prior_tasks = [prior_tasks]
 
+        # Skip outputs from prior stages the user excluded. Otherwise a downstream
+        # multiplex (e.g. starnet after "palette.*") would create a task consuming a
+        # file that will never be produced (excluding palette_sho must not schedule a
+        # starnet task on SHO.fits). Filtering here also stops orphaned inputs from
+        # propagating down multi-file chains, keeping the doit task graph consistent.
+        pt = self.processed_target
+        prior_tasks = [
+            t
+            for t in prior_tasks
+            if not is_excluded(
+                task_to_session(t) or (pt.default_stages if pt else {}),
+                task_to_stage(t).get("name", ""),
+            )
+        ]
+        if not prior_tasks:
+            raise NotEnoughFilesError(
+                "All prior stages for this input were excluded", []
+            )
+
         # Collect all image rows from prior stage outputs
         child_exception: Exception | None = None
 
@@ -1094,7 +1114,6 @@ class Processing(ProcessingLike):
 
     def preflight_tasks(self, pt: ProcessedTarget, tasks: list[TaskDict]) -> list[TaskDict]:
         # if user has excluded any stages, we need to respect that (remove matching stages)
-
         tasks = remove_excluded_tasks(tasks)
 
         # drop any stages whose required tool isn't installed on this machine
