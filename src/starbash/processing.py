@@ -1,6 +1,7 @@
 """Base class for processing operations in starbash."""
 
 import copy
+import hashlib
 import logging
 import os
 import textwrap
@@ -8,6 +9,7 @@ import types
 from pathlib import Path
 from typing import Any
 
+from doit.tools import config_changed
 from multidict import MultiDict
 from rich.progress import Progress
 from toml_repo import Repo
@@ -88,6 +90,68 @@ def _clone_context(context: dict[str, Any]) -> dict[str, Any]:
             r[key] = context[key]
 
     return r
+
+
+def _stage_fingerprint(stage: StageDict, context: dict[str, Any]) -> dict[str, Any]:
+    """Build a stable fingerprint for ``config_changed`` invalidation.
+
+    Includes effective parameter values (defaults + overrides), expanded
+    ``tool.parameters``, tool name and a hash of the stage script so that
+    recipe or override edits force a rebuild. Volatile context (process_dir,
+    session, absolute paths) is intentionally excluded.
+    """
+    # Effective params for this stage (already resolved into context["parameters"])
+    params_obj = context.get("parameters")
+    if params_obj is not None:
+        try:
+            params = {k: v for k, v in vars(params_obj).items() if not k.startswith("_")}
+        except TypeError:
+            params = {}
+        # Ensure JSON-serializable (Path -> str etc.)
+        params = {k: str(v) if isinstance(v, Path) else v for k, v in params.items()}
+    else:
+        params = {}
+
+    tool_dict = stage.get("tool", {}) if isinstance(stage.get("tool"), dict) else {}
+    tool_name = tool_dict.get("name") if isinstance(tool_dict, dict) else None
+    # Expanded tool parameters stashed by _stage_to_action (or fallback to raw)
+    tool_params = context.get("_tool_params_expanded")
+    if tool_params is None:
+        # Fallback: expand raw tool.parameters now (covers fallback/copy tasks)
+        raw = tool_dict.get("parameters", {}) if isinstance(tool_dict, dict) else {}
+        try:
+            tool_params = expand_context_dict(raw, context) if isinstance(raw, dict) else {}
+        except Exception:
+            tool_params = raw if isinstance(raw, dict) else {}
+    # Normalise Path values for JSON stability
+    if isinstance(tool_params, dict):
+        tool_params = {k: str(v) if isinstance(v, Path) else v for k, v in tool_params.items()}
+    else:
+        tool_params = {}
+
+    # Hash of inline script or script-file content
+    script: str | list[str] | None = stage.get("script")
+    if script is None:
+        script_file = stage.get("script-file")
+        if script_file:
+            try:
+                source: Repo = stage.source  # type: ignore[attr-defined]
+                script = source.read(str(script_file))
+            except Exception:
+                script = None
+    if isinstance(script, list):
+        script = "\n".join(script)
+    script_sha: str | None = None
+    if isinstance(script, str) and script:
+        script_sha = hashlib.sha256(script.encode("utf-8")).hexdigest()[:12]
+
+    return {
+        "stage": stage.get("name"),
+        "params": params,
+        "tool": tool_name,
+        "tool_params": tool_params,
+        "script_sha": script_sha,
+    }
 
 
 class Processing(ProcessingLike):
@@ -542,6 +606,8 @@ class Processing(ProcessingLike):
         tool_name = get_safe(tool_dict, "name")
         tool_parameters_in: dict[str, str] = tool_dict.get("parameters", {})
         tool_parameters = expand_context_dict(tool_parameters_in, self.context)
+        # Stash expanded tool params for fingerprinting (config_changed)
+        self.context["_tool_params_expanded"] = tool_parameters
         tool = tools.get(tool_name)
         if not tool:
             raise ValueError(f"Tool '{tool_name}' for stage '{stage.get('name')}' not found.")
@@ -775,6 +841,8 @@ class Processing(ProcessingLike):
         param_store = self.processed_target.parameter_store
         param_store.add_parameters_from_stage(stage.source, stage)  # pyright: ignore[reportAttributeAccessIssue]
         self.context["parameters"] = param_store.as_obj_for_stage(stage.get("name"))
+        # Clear any stale expanded tool params from previous task
+        self.context.pop("_tool_params_expanded", None)
 
         self.use_temp_cwd = False
 
@@ -825,6 +893,14 @@ class Processing(ProcessingLike):
             # add the actions THIS will store a SNAPSHOT of the context AT THIS TIME for use if the task/action is later executed
             self._stage_to_action(task_dict, stage)
             stage_to_doc(task_dict, stage)  # add the doc string
+
+        # Value-based invalidation: rebuild when effective params / tool params / script change.
+        # Stored in doit.db via config_changed; downstream tasks rebuild transitively via file_dep mtimes.
+        try:
+            fingerprint = _stage_fingerprint(stage, self.context)
+            task_dict["uptodate"] = [config_changed(fingerprint)]
+        except Exception as e:
+            logging.debug(f"Failed to compute fingerprint for stage '{stage.get('name')}': {e}")
 
         doit_post_process(task_dict)
 
