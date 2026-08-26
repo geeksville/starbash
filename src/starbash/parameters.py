@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 from typing import Any
 
+import tomlkit
 from toml_repo import Repo
-from tomlkit import aot, table
-from tomlkit.items import AoT
+from tomlkit.items import AoT, Table
 
-from starbash.safety import get_safe
+from starbash import StageDict
+from starbash.stage_utils import upsert_stage
 
 
 class ParameterObject:
@@ -16,17 +17,19 @@ class ParameterObject:
 
 @dataclass
 class Parameter:
-    """Describes a parameter or override"""
+    """Describes a parameter or override, scoped to the stage that declares it."""
 
     source: Repo  # The repo where this parameter/override was defined
     name: str
 
+    stage_name: str | None = None  # The stage this parameter/override belongs to
+
     description: str | None = None
 
     default: Any | None = (
-        None  # Only used in [[parameters]] toml - specifies the value to use if not overridden
+        None  # Only used in [[stages.parameters]] toml - value to use if not overridden
     )
-    value: Any | None = None  # Only used in [[overrides]] toml - species an overriden value
+    value: Any | None = None  # Only used in [[stages.overrides]] toml - an overriden value
 
     @property
     def is_override(self) -> bool:
@@ -35,141 +38,129 @@ class Parameter:
 
 
 class ParameterStore:
-    """Store for parameters and overrides from multiple repos."""
+    """Store for parameters and overrides, scoped per stage, from multiple repos."""
 
     def __init__(self):
         # Store parameters keyed by name. Later additions override earlier ones.
         self._parameters: list[Parameter] = []
+        # (stage_name, name) of default parameters already added, to avoid duplicates
+        # when the same stage is processed multiple times (e.g. per session/multiplex).
+        self._seen_defaults: set[tuple[str | None, str]] = set()
 
-    def add_from_repo(self, repo: Repo) -> None:
-        """Look at the toml file in the repo and add any parameters/overrides defined there."""
-        config = repo.config
-
-        # Process [[parameters]] array-of-tables
-        param_list = config.get("parameters", [])
-        for param in param_list:
+    def add_parameters_from_stage(self, repo: Repo, stage: StageDict) -> None:
+        """Add the ``[[stages.parameters]]`` (defaults) declared by a recipe stage."""
+        stage_name = stage.get("name")
+        for param in stage.get("parameters", []):
             name = param.get("name")
-            # If the AoT is empty we'll get a single empty table - ignore it
-            if not name:
+            if not name:  # skip empty AoT placeholder tables
                 continue
 
-            p = Parameter(
-                source=repo,
-                name=name,
-                description=param.get("description"),
-                # default is optional; when absent the tool uses its own built-in default.
-                default=param.get("default"),
-            )
-            self._parameters.append(p)
-
-        # Process [[overrides]] array-of-tables
-        override_list = config.get("overrides", [])
-        for override in override_list:
-            name = override.get("name")
-            # If the AoT is empty we'll get a single empty table - ignore it
-            if not name:
+            key = (stage_name, name)
+            if key in self._seen_defaults:
                 continue
+            self._seen_defaults.add(key)
 
-            value = get_safe(override, "value")
-
-            # Create new parameter with just the override
-            p = Parameter(
-                source=repo,
-                name=name,
-                description=override.get("description"),
-                value=value,
+            self._parameters.append(
+                Parameter(
+                    source=repo,
+                    name=name,
+                    stage_name=stage_name,
+                    description=param.get("description"),
+                    # A referenced parameter must declare a real default (a commented
+                    # `# default =` is invisible here and expands to nothing at runtime).
+                    default=param.get("default"),
+                )
             )
-            # Just blindly append the override - it will be applied last when generating as_obj
-            self._parameters.append(p)
 
-    def write_overrides(self, repo: Repo) -> None:
-        """Write any overrides for the given repo to its starbash.toml file.
+    def add_overrides_from_repo(self, repo: Repo) -> None:
+        """Add active ``[[stages.overrides]]`` (values) from a per-target repo.
 
-        We do this by looking in the toml to see if it already contains an [[overrides]] section.
-        If it does we assume any overrides we have in our store are already there.
-        For **all** parameters that are not overrides, we write TOML comments with example override entries based on
-        the parameters, description, name and default value.
-        We write these comments just after the [[overrides]] section.  If necessary we will create an empty [[overrides]]."""
-        config = repo.config
+        Only overrides whose ``value`` the user has set (uncommented) are applied.
+        """
+        stages_aot = repo.config.get("stages")
+        if not isinstance(stages_aot, AoT):
+            return
 
-        # Get or create [[overrides]] section
-        overrides_aot: AoT | None = config.get("overrides")
-        has_existing_overrides = False
-        existing_overrides: set[str] = set()  # the names of existing overrides
-        if overrides_aot is None or not isinstance(overrides_aot, AoT):
-            overrides_aot = aot()
-            config["overrides"] = overrides_aot
+        for entry in stages_aot:
+            stage_name = entry.get("name")
+            overrides = entry.get("overrides")
+            if not isinstance(overrides, AoT):
+                continue
+            for override in overrides:
+                name = override.get("name")
+                value = override.get("value")
+                if not name or value is None:
+                    continue
+                self._parameters.append(
+                    Parameter(
+                        source=repo,
+                        name=name,
+                        stage_name=stage_name,
+                        description=override.get("description"),
+                        value=value,
+                    )
+                )
+
+    def write_stage_overrides(self, repo: Repo) -> None:
+        """Scaffold ``[[stages.overrides]]`` for every declared parameter.
+
+        For each stage that declares parameters, ensure its ``[[stages]]`` entry has
+        an ``overrides`` entry per parameter with ``name`` set and, unless the user has
+        already activated it, a commented-out ``value`` line showing the default.
+        """
+        # Group declared (non-override) parameters by owning stage.
+        by_stage: dict[str, list[Parameter]] = {}
+        for param in self._parameters:
+            if param.is_override or not param.stage_name:
+                continue
+            by_stage.setdefault(param.stage_name, []).append(param)
+
+        for stage_name, params in by_stage.items():
+            entry = upsert_stage(repo.config, {"name": stage_name})
+
+            overrides_aot = entry.get("overrides")
+            if not isinstance(overrides_aot, AoT):
+                overrides_aot = tomlkit.aot()
+                entry["overrides"] = overrides_aot
+
+            existing: set[str] = {
+                o.get("name") for o in overrides_aot if o.get("name")
+            }  # names already present (possibly user-activated)
+
+            for param in params:
+                if param.name in existing:
+                    continue  # leave user edits / prior scaffolding untouched
+                overrides_aot.append(self._make_override_scaffold(param))
+
+    @staticmethod
+    def _make_override_scaffold(param: Parameter) -> Table:
+        """Build a single ``[[stages.overrides]]`` table: name set, value commented."""
+        ov = tomlkit.table()
+        name_item = tomlkit.string(param.name)
+        if param.description:
+            name_item.comment(param.description)
+        ov["name"] = name_item
+
+        # The value stays commented until the user opts in by uncommenting it.
+        if param.default is None:
+            ov.add(tomlkit.comment("value ="))
+        elif isinstance(param.default, str):
+            ov.add(tomlkit.comment(f'value = "{param.default}"'))
         else:
-            # Check if there are existing overrides
-            has_existing_overrides = len(list(overrides_aot)) > 0
-            if has_existing_overrides:
-                # remove all empty tables from the overrides_aot list, but be careful to not create a new list.
-                # must do in-place removal to keep tomlkit happy
-                indices_to_remove = []
-                for i, item in enumerate(overrides_aot):
-                    name = item.get("name")
-                    if not name:
-                        indices_to_remove.append(i)
-                    else:
-                        existing_overrides.add(name)
+            ov.add(tomlkit.comment(f"value = {param.default}"))
+        return ov
 
-                for i in reversed(indices_to_remove):
-                    del overrides_aot[i]
+    def as_obj_for_stage(self, stage_name: str | None) -> ParameterObject:
+        """Return the effective parameters for ``stage_name`` as a context object.
 
-                # Update has_existing_overrides after removal
-                has_existing_overrides = len(list(overrides_aot)) > 0
-
-        # If no existing overrides, we need to add commented examples
-        if len(self._parameters) > 0:
-            # Build comment lines for all parameters without overrides
-            comment_lines: list[str] = []
-            comment_lines.append(
-                "# Uncomment and modify any of the following to override parameters:"
-            )
-
-            if not has_existing_overrides:  # FIXME, currently addeding these comments causes comments to grow without bounds if there are any overrides
-                for param in self._parameters:
-                    if not param.is_override and param.name not in existing_overrides:
-                        comment_lines.append("#")
-                        comment_lines.append("# [[overrides]]")
-                        name_line = f'# name = "{param.name}"'
-                        if param.description:
-                            name_line += f" # {param.description}"
-                        comment_lines.append(name_line)
-                        if param.default is not None:
-                            if isinstance(param.default, str):
-                                comment_lines.append(f'# value = "{param.default}"')
-                            else:
-                                comment_lines.append(f"# value = {param.default}")
-
-                comment_lines.append("")  # one blank line at the end
-
-            if not has_existing_overrides:
-                # Add a dummy entry so the AoT gets written
-                dummy = table()
-                overrides_aot.append(dummy)
-                last = dummy
-            else:
-                last = overrides_aot[-1]
-
-            # join the comments into a single multiline string, then add it as a comment to overrides_aot
-            comment_str = "\n".join(comment_lines)
-            # tomlkit has a bug, comments on AoT are not rendered.  So add it to the last entry instead
-            last.comment(comment_str)
-
-    @property
-    def as_obj(self) -> ParameterObject:
-        """Return the parameters/overrides as an object suitable for including as context.parameters.
-
-        Note: if there are multiple overrides for the same parameter name, the last one added takes precedence.
-        If there is no override for a parameter, its default value is used."""
+        Defaults are applied first, then any overrides for the same stage win.
+        """
         result = ParameterObject()
         for param in self._parameters:
-            # Use override value if present, otherwise use default
-            if param.is_override:
+            if param.stage_name == stage_name and not param.is_override:
+                if not hasattr(result, param.name):
+                    setattr(result, param.name, param.default)
+        for param in self._parameters:
+            if param.stage_name == stage_name and param.is_override:
                 setattr(result, param.name, param.value)
-            elif not hasattr(
-                result, param.name
-            ):  # only set default if not already set by an override
-                setattr(result, param.name, param.default)
         return result

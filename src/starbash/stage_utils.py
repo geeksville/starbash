@@ -1,45 +1,105 @@
-"""Utility functions for stage management to avoid circular imports."""
+"""Utility functions for stage management to avoid circular imports.
+
+Per-target settings are stored as a single ``[[stages]]`` array-of-tables. Each
+item has a ``name``, an optional ``excluded = true`` flag, and an optional nested
+``[[stages.overrides]]`` array. A "container" here is any mapping that holds such
+an AoT under the key ``stages`` (a target's ``default_stages``, a session row, or
+a repo's ``config`` document).
+"""
 
 from __future__ import annotations
 
+from collections.abc import MutableMapping
+from typing import Any
+
+import tomlkit
+from tomlkit.items import AoT, Table
+
 from starbash import StageDict
-from starbash.toml import CommentedString, toml_from_list
 
 __all__ = [
-    "stage_with_comment",
-    "set_used",
-    "set_excluded",
-    "get_from_toml",
+    "get_stages_aot",
+    "find_stage_entry",
+    "is_excluded",
+    "upsert_stage",
+    "mark_used",
+    "mark_excluded",
 ]
 
 
-def stage_with_comment(stage: StageDict) -> CommentedString:
-    """Create a CommentedString for the given stage."""
+def get_stages_aot(container: MutableMapping[str, Any], create: bool = False) -> AoT:
+    """Return the ``[[stages]]`` array-of-tables held by ``container``.
+
+    Args:
+        container: mapping that stores the stages AoT under key ``stages``.
+        create: if True, create and store an empty AoT when missing (so mutations
+            persist back into ``container``). If False, return a detached empty AoT.
+    """
+    node = container.get("stages")
+    if not isinstance(node, AoT):
+        node = tomlkit.aot()
+        if create:
+            container["stages"] = node
+    return node
+
+
+def find_stage_entry(container: MutableMapping[str, Any], name: str) -> Table | None:
+    """Return the ``[[stages]]`` entry with the given ``name``, or None."""
+    for item in get_stages_aot(container):
+        if item.get("name") == name:
+            return item  # type: ignore[return-value]
+    return None
+
+
+def is_excluded(container: MutableMapping[str, Any], name: str) -> bool:
+    """Return True if the stage ``name`` is marked ``excluded = true``."""
+    entry = find_stage_entry(container, name)
+    return bool(entry.get("excluded", False)) if entry is not None else False
+
+
+def upsert_stage(
+    container: MutableMapping[str, Any],
+    stage: StageDict,
+    excluded: bool | None = None,
+) -> Table:
+    """Ensure a ``[[stages]]`` entry exists for ``stage``; optionally set excluded.
+
+    Existing entries (and any user-added overrides) are preserved. ``excluded=None``
+    leaves the flag untouched; ``True`` sets it; ``False`` removes it.
+    """
+    aot = get_stages_aot(container, create=True)
     name = stage.get("name", "unnamed_stage")
-    description = stage.get("description", None)
-    return CommentedString(value=name, comment=description)
+
+    entry: Table | None = None
+    for item in aot:
+        if item.get("name") == name:
+            entry = item  # type: ignore[assignment]
+            break
+
+    if entry is None:
+        entry = tomlkit.table()
+        name_item = tomlkit.string(str(name))
+        description = stage.get("description")
+        if description:
+            name_item.comment(description)
+        entry["name"] = name_item
+        aot.append(entry)
+
+    if excluded is True:
+        entry["excluded"] = True
+    elif excluded is False and "excluded" in entry:
+        del entry["excluded"]
+
+    return entry
 
 
-def set_used(self: dict, used_stages: list[StageDict]) -> None:
-    """Set the used lists for the given section."""
-    name = "stages"
-    used = [stage_with_comment(s) for s in used_stages]
-    node = self.setdefault(name, {})
-    node["used"] = toml_from_list(used)
+def mark_used(container: MutableMapping[str, Any], stages: list[StageDict]) -> None:
+    """Record each stage as a (non-excluded) ``[[stages]]`` entry."""
+    for stage in stages:
+        upsert_stage(container, stage, excluded=False)
 
 
-def set_excluded(self: dict, stages_to_exclude: list[StageDict]) -> None:
-    """Set the excluded lists for the given section."""
-    name = "stages"
-    excluded = [stage_with_comment(s) for s in stages_to_exclude]
-
-    node = self.setdefault(name, {})
-    node["excluded"] = toml_from_list(excluded)
-
-
-def get_from_toml(self: dict, key_name: str) -> list[str]:
-    """Any consumers of this function probably just want the raw string (key_name is usually excluded or used)"""
-    dict_name = "stages"
-    node = self.setdefault(dict_name, {})
-    excluded: list[CommentedString] = node.get(key_name, [])
-    return [a.value for a in excluded]
+def mark_excluded(container: MutableMapping[str, Any], stages: list[StageDict]) -> None:
+    """Mark each stage as ``excluded = true`` in the ``[[stages]]`` AoT."""
+    for stage in stages:
+        upsert_stage(container, stage, excluded=True)

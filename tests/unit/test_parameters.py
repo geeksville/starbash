@@ -2,297 +2,240 @@
 
 from pathlib import Path
 
-import pytest
-import tomlkit
 from toml_repo.repo import Repo
 
 from starbash.parameters import Parameter, ParameterStore
 
 
 def test_parameter_is_override():
-    """Test that Parameter.is_override property works correctly."""
-    # Create a minimal repo for testing
-    # Parameter with only default (not an override)
+    """Parameter.is_override reflects whether a value was set."""
     param1 = Parameter(source=None, name="test", default=42, value=None)  # type: ignore
     assert not param1.is_override
 
-    # Parameter with value (is an override)
     param2 = Parameter(source=None, name="test", default=42, value=100)  # type: ignore
     assert param2.is_override
 
 
-def test_add_parameters_from_repo(tmp_path: Path):
-    """Test loading [[parameters]] from a repo."""
+def _recipe_repo(tmp_path: Path) -> Repo:
+    """A recipe repo with two stages, each declaring its own parameters."""
     toml_file = tmp_path / "starbash.toml"
     toml_file.write_text(
         """
         [repo]
         kind = "recipe"
 
-        [[parameters]]
+        [[stages]]
+        name = "background"
+
+        [[stages.parameters]]
         name = "smoothing_option"
         default = 0.5
         description = "Smoothing option for graxpert"
 
-        [[parameters]]
+        [[stages.parameters]]
         name = "ai_version"
         default = "1.0.1"
         description = "AI version"
+
+        [[stages]]
+        name = "stack_osc"
+
+        [[stages.parameters]]
+        name = "smoothing_option"
+        default = 0.9
+        description = "Different stage, same param name"
         """,
         encoding="utf-8",
     )
+    return Repo(toml_file)
 
-    repo = Repo(toml_file)
+
+def test_add_parameters_from_stage(tmp_path: Path):
+    """Parameters are loaded and tagged with their owning stage."""
+    repo = _recipe_repo(tmp_path)
     store = ParameterStore()
-    store.add_from_repo(repo)
+    for stage in repo.config["stages"]:
+        store.add_parameters_from_stage(repo, stage)
 
-    # Verify parameters were loaded
-    param_names = [p.name for p in store._parameters]
-    assert "smoothing_option" in param_names
-    assert "ai_version" in param_names
-
-    # Check smoothing_option details
-    param = next(p for p in store._parameters if p.name == "smoothing_option")
-    assert param.name == "smoothing_option"
-    assert param.default == 0.5
-    assert param.description == "Smoothing option for graxpert"
-    assert not param.is_override
-    assert param.source == repo
-
-    # Check ai_version details
-    param = next(p for p in store._parameters if p.name == "ai_version")
-    assert param.name == "ai_version"
-    assert param.default == "1.0.1"
-    assert param.description == "AI version"
+    bg = [p for p in store._parameters if p.stage_name == "background"]
+    names = {p.name for p in bg}
+    assert names == {"smoothing_option", "ai_version"}
+    smoothing = next(p for p in bg if p.name == "smoothing_option")
+    assert smoothing.default == 0.5
+    assert smoothing.description == "Smoothing option for graxpert"
+    assert not smoothing.is_override
+    assert smoothing.source == repo
 
 
-def test_add_overrides_from_repo(tmp_path: Path):
-    """Test loading [[overrides]] from a repo."""
-    toml_file = tmp_path / "starbash.toml"
+def test_add_parameters_is_deduped(tmp_path: Path):
+    """Adding the same stage twice does not duplicate its parameters."""
+    repo = _recipe_repo(tmp_path)
+    store = ParameterStore()
+    stage = repo.config["stages"][0]
+    store.add_parameters_from_stage(repo, stage)
+    store.add_parameters_from_stage(repo, stage)
+
+    smoothing = [
+        p
+        for p in store._parameters
+        if p.stage_name == "background" and p.name == "smoothing_option"
+    ]
+    assert len(smoothing) == 1
+
+
+def test_as_obj_for_stage_uses_defaults(tmp_path: Path):
+    """as_obj_for_stage returns each stage's own defaults."""
+    repo = _recipe_repo(tmp_path)
+    store = ParameterStore()
+    for stage in repo.config["stages"]:
+        store.add_parameters_from_stage(repo, stage)
+
+    bg = store.as_obj_for_stage("background")
+    assert bg.smoothing_option == 0.5
+    assert bg.ai_version == "1.0.1"
+
+    # Same param name in a different stage resolves independently.
+    stack = store.as_obj_for_stage("stack_osc")
+    assert stack.smoothing_option == 0.9
+
+
+def _target_repo(tmp_path: Path) -> Repo:
+    """A per-target repo with an active override for one stage."""
+    toml_file = tmp_path / "target.toml"
     toml_file.write_text(
         """
         [repo]
-        kind = "target"
+        kind = "processed-target"
 
-        [[overrides]]
-        name = "smoothing_option"
-        value = 0.7
-        """,
-        encoding="utf-8",
-    )
-
-    repo = Repo(toml_file)
-    store = ParameterStore()
-    store.add_from_repo(repo)
-
-    # Verify override was loaded
-    param_names = [p.name for p in store._parameters]
-    assert "smoothing_option" in param_names
-    param = next(p for p in store._parameters if p.name == "smoothing_option")
-    assert param.name == "smoothing_option"
-    assert param.value == 0.7
-    assert param.is_override
-
-
-def test_override_replaces_parameter(tmp_path: Path):
-    """Test that overrides replace parameter defaults."""
-    # First repo with parameter
-    param_file = tmp_path / "params.toml"
-    param_file.write_text(
-        """
-        [repo]
-        kind = "recipe"
-
-        [[parameters]]
-        name = "smoothing_option"
-        default = 0.5
-        description = "Smoothing option"
-        """,
-        encoding="utf-8",
-    )
-
-    # Second repo with override
-    override_file = tmp_path / "overrides.toml"
-    override_file.write_text(
-        """
-        [repo]
-        kind = "target"
-
-        [[overrides]]
+        [[stages]]
+        name = "background"
+        [[stages.overrides]]
         name = "smoothing_option"
         value = 0.8
         """,
         encoding="utf-8",
     )
+    return Repo(toml_file)
 
-    param_repo = Repo(param_file)
-    override_repo = Repo(override_file)
+
+def test_add_overrides_from_repo(tmp_path: Path):
+    """Active [[stages.overrides]] are loaded and scoped to their stage."""
+    repo = _target_repo(tmp_path)
+    store = ParameterStore()
+    store.add_overrides_from_repo(repo)
+
+    overrides = [p for p in store._parameters if p.is_override]
+    assert len(overrides) == 1
+    ov = overrides[0]
+    assert ov.stage_name == "background"
+    assert ov.name == "smoothing_option"
+    assert ov.value == 0.8
+
+
+def test_override_wins_over_default(tmp_path: Path):
+    """A stage override replaces the recipe default for that stage only."""
+    recipe = _recipe_repo(tmp_path)
+    target = _target_repo(tmp_path)
 
     store = ParameterStore()
-    store.add_from_repo(param_repo)
-    store.add_from_repo(override_repo)
+    for stage in recipe.config["stages"]:
+        store.add_parameters_from_stage(recipe, stage)
+    store.add_overrides_from_repo(target)
 
-    # Verify both the parameter and override were added
-    # as_obj should apply the override value
-    obj = store.as_obj
-    assert obj.smoothing_option == 0.8
+    bg = store.as_obj_for_stage("background")
+    assert bg.smoothing_option == 0.8  # overridden
+    assert bg.ai_version == "1.0.1"  # still default
 
-    # Check that we have both entries in the list
-    params = [p for p in store._parameters if p.name == "smoothing_option"]
-    assert len(params) == 2  # One parameter, one override
-
-    # Find the override entry
-    override_param = next(p for p in params if p.is_override)
-    assert override_param.value == 0.8
-    assert override_param.source == override_repo
+    # stack_osc's same-named param is unaffected by the background override.
+    stack = store.as_obj_for_stage("stack_osc")
+    assert stack.smoothing_option == 0.9
 
 
-def test_as_obj_with_defaults(tmp_path: Path):
-    """Test as_obj returns defaults when no overrides."""
-    toml_file = tmp_path / "starbash.toml"
+def test_commented_override_is_ignored(tmp_path: Path):
+    """An override entry with no value (commented) does not apply."""
+    toml_file = tmp_path / "target.toml"
     toml_file.write_text(
         """
         [repo]
-        kind = "recipe"
+        kind = "processed-target"
 
-        [[parameters]]
+        [[stages]]
+        name = "background"
+        [[stages.overrides]]
         name = "smoothing_option"
-        default = 0.5
-
-        [[parameters]]
-        name = "ai_version"
-        default = "1.0.1"
+        # value = 0.8
         """,
         encoding="utf-8",
     )
-
     repo = Repo(toml_file)
     store = ParameterStore()
-    store.add_from_repo(repo)
-
-    result = store.as_obj
-    assert result.smoothing_option == 0.5
-    assert result.ai_version == "1.0.1"
+    store.add_overrides_from_repo(repo)
+    assert [p for p in store._parameters if p.is_override] == []
 
 
-def test_as_obj_with_overrides(tmp_path: Path):
-    """Test as_obj returns override values instead of defaults."""
-    # Repo with parameters
-    param_file = tmp_path / "params.toml"
-    param_file.write_text(
+def test_write_stage_overrides_scaffolds(tmp_path: Path):
+    """write_stage_overrides nests [[stages.overrides]] with name set, value commented."""
+    toml_file = tmp_path / "target.toml"
+    toml_file.write_text(
         """
         [repo]
-        kind = "recipe"
-
-        [[parameters]]
-        name = "smoothing_option"
-        default = 0.5
-
-        [[parameters]]
-        name = "ai_version"
-        default = "1.0.1"
+        kind = "processed-target"
         """,
         encoding="utf-8",
     )
+    repo = Repo(toml_file)
+    store = ParameterStore()
+    store._parameters.append(
+        Parameter(
+            source=repo,
+            name="light_options",
+            stage_name="light_vs_dark",
+            default="-cfa -equalize_cfa",
+            description="Light frame calibration options",
+        )
+    )
+    store._parameters.append(
+        Parameter(source=repo, name="smoothing", stage_name="background", default=0.5)
+    )
 
-    # Repo with overrides
-    override_file = tmp_path / "overrides.toml"
-    override_file.write_text(
+    store.write_stage_overrides(repo)
+    repo.write_config()
+
+    content = toml_file.read_text()
+    assert "[[stages]]" in content
+    assert 'name = "light_options"' in content  # name uncommented
+    assert '# value = "-cfa -equalize_cfa"' in content  # value stays commented
+    assert "# value = 0.5" in content
+    assert "Light frame calibration options" in content  # description carried onto name line
+
+
+def test_write_stage_overrides_preserves_activated(tmp_path: Path):
+    """An override the user already activated is not clobbered by re-scaffolding."""
+    toml_file = tmp_path / "target.toml"
+    toml_file.write_text(
         """
         [repo]
-        kind = "target"
+        kind = "processed-target"
 
-        [[overrides]]
-        name = "smoothing_option"
+        [[stages]]
+        name = "background"
+        [[stages.overrides]]
+        name = "smoothing"
         value = 0.9
         """,
         encoding="utf-8",
     )
-
-    param_repo = Repo(param_file)
-    override_repo = Repo(override_file)
-
-    store = ParameterStore()
-    store.add_from_repo(param_repo)
-    store.add_from_repo(override_repo)
-
-    result = store.as_obj
-    # smoothing_option should use override, ai_version should use default
-    assert result.smoothing_option == 0.9
-    assert result.ai_version == "1.0.1"
-
-
-def test_write_overrides_creates_section(tmp_path: Path):
-    """Test write_overrides creates [[overrides]] section with commented examples."""
-    toml_file = tmp_path / "starbash.toml"
-    toml_file.write_text(
-        """
-        [repo]
-        kind = "target"
-        """,
-        encoding="utf-8",
-    )
-
     repo = Repo(toml_file)
     store = ParameterStore()
-
-    # Add parameters to the store
     store._parameters.append(
-        Parameter(source=repo, name="test_param", default=42, description="Test parameter")
-    )
-    store._parameters.append(
-        Parameter(
-            source=repo, name="another_param", default="value", description="Another test parameter"
-        )
+        Parameter(source=repo, name="smoothing", stage_name="background", default=0.5)
     )
 
-    # Write overrides
-    store.write_overrides(repo)
-    repo.write_config()
+    store.write_stage_overrides(repo)
 
-    # Reload and verify [[overrides]] section exists with comments
-    updated_content = toml_file.read_text()
-    assert "[[overrides]]" in updated_content
-
-    # Check for commented example entries for parameters without overrides
-    # The comments should show how to override the parameters
-    assert '# name = "test_param"' in updated_content or 'name = "test_param"' in updated_content
-    assert "# Test parameter" in updated_content
-    assert "# value = 42" in updated_content or "value = 42" in updated_content
-
-
-def test_write_overrides_preserves_existing(tmp_path: Path):
-    """Test write_overrides preserves existing overrides."""
-    toml_file = tmp_path / "starbash.toml"
-    toml_file.write_text(
-        """
-        [repo]
-        kind = "target"
-
-        [[overrides]]
-        name = "existing_param"
-        value = 123
-        """,
-        encoding="utf-8",
-    )
-
-    repo = Repo(toml_file)
-    store = ParameterStore()
-    store.write_overrides(repo)
-    repo.write_config()
-
-    # Reload and verify existing override is still there
-    updated_repo = Repo(toml_file)
-    overrides = updated_repo.config.get("overrides")
-    assert overrides is not None
-
-    # Check that existing override is preserved
-    override_list = overrides.value if hasattr(overrides, "value") else overrides
-    found = False
-    for item in override_list:
-        override = item.value if hasattr(item, "value") else item
-        if override["name"] == "existing_param":
-            assert override["value"] == 123
-            found = True
-            break
-    assert found, "Existing override was not preserved"
+    stages = repo.config["stages"]
+    bg = next(s for s in stages if s["name"] == "background")
+    overrides = [o for o in bg["overrides"] if o.get("name") == "smoothing"]
+    # Only one entry, and the user's activated value is retained.
+    assert len(overrides) == 1
+    assert overrides[0].get("value") == 0.9

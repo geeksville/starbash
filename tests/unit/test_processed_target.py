@@ -10,13 +10,13 @@ import tomlkit
 from toml_repo import Repo
 
 from starbash.processed_target import ProcessedTarget
-from starbash.stages import (
-    get_from_toml,
-    set_excluded,
-    set_used,
-    stage_with_comment,
+from starbash.stage_utils import (
+    find_stage_entry,
+    is_excluded,
+    mark_excluded,
+    mark_used,
+    upsert_stage,
 )
-from starbash.toml import CommentedString
 
 
 @pytest.fixture
@@ -50,45 +50,41 @@ def temp_processing_dir(tmp_path):
         yield processing_dir
 
 
-class TestStageWithComment:
-    """Tests for stage_with_comment function."""
+class TestStageAotHelpers:
+    """Tests for the [[stages]] array-of-tables helpers."""
 
-    def test_stage_with_comment_basic(self):
-        """Test creating CommentedString from stage with name and description."""
+    def test_upsert_creates_entry_with_description_comment(self):
+        container: dict = {}
         stage = {"name": "preprocessing", "description": "Preprocess light frames"}
 
-        result = stage_with_comment(stage)
+        entry = upsert_stage(container, stage)
 
-        assert isinstance(result, CommentedString)
-        assert result.value == "preprocessing"
-        assert result.comment == "Preprocess light frames"
+        assert entry["name"] == "preprocessing"
+        assert find_stage_entry(container, "preprocessing") is not None
 
-    def test_stage_with_comment_no_description(self):
-        """Test creating CommentedString from stage without description."""
+    def test_upsert_is_idempotent(self):
+        container: dict = {}
         stage = {"name": "stacking"}
+        upsert_stage(container, stage)
+        upsert_stage(container, stage)
+        assert len(container["stages"]) == 1
 
-        result = stage_with_comment(stage)
+    def test_mark_excluded_and_is_excluded(self):
+        container: dict = {}
+        mark_excluded(container, [{"name": "denoise"}])
+        assert is_excluded(container, "denoise") is True
 
-        assert result.value == "stacking"
-        assert result.comment is None
+    def test_mark_used_clears_excluded_flag(self):
+        container: dict = {}
+        upsert_stage(container, {"name": "denoise"}, excluded=True)
+        assert is_excluded(container, "denoise") is True
 
-    def test_stage_with_comment_no_name(self):
-        """Test creating CommentedString from stage without name."""
-        stage = {"description": "Some description"}
+        mark_used(container, [{"name": "denoise"}])
+        assert is_excluded(container, "denoise") is False
 
-        result = stage_with_comment(stage)
-
-        assert result.value == "unnamed_stage"
-        assert result.comment == "Some description"
-
-    def test_stage_with_comment_empty_dict(self):
-        """Test creating CommentedString from empty stage dict."""
-        stage = {}
-
-        result = stage_with_comment(stage)
-
-        assert result.value == "unnamed_stage"
-        assert result.comment is None
+    def test_is_excluded_unknown_stage(self):
+        container: dict = {}
+        assert is_excluded(container, "missing") is False
 
 
 class TestProcessedTargetInit:
@@ -184,64 +180,46 @@ class TestProcessedTargetMethods:
             pt.repo = mock_repo
             yield pt
 
-    def test_set_used(self, processed_target):
-        """Test set_used method."""
+    def test_mark_used(self, processed_target):
+        """mark_used records each stage as a non-excluded [[stages]] entry."""
         used_stages = [
             {"name": "stage1", "description": "First stage"},
             {"name": "stage2", "description": "Second stage"},
         ]
 
-        test_dict = {}
-        set_used(test_dict, used_stages)
+        test_dict: dict = {}
+        mark_used(test_dict, used_stages)
 
         assert "stages" in test_dict
-        assert "used" in test_dict["stages"]
-        assert len(test_dict["stages"]["used"]) == 2
+        assert len(test_dict["stages"]) == 2
+        assert is_excluded(test_dict, "stage1") is False
 
-    def test_set_excluded(self, processed_target):
-        """Test set_excluded method."""
+    def test_mark_excluded(self, processed_target):
+        """mark_excluded flags each stage as excluded."""
         stages_to_exclude = [
             {"name": "calibration", "description": "Calibrate frames"},
             {"name": "registration"},
         ]
 
-        test_dict = {}
-        set_excluded(test_dict, stages_to_exclude)
+        test_dict: dict = {}
+        mark_excluded(test_dict, stages_to_exclude)
 
-        assert "stages" in test_dict
-        assert "excluded" in test_dict["stages"]
-        assert len(test_dict["stages"]["excluded"]) == 2
+        assert len(test_dict["stages"]) == 2
+        assert is_excluded(test_dict, "calibration") is True
+        assert is_excluded(test_dict, "registration") is True
 
-    def test_get_from_toml(self, processed_target):
-        """Test get_from_toml method."""
-        test_dict = {
-            "stages": {
-                "excluded": [
-                    CommentedString("stage1", "desc1"),
-                    CommentedString("stage2", "desc2"),
-                ]
-            }
-        }
+    def test_is_excluded_reads_flag(self, processed_target):
+        """is_excluded reflects the excluded flag on a [[stages]] entry."""
+        container: dict = {}
+        upsert_stage(container, {"name": "stage1"}, excluded=True)
+        upsert_stage(container, {"name": "stage2"}, excluded=False)
 
-        result = get_from_toml(test_dict, "excluded")
+        assert is_excluded(container, "stage1") is True
+        assert is_excluded(container, "stage2") is False
 
-        assert result == ["stage1", "stage2"]
-
-    def test_get_from_toml_empty_list(self, processed_target):
-        """Test get_from_toml with empty list."""
-        test_dict = {"stages": {}}
-
-        result = get_from_toml(test_dict, "excluded")
-
-        assert result == []
-
-    def test_get_from_toml_missing_key(self, processed_target):
-        """Test get_from_toml with missing key."""
-        test_dict = {"stages": {"other_key": ["value"]}}
-
-        result = get_from_toml(test_dict, "excluded")
-
-        assert result == []
+    def test_is_excluded_missing_key(self, processed_target):
+        """is_excluded returns False when there is no stages entry."""
+        assert is_excluded({"stages": tomlkit.aot()}, "anything") is False
 
 
 class TestProcessedTargetStages:
@@ -280,6 +258,9 @@ class TestProcessedTargetStages:
             {"name": "stage2"},
         ]
 
+        existing = tomlkit.aot()
+        upsert_stage({"stages": existing}, {"name": "stage1"}, excluded=True)
+
         with (
             patch("starbash.processed_target.toml_from_template") as mock_template,
             patch("starbash.processed_target.Repo") as mock_repo_class,
@@ -289,7 +270,7 @@ class TestProcessedTargetStages:
 
             def mock_get(*args, **kwargs):
                 if args[0] == "stages":
-                    return {"excluded": [CommentedString("stage1", None)]}
+                    return existing
                 return {}
 
             mock_repo.get.side_effect = mock_get
@@ -297,8 +278,8 @@ class TestProcessedTargetStages:
 
             pt = ProcessedTarget(mock_processing_like, "test")
 
-            # Verify that get was called
-            assert mock_repo.get.called
+            # The pre-existing exclusion survives and isn't flipped.
+            assert is_excluded(pt.default_stages, "stage1") is True
 
     def test_user_exclusions_from_toml_are_retained(
         self, mock_processing_like, temp_processing_dir
@@ -314,6 +295,9 @@ class TestProcessedTargetStages:
             {"name": "stack_single_duo"},
         ]
 
+        existing = tomlkit.aot()
+        upsert_stage({"stages": existing}, {"name": "stack_osc"}, excluded=True)
+
         with (
             patch("starbash.processed_target.toml_from_template") as mock_template,
             patch("starbash.processed_target.Repo") as mock_repo_class,
@@ -323,7 +307,7 @@ class TestProcessedTargetStages:
 
             def mock_get(*args, **kwargs):
                 if args[0] == "stages":
-                    return {"excluded": [CommentedString("stack_osc", None)]}
+                    return existing
                 return {}
 
             mock_repo.get.side_effect = mock_get
@@ -332,13 +316,16 @@ class TestProcessedTargetStages:
             pt = ProcessedTarget(mock_processing_like, "test")
 
             # The user's exclusion must still be present after construction.
-            assert get_from_toml(pt.default_stages, "excluded") == ["stack_osc"]
+            assert is_excluded(pt.default_stages, "stack_osc") is True
 
     def test_set_default_stages_with_used_list(self, mock_processing_like, temp_processing_dir):
-        """Test that stages in used list are not excluded by default."""
+        """Test that stages already present (used) are not excluded by default."""
         mock_processing_like.stages = [
             {"name": "stage1", "exclude_by_default": True},
         ]
+
+        existing = tomlkit.aot()
+        upsert_stage({"stages": existing}, {"name": "stage1"}, excluded=False)
 
         with (
             patch("starbash.processed_target.toml_from_template") as mock_template,
@@ -349,7 +336,7 @@ class TestProcessedTargetStages:
 
             def mock_get(*args, **kwargs):
                 if args[0] == "stages":
-                    return {"excluded": [], "used": [CommentedString("stage1", None)]}
+                    return existing
                 return {}
 
             mock_repo.get.side_effect = mock_get
@@ -357,8 +344,8 @@ class TestProcessedTargetStages:
 
             pt = ProcessedTarget(mock_processing_like, "test")
 
-            # Stage1 should not be excluded because it's in used list
-            assert mock_repo.get.called
+            # Stage1 already had an entry, so exclude_by_default must not flip it.
+            assert is_excluded(pt.default_stages, "stage1") is False
 
 
 class TestProcessedTargetContext:

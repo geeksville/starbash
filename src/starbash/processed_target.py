@@ -10,7 +10,7 @@ from typing import Any
 import tomlkit
 from toml_repo import Repo, get_config_suffix
 
-from starbash import StageDict, to_shortdate
+from starbash import to_shortdate
 from starbash.doit_types import cleanup_old_contexts, get_processing_dir
 from starbash.parameters import ParameterStore
 from starbash.processing_like import ProcessingLike
@@ -84,7 +84,8 @@ class ProcessedTarget:
         p.processed_target = self  # a backpointer to our ProcessedTarget
 
         self.parameter_store = ParameterStore()
-        self.parameter_store.add_from_repo(self.repo)
+        # Load any user-activated per-stage overrides from this target's starbash.toml.
+        self.parameter_store.add_overrides_from_repo(self.repo)
 
     def _init_processing_dir(self, target: str | None) -> None:
         processing_dir = get_processing_dir()
@@ -125,29 +126,22 @@ class ProcessedTarget:
 
     def _set_default_stages(self) -> None:
         """If we have newly discovered stages which should be excluded by default, add them now."""
-        from starbash.stage_utils import get_from_toml, set_excluded
+        from starbash.stage_utils import find_stage_entry, upsert_stage
 
-        excluded = get_from_toml(self.default_stages, "excluded")
-        used: list[str] = get_from_toml(self.default_stages, "used")
-
-        # Rebuild the list of stages we need to exclude, so we can rewrite if needed
-        stages_to_exclude: list[StageDict] = []
-        changed = False
+        # Ensure every known stage has a [[stages]] entry. Newly discovered stages that
+        # are 'exclude_by_default' get marked excluded; existing entries (and any user
+        # edits/overrides) are left untouched.
         for stage in self.p.stages:
             stage_name = get_safe(stage, "name")
+            if find_stage_entry(self.default_stages, stage_name) is not None:
+                continue  # respect whatever the user already has for this stage
 
-            if stage_name in excluded:
-                stages_to_exclude.append(stage)
-            elif stage.get("exclude_by_default", False) and stage_name not in used:
-                # if we've never seen this stage name before
+            excluded = bool(stage.get("exclude_by_default", False))
+            if excluded:
                 logging.debug(
                     f"Excluding stage '{stage_name}' by default, edit starbash.toml if you'd like it enabled."
                 )
-                stages_to_exclude.append(stage)
-                changed = True
-
-        if changed:  # Only rewrite if we actually added something
-            set_excluded(self.default_stages, stages_to_exclude)
+            upsert_stage(self.default_stages, stage, excluded=excluded)
 
     def _init_from_toml(self) -> None:
         """Read customized settings (masters, stages etc...) from the toml into our sessions/defaults."""
@@ -167,8 +161,10 @@ class ProcessedTarget:
                     break
 
         self.default_stages = {
-            "stages": self.repo.get("stages", default={})
-        }  # FIXME, I accidentally have a nested dict named stages
+            # The single [[stages]] array-of-tables (name / excluded / overrides).
+            # do_create stores it back in the repo config so mutations persist on write.
+            "stages": self.repo.get("stages", default=tomlkit.aot(), do_create=True)
+        }
 
     def _update_from_context(self) -> None:
         """Update the repo toml based on the current context.
@@ -192,11 +188,8 @@ class ProcessedTarget:
             # Record session info (including what masters and stages were used for that session)
             proc_sessions.append(sess)
 
-        # Store our non specific stages used/excluded - FIXME kinda yucky, I was not smart about how to use dicts
-        for key in ["used", "excluded"]:
-            value = self.default_stages["stages"].get(key)
-            if value:
-                self.repo.set(f"stages.{key}", value)
+        # The target-level [[stages]] AoT (self.default_stages["stages"]) is the same object
+        # stored in the repo config, so used/excluded edits already persist. Nothing else to do.
 
     def _generate_report(self) -> None:
         """Generate a summary report about this processed target."""
@@ -256,7 +249,7 @@ class ProcessedTarget:
         """Finalize and close the ProcessedTarget, saving any updates to the config."""
         self._update_from_context()
         self._generate_report()
-        self.parameter_store.write_overrides(self.repo)
+        self.parameter_store.write_stage_overrides(self.repo)
         if self.config_valid:
             self.repo.write_config()
         else:

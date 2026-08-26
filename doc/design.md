@@ -148,12 +148,12 @@ Model on `starbash-recipes/graxpert/background.toml`:
 kind = "recipe"
 
 [[parameters]]
-name = "bxt_sharpen_stars"
+name = "sharpen_stars"
 default = 0.5
 description = "BlurXTerminator stellar sharpening strength (0..1)"
 
 [[parameters]]
-name = "bxt_sharpen_nonstellar"
+name = "sharpen_nonstellar"
 default = 0.5
 description = "BlurXTerminator non-stellar sharpening strength (0..1)"
 
@@ -166,8 +166,8 @@ script = [
     "bxt",
     "{input[0].full_paths[0]}",
     "--output", "{output.full_paths[0]}",
-    "--sharpen-stars", "{parameters.bxt_sharpen_stars}",
-    "--sharpen-nonstellar", "{parameters.bxt_sharpen_nonstellar}",
+    "--sharpen-stars", "{parameters.sharpen_stars}",
+    "--sharpen-nonstellar", "{parameters.sharpen_nonstellar}",
 ]
 
 [[stages.inputs]]
@@ -257,17 +257,17 @@ Each recipe parameter maps 1:1 to an nxt long flag; defaults match the CLI docs.
 
 | Parameter name            | Flag                            | Default |
 | ------------------------- | ------------------------------- | ------- |
-| `nxt_denoise`             | `--denoise`                     | `0.90`  |
-| `nxt_denoise_intensity`   | `--denoise-intensity`           | `0.90`  |
-| `nxt_denoise_color`       | `--denoise-color`               | `0.90`  |
-| `nxt_denoise_hf`          | `--denoise-high-freq`           | `0.90`  |
-| `nxt_denoise_lf`          | `--denoise-low-freq`            | `0.90`  |
-| `nxt_denoise_intensity_hf`| `--denoise-intensity-high-freq` | `0.90`  |
-| `nxt_denoise_intensity_lf`| `--denoise-intensity-low-freq`  | `0.90`  |
-| `nxt_denoise_color_hf`    | `--denoise-color-high-freq`     | `0.90`  |
-| `nxt_denoise_color_lf`    | `--denoise-color-low-freq`      | `0.90`  |
-| `nxt_frequency_scale`     | `--frequency-scale`             | `5.0`   |
-| `nxt_iterations`          | `--iterations`                  | `2`     |
+| `denoise`             | `--denoise`                     | `0.90`  |
+| `denoise_intensity`   | `--denoise-intensity`           | `0.90`  |
+| `denoise_color`       | `--denoise-color`               | `0.90`  |
+| `denoise_hf`          | `--denoise-high-freq`           | `0.90`  |
+| `denoise_lf`          | `--denoise-low-freq`            | `0.90`  |
+| `denoise_intensity_hf`| `--denoise-intensity-high-freq` | `0.90`  |
+| `denoise_intensity_lf`| `--denoise-intensity-low-freq`  | `0.90`  |
+| `denoise_color_hf`    | `--denoise-color-high-freq`     | `0.90`  |
+| `denoise_color_lf`    | `--denoise-color-low-freq`      | `0.90`  |
+| `frequency_scale`     | `--frequency-scale`             | `5.0`   |
+| `iterations`          | `--iterations`                  | `2`     |
 
 ### Recipe: `starbash-recipes/rc-astro/noise-exterminator.toml`
 
@@ -278,14 +278,14 @@ Model on `blur-exterminator.toml`. Sketch:
 kind = "recipe"
 
 [[parameters]]
-name = "nxt_denoise"
+name = "denoise"
 default = 0.90
 description = "NoiseXTerminator overall denoise strength (0..1)"
 
 # ... one [[parameters]] block per row in the mapping table above ...
 
 [[parameters]]
-name = "nxt_iterations"
+name = "iterations"
 default = 2
 description = "Number of denoising iterations (1..5)"
 
@@ -299,17 +299,17 @@ script = [
     "nxt",
     "{input[0].full_paths[0]}",
     "--output", "{output.full_paths[0]}",
-    "--denoise", "{parameters.nxt_denoise}",
-    "--denoise-intensity", "{parameters.nxt_denoise_intensity}",
-    "--denoise-color", "{parameters.nxt_denoise_color}",
-    "--denoise-high-freq", "{parameters.nxt_denoise_hf}",
-    "--denoise-low-freq", "{parameters.nxt_denoise_lf}",
-    "--denoise-intensity-high-freq", "{parameters.nxt_denoise_intensity_hf}",
-    "--denoise-intensity-low-freq", "{parameters.nxt_denoise_intensity_lf}",
-    "--denoise-color-high-freq", "{parameters.nxt_denoise_color_hf}",
-    "--denoise-color-low-freq", "{parameters.nxt_denoise_color_lf}",
-    "--frequency-scale", "{parameters.nxt_frequency_scale}",
-    "--iterations", "{parameters.nxt_iterations}",
+    "--denoise", "{parameters.denoise}",
+    "--denoise-intensity", "{parameters.denoise_intensity}",
+    "--denoise-color", "{parameters.denoise_color}",
+    "--denoise-high-freq", "{parameters.denoise_hf}",
+    "--denoise-low-freq", "{parameters.denoise_lf}",
+    "--denoise-intensity-high-freq", "{parameters.denoise_intensity_hf}",
+    "--denoise-intensity-low-freq", "{parameters.denoise_intensity_lf}",
+    "--denoise-color-high-freq", "{parameters.denoise_color_hf}",
+    "--denoise-color-low-freq", "{parameters.denoise_color_lf}",
+    "--frequency-scale", "{parameters.frequency_scale}",
+    "--iterations", "{parameters.iterations}",
 ]
 
 [[stages.inputs]]

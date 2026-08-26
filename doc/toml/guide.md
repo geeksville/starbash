@@ -52,7 +52,7 @@ kind = "recipe"
 | `std-recipe` | The built‑in default recipe set. You rarely create these; if no `std-recipe` is present, Starbash fetches the official one from GitHub automatically. |
 | `raw` | A directory of raw light/flat/dark/bias frames (see §9). |
 | `master` | A directory of generated master frames. |
-| `processed-target` | A per‑target output directory; holds `[stages]` used/excluded and `[[overrides]]` (see §8). |
+| `processed-target` | A per‑target output directory; holds a `[[stages]]` array (with `excluded` flags and nested `[[stages.overrides]]`) (see §8). |
 | `preferences` | The user's config file (`~/.config/starbash/starbash.toml`). |
 
 ### Referencing other repos
@@ -87,24 +87,36 @@ author.email = "info@veralux.space"
 
 ## 3. Parameters
 
-Parameters are named, documented knobs with defaults. They are exposed to
-scripts as `{parameters.<name>}` and can be overridden per target (see §8).
+Parameters are named, documented knobs with defaults. They are **declared inside
+the stage that uses them** as `[[stages.parameters]]`, exposed to that stage's
+script as `{parameters.<name>}`, and can be overridden per target (see §8).
 
 ```toml
-[[parameters]]
-name = "sho_ha_weight"
+[[stages]]
+name = "palette_sho"
+tool.name = "siril"
+script = '''...'''
+
+[[stages.parameters]]
+name = "ha_weight"
 default = 0.4
 description = "Ha contribution when synthesizing the green channel (0..1)"
 ```
 
-- `name` — the identifier used in scripts (`{parameters.sho_ha_weight}`).
+- `name` — the identifier used in scripts (`{parameters.ha_weight}`).
 - `default` — value used when not overridden. May be a number or string.
 - `description` — shown to users; also emitted as commented‑out override
   scaffolding in a target's `starbash.toml`.
 
-If you omit `default`, the parameter is only passed to the tool when explicitly
-set (see the NoiseXTerminator recipe, where unset params fall back to the tool's
-own defaults).
+Parameters are **scoped to their owning stage**: an override only affects the
+stage that declared the parameter, and two stages may declare the same parameter
+name independently.
+
+Any parameter your script references as `{parameters.<name>}` **must declare a
+real `default`**. A commented‑out `# default = …` is invisible to the parser, so
+the placeholder would expand to nothing at runtime. (If you truly want a value
+only sometimes passed to a tool, gate it inside the script rather than relying on
+a missing default.)
 
 ---
 
@@ -287,7 +299,7 @@ Python's `str.format_map`.
   tool.name = "siril"
   script = '''
       load "{input[0].full_paths[0]}"
-      starnet {parameters.starnet_params}
+      starnet {parameters.params}
       save "{output.full_paths[0]}"
       '''
   ```
@@ -316,13 +328,13 @@ Python's `str.format_map`.
       "bxt",
       "{input[0].full_paths[0]}",
       "--output", "{output.full_paths[0]}",
-      "--sharpen-stars", "{parameters.bxt_sharpen_stars}",
+      "--sharpen-stars", "{parameters.sharpen_stars}",
   ]
   ```
 
   ```toml
   tool.name = "graxpert"
-  tool.parameters = { ai_version = "{parameters.bge_ai_version}", smoothing_option = "{parameters.smoothing_option}" }
+  tool.parameters = { ai_version = "{parameters.ai_version}", smoothing_option = "{parameters.smoothing_option}" }
   script = ["-cmd", "background-extraction", "-output", "{output.full_paths[0]}", "{input[0].full_paths[0]}"]
   ```
 
@@ -362,7 +374,7 @@ load {[str(p) for p in input[0].full_paths if "_Ha" in str(p)][0]}
 load "{str(input[0].full_paths[0].parent / (input[0].full_paths[0].stem.replace('hms_starless_', 'starmask_') + '.fits'))}"
 
 # strip the extension
-savejpg "{output.full_paths[0].with_suffix('')}" {parameters.thumbnail_quality}
+savejpg "{output.full_paths[0].with_suffix('')}" {parameters.quality}
 ```
 
 ### Custom context shorthand
@@ -408,22 +420,29 @@ ran and lets the user opt in/out and override parameters.
 [repo]
 kind = "processed-target"
 
-[stages]
-used = ["stack_osc", "background", "veralux", "thumbnail"]
-excluded = ["deconv-obj", "denoise"]
+[[stages]]
+name = "stack_osc"
+[[stages.overrides]]
+name = "options"           # always written; description as a comment
+# value = "-cfa -equalize_cfa"   # stays commented until you opt in
 
-[[overrides]]
-name = "hms_background"
-value = 0.10
+[[stages]]
+name = "background"
+
+[[stages]]
+name = "denoise"
+excluded = true                  # omit the flag (or the whole entry) to run it
 ```
 
-- `[stages].used` / `excluded` — stage **names** to run or skip for this target.
-  Exclusions are applied by `remove_excluded_tasks()` in
-  [src/starbash/stages.py](../../src/starbash/stages.py), matching each task's
-  `stage["name"]`.
-- `[[overrides]]` — override a parameter's `value` by `name` for this target.
-- Per‑session overrides are possible via `[sessions.stages]` inside a
-  `[[sessions]]` entry.
+- Each `[[stages]]` entry names a stage. Its presence means the stage runs; add
+  `excluded = true` to skip it. This replaces the old `used`/`excluded` string
+  lists. Exclusions are applied by `remove_excluded_tasks()` in
+  [src/starbash/stages.py](../../src/starbash/stages.py), which checks each
+  task's `stage["name"]` against these entries.
+- `[[stages.overrides]]` overrides a parameter **for that stage only**. Starbash
+  scaffolds one entry per declared parameter with `name` set and `value`
+  commented; uncomment `value` to activate the override.
+- Per‑session settings use the same shape nested under each `[[sessions]]` entry.
 
 ---
 
@@ -491,11 +510,6 @@ master dark and flat, and writes a stacked result to the shared job directory:
 [repo]
 kind = "recipe"
 
-[[parameters]]
-name = "light_options"
-default = "-cfa -equalize_cfa"
-description = "Light frame calibration options for OSC cameras"
-
 [[stages]]
 name = "light_vs_dark"
 description = "Calibrate OSC lights against master dark + flat"
@@ -505,12 +519,17 @@ temporaries = ["pp_{light_base}*"]
 script = '''
     link {light_base} -out={process_dir}
     cd {process_dir}
-    calibrate {light_base} -dark={input["dark"].full} -flat={input["flat"].full} {parameters.light_options}
+    calibrate {light_base} -dark={input["dark"].full} -flat={input["flat"].full} {parameters.options}
     seqsubsky pp_{light_base} 1
     '''
 
 [stages.context]
 light_base = """{input["light"].base}"""
+
+[[stages.parameters]]
+name = "options"
+default = "-cfa -equalize_cfa"
+description = "Light frame calibration options for OSC cameras"
 
 [[stages.inputs]]
 kind = "session"
@@ -537,7 +556,7 @@ name = ["bkg_pp_{light_base}_.seq"]
 ## 12. Quick reference
 
 - **Repo**: `[repo]` `kind = ...`; pull in others with `[[repo-ref]]` (`dir`/`url`).
-- **Params**: `[[parameters]]` `name`/`default`/`description` → `{parameters.name}`.
+- **Params**: `[[stages.parameters]]` `name`/`default`/`description` → `{parameters.name}`.
 - **Stage**: `[[stages]]` `name`, `tool.name`, `script`/`script-file`, optional
   `priority`, `disabled`, `temporaries`, `[stages.context]`.
 - **Inputs**: `[[stages.inputs]]` `kind` = `session`/`master`/`job`/`session-extra`;

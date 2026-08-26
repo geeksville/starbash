@@ -812,9 +812,9 @@ class TestBlurExterminatorRecipe:
 
     def test_parameters_have_defaults(self):
         doc = self._load_recipe()
-        params = {p["name"]: p for p in doc["parameters"]}
-        assert params["bxt_sharpen_stars"]["default"] == 0.5
-        assert params["bxt_sharpen_nonstellar"]["default"] == 0.5
+        params = {p["name"]: p for s in doc["stages"] for p in s.get("parameters", [])}
+        assert params["sharpen_stars"]["default"] == 0.5
+        assert params["sharpen_nonstellar"]["default"] == 0.5
 
     def test_stage_uses_rc_astro_after_background(self):
         doc = self._load_recipe()
@@ -836,20 +836,19 @@ class TestBlurExterminatorRecipe:
 class TestNoiseExterminatorRecipe:
     """Tests that the noise-exterminator recipe is wired correctly."""
 
-    # Recipe parameters (defaults are intentionally commented out so rc-astro uses
-    # its own built-in defaults and conflicting bands are not passed together).
+    # Recipe parameters (per-stage scoped, so the redundant nxt_ prefix is dropped).
     EXPECTED_PARAMS = [
-        "nxt_denoise",
-        "nxt_denoise_intensity",
-        "nxt_denoise_color",
-        "nxt_denoise_hf",
-        "nxt_denoise_lf",
-        "nxt_denoise_intensity_hf",
-        "nxt_denoise_intensity_lf",
-        "nxt_denoise_color_hf",
-        "nxt_denoise_color_lf",
-        "nxt_frequency_scale",
-        "nxt_iterations",
+        "denoise",
+        "denoise_intensity",
+        "denoise_color",
+        "denoise_hf",
+        "denoise_lf",
+        "denoise_intensity_hf",
+        "denoise_intensity_lf",
+        "denoise_color_hf",
+        "denoise_color_lf",
+        "frequency_scale",
+        "iterations",
     ]
 
     def _load_recipe(self):
@@ -863,13 +862,14 @@ class TestNoiseExterminatorRecipe:
         )
         return tomlkit.parse(recipe.read_text())
 
-    def test_parameters_present_without_defaults(self):
+    def test_parameters_have_defaults(self):
         doc = self._load_recipe()
-        params = {p["name"]: p for p in doc["parameters"]}
+        params = {p["name"]: p for s in doc["stages"] for p in s.get("parameters", [])}
         for name in self.EXPECTED_PARAMS:
             assert name in params, f"missing parameter {name}"
-            # Defaults are commented out so rc-astro applies its own defaults.
-            assert "default" not in params[name]
+            # Every param is referenced unconditionally by the script, so each must
+            # ship a real (uncommented) default or it resolves to nothing at runtime.
+            assert "default" in params[name], f"{name} is missing a default"
 
     def test_stage_uses_rc_astro_after_blur(self):
         doc = self._load_recipe()
@@ -905,8 +905,8 @@ class TestStarnetRecipe:
 
     def test_parameters_have_defaults(self):
         doc = self._load_recipe()
-        params = {p["name"]: p for p in doc["parameters"]}
-        assert params["starnet_params"]["default"] == "-stretch"
+        params = {p["name"]: p for s in doc["stages"] for p in s.get("parameters", [])}
+        assert params["params"]["default"] == "-stretch"
 
     def test_stage_uses_siril_after_sho(self):
         doc = self._load_recipe()
@@ -915,7 +915,7 @@ class TestStarnetRecipe:
         assert stage["tool"]["name"] == "starnet"
         assert stage["inputs"][0]["after"] == "palette.*"
         assert stage["inputs"][0]["multiplex"] is True
-        assert "starnet {parameters.starnet_params}" in stage["script"]
+        assert "starnet {parameters.params}" in stage["script"]
 
     def test_declares_starless_and_starmask_outputs(self):
         doc = self._load_recipe()
@@ -952,9 +952,9 @@ class TestMergeStarsRecipe:
 
     def test_parameter_default(self):
         doc = self._load_recipe()
-        params = {p["name"]: p for p in doc["parameters"]}
-        assert "merge_star_amount" not in params
-        assert params["merge_star_stretch"]["default"] == 800.0
+        params = {p["name"]: p for s in doc["stages"] for p in s.get("parameters", [])}
+        assert "merge_star_stretch" not in params
+        assert params["stretch"]["default"] == 800.0
 
     def test_stage_uses_siril_after_veralux(self):
         doc = self._load_recipe()
@@ -976,7 +976,7 @@ class TestMergeStarsRecipe:
         doc = self._load_recipe()
         script = doc["stages"][0]["script"]
         # asinh preserves background; autostretch would lift it.
-        assert "asinh -human {parameters.merge_star_stretch}" in script
+        assert "asinh -human {parameters.stretch}" in script
         assert "merge_star_amount" not in script
         assert "1 - (1 - $starless$) * (1 - $stars$)" in script
 
@@ -1082,6 +1082,76 @@ class TestStarnetTool:
         monkeypatch.setattr(tool, "_starnet_configured", counting)
         assert tool.is_available is True
         assert calls["n"] == 0  # cached, not re-probed
+
+
+class TestRecipeParameterDefaults:
+    """Every parameter referenced by a recipe script must resolve at runtime.
+
+    A commented-out ``default`` is invisible to the TOML parser, so a script that
+    references ``{parameters.<name>}`` for such a parameter would expand to nothing.
+    This scans every shipped recipe and fails if any referenced parameter has no
+    usable default.
+    """
+
+    @staticmethod
+    def _recipe_files() -> list[Path]:
+        import glob
+
+        root = Path(__file__).parents[2]
+        patterns = ["starbash-recipes/**/*.toml", "siril-scripts/processing/*.toml"]
+        files: list[Path] = []
+        for pattern in patterns:
+            files.extend(Path(p) for p in glob.glob(str(root / pattern), recursive=True))
+        return sorted(files)
+
+    @staticmethod
+    def _referenced_params(stage) -> set[str]:
+        import re
+
+        chunks: list[str] = []
+        script = stage.get("script")
+        if isinstance(script, str):
+            chunks.append(script)
+        elif isinstance(script, list):
+            chunks.extend(str(x) for x in script)
+
+        tool = stage.get("tool", {})
+        tool_params = tool.get("parameters") if hasattr(tool, "get") else None
+        if isinstance(tool_params, dict):
+            chunks.extend(str(v) for v in tool_params.values())
+
+        # Matches both `{parameters.x}` and expression forms like `str(parameters.x)`.
+        return set(re.findall(r"parameters\.([A-Za-z_][A-Za-z0-9_]*)", "\n".join(chunks)))
+
+    def test_referenced_parameters_have_defaults(self):
+        import tomlkit
+        from toml_repo.repo import Repo
+
+        from starbash.parameters import ParameterStore
+
+        problems: list[str] = []
+        for f in self._recipe_files():
+            doc = tomlkit.parse(f.read_text())
+            stages = doc.get("stages")
+            if not stages:
+                continue
+            repo = Repo(f)
+            for stage in stages:
+                referenced = self._referenced_params(stage)
+                if not referenced:
+                    continue
+                store = ParameterStore()
+                store.add_parameters_from_stage(repo, stage)
+                resolved = store.as_obj_for_stage(stage.get("name"))
+                for name in referenced:
+                    if getattr(resolved, name, None) is None:
+                        problems.append(
+                            f"{f.name}:{stage.get('name')} references "
+                            f"{{parameters.{name}}} but it has no usable default"
+                        )
+
+        assert not problems, "Recipe parameters missing defaults:\n" + "\n".join(problems)
+
 
 
 

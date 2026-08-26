@@ -51,8 +51,8 @@ from starbash.stages import (
     inputs_by_kind,
     inputs_with_key,
     make_imagerow,
+    mark_excluded,
     remove_excluded_tasks,
-    set_excluded,
     set_used_stages_from_tasks,
     sort_stages,
     stage_to_doc,
@@ -772,8 +772,9 @@ class Processing(ProcessingLike):
         # Add our parameters to the context (stage.repo was monkey patched by the repo manager)
         # FIXME, perhaps it makes more sense to put parameters at the 'stage' level so we don't need to do this?
         assert self.processed_target, "ProcessedTarget is guaraneed to be set here"
-        self.processed_target.parameter_store.add_from_repo(stage.source)  # pyright: ignore[reportAttributeAccessIssue]
-        self.context["parameters"] = self.processed_target.parameter_store.as_obj
+        param_store = self.processed_target.parameter_store
+        param_store.add_parameters_from_stage(stage.source, stage)  # pyright: ignore[reportAttributeAccessIssue]
+        self.context["parameters"] = param_store.as_obj_for_stage(stage.get("name"))
 
         self.use_temp_cwd = False
 
@@ -1052,7 +1053,7 @@ class Processing(ProcessingLike):
                 session = task_to_session(producing_tasks[0])
                 if not session:
                     session = pt.default_stages
-                set_excluded(session, stages_to_exclude)
+                mark_excluded(session, stages_to_exclude)
 
                 tasks = remove_excluded_tasks(tasks)
 

@@ -11,16 +11,16 @@ from starbash import InputDef, StageDict
 from starbash.database import ImageRow, SessionRow
 from starbash.doit_types import TaskDict
 from starbash.safety import get_safe
-from starbash.stage_utils import get_from_toml, set_excluded, set_used, stage_with_comment
+from starbash.stage_utils import is_excluded, mark_excluded, mark_used, upsert_stage
 
 if TYPE_CHECKING:
     from starbash.processed_target import ProcessedTarget
 
 __all__ = [
-    "stage_with_comment",
-    "set_used",
-    "set_excluded",
-    "get_from_toml",
+    "mark_used",
+    "mark_excluded",
+    "is_excluded",
+    "upsert_stage",
     "task_to_stage",
     "task_to_session",
     "sort_stages",
@@ -148,8 +148,8 @@ def tasks_to_stages(tasks: list[TaskDict]) -> list[StageDict]:
 def set_used_stages_from_tasks(tasks: list[dict]) -> None:
     """Given a list of tasks, set the used stages in each session touched by those tasks."""
 
-    # Inside each session we touched, collect a list of used stages (initially as a list of strings but then in the final)
-    # cleanup converted into toml lists with set_used.
+    # Inside each session we touched, collect a list of used stages (initially as a list of stage
+    # dicts) then in the final cleanup upsert them into the session's [[stages]] AoT with mark_used.
     # We rely on the fact that a single session row instance is shared between all tasks for that session.
 
     if not tasks:
@@ -180,11 +180,11 @@ def set_used_stages_from_tasks(tasks: list[dict]) -> None:
         if session:
             used_stages: list[StageDict] = session.pop("_temp_used_stages", [])
             if used_stages:
-                set_used(session, used_stages)
+                mark_used(session, used_stages)
 
     # Commit our default used stages too
     if default_stages:
-        set_used(pt.default_stages, default_stages)
+        mark_used(pt.default_stages, default_stages)
 
 
 def make_imagerow(dir: Path, path: str) -> ImageRow:
@@ -220,8 +220,7 @@ def remove_excluded_tasks(tasks: list[TaskDict]) -> list[TaskDict]:
             assert pt, "ProcessedTarget must be set in Processing for sessionless tasks"
             session = pt.default_stages
 
-        excluded_stages = get_from_toml(session, "excluded")
-        return stage.get("name") not in excluded_stages
+        return not is_excluded(session, stage.get("name", ""))
 
     return [t for t in tasks if task_allowed(t)]
 
