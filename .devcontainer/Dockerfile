@@ -47,8 +47,8 @@ RUN pip install --user --no-cache-dir --break-system-packages pipx \
 # install siril app image (we normally use this for development)
 RUN sudo apt-get install -y --no-install-recommends libfuse2t64
 RUN cd /home/${USERNAME}/.local/bin \
-        && wget https://free-astro.org/download/Siril-1.4.0\~beta4-x86_64.AppImage \
-        && mv Siril-1.4.0\~beta4-x86_64.AppImage siril \
+        && wget https://free-astro.org/download/Siril-1.4.4-x86_64.AppImage \
+        && mv Siril-1.4.4-x86_64.AppImage siril \
         && chmod +x siril
 
 # Install homebrew (vhs command-line movie maker)
@@ -60,7 +60,7 @@ RUN echo >> /home/vscode/.bashrc && \
         brew install vhs
 
 # so that "open *.svg" works in the container
-RUN xdg-mime default google-chrome.desktop image/svg+xml
+#RUN xdg-mime default google-chrome.desktop image/svg+xml
 
 USER root
 
