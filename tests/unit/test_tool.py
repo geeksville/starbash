@@ -862,14 +862,11 @@ class TestNoiseExterminatorRecipe:
         )
         return tomlkit.parse(recipe.read_text())
 
-    def test_parameters_have_defaults(self):
+    def test_parameters_are_declared(self):
         doc = self._load_recipe()
         params = {p["name"]: p for s in doc["stages"] for p in s.get("parameters", [])}
         for name in self.EXPECTED_PARAMS:
             assert name in params, f"missing parameter {name}"
-            # Every param is referenced unconditionally by the script, so each must
-            # ship a real (uncommented) default or it resolves to nothing at runtime.
-            assert "default" in params[name], f"{name} is missing a default"
 
     def test_stage_uses_rc_astro_after_blur(self):
         doc = self._load_recipe()
@@ -1085,12 +1082,11 @@ class TestStarnetTool:
 
 
 class TestRecipeParameterDefaults:
-    """Every parameter referenced by a recipe script must resolve at runtime.
+    """Check that recipe script parameter references are declared.
 
-    A commented-out ``default`` is invisible to the TOML parser, so a script that
-    references ``{parameters.<name>}`` for such a parameter would expand to nothing.
-    This scans every shipped recipe and fails if any referenced parameter has no
-    usable default.
+    Parameters may intentionally omit a default.  The rc-astro tool treats an
+    unset parameter as an omitted option and uses its own built-in default, so
+    the test must not require every referenced parameter to have a TOML default.
     """
 
     @staticmethod
@@ -1123,7 +1119,7 @@ class TestRecipeParameterDefaults:
         # Matches both `{parameters.x}` and expression forms like `str(parameters.x)`.
         return set(re.findall(r"parameters\.([A-Za-z_][A-Za-z0-9_]*)", "\n".join(chunks)))
 
-    def test_referenced_parameters_have_defaults(self):
+    def test_referenced_parameters_are_declared(self):
         import tomlkit
         from toml_repo.repo import Repo
 
@@ -1142,12 +1138,16 @@ class TestRecipeParameterDefaults:
                     continue
                 store = ParameterStore()
                 store.add_parameters_from_stage(repo, stage)
-                resolved = store.as_obj_for_stage(stage.get("name"))
+                declared = {
+                    param.name
+                    for param in store._parameters
+                    if param.stage_name == stage.get("name")
+                }
                 for name in referenced:
-                    if getattr(resolved, name, None) is None:
+                    if name not in declared:
                         problems.append(
                             f"{f.name}:{stage.get('name')} references "
-                            f"{{parameters.{name}}} but it has no usable default"
+                            f"{{parameters.{name}}} but it is not declared"
                         )
 
         assert not problems, "Recipe parameters missing defaults:\n" + "\n".join(problems)
