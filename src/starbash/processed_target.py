@@ -14,6 +14,13 @@ from starbash import to_shortdate
 from starbash.doit_types import cleanup_old_contexts, get_processing_dir
 from starbash.parameters import ParameterStore
 from starbash.processing_like import ProcessingLike
+from starbash.report import (
+    SessionInfo,
+    frame_info,
+    match_equipment,
+    selected_metadata,
+    sort_datetime,
+)
 from starbash.safety import get_safe
 from starbash.toml import toml_from_template
 
@@ -40,6 +47,7 @@ class ProcessedTarget:
             context: The processing context dictionary containing output paths and metadata.
         """
         self.p = p
+        self.sessions_info: list[SessionInfo] = []
         self._init_processing_dir(target)
 
         output_kind = "master" if target is None else "processed"
@@ -242,11 +250,55 @@ class ProcessedTarget:
             self.template_name, overrides=overrides
         )  # reload the about section so we can snarf the updated version
 
+        about = report_toml["about"]
+        sessions = tomlkit.aot()
+        for info in self.sessions_info:
+            session = tomlkit.table()
+            for key in ("id", "date", "start", "end"):
+                value = getattr(info, key)
+                if value is not None:
+                    session[key] = value
+            session["equipment"] = tomlkit.item(info.equipment)
+            session["metadata"] = tomlkit.item(info.metadata)
+            frames = tomlkit.aot()
+            for frame_info_value in info.frames:
+                frame = tomlkit.table()
+                frame["metadata"] = tomlkit.item(frame_info_value.metadata)
+                frames.append(frame)
+            session["frames"] = frames
+            sessions.append(session)
+        about["sessions"] = sessions
+
         # Store the updated about section
-        self.repo.set("about", report_toml["about"])
+        self.repo.set("about", about)
+
+    def _collect_sessions_info(self) -> None:
+        """Collect sanitized, reportable session and frame information."""
+        blacklist: list[str] = self.p.sb.repo_manager.get("repo.metadata_blacklist", default=[])
+        catalog = self.p.sb.repo_manager.get("equipment", default=[])
+        infos: list[SessionInfo] = []
+        sessions = sorted(self.p.sessions, key=lambda s: sort_datetime(s.get("start")))
+        for session in sessions:
+            metadata = session.get("metadata", {})
+            images = self.p.sb.get_session_images(session)
+            images = sorted(images, key=lambda image: sort_datetime(image.get("DATE-OBS")))
+            start = session.get("start")
+            infos.append(
+                SessionInfo(
+                    id=session.get("id"),
+                    date=to_shortdate(start) if start else None,
+                    start=start,
+                    end=session.get("end"),
+                    equipment=match_equipment(metadata, catalog),
+                    metadata=selected_metadata(metadata, ("FOCALLEN", "FOCRATIO", "GAIN", "XPIXSZ", "YPIXSZ"), blacklist),
+                    frames=[frame_info(image, blacklist) for image in images],
+                )
+            )
+        self.sessions_info = infos
 
     def close(self) -> None:
         """Finalize and close the ProcessedTarget, saving any updates to the config."""
+        self._collect_sessions_info()
         self._update_from_context()
         self._generate_report()
         self.parameter_store.write_stage_overrides(self.repo)
