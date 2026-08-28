@@ -12,7 +12,7 @@ USER root
 # libxcb-cursor0 is needed for Qt6
 RUN apt-get update && apt-get -y install --no-install-recommends \
         python3 python3-pip python3-venv python-is-python3 python3-tk sudo git flatpak sqlitebrowser libxcb-cursor0 \
-        graphviz
+        graphviz ruby-full build-essential zlib1g-dev
 
 # Create a non-root user if one doesn't exist, and give it sudo rights
 RUN if ! id -u ${USERNAME} > /dev/null 2>&1; then \
@@ -78,6 +78,9 @@ RUN cd /tmp && \
 # needed because i'm using old docker commands above - someday move this docker install to top and the update can leave
 RUN apt-get update
 RUN apt-get -y install --no-install-recommends docker.io
+
+# to allow testing github pages locally
+RUN gem install jekyll bundler
 
 # I want man pages
 #RUN unminimize
