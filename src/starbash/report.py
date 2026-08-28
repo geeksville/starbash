@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any
 
 SESSION_METADATA_KEYS = ("FOCALLEN", "FOCRATIO", "GAIN", "XPIXSZ", "YPIXSZ")
-FRAME_METADATA_KEYS = ("DEWPOINT", "HUMIDITY", "AMBTEMP", "WINDGUST", "WINDSPD", "CCD-TEMP", "EXPTIME")
+FRAME_METADATA_KEYS = ("DATE-OBS", "DEWPOINT", "HUMIDITY", "AMBTEMP", "WINDGUST", "WINDSPD", "CCD-TEMP", "EXPTIME")
 EQUIPMENT_FITS_KEYS = {
     "camera": ("INSTRUME", "instrumen"),
     "telescope": ("TELESCOP", "telescop"),

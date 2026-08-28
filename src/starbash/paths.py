@@ -9,12 +9,14 @@ dirs = PlatformDirs(app_name, app_author)
 config_dir = Path(dirs.user_config_dir)
 data_dir = Path(dirs.user_data_dir)
 cache_dir = Path(dirs.user_cache_dir)
+state_dir = Path(dirs.user_state_dir)
 documents_dir = Path(dirs.user_documents_dir) / "starbash"
 
 # These can be overridden for testing
 _override_config_dir: Path | None = None
 _override_data_dir: Path | None = None
 _override_cache_dir: Path | None = None
+_override_state_dir: Path | None = None
 _override_documents_dir: Path | None = None
 
 __all__ = [
@@ -23,6 +25,8 @@ __all__ = [
     "get_user_config_path",
     "get_user_data_dir",
     "get_user_cache_dir",
+    "get_user_state_dir",
+    "get_publish_site_dir",
     "get_user_documents_dir",
 ]
 
@@ -32,13 +36,15 @@ def set_test_directories(
     data_dir_override: Path | None = None,
     cache_dir_override: Path | None = None,
     documents_dir_override: Path | None = None,
+    state_dir_override: Path | None = None,
 ) -> None:
     """Set override directories for testing. Used by test fixtures to isolate test data."""
-    global _override_config_dir, _override_data_dir, _override_cache_dir, _override_documents_dir
+    global _override_config_dir, _override_data_dir, _override_cache_dir, _override_documents_dir, _override_state_dir
     _override_config_dir = config_dir_override
     _override_data_dir = data_dir_override
     _override_cache_dir = cache_dir_override
     _override_documents_dir = documents_dir_override
+    _override_state_dir = state_dir_override
 
 
 def get_user_config_dir() -> Path:
@@ -80,3 +86,15 @@ def get_user_documents_dir() -> Path:
     dir_to_use = _override_documents_dir if _override_documents_dir is not None else documents_dir
     os.makedirs(dir_to_use, exist_ok=True)
     return dir_to_use
+
+
+def get_user_state_dir() -> Path:
+    """Get the platform-specific Starbash state directory."""
+    dir_to_use = _override_state_dir if _override_state_dir is not None else state_dir
+    os.makedirs(dir_to_use, exist_ok=True)
+    return dir_to_use
+
+
+def get_publish_site_dir() -> Path:
+    """Get the generated local Jekyll site directory."""
+    return get_user_state_dir() / "publish" / "site"

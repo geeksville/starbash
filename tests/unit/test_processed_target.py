@@ -437,8 +437,8 @@ class TestProcessedTargetContext:
 
         assert [info.id for info in pt.sessions_info] == [1, 2]
         assert [frame.metadata for frame in pt.sessions_info[1].frames] == [
-            {"HUMIDITY": 80.0, "wFWHM": -1},
-            {"DEWPOINT": 2.0, "wFWHM": -1},
+            {"DATE-OBS": "2026-08-10T00:30:00", "HUMIDITY": 80.0, "wFWHM": -1},
+            {"DATE-OBS": "2026-08-10T01:00:00", "DEWPOINT": 2.0, "wFWHM": -1},
         ]
         assert "SITELAT" not in pt.sessions_info[1].frames[0].metadata
         assert pt.sessions_info[0].metadata == {"FOCALLEN": 500.0}

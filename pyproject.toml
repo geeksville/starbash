@@ -25,6 +25,8 @@ sentry-sdk = "^2.42.1"
 update-checker = "^0.18.0"
 doit = "^0.36.0"
 textual = "^6.8.0"
+jinja2 = ">=3.1,<4.0"
+pygal = ">=3.0,<4.0"
 
 # Note: to use graxpert from the local tree rather than pypi use:
 # graxpert = {path = "GraXpert", extras = ["cpuonly"], develop = true}

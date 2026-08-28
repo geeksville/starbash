@@ -257,6 +257,12 @@ format:
 test:
     poetry run pytest # test must pass
 
+# Regenerate and serve the local Jekyll report site.
+site-view:
+    sb publish
+    jekyll build --source ~/.local/state/starbash/publish/site --destination ~/.local/state/starbash/publish/site/_site
+    jekyll serve --source ~/.local/state/starbash/publish/site --destination ~/.local/state/starbash/publish/site/_site
+
 # a slow through test
 test-slow: test process-one
 

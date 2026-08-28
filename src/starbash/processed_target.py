@@ -4,6 +4,7 @@ import logging
 import shutil
 import tempfile
 import types
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -251,6 +252,8 @@ class ProcessedTarget:
         )  # reload the about section so we can snarf the updated version
 
         about = report_toml["about"]
+        about["generated_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        about["schema_version"] = 1
         sessions = tomlkit.aot()
         for info in self.sessions_info:
             session = tomlkit.table()

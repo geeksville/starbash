@@ -1,2 +1,14 @@
-# FIXME. ai please fill this file with a template that shows pretty markdown for a processed targets.
-eventually this template generates files in the _posts directory per the https://jekyllrb.com/docs/structure/ docs.
+---
+layout: default
+title: Starbash images
+---
+
+# Starbash images
+
+These are images I've processed with Starbash and its great tools. I hope you
+enjoy them, and that we can learn and improve together.
+
+{% for target in targets %}
+## [{{ target.name }}]({{ target.url }})
+{% if target.image %}![]({{ target.image }}){% endif %}
+{% endfor %}

@@ -10,7 +10,7 @@ import starbash.url as url
 from . import console
 from .analytics import is_development_environment
 from .app import Starbash
-from .commands import info, process, repo, select, user
+from .commands import info, process, publish, repo, select, user
 from .paths import get_user_config_path
 
 # Suppress deprecation warnings in production mode to provide a cleaner user experience.
@@ -29,6 +29,7 @@ app.add_typer(repo.app, name="repo", help="Manage Starbash repositories.")
 app.add_typer(select.app, name="select", help="Manage session and target selection.")
 app.add_typer(info.app, name="info", help="Display system and data information.")
 app.add_typer(process.app, name="process", help="Process images using automated workflows.")
+app.add_typer(publish.app, name="publish", help="Generate a local Jekyll report site.")
 
 
 @app.callback(invoke_without_command=True)

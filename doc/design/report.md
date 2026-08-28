@@ -1,4 +1,4 @@
-# Target report metadata
+# stage R1: Target report metadata
 
 ## Status
 
@@ -306,3 +306,316 @@ The following decisions are confirmed for R1:
 These decisions remove the corresponding implementation choices from scope.
 The plan should still define deterministic fallback behavior for missing dates,
 missing FITS values, and duplicate equipment matches in the tests.
+
+# Stage R2: Generate a local Jekyll site
+
+## Status and scope
+
+**Proposed plan — stage R2.**
+
+Generate a local, GitHub Pages-compatible Jekyll site from processed targets.
+The site will be written to the platform-specific Starbash state directory,
+which is normally:
+
+```text
+~/.local/state/starbash/publish/site
+```
+
+R2 generates files only. It does not authenticate with GitHub, commit changes,
+push a repository, or call the GitHub API. The existing publisher package should
+be structured so those capabilities can be added later without changing the
+site-generation contract.
+
+## Confirmed decisions
+
+- The CLI command is `sb publish`.
+- `sb publish` uses the GitHub/Jekyll-compatible publisher by default.
+- The first implementation requires exactly one local processed repository. It
+  fails clearly when there are zero or multiple processed repositories.
+- Generated target pages are Markdown Jekyll posts.
+- The site includes an index page and one post per valid processed target.
+- Target pages include summary information, a hero JPG/JPEG where available,
+  session information, equipment links, and session charts.
+- Charts are generated with Pygal as SVG assets.
+- Templates control page layout; Python publisher code prepares normalized data,
+  links, filenames, and chart context.
+- Add `site-view` to the Justfile; it runs `sb publish` first, then builds and
+  serves the generated site locally.
+
+The following decisions are confirmed: use `PlatformDirs.user_state_dir`, copy
+images into the site, regenerate every post on every `sb publish`, use fake
+FWHM data for the initial charts, and use a self-contained Jekyll layout/CSS
+rather than an external theme.
+
+## Current architecture and gaps
+
+`src/starbash/publish/__init__.py` and `src/starbash/publish/github.py` are
+placeholders. There is no publisher interface, site writer, target discovery,
+Jinja environment, chart generation, CLI command, publish path, or test suite.
+
+R1 already persists report data in each target's `starbash.toml` under
+`about.sessions`, and `ProcessedTarget` exposes the corresponding runtime model.
+R2 should read the persisted TOML rather than instantiate `ProcessedTarget` or
+query the database. This keeps publishing read-only and allows publication after
+the processing environment is gone.
+
+The processed repository template uses target directories beneath a processed
+repository root. Discovery must require a target directory containing the
+expected `starbash.toml`; malformed or unrelated entries must not crash the
+whole publish operation.
+
+The existing path module has config, data, cache, and documents directories but
+no state-directory helper. Tests likewise do not isolate state paths yet.
+
+## Site contract
+
+The generated tree should be a valid Jekyll site:
+
+```text
+site/
+  _config.yml
+  index.md
+  _posts/
+    YYYY-MM-DD-target-slug.md
+  assets/
+    targets/<target-slug>/
+      hero.jpg
+      charts/session-<stable-id>.svg
+  .starbash-publish.json
+```
+
+Use only plain Markdown, Liquid-compatible front matter, CSS, and supported
+Jekyll features so the result remains suitable for GitHub Pages. Do not require
+custom Jekyll plugins in R2.
+
+The root page should introduce the collection in a warm, modern tone: these
+are images processed with the project's tools, shared so others can enjoy them
+and help improve the workflow together. It should also provide a visual index
+of published targets.
+
+Each target post should contain:
+
+1. YAML front matter with a valid `layout`, title, date, and stable slug.
+2. Target identity, coordinates, summary, and processing timestamp.
+3. A copied hero image when one is available.
+4. Sessions ordered chronologically.
+5. Equipment records with safe hyperlinks when `url.info` is present.
+6. Session metadata and frame-derived timeline charts.
+
+## Report data contract
+
+Add `about.generated_at` while generating R1 reports as part of R2. Use UTC ISO
+8601 with an explicit `Z` or offset. Also add `about.schema_version = 1` so
+future publishers can reject or adapt incompatible report data.
+
+Add `DATE-OBS` to persisted frame metadata so the R2 chart x-axis has a stable
+timestamp. Continue applying the existing metadata blacklist and do not persist
+frame paths or database IDs.
+
+The publisher should normalize TOML nodes into ordinary Python values before
+passing context to Jinja. It should support older target files that lack
+`schema_version`, `generated_at`, or `about.sessions` by warning and publishing
+the available summary where possible.
+
+## Publisher architecture
+
+Introduce a small publisher-neutral layer, for example:
+
+```text
+src/starbash/publish/base.py
+src/starbash/publish/models.py
+src/starbash/publish/site.py
+src/starbash/publish/github.py
+```
+
+Define a `Publisher` protocol or abstract base class and a `PublishResult`
+containing created, updated, skipped, and warning information. The GitHub
+publisher means “GitHub Pages-compatible Jekyll output” in R2; remote upload is
+explicitly deferred.
+
+Add a read-only target loader, possibly in `src/starbash/target.py`, rather than
+making `ProcessedTarget` handle publishing concerns. It should:
+
+- load and normalize a target `starbash.toml`;
+- validate the minimum `about` structure;
+- expose summary, target, sessions, metadata, and schema version;
+- discover candidate JPG/JPEG files without retaining paths in persisted report
+  data;
+- derive a safe, deterministic display slug;
+- keep source paths separate from site-relative asset paths.
+
+Refactor shared report parsing only when it reduces duplication. Do not move
+processing-specific lifecycle, stage, or override behavior out of
+`ProcessedTarget` merely to support publishing.
+
+## Paths and lifecycle
+
+Extend `src/starbash/paths.py` with a platform-aware state path and publish-site
+helper, such as:
+
+```python
+get_user_state_dir()
+get_publish_site_dir()
+```
+
+Use `PlatformDirs.user_state_dir`; do not construct `.local/state` manually.
+Extend `set_test_directories()` and the test fixtures with a state override so
+publisher tests never write to a real user directory. Create the site directory
+only when publishing starts.
+
+`sb publish` should:
+
+1. open `Starbash("publish")`;
+2. locate the processed repository;
+3. fail clearly if no suitable local processed repository exists;
+4. discover valid target directories in deterministic order;
+5. generate or update the site;
+6. print the site path and a concise result summary.
+
+The command should not initialize the database unless a future fallback requires
+it.
+
+## Templates and presentation
+
+Add Jinja2 as a runtime dependency and load packaged templates with
+`importlib.resources`. Use the existing:
+
+```text
+src/starbash/templates/report/index.md.jinja
+src/starbash/templates/report/target.md.jinja
+```
+
+as the primary Markdown templates. Add a self-contained layout/CSS and minimal
+`_config.yml` as needed.
+
+Python should prepare presentation-ready context, including:
+
+- escaped display text and URLs;
+- relative asset URLs compatible with a GitHub Pages base URL;
+- equipment hyperlink data;
+- formatted dates/durations;
+- deterministic chart filenames;
+- hero image information;
+- flags for missing metadata and unavailable charts.
+
+Templates should control layout and wording, but should not perform database
+queries, filesystem discovery, or complex equipment/chart logic. Leave room for
+future user template overrides, ideally via a publisher/template-directory
+option, without making overrides mandatory in R2.
+
+## Hero images and assets
+
+Copy selected JPG/JPEG files into:
+
+```text
+assets/targets/<target-slug>/
+```
+
+Use a deterministic selection policy: prefer a conventional hero filename if
+one exists, otherwise choose the largest valid JPG/JPEG, breaking ties by name.
+Preserve a safe extension and never link to an arbitrary source filesystem path.
+Use Jekyll's `relative_url` behavior (or equivalent prepared relative URLs) so
+project-site deployments work with a non-root base URL.
+
+## Session charts
+
+Add Pygal as a runtime dependency and generate one SVG per session under the
+target's asset directory. Use frame `DATE-OBS` as the x-axis and plot `WINDGUST`.
+Plot `wFWHM` only when at least one measured value is not `-1`; otherwise show an
+explicit unavailable state in the page instead of a misleading flat line.
+
+Charts must have deterministic filenames and configuration, handle empty or
+partially missing data, and include useful titles/labels. Equipment hyperlinks
+should use `url.info` only after validating that the value is an HTTP(S) URL.
+
+## Incremental generation
+
+R2 intentionally has no incremental publishing or freshness checks. Every
+`sb publish` invocation regenerates the complete site and all target posts.
+`about.generated_at` is display/schema metadata only in this stage. A manifest,
+source hashes, `--force`, and stale-output cleanup are deferred until a later
+incremental-publishing stage. Preserve unrelated files by writing only the
+known generated site paths.
+
+## Implementation phases
+
+### Phase 1 — contracts, paths, and timestamp
+
+- Add `get_user_state_dir()` and `get_publish_site_dir()` with test overrides.
+- Add `about.generated_at` and `about.schema_version` to R1 report generation.
+- Add `DATE-OBS` to persisted frame report metadata.
+- Define normalized publisher models and slug rules. Do not add incremental
+  manifest behavior in R2.
+
+### Phase 2 — read-only target loading and discovery
+
+- Implement target TOML loading and ordinary-value normalization.
+- Discover valid processed targets in deterministic order.
+- Define warning/skip behavior for malformed or incomplete targets.
+- Add tests for old target files, missing sections, invalid TOML, and safe slugs.
+
+### Phase 3 — templates and site skeleton
+
+- Add Jinja2 and packaged template loading.
+- Implement `_config.yml`, `index.md`, `_posts/`, and asset directories.
+- Render valid front matter and Markdown.
+- Add self-contained modern CSS/layout and the welcoming root-page text.
+
+### Phase 4 — assets and charts
+
+- Implement hero-image selection and copying.
+- Implement Pygal session charts and missing-data behavior.
+- Render equipment links and chart/image references through prepared context.
+- Add tests that inspect actual generated files and SVG output.
+
+### Phase 5 — CLI and publisher
+
+- Implement the publisher abstraction and GitHub/Jekyll-compatible publisher.
+- Add `src/starbash/commands/publish.py` and register `sb publish`.
+- Regenerate all target posts on every invocation.
+- Preserve unrelated site files by limiting writes to known generated paths.
+
+### Phase 6 — local validation
+
+- Add `site-view` to the Justfile, preferably using `bundle exec jekyll serve`.
+- Add unit tests for paths, models, templates, assets, charts, and manifest
+  decisions.
+- Add an optional integration test running `jekyll build` into a temporary
+  destination.
+- Document that `sb publish` should run before `just site-view`.
+
+## Acceptance criteria
+
+- `sb publish` generates a valid site in the platform-specific publish path.
+- The site contains `_config.yml`, `index.md`, and one post for each valid target.
+- Posts have valid Jekyll front matter and use safe deterministic slugs.
+- Target summaries, timestamps, sessions, equipment, images, and charts render.
+- Hero images and SVGs are copied into deployable site-relative asset paths.
+- Initial charts use the agreed fake FWHM data until real measurements are
+  available.
+- Missing repositories, malformed targets, missing images, and missing metadata
+  produce clear warnings/errors without corrupting the site.
+- Unrelated site files survive generation.
+- Tests isolate the platform state directory.
+- The generated site builds with Jekyll when the optional external-tool test is
+  enabled.
+- R2 performs no GitHub authentication or upload.
+
+## Confirmed implementation decisions
+
+1. Add `about.generated_at` and `about.schema_version` as part of R2.
+2. Do not implement incremental checks, a manifest, or `--force`; always
+  regenerate all posts and assets.
+3. Require exactly one local processed repository; fail for zero or multiple.
+4. Skip malformed targets with warnings and continue publishing valid targets.
+5. If any `hero*.jpg` files exist, publish those named heroes and do not publish
+  other JPGs. If none exist, publish all JPG/JPEG files in the target directory.
+6. Use fake FWHM data in charts temporarily; real FWHM support will replace it
+  later.
+7. Do not support user template overrides in R2.
+8. `just site-view` runs `sb publish` before serving the site.
+9. R2 is local generation only; GitHub upload/API integration is deferred.
+
+The remaining implementation must define only deterministic details such as
+hero filename ordering, target slug collisions, malformed-target warning text,
+and the exact fake FWHM values used by charts.

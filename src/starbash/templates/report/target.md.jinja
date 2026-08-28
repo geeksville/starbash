@@ -1,1 +1,28 @@
-# FIXME. ai please fill this file with a template that shows pretty markdown for a processed targets
+---
+layout: post
+title: "{{ target.name }}"
+date: {{ post_date }} 00:00:00 +0000
+permalink: {{ post_permalink }}
+---
+
+# {{ target.name }}
+
+{{ about.summary | default('Processed astrophotography target.') }}
+
+{% for image in images %}
+![{{ target.name }}]({{ image }})
+{% endfor %}
+
+## Sessions
+
+{% for session in sessions %}
+### {{ session.date | default('Unknown date') }}
+
+| Equipment | Model |
+| --- | --- |
+{% for equipment in session.equipment_rows -%}
+| {{ equipment.kind }} | {{ ('[' ~ equipment.model ~ '](' ~ equipment.url ~ ')') if equipment.url else equipment.model }} |
+{% endfor %}
+
+![Session timeline]({{ session.chart }})
+{% endfor %}
