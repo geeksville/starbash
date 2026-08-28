@@ -45,6 +45,69 @@ metadata_blacklist = [
 #by-file = "process-osc-dual-duo"
 #by-url = "http:..."
 
+# known equipment vendors and models.  You can update locally or send in a PR to add new ones.  
+# FIXME possibly share access to a central repo of known equipment.
+
+[[equipment]]
+type = "camera"
+vendor = "ZWO"
+model = "Seestar S50"
+fits.instrumen = "Seestar S50" # must match the FITS header INSTRUME field for this camera if you want auto matching.
+url.info = "https://us.seestar.com/products/seestar-s50"
+subtype = "Seestar" # must match an alias in the [aliases] section for this camera if you want auto matching.
+
+[[equipment]]
+type = "camera"
+vendor = "ZWO"
+model = "ASI2600MC Duo"
+fits.instrumen = "ZWO ASI2600MC Duo" # must match the FITS header INSTRUME field for this camera if you want auto matching.
+url.info = "https://www.zwoastro.com/product/asi2600mc-duo/"
+subtype = "OSC" # must match an alias in the [aliases] section for this camera if you want auto matching.
+
+[[equipment]]
+type = "filter"
+vendor = "sharpstar"
+fits.filter = "SiiOiii" # must match the FITS header FILTER field for this filter if you want auto matching.
+model = "CM-E2"
+url.info = "https://www.sharpstar-optics.com/Products_1/CM_E2.html"
+subtype = "SiiOiii"
+
+[[equipment]]
+type = "filter"
+vendor = "Optolong"
+fits.filter = "HaOiii" # must match the FITS header FILTER field for this filter if you want auto matching.
+model = "lult-200"
+url.info = "https://www.highpointscientific.com/optolong-l-ultimate-2-light-pollution-dual-band-filter-lult-200"
+subtype = "HaOiii"
+
+[[equipment]]
+type = "filter"
+vendor = "Optolong"
+fits.filter = "HaOiii" # must match the FITS header FILTER field for this filter if you want auto matching.
+model = "lext-200"
+url.info = "https://www.highpointscientific.com/optolong-2-inch-l-extreme-dual-band-7nm-ha-oiii-filter-lxt-200"
+subtype = "HaOiii"
+
+[[equipment]]
+type = "mount"
+vendor = "Juwei"
+model = "j17"
+url.info = "https://www.cloudynights.com/forums/topic/918425-juwei-17-mounts-on-aliexpress/"
+
+[[equipment]]
+type = "filterwheel"
+vendor = "ZWO"
+fits.fwheel = "EFW" # must match the FITS header FWHEEL field if you want auto matching.
+model = "efw-5x2"
+url.info = "https://www.zwoastro.com/product/efw-filter-wheels/"
+
+[[equipment]]
+type = "telescope"
+vendor = "Askar"
+fits.telescop = "Askar V.*" # note regexes are supported for fits.x matching
+model = "askar-V"
+url.info = "https://www.highpointscientific.com/askar-v-60mm-and-80mm-apo-refractor-w-accessories"
+
 [aliases]
 # aliases can be used to map non standard (or non english) frame names to standard terms
 # This is also used to map filters based on common misspellings or variations.

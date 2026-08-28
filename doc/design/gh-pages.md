@@ -1,7 +1,34 @@
 
+## report generation
+
+You don't actually need a massive, monolithic "reporting" library because standard Markdown natively renders raw SVG tags. You just need to marry a good templating engine with an SVG-first graphing library.
+
+Here are the three actual ways developers handle this, depending on how much you want to overengineer it:
+
+### 1. The "Unix Philosophy" Way: Jinja2 + Pygal
+
+This is the cleanest, most lightweight approach. You write your Markdown file as a `Jinja2` template, and use **Pygal** (https://www.pygal.org/en/stable/) to generate the charts.
+
+* **Pygal:** An incredibly simple charting library that explicitly generates highly optimized, interactive SVG XML strings.
+* **The Play:** Call `chart.render(is_unicode=True)` in Pygal to get the raw SVG XML string. Pass that string into your Jinja2 Markdown template. Since Markdown parsers ignore raw HTML/XML tags, the SVG renders flawlessly when the user views the `.md` file.
+
+No Inline Code: Pasting the XML text (<svg>...</svg>) directly will result in GitHub completely ignoring the code block and rendering it as blank space
+
+### 3. The Terminal Nerd Way: Rich
+
+If you decide you don't actually need vector graphics and just want an absurdly good-looking text-based report that prints directly to `stdout`, you use **Rich**.
+
+* **How it works:** It handles Markdown rendering, tables, syntax highlighting, and layout grids natively in the terminal.
+* **The Play:** It won't do SVGs, but it *will* let you build complex, colorful text reports that look like a dashboard, which is usually all your users actually need anyway.
+
+# github pages
 
 make tool usable standalone https://docs.github.com/en/pages/setting-up-a-github-pages-site-with-jekyll/about-github-pages-and-jekyll ns
 https://docs.github.com/en/pages/setting-up-a-github-pages-site-with-jekyll/testing-your-github-pages-site-locally-with-jekyll
+
+## jekyl site generation
+
+https://jekyllrb.com/docs/structure/
 
 ## pushing to github pages
 

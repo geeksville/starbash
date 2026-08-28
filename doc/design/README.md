@@ -1,0 +1,1 @@
+You probably aren't super instested in this directory... It is mostly unformatted notes to eventually add to the main project.
