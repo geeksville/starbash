@@ -1,34 +1,24 @@
 
-## report generation
+# stage g1: github pages
 
-You don't actually need a massive, monolithic "reporting" library because standard Markdown natively renders raw SVG tags. You just need to marry a good templating engine with an SVG-first graphing library.
+extending the work done in doc/design/report.md... finally add github pages upload
 
-Here are the three actual ways developers handle this, depending on how much you want to overengineer it:
+* move the old "publish" cli cmd into "publish github rewrite" - a subcommand intended just for dev use (just rewrites ~/.local/state/starbash/publish/site)
+* add a "publish github init" command:
+  * if we don't already have a USER_OAUTH_TOKEN walk the user through the github device auth flow and save it in .config/.../github-auth.toml 
+  * regenerate ~/.local/state/starbash/publish/site as needed
+  * check to see if the user has a "starbash-public" repo, if not - create it
+  * use the temp-pages (below) hack to rewrite the "main" branch" of the repo
+  * create a github pages site based on that repo
+  * use INFo logs to update user as these steps proceed
 
-### 1. The "Unix Philosophy" Way: Jinja2 + Pygal
+ai read the rest of this file for tips on how to do this.  convert into a plan.
 
-This is the cleanest, most lightweight approach. You write your Markdown file as a `Jinja2` template, and use **Pygal** (https://www.pygal.org/en/stable/) to generate the charts.
+## webhooks
 
-* **Pygal:** An incredibly simple charting library that explicitly generates highly optimized, interactive SVG XML strings.
-* **The Play:** Call `chart.render(is_unicode=True)` in Pygal to get the raw SVG XML string. Pass that string into your Jinja2 Markdown template. Since Markdown parsers ignore raw HTML/XML tags, the SVG renders flawlessly when the user views the `.md` file.
+I dont need to use webhooks but https://github.com/probot/smee.io or https://webhook.site/ are both good options.
 
-No Inline Code: Pasting the XML text (<svg>...</svg>) directly will result in GitHub completely ignoring the code block and rendering it as blank space
 
-### 3. The Terminal Nerd Way: Rich
-
-If you decide you don't actually need vector graphics and just want an absurdly good-looking text-based report that prints directly to `stdout`, you use **Rich**.
-
-* **How it works:** It handles Markdown rendering, tables, syntax highlighting, and layout grids natively in the terminal.
-* **The Play:** It won't do SVGs, but it *will* let you build complex, colorful text reports that look like a dashboard, which is usually all your users actually need anyway.
-
-# github pages
-
-make tool usable standalone https://docs.github.com/en/pages/setting-up-a-github-pages-site-with-jekyll/about-github-pages-and-jekyll ns
-https://docs.github.com/en/pages/setting-up-a-github-pages-site-with-jekyll/testing-your-github-pages-site-locally-with-jekyll
-
-## jekyl site generation
-
-https://jekyllrb.com/docs/structure/
 
 ## pushing to github pages
 
@@ -87,7 +77,7 @@ import time
 from rich.console import Console
 
 console = Console()
-CLIENT_ID = "YOUR_OAUTH_APP_CLIENT_ID"
+CLIENT_ID = "Iv23liewanBO4WT8No6v"
 
 # 1. Ask GitHub for a device code
 response = requests.post(
@@ -136,45 +126,33 @@ with console.status("[bold cyan]Waiting for you to authorize in the browser...[/
 
 Just remember to go into your GitHub OAuth App settings and explicitly enable the **Device Flow** checkbox, or GitHub will just laugh at your initial POST request.
 
-## updating images
+## reuploading
 
-Here is the exact PyGithub code to execute the "Releases Exploit."
+Because Git is essentially a digital hoarder, it will absolutely keep every single version of your JPEGs in the `.git` directory forever unless you explicitly sever the timeline.
 
-Just drop this in your script. It hunts down the old asset by name, deletes it, and uploads the fresh one, keeping your repo entirely unaware that you're treating GitHub like an S3 bucket.
+To push to GitHub Pages without the bloat, you need to abuse the "orphan" branch feature. This creates a completely disconnected branch with zero parents, meaning it carries exactly zero historical baggage.
 
-```python
-import os
-from github import Github, Auth
+**The Manual CLI Way:**
+Run this whenever you want to update your images and obliterate the past:
 
-# Grab your token from the environment because hardcoding secrets is a rookie move
-token = os.environ.get("GITHUB_TOKEN", "YOUR_OAUTH_TOKEN_HERE")
-g = Github(auth=Auth.Token(token))
+```bash
+# Create a brand new branch with amnesia
+git checkout --orphan temp-pages
 
-repo = g.get_repo("your-username/my-sweet-blog")
-target_tag = "latest"
-asset_name = "hero-image.jpg"
-local_file_path = "./hero-image.jpg"
+# Add your updated images and make the one and only commit
+git add .
+git commit -m "Fresh images, zero history"
 
-# 1. Fetch the release (you need to have created this tag/release once already)
-try:
-    release = repo.get_release(target_tag)
-except Exception:
-    print(f"Release '{target_tag}' doesn't exist. Go click 'New Release' first, genius.")
-    exit(1)
+# Brutally murder the old local branch and take its name
+git branch -D gh-pages
+git branch -M gh-pages
 
-# 2. Search and destroy the old asset
-for asset in release.get_assets():
-    if asset.name == asset_name:
-        print(f"Nuking old {asset_name} from orbit...")
-        asset.delete_asset()
-        break # Assuming you only have one file with this name, unless you really messed up
-
-# 3. Yeet the new image into the cloud
-print(f"Uploading fresh {asset_name}...")
-release.upload_asset(local_file_path, name=asset_name)
-
-print("Done. Your Git tree remains blissfully un-bloated.")
+# Force push to GitHub to overwrite their reality
+git push -f origin gh-pages
 
 ```
 
-Run that, and your image will be happily living at `[https://github.com/your-username/my-sweet-blog/releases/download/latest/hero-image.jpg](https://github.com/your-username/my-sweet-blog/releases/download/latest/hero-image.jpg)`.
+**The Automated Way (GitHub Actions):**
+If you are using a CI pipeline to push these updates, don't write that bash script yourself. The community standard `peaceiris/actions-gh-pages` action has a flag specifically designed to fix this repo bloat issue. Just add `force_orphan: true` to your workflow step, and it will automatically force-push a single-commit history on every single deploy.
+
+*(Note: Force-pushing an orphan branch means anyone who actually cloned your `gh-pages` branch will get nasty Git errors the next time they try to `git pull`. But since it's just a static site deployment branch, that is entirely their problem).*
