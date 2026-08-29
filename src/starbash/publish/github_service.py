@@ -226,12 +226,15 @@ class GitHubService:
             },
         )
 
-    def bootstrap_repository(self, owner: str, name: str, pages_url: str) -> dict[str, Any]:
+    def bootstrap_repository(
+        self, owner: str, name: str, pages_url: str, github_username: str
+    ) -> dict[str, Any]:
         """Create an initial commit for an existing empty repository."""
         readme = resources.files("starbash").joinpath("templates/report/README.md.jinja")
         template = Environment().from_string(readme.read_text())
         rendered = template.render(
             pages_url=pages_url,
+            github_username=github_username,
             repository_url=f"https://github.com/{owner}/{name}",
             repository_tree_url=f"https://github.com/{owner}/{name}/tree/gh-pages",
         )

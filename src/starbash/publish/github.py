@@ -116,7 +116,7 @@ class GitHubPublisher:
         posts.mkdir(parents=True, exist_ok=True)
         assets_root.mkdir(parents=True, exist_ok=True)
         (self.site_dir / "_config.yml").write_text(
-            "title: Starbash Images\nmarkdown: kramdown\npermalink: pretty\ntimezone: UTC\n"
+            "title: Starbash Images\nmarkdown: kramdown\npermalink: pretty\ntimezone: UTC\ntheme: jekyll-theme-midnight\n"
         )
         layouts = self.site_dir / "_layouts"
         layouts.mkdir(exist_ok=True)

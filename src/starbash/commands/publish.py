@@ -176,6 +176,7 @@ def upload(dry_run: bool = typer.Option(False, "--dry-run", help="Show planned w
                     owner,
                     "starbash-public",
                     pages_url,
+                    owner,
                 )
                 progress.update(operation, description="Initialized repository", advance=1)
             else:
