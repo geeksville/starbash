@@ -141,7 +141,7 @@ class GitHubPublisher:
             image_urls: list[str] = []
             for image in self._images(directory):
                 shutil.copy2(image, asset_dir / image.name)
-                image_urls.append(f"/assets/targets/{slug}/{image.name}")
+                image_urls.append(f"assets/targets/{slug}/{image.name}")
             sessions: list[dict[str, Any]] = []
             for number, session in enumerate(about.get("sessions", []), start=1):
                 frames = session.get("frames", [])
@@ -161,22 +161,21 @@ class GitHubPublisher:
                     {
                         **session,
                         "equipment_rows": equipment_rows(session.get("equipment", {})),
-                        "chart": f"/assets/targets/{slug}/{chart_name}",
+                        "chart": f"../../assets/targets/{slug}/{chart_name}",
                     }
                 )
             page_name = f"{slug}.md"
             post = self.environment.get_template("target.md.jinja").render(
                 target={**target, "name": name},
                 about=about,
-                images=image_urls,
+                images=[f"../../{s}" for s in image_urls],
                 sessions=sessions,
-                page_permalink=f"/targets/{slug}/",
             )
             (posts / page_name).write_text(post)
             index_targets.append(
                 {
                     "name": name,
-                    "url": f"/targets/{slug}/",
+                    "url": f"targets/{slug}",
                     "image": image_urls[0] if image_urls else None,
                 }
             )

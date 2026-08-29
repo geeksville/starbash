@@ -241,7 +241,7 @@ class GitHubService:
             f"{self.api}/repos/{owner}/{name}/contents/README.md",
             {
                 "message": "Initialize Starbash publishing repository",
-                "content": content,
+                "content": content
             },
         )
 
