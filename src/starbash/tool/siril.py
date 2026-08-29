@@ -87,7 +87,7 @@ class SirilTool(ExternalTool):
         # We dedent here because the commands are often indented multiline strings
         script_content = textwrap.dedent(
             f"""
-            requires 1.4.0-beta3
+            requires 1.4.0 1.5.0
             {textwrap.dedent(strip_comments(expanded))}
             """
         )
