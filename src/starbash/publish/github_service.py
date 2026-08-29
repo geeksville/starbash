@@ -195,6 +195,19 @@ class GitHubService:
     def user(self) -> dict[str, Any]:
         return self._request("GET", f"{self.api}/user")
 
+    def user_installations(self) -> list[dict[str, Any]]:
+        """Return GitHub App installations visible to the authenticated user."""
+        result = self._request("GET", f"{self.api}/user/installations?per_page=100")
+        installations = result.get("installations", [])
+        return [installation for installation in installations if isinstance(installation, dict)]
+
+    def app_is_installed(self, app_slug: str) -> bool:
+        """Return whether the authenticated user has installed the named GitHub App."""
+        return any(
+            installation.get("app_slug") == app_slug
+            for installation in self.user_installations()
+        )
+
     def repository(self, owner: str, name: str) -> dict[str, Any] | None:
         try:
             return self._request("GET", f"{self.api}/repos/{owner}/{name}")
