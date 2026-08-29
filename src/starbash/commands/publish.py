@@ -19,6 +19,7 @@ github_app = typer.Typer()
 app.add_typer(github_app, name="github")
 
 CLIENT_ID = "Iv23liewanBO4WT8No6v"
+UPLOAD_PATH_BLACKLIST = ("_layouts/",)
 
 
 def _rewrite() -> Path:
@@ -132,6 +133,10 @@ def upload(dry_run: bool = typer.Option(False, "--dry-run", help="Show planned w
         and ".jekyll-cache" not in path.parts
         and "_site" not in path.parts
         and path.name != "github-auth.toml"
+        and not any(
+            path.relative_to(site).as_posix().startswith(prefix)
+            for prefix in UPLOAD_PATH_BLACKLIST
+        )
     )
     timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     message = f"Publish Starbash images ({timestamp})"

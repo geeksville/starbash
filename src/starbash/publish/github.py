@@ -111,7 +111,7 @@ class GitHubPublisher:
     def publish(self) -> Path:
         """Regenerate the complete site and return its root directory."""
         root = self._processed_root()
-        posts = self.site_dir / "_posts"
+        posts = self.site_dir / "targets"
         assets_root = self.site_dir / "assets" / "targets"
         posts.mkdir(parents=True, exist_ok=True)
         assets_root.mkdir(parents=True, exist_ok=True)
@@ -127,6 +127,9 @@ class GitHubPublisher:
         (layouts / "post.html").write_text(
             "---\nlayout: default\n---\n{{ content }}\n"
         )
+        (layouts / "page.html").write_text(
+            "---\nlayout: default\n---\n{{ content }}\n"
+        )
         index_targets: list[dict[str, Any]] = []
         for directory, document in self._targets(root):
             about = document.get("about", {})
@@ -139,7 +142,6 @@ class GitHubPublisher:
             for image in self._images(directory):
                 shutil.copy2(image, asset_dir / image.name)
                 image_urls.append(f"/assets/targets/{slug}/{image.name}")
-            date = str(about.get("generated_at", "2000-01-01"))[:10]
             sessions: list[dict[str, Any]] = []
             for number, session in enumerate(about.get("sessions", []), start=1):
                 frames = session.get("frames", [])
@@ -162,22 +164,19 @@ class GitHubPublisher:
                         "chart": f"/assets/targets/{slug}/{chart_name}",
                     }
                 )
-            post_name = f"{date}-{slug}.md"
+            page_name = f"{slug}.md"
             post = self.environment.get_template("target.md.jinja").render(
                 target={**target, "name": name},
                 about=about,
                 images=image_urls,
                 sessions=sessions,
-                post_date=date,
-                post_permalink=f"/{date[:4]}/{date[5:7]}/{date[8:10]}/{slug}/",
+                page_permalink=f"/targets/{slug}/",
             )
-            (posts / post_name).write_text(post)
+            (posts / page_name).write_text(post)
             index_targets.append(
                 {
                     "name": name,
-                    # Let Jekyll resolve the post URL from the _posts filename.
-                    # This remains correct if the site's permalink configuration changes.
-                    "url": f"{{% post_url {post_name.removesuffix('.md')} %}}",
+                    "url": f"/targets/{slug}/",
                     "image": image_urls[0] if image_urls else None,
                 }
             )
