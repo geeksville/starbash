@@ -208,6 +208,10 @@ def merge_to(base_name: str, fi: FileInfo) -> None:
     and creates symlinks/copies with sequential names in a subdirectory like base_name/base_name_0001.fits,
     base_name/base_name_0002.fits, etc.
 
+    Note: this function guarantees that the generated frames are sorted:
+        * first by the sequence number
+        * second by the order of frames in that sequence
+
     Args:
         base_name: The base name for the merged sequence (without extension)
         fi: FileInfo containing the input files to merge
@@ -217,6 +221,7 @@ def merge_to(base_name: str, fi: FileInfo) -> None:
     collected_files: list[Path] = []
 
     # Iterate over short_paths to find all FITS files
+    logging.debug(f"Merging files to {base_name} from {fi.short_paths}")
     for short_path in fi.short_paths:
         path = Path(short_path)
 
@@ -240,6 +245,7 @@ def merge_to(base_name: str, fi: FileInfo) -> None:
     ):
         dest_name = f"{base_name}_{index:05d}.fits"
         dest_path = output_dir / dest_name
+        #logging.debug(f"Linking {source_file} to {dest_path}")
         symlink_or_copy(str(source_file), str(dest_path))
 
 

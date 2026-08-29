@@ -10,8 +10,6 @@ from starbash.tool import tools
 
 siril = tools["siril"]
 
-delete_temps = False
-
 # ('context' and 'logger' are normally injected by the starbash runtime)
 context: dict[str, Any] = {}
 logger: logging.Logger = None  # type: ignore
@@ -60,7 +58,8 @@ def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str
             if cur_seq:
                 seqs_to_merge.extend(cur_seq.short_paths)
 
-        # We only wantt to process seqs_to_merge for our CURRENT variant.  So drop any files that don't start with that
+        # We only want to process seqs_to_merge for our CURRENT variant.  So drop any files that don't start with that
+        # fixme-ai be extra careful for doc/design/fwhm.md because this will change the mapping back to the original files
         seqs_to_merge = [fix_sequence_name(s) for s in seqs_to_merge if s.startswith(input_base)]
 
         logger.info(f"Registering and stacking for {variant} -> {stacked_output_path}")
@@ -98,7 +97,6 @@ def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str
         """
 
     siril.run(commands, context=context, cwd=context["process_dir"])
-
 
 def make_renormalize(channel_num: int) -> None:
     """
@@ -190,6 +188,8 @@ def osc_process(has_ha_oiii: bool, has_sii_oiii: bool) -> None:
         # green output channel - from the HaOiii filter Ha is on the 656nm red channel
         channel_num += 1
         make_stacked(["ha"], "Ha", f"results_{channel_num:05d}")
+        # fixme-ai parse ONLY the _all_r_Ha_bkg_pp_light_.seq file tor doc/design/fwhm.md needs. be careful
+        # though because each entry in that seq file has to be backwards mapped to the original input file
 
     if has_ha_oiii or has_sii_oiii:
         # blue output channel - both filters have Oiii on the 500nm blue channel.  Note the case here is uppercase to match siril output

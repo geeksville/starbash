@@ -93,8 +93,8 @@
 				"github.copilot",
 				"skellock.just",
 				"detachhead.basedpyright",
-				"bierner.markdown-mermaid"
-				// "google.geminicodeassist"
+				"bierner.markdown-mermaid",
+				"ppp-one.simple-fits-viewer"
 			],
 			"settings": {
 				"terminal.integrated.defaultProfile.linux": "zsh"
