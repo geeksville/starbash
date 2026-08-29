@@ -11,6 +11,7 @@ from typing import Any
 import pygal
 import tomlkit
 from jinja2 import Environment, PackageLoader
+from tomlkit.exceptions import ParseError
 
 from starbash.paths import get_publish_site_dir
 
@@ -104,7 +105,7 @@ class GitHubPublisher:
                 continue
             try:
                 targets.append((directory, plain(tomlkit.parse(config.read_text()))))
-            except (OSError, tomlkit.exceptions.ParseError) as exc:
+            except (OSError, ParseError) as exc:
                 warnings.warn(f"Skipping malformed target {config}: {exc}", stacklevel=2)
         return targets
 

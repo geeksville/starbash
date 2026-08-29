@@ -6,10 +6,11 @@ import tempfile
 import types
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import tomlkit
 from toml_repo import Repo, get_config_suffix
+from tomlkit.items import Table
 
 from starbash import to_shortdate
 from starbash.doit_types import cleanup_old_contexts, get_processing_dir
@@ -251,7 +252,7 @@ class ProcessedTarget:
             self.template_name, overrides=overrides
         )  # reload the about section so we can snarf the updated version
 
-        about = report_toml["about"]
+        about = cast(Table, report_toml["about"])
         about["generated_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
         about["schema_version"] = 1
         sessions = tomlkit.aot()
