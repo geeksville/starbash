@@ -118,6 +118,10 @@ class GitHubPublisher:
         (self.site_dir / "_config.yml").write_text(
             "title: Starbash Images\nmarkdown: kramdown\npermalink: pretty\ntimezone: UTC\ntheme: jekyll-theme-midnight\n"
         )
+        (self.site_dir / "Gemfile").write_text(
+            'source "https://rubygems.org"\n'
+            'gem "github-pages", group: :jekyll_plugins\n'
+        )
         layouts = self.site_dir / "_layouts"
         layouts.mkdir(exist_ok=True)
         (layouts / "default.html").write_text(

@@ -19,7 +19,7 @@ github_app = typer.Typer()
 app.add_typer(github_app, name="github")
 
 CLIENT_ID = "Iv23liewanBO4WT8No6v"
-UPLOAD_PATH_BLACKLIST = ("_layouts/",)
+UPLOAD_PATH_BLACKLIST = ("_layouts/","Gemfile")
 
 
 def _rewrite() -> Path:

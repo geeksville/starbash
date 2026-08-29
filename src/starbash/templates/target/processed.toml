@@ -10,11 +10,12 @@ kind = "processed-target"
 [about]
 
 summary = """
-Processed data for $target.
-Generated from $num_sessions imaging sessions.
-Total of $total_exposure_hours hours of exposure.
-Filters used: $filters_used.
-Observation dates: $observation_dates.
+## Processing summary
+
+- **Sessions:** $num_sessions
+- **Total exposure:** $total_exposure_hours hours
+- **Filters used:** $filters_used
+- **Observation dates:** $observation_dates
 """
 
 target.id = "$target"
