@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -10,6 +11,7 @@ from datetime import datetime
 from typing import Any
 
 SESSION_METADATA_KEYS = ("FOCALLEN", "FOCRATIO", "GAIN", "XPIXSZ", "YPIXSZ")
+IMAGE_SCALE_KEY = "IMAGE_SCALE_ARCSEC_PER_PIXEL"
 FRAME_METADATA_KEYS = (
     "DATE-OBS",
     "DEWPOINT",
@@ -61,6 +63,32 @@ def selected_metadata(metadata: dict[str, Any], keys: Iterable[str], blacklist: 
         for key in keys
         if key in metadata and key not in excluded and metadata[key] is not None
     }
+
+
+def image_scale_arcsec_per_pixel(metadata: dict[str, Any]) -> float | None:
+    """Calculate the image scale from focal length and pixel size metadata.
+
+    FITS focal length is represented in millimetres and pixel dimensions in
+    microns. If both pixel dimensions are available, their geometric mean is
+    used for the scalar report value.
+    """
+    try:
+        focal_length = float(metadata["FOCALLEN"])
+        pixel_sizes = [
+            float(metadata[key])
+            for key in ("XPIXSZ", "YPIXSZ")
+            if metadata.get(key) is not None
+        ]
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    if not pixel_sizes or focal_length <= 0 or not math.isfinite(focal_length):
+        return None
+    if any(pixel_size <= 0 or not math.isfinite(pixel_size) for pixel_size in pixel_sizes):
+        return None
+
+    pixel_size = math.prod(pixel_sizes) ** (1 / len(pixel_sizes))
+    return 206.265 * pixel_size / focal_length
 
 
 def frame_info(metadata: dict[str, Any], blacklist: Iterable[str] = ()) -> FrameInfo:

@@ -6,6 +6,12 @@ kind = "processed-target"
 # can customize as needed.  Any changes you make to this file will be preserved/used
 # in future runs.
 
+# The stages used to process this target are recorded below as a [[stages]]
+# array. Each entry has a name; add `excluded = true` to skip a stage, and
+# uncomment a value under [[stages.overrides]] to override a recipe parameter.
+# Starbash regenerates/augments this list on every run.
+[[stages]]
+
 # About the target and processing - this section is auto geneated each starbash processing run...
 [about]
 
@@ -21,12 +27,6 @@ summary = """
 target.id = "$target"
 target.ra = "$target_ra"
 target.dec = "$target_dec"
-
-# The stages used to process this target are recorded below as a [[stages]]
-# array. Each entry has a name; add `excluded = true` to skip a stage, and
-# uncomment a value under [[stages.overrides]] to override a recipe parameter.
-# Starbash regenerates/augments this list on every run.
-[[stages]]
 
 # (Not yet implemented)
 # The creator of this image session

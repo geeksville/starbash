@@ -17,8 +17,11 @@ from starbash.doit_types import cleanup_old_contexts, get_processing_dir
 from starbash.parameters import ParameterStore
 from starbash.processing_like import ProcessingLike
 from starbash.report import (
+    IMAGE_SCALE_KEY,
+    SESSION_METADATA_KEYS,
     SessionInfo,
     frame_info,
+    image_scale_arcsec_per_pixel,
     match_equipment,
     selected_metadata,
     sort_datetime,
@@ -287,6 +290,10 @@ class ProcessedTarget:
             images = self.p.sb.get_session_images(session)
             images = sorted(images, key=lambda image: sort_datetime(image.get("DATE-OBS")))
             start = session.get("start")
+            session_metadata = selected_metadata(metadata, SESSION_METADATA_KEYS, blacklist)
+            image_scale = image_scale_arcsec_per_pixel(metadata)
+            if image_scale is not None:
+                session_metadata[IMAGE_SCALE_KEY] = image_scale
             infos.append(
                 SessionInfo(
                     id=session.get("id"),
@@ -294,7 +301,7 @@ class ProcessedTarget:
                     start=start,
                     end=session.get("end"),
                     equipment=match_equipment(metadata, catalog),
-                    metadata=selected_metadata(metadata, ("FOCALLEN", "FOCRATIO", "GAIN", "XPIXSZ", "YPIXSZ"), blacklist),
+                    metadata=session_metadata,
                     frames=[frame_info(image, blacklist) for image in images],
                 )
             )

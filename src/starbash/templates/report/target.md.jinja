@@ -16,6 +16,13 @@ title: "{{ target.name }}"
 {% for session in sessions %}
 ### {{ session.date | default('Unknown date') }}
 
+{% set metadata = session.metadata | default({}) %}
+{% if metadata.FOCALLEN is defined or metadata.FOCRATIO is defined or metadata.IMAGE_SCALE_ARCSEC_PER_PIXEL is defined %}
+| Focal length | Focal ratio | Image scale |
+| --- | --- | --- |
+| {{ (metadata.FOCALLEN ~ ' mm') if metadata.FOCALLEN is defined else '—' }} | {{ ('f/' ~ metadata.FOCRATIO) if metadata.FOCRATIO is defined else '—' }} | {{ ('%.2f arcsec/pixel' | format(metadata.IMAGE_SCALE_ARCSEC_PER_PIXEL)) if metadata.IMAGE_SCALE_ARCSEC_PER_PIXEL is defined else '—' }} |
+
+{% endif %}
 | Equipment | Model |
 | --- | --- |
 {% for equipment in session.equipment_rows -%}

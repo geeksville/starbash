@@ -410,7 +410,7 @@ class TestProcessedTargetContext:
                 "OBJECT": "M42", "FOCALLEN": 600.0, "SITELAT": 1.0, "TELESCOP": "Scope", "INSTRUME": "Camera",
             }},
             {"id": 1, "start": "2026-08-09T00:00:00", "end": "2026-08-09T02:00:00", "metadata": {
-                "FOCALLEN": 500.0, "TELESCOP": "Scope", "INSTRUME": "Camera",
+                "FOCALLEN": 500.0, "XPIXSZ": 3.76, "YPIXSZ": 3.76, "TELESCOP": "Scope", "INSTRUME": "Camera",
             }},
         ]
         images = {
@@ -441,7 +441,12 @@ class TestProcessedTargetContext:
             {"DATE-OBS": "2026-08-10T01:00:00", "DEWPOINT": 2.0},
         ]
         assert "SITELAT" not in pt.sessions_info[1].frames[0].metadata
-        assert pt.sessions_info[0].metadata == {"FOCALLEN": 500.0}
+        assert pt.sessions_info[0].metadata["FOCALLEN"] == 500.0
+        assert pt.sessions_info[0].metadata["XPIXSZ"] == 3.76
+        assert pt.sessions_info[0].metadata["YPIXSZ"] == 3.76
+        assert pt.sessions_info[0].metadata["IMAGE_SCALE_ARCSEC_PER_PIXEL"] == pytest.approx(
+            206.265 * 3.76 / 500.0
+        )
 
 
 class TestProcessedTargetCleanup:
