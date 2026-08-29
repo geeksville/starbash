@@ -7,8 +7,7 @@
 A tool for automating/standardizing/sharing astrophotography workflows.
 
 ## What is starbash?
-
-<img src="https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/img/icon.jpg" alt="Starbash: Astrophotography workflows simplified" width="30%" align="right" style="margin-bottom: 20px;">
+<img src="https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/icon/generated/web/icon-192.png" alt="Starbash: Astrophotography workflows simplified" width="30%" align="right" style="margin-bottom: 20px;">
 
 * Automatic - with sensible defaults that you can change as needed.  Just a few keystrokes to preprocess an entire repo of raw images.
 * Easy - provides a 'seestar-like' autoprocessing all your sessions (by default).  You can optionally do manual postprocessing with all this 'grunt work' preprocessing automated.
