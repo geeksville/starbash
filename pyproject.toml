@@ -21,12 +21,17 @@ restrictedpython = ">=8.1,<9.0"
 astropy = ">=7.1.1,<8.0.0"
 platformdirs = ">=4.5.0,<5.0.0"
 typer = "^0.20.0"
+# Typer 0.20.1 still imports Click's deprecated stream helpers. Click 8.5
+# warns about those imports, so keep the compatible pre-8.5 release line until
+# Typer removes that dependency on deprecated APIs.
+click = ">=8.0,<8.5"
 sentry-sdk = "^2.42.1"
 update-checker = "^0.18.0"
 doit = "^0.36.0"
 textual = "^6.8.0"
 jinja2 = ">=3.1,<4.0"
 pygal = ">=3.0,<4.0"
+keyring = ">=25.6,<26.0"
 
 # Note: to use graxpert from the local tree rather than pypi use:
 # graxpert = {path = "GraXpert", extras = ["cpuonly"], develop = true}

@@ -259,7 +259,7 @@ test:
 
 # Regenerate and serve the local Jekyll report site.
 site-view:
-    sb publish
+    sb publish github rewrite
     jekyll build --source ~/.local/state/starbash/publish/site --destination ~/.local/state/starbash/publish/site/_site
     jekyll serve --source ~/.local/state/starbash/publish/site --destination ~/.local/state/starbash/publish/site/_site
 

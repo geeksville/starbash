@@ -69,7 +69,7 @@ type = "filter"
 vendor = "sharpstar"
 fits.filter = "SiiOiii" # must match the FITS header FILTER field for this filter if you want auto matching.
 model.short = "CM-E2"
-model.long = "Sharpstar Colour Magic Ultra E2 Duo Narrowband Filter (OIII&SII)"
+model.long = "Sharpstar Colour Magic Ultra E2 Duo 4nm Filter (OIII&SII)"
 url.info = "https://www.sharpstar-optics.com/Products_1/CM_E2.html"
 subtype = "SiiOiii"
 
@@ -78,7 +78,7 @@ type = "filter"
 vendor = "Optolong"
 fits.filter = "HaOiii" # must match the FITS header FILTER field for this filter if you want auto matching.
 model.short = "lult-200"
-model.long = "Optolong L-Ultimate 2-inch Dual-Band Filter"
+model.long = "Optolong L-Ultimate 2-inch Dual-Band 3nm Ha+Oiii Filter"
 url.info = "https://www.highpointscientific.com/optolong-l-ultimate-2-light-pollution-dual-band-filter-lult-200"
 subtype = "HaOiii"
 

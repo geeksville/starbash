@@ -1,0 +1,287 @@
+"""Small GitHub API client used by the GitHub Pages publisher."""
+
+from __future__ import annotations
+
+import base64
+import json
+import logging
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from dataclasses import dataclass
+from importlib import resources
+from typing import Any
+
+from jinja2 import Environment
+
+logger = logging.getLogger(__name__)
+
+class GitHubError(RuntimeError):
+    """A safe, user-facing GitHub API error without response credentials."""
+
+
+@dataclass(frozen=True)
+class DeviceCode:
+    device_code: str
+    user_code: str
+    verification_uri: str
+    interval: int
+    expires_in: int
+
+
+class GitHubService:
+    """GitHub REST operations needed by the publishing commands."""
+
+    api = "https://api.github.com"
+    api_version = "2026-03-10"
+
+    def __init__(self, token: str | None = None, opener: Any = urllib.request.urlopen) -> None:
+        self.token = token
+        self.opener = opener
+
+    @staticmethod
+    def _json_response(response: Any) -> Any:
+        body = response.read().decode("utf-8")
+        # Some successful or conflict responses from GitHub, including an
+        # already-enabled Pages site, have no response body.
+        return json.loads(body) if body.strip() else {}
+
+    @staticmethod
+    def _safe_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Redact credentials and keep large blob bodies out of debug logs."""
+        if payload is None:
+            return None
+        safe = dict(payload)
+        if "content" in safe:
+            content = safe["content"]
+            safe["content"] = f"<redacted {len(content)} bytes>"
+        return safe
+
+    @classmethod
+    def _safe_response(cls, value: Any) -> Any:
+        """Redact authentication values before writing a response to debug logs."""
+        if isinstance(value, dict):
+            return {
+                key: "<redacted>"
+                if key in {"access_token", "device_code", "token"}
+                else cls._safe_response(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [cls._safe_response(item) for item in value]
+        return value
+
+    def _request(self, method: str, url: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": self.api_version,
+            "User-Agent": "starbash",
+            "Content-Type": "application/json",
+        }
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        data = json.dumps(payload).encode() if payload is not None else None
+        request = urllib.request.Request(url, data=data, headers=headers, method=method)
+        logger.debug("GitHub request: %s %s params=%r", method, url, self._safe_payload(payload))
+        try:
+            with self.opener(request) as response:
+                result = self._json_response(response)
+                logger.debug(
+                    "GitHub response: %s %s status=%s body=%r",
+                    method,
+                    url,
+                    response.status,
+                    self._safe_response(result),
+                )
+                return result
+        except urllib.error.HTTPError as exc:
+            response_body = exc.read().decode("utf-8", errors="replace")
+            try:
+                response_body = repr(self._safe_response(json.loads(response_body)))
+            except json.JSONDecodeError:
+                response_body = response_body[:1000]
+            logger.debug(
+                "GitHub response: %s %s status=%s body=%r",
+                method,
+                url,
+                exc.code,
+                response_body,
+            )
+            if exc.code == 404:
+                raise GitHubError("GitHub resource was not found") from exc
+            if exc.code == 403:
+                raise GitHubError(
+                    "GitHub rejected the request; check the OAuth token's permissions "
+                    "and whether the request is rate-limited"
+                ) from exc
+            if exc.code == 409:
+                raise GitHubError(
+                    "GitHub cannot use the repository's Git database because it is empty; "
+                    "the repository needs an initial commit"
+                ) from exc
+            raise GitHubError(f"GitHub API request failed ({exc.code})") from exc
+        except (urllib.error.URLError, TimeoutError) as exc:
+            logger.debug("GitHub request failed: %s %s error=%r", method, url, exc)
+            raise GitHubError("Could not connect to GitHub") from exc
+
+    def device_code(self, client_id: str, scope: str = "repo") -> DeviceCode:
+        """Request a GitHub Device Flow code."""
+        logger.debug("GitHub device-code request: client_id=%s scope=%s", client_id, scope)
+        body = urllib.parse.urlencode({"client_id": client_id, "scope": scope}).encode()
+        request = urllib.request.Request(
+            "https://github.com/login/device/code",
+            data=body,
+            headers={"Accept": "application/json", "User-Agent": "starbash", "Content-Type": "application/x-www-form-urlencoded"},
+            method="POST",
+        )
+        try:
+            with self.opener(request) as response:
+                value = self._json_response(response)
+                logger.debug(
+                    "GitHub device-code response: status=%s body=%r",
+                    response.status,
+                    self._safe_response(value),
+                )
+        except (urllib.error.URLError, TimeoutError) as exc:
+            raise GitHubError("Could not start GitHub authentication") from exc
+        if "error" in value:
+            raise GitHubError("GitHub refused the authentication request")
+        return DeviceCode(
+            value["device_code"], value["user_code"], value["verification_uri"],
+            int(value.get("interval", 5)), int(value["expires_in"]),
+        )
+
+    def poll_device_token(self, device: DeviceCode, client_id: str, sleeper: Any = time.sleep) -> str:
+        """Poll until the user authorizes or GitHub returns a terminal error."""
+        deadline = time.monotonic() + device.expires_in
+        interval = device.interval
+        while time.monotonic() < deadline:
+            body = urllib.parse.urlencode({
+                "client_id": client_id,
+                "device_code": device.device_code,
+                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+            }).encode()
+            request = urllib.request.Request(
+                "https://github.com/login/oauth/access_token", data=body,
+                headers={"Accept": "application/json", "User-Agent": "starbash", "Content-Type": "application/x-www-form-urlencoded"}, method="POST",
+            )
+            try:
+                with self.opener(request) as response:
+                    value = self._json_response(response)
+                    logger.debug(
+                        "GitHub token response: status=%s body=%r",
+                        response.status,
+                        self._safe_response(value),
+                    )
+            except (urllib.error.URLError, TimeoutError) as exc:
+                logger.debug("GitHub token request failed: %r", exc)
+                raise GitHubError("Could not complete GitHub authentication") from exc
+            if token := value.get("access_token"):
+                return str(token)
+            error = value.get("error")
+            if error == "authorization_pending":
+                sleeper(interval)
+                continue
+            if error == "slow_down":
+                interval += 5
+                sleeper(interval)
+                continue
+            if error in {"expired_token", "access_denied"}:
+                raise GitHubError("GitHub authentication was not completed")
+            raise GitHubError("GitHub returned an unexpected authentication response")
+        raise GitHubError("GitHub authentication timed out")
+
+    def user(self) -> dict[str, Any]:
+        return self._request("GET", f"{self.api}/user")
+
+    def repository(self, owner: str, name: str) -> dict[str, Any] | None:
+        try:
+            return self._request("GET", f"{self.api}/repos/{owner}/{name}")
+        except GitHubError as exc:
+            if str(exc) == "GitHub resource was not found":
+                return None
+            raise
+
+    def branch_exists(self, owner: str, name: str, branch: str) -> bool:
+        """Return whether a branch ref exists, rather than using repository size."""
+        try:
+            self._request("GET", f"{self.api}/repos/{owner}/{name}/git/ref/heads/{branch}")
+        except GitHubError as exc:
+            if str(exc) == "GitHub resource was not found":
+                return False
+            raise
+        return True
+
+    def create_repository(self, name: str) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"{self.api}/user/repos",
+            {
+                "name": name,
+                "description": "Processed astrophotography images published by Starbash.",
+                "private": False,
+                # we want to make main ourselves
+                "auto_init": False,
+            },
+        )
+
+    def bootstrap_repository(self, owner: str, name: str, pages_url: str) -> dict[str, Any]:
+        """Create an initial commit for an existing empty repository."""
+        readme = resources.files("starbash").joinpath("templates/report/README.md.jinja")
+        template = Environment().from_string(readme.read_text())
+        rendered = template.render(
+            pages_url=pages_url,
+            repository_url=f"https://github.com/{owner}/{name}",
+            repository_tree_url=f"https://github.com/{owner}/{name}/tree/gh-pages",
+        )
+        content = base64.b64encode(rendered.encode("utf-8")).decode("ascii")
+        return self._request(
+            "PUT",
+            f"{self.api}/repos/{owner}/{name}/contents/README.md",
+            {
+                "message": "Initialize Starbash publishing repository",
+                "content": content,
+            },
+        )
+
+    def create_blob(self, owner: str, name: str, content: bytes) -> str:
+        encoded = base64.b64encode(content).decode("ascii")
+        return str(self._request("POST", f"{self.api}/repos/{owner}/{name}/git/blobs", {"content": encoded, "encoding": "base64"})["sha"])
+
+    def create_tree(self, owner: str, name: str, entries: list[dict[str, str]]) -> str:
+        return str(self._request("POST", f"{self.api}/repos/{owner}/{name}/git/trees", {"tree": entries})["sha"])
+
+    def create_commit(self, owner: str, name: str, message: str, tree: str) -> str:
+        return str(self._request("POST", f"{self.api}/repos/{owner}/{name}/git/commits", {"message": message, "tree": tree})["sha"])
+
+    def update_branch(self, owner: str, name: str, commit: str) -> None:
+        url = f"{self.api}/repos/{owner}/{name}/git/refs/heads/gh-pages"
+        try:
+            self._request("PATCH", url, {"sha": commit, "force": True})
+        except GitHubError as exc:
+            if str(exc) not in {
+                "GitHub resource was not found",
+                "GitHub API request failed (422)",
+            }:
+                raise
+            self._request(
+                "POST",
+                f"{self.api}/repos/{owner}/{name}/git/refs",
+                {"ref": "refs/heads/gh-pages", "sha": commit},
+            )
+
+    def configure_pages(self, owner: str, name: str) -> dict[str, Any]:
+        payload = {"source": {"branch": "gh-pages", "path": "/"}}
+        try:
+            return self._request("PUT", f"{self.api}/repos/{owner}/{name}/pages", payload)
+        except GitHubError as exc:
+            if str(exc) not in {
+                "GitHub API request failed (409)",
+                "GitHub API request failed (422)",
+            }:
+                raise
+            logger.info("GitHub Pages is already enabled; continuing with deployment wait.")
+            return {"status": "already-enabled"}
+
+
