@@ -159,7 +159,9 @@ class GitHubPublisher:
                     "Wind gust",
                     [frame.get("metadata", {}).get("WINDGUST", 0) for frame in frames],
                 )
-                chart.add("FWHM", [1 for _ in frames])
+                fwhm_values = [frame.get("metadata", {}).get("FWHM") for frame in frames]
+                if any(value is not None for value in fwhm_values):
+                    chart.add("FWHM", fwhm_values)
                 chart_name = f"session-{number}.svg"
                 chart.render_to_file(str(asset_dir / chart_name))
                 sessions.append(

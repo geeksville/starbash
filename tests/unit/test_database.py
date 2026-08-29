@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from starbash.database import Database, get_column_name
 
 
@@ -24,6 +26,44 @@ def test_database_images_table(tmp_path: Path):
 
         # Ensure the file was written to disk under the provided base dir
         assert (tmp_path / "db.sqlite3").exists()
+
+
+def test_update_images_metadata_merges_without_changing_image_fields(tmp_path: Path):
+    with Database(base_dir=tmp_path) as db:
+        repo_url = "file:///tmp"
+        image_id = db.upsert_image(
+            {
+                "path": "foo.fit",
+                "DATE-OBS": "2025-01-01T00:00:00",
+                "IMAGETYP": "Light Frame",
+                "KEEP": "yes",
+            },
+            repo_url,
+        )
+
+        assert db.update_images_metadata(
+            {image_id: {"FWHM": 3.2, "Stars": 42}}
+        ) == 1
+        image = db.get_image(repo_url, "foo.fit")
+        assert image is not None
+        assert image["KEEP"] == "yes"
+        assert image["FWHM"] == 3.2
+        assert image["Stars"] == 42
+        assert image["DATE-OBS"] == "2025-01-01T00:00:00"
+        assert image["IMAGETYP"] == "Light Frame"
+
+
+def test_update_images_metadata_rolls_back_unknown_id(tmp_path: Path):
+    with Database(base_dir=tmp_path) as db:
+        repo_url = "file:///tmp"
+        image_id = db.upsert_image({"path": "foo.fit", "KEEP": "yes"}, repo_url)
+
+        with pytest.raises(ValueError, match="does not exist"):
+            db.update_images_metadata({image_id: {"FWHM": 3.2}, 99999: {"FWHM": 4.2}})
+
+        image = db.get_image(repo_url, "foo.fit")
+        assert image is not None
+        assert "FWHM" not in image
 
 
 def test_remove_repo_basic(tmp_path: Path):

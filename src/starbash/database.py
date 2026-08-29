@@ -402,6 +402,45 @@ class Database:
             return result[0]
         return cursor.lastrowid if cursor.lastrowid is not None else 0
 
+    def update_images_metadata(self, updates_by_id: dict[int, dict[str, Any]]) -> int:
+        """Merge metadata updates into existing image rows atomically.
+
+        Only the JSON metadata column is changed. All image IDs must exist;
+        otherwise no rows are modified and ``ValueError`` is raised.
+        """
+        if not updates_by_id:
+            return 0
+
+        cursor = self._db.cursor()
+        try:
+            existing: dict[int, dict[str, Any]] = {}
+            for image_id in updates_by_id:
+                cursor.execute(
+                    f"SELECT metadata FROM {self.IMAGES_TABLE} WHERE id = ?",
+                    (image_id,),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    raise ValueError(f"Image ID {image_id} does not exist")
+                existing[image_id] = json.loads(row["metadata"])
+
+            for image_id, updates in updates_by_id.items():
+                metadata = existing[image_id]
+                metadata.update(updates)
+                cursor.execute(
+                    f"UPDATE {self.IMAGES_TABLE} SET metadata = ? WHERE id = ?",
+                    (json.dumps(metadata), image_id),
+                )
+                if cursor.rowcount != 1:
+                    raise ValueError(f"Could not update image ID {image_id}")
+
+            self._db.commit()
+        except Exception:
+            self._db.rollback()
+            raise
+
+        return len(updates_by_id)
+
     def search_image(self, conditions: list[SearchCondition]) -> list[ImageRow]:
         """Search for images matching the given conditions.
 

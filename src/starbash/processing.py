@@ -82,13 +82,16 @@ def _clone_context(context: dict[str, Any]) -> dict[str, Any]:
     Returns:
         A deep copy of the current context dictionary.
     """
-    r = copy.deepcopy(context)
+    shared = {
+        key: context[key]
+        for key in ["session", "update_image_metadata"]
+        if key in context
+    }
+    r = copy.deepcopy({key: value for key, value in context.items() if key not in shared})
 
     # A few fields (if populated) we want SHARED between all contexts, so that if two contexts were initially pointing
     # at the same session row (for insance), changes in one context are reflected in the other.
-    for key in ["session"]:
-        if key in context:
-            r[key] = context[key]
+    r.update(shared)
 
     return r
 
@@ -839,6 +842,9 @@ class Processing(ProcessingLike):
         # Add our parameters to the context (stage.repo was monkey patched by the repo manager)
         # FIXME, perhaps it makes more sense to put parameters at the 'stage' level so we don't need to do this?
         assert self.processed_target, "ProcessedTarget is guaraneed to be set here"
+        # Recipes may update metadata through the application's existing database
+        # connection. Keep the bound method shared across cloned task contexts.
+        self.context["update_image_metadata"] = self.sb.db.update_images_metadata
         param_store = self.processed_target.parameter_store
         param_store.add_parameters_from_stage(stage.source, stage)  # pyright: ignore[reportAttributeAccessIssue]
         self.context["parameters"] = param_store.as_obj_for_stage(stage.get("name"))
@@ -1085,7 +1091,29 @@ class Processing(ProcessingLike):
                 "No prior stage outputs matched the input filename filter", []
             )
 
-        return FileInfo(base=base, image_rows=list(image_rows.values()), definition=input)
+        sequence_provenance: dict[str, list[int]] = {}
+        provenance: dict[str, int] = {}
+        for task in prior_tasks:
+            task_context = task["meta"]["context"]
+            task_inputs = task_context.get("input", {})
+            for file_info in task_inputs.values():
+                if isinstance(file_info, FileInfo) and file_info.sequence_provenance:
+                    sequence_provenance.update(file_info.sequence_provenance)
+                if isinstance(file_info, FileInfo) and file_info.provenance:
+                    provenance.update(file_info.provenance)
+            task_output = task_context.get("output")
+            if isinstance(task_output, FileInfo) and task_output.sequence_provenance:
+                sequence_provenance.update(task_output.sequence_provenance)
+            if isinstance(task_output, FileInfo) and task_output.provenance:
+                provenance.update(task_output.provenance)
+
+        return FileInfo(
+            base=base,
+            image_rows=list(image_rows.values()),
+            definition=input,
+            provenance=provenance,
+            sequence_provenance=sequence_provenance or None,
+        )
 
     def _remove_missing_tool_tasks(self, tasks: list[TaskDict]) -> list[TaskDict]:
         """Drop tasks whose stage requires a tool that isn't installed.
@@ -1248,6 +1276,15 @@ class Processing(ProcessingLike):
                 base=f"{imagetyp}_s{self.session['id']}",  # it is VERY important that the base name include the session ID, because it is used to construct unique filenames
                 definition=input,
             )
+            source_images = [image for image in images if image.get("id") is not None]
+            fi.sequence_provenance = {
+                f"{fi.base}_.seq": [image["id"] for image in source_images]
+            }
+            fi.provenance = {
+                image["path"]: image["id"]
+                for image in source_images
+                if image.get("path")
+            }
             ci[imagetyp] = fi
 
             # The tool invocation will automatically copy any files listed in input_files
@@ -1399,8 +1436,47 @@ class Processing(ProcessingLike):
             if not filenames:
                 raise ValueError("Output definition must specify at least one file.")
 
+            # Carry source-image identity through generated sequence outputs.
+            # Intermediate Siril stages may drop frames, so merge_to() later
+            # reconciles this ordered list with the preserved frame suffixes.
+            source_ids: list[int] = []
+            for input_info in self.context.get("input", {}).values():
+                if not isinstance(input_info, FileInfo):
+                    continue
+                if input_info.sequence_provenance:
+                    for ids in input_info.sequence_provenance.values():
+                        for source_id in ids:
+                            if source_id not in source_ids:
+                                source_ids.append(source_id)
+                elif input_info.provenance:
+                    for source_id in input_info.provenance.values():
+                        if source_id not in source_ids:
+                            source_ids.append(source_id)
+
+            sequence_provenance: dict[str, list[int]] = {}
+            generated_provenance: dict[str, int] = {}
+            for filename in filenames:
+                if not filename.endswith(".seq") or not source_ids:
+                    continue
+                sequence_provenance[filename] = source_ids.copy()
+                stem = (
+                    filename[: -len("_.seq")]
+                    if filename.endswith("_.seq")
+                    else Path(filename).stem
+                )
+                generated_provenance.update(
+                    {
+                        f"{stem}_{index:05d}.fit": source_id
+                        for index, source_id in enumerate(source_ids, start=1)
+                    }
+                )
+
             return FileInfo(
-                repo=repo, base=str(dir), image_rows=[make_imagerow(dir, f) for f in filenames]
+                repo=repo,
+                base=str(dir),
+                image_rows=[make_imagerow(dir, f) for f in filenames],
+                provenance=generated_provenance or None,
+                sequence_provenance=sequence_provenance or None,
             )
 
         def _resolve_output_job() -> FileInfo:

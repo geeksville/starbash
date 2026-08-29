@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import glob
 import logging
+import re
 import shutil
 from collections import OrderedDict
 from collections.abc import Callable
@@ -56,6 +57,8 @@ class FileInfo:
     relative: str | None = None  # the relative path within the repository
     repo: Repo | None = None  # The repo this file is within
     image_rows: list[ImageRow] | None = None  # List of individual files (if applicable)
+    provenance: dict[str, int] | None = None  # Generated basename -> source image ID
+    sequence_provenance: dict[str, list[int]] | None = None  # Sequence -> source IDs in order
     definition: InputDef | None = (
         None  # The input (or output) definition that produced this FileInfo
     )
@@ -219,6 +222,7 @@ def merge_to(base_name: str, fi: FileInfo) -> None:
     assert fi.base, "FileInfo must have a base directory for merging"
     base_dir = Path(fi.base)
     collected_files: list[Path] = []
+    provenance: dict[str, int] = {}
 
     # Iterate over short_paths to find all FITS files
     logging.debug(f"Merging files to {base_name} from {fi.short_paths}")
@@ -231,7 +235,46 @@ def merge_to(base_name: str, fi: FileInfo) -> None:
             pattern1 = str(base_dir / f"{seq_prefix}*.fit")
             pattern2 = str(base_dir / f"{seq_prefix}*.fits")
             matching_files = sorted(glob.glob(pattern1) + glob.glob(pattern2))
-            collected_files.extend([Path(f) for f in matching_files])
+            source_ids = (fi.sequence_provenance or {}).get(path.name)
+            if source_ids is None and path.name.endswith("_.seq"):
+                source_ids = (fi.sequence_provenance or {}).get(f"{path.stem}.seq")
+            resolved_source_ids: list[int] | None = None
+            if source_ids is not None:
+                if len(source_ids) == len(matching_files):
+                    resolved_source_ids = source_ids
+                else:
+                    # A prior Siril stage can omit a frame while preserving
+                    # the original numeric suffix. Recover the mapping by
+                    # suffix rather than pairing the remaining files by order.
+                    indexed_ids: list[int] = []
+                    for matching_file in matching_files:
+                        match = re.search(r"_(\d+)\.(?:fit|fits)$", matching_file)
+                        if match is None:
+                            indexed_ids = []
+                            break
+                        source_index = int(match.group(1))
+                        if not 1 <= source_index <= len(source_ids):
+                            indexed_ids = []
+                            break
+                        indexed_ids.append(source_ids[source_index - 1])
+                    if len(indexed_ids) == len(matching_files) and len(set(indexed_ids)) == len(indexed_ids):
+                        resolved_source_ids = indexed_ids
+                    else:
+                        logging.warning(
+                            "Skipping provenance for sequence %s: found %d files but "
+                            "%d provenance records and suffix mapping failed",
+                            path.name,
+                            len(matching_files),
+                            len(source_ids),
+                        )
+
+            if resolved_source_ids is not None:
+                for matching_file, source_id in zip(matching_files, resolved_source_ids, strict=True):
+                    source_path = Path(matching_file)
+                    collected_files.append(source_path)
+                    provenance[source_path.name] = source_id
+            if resolved_source_ids is None:
+                collected_files.extend([Path(f) for f in matching_files])
 
     # Create output directory and remove if it already exists
     output_dir = base_dir / base_name
@@ -247,6 +290,17 @@ def merge_to(base_name: str, fi: FileInfo) -> None:
         dest_path = output_dir / dest_name
         #logging.debug(f"Linking {source_file} to {dest_path}")
         symlink_or_copy(str(source_file), str(dest_path))
+
+    merged_provenance = {
+        f"{base_name}_{index:05d}.fits": provenance[source_file.name]
+        for index, source_file in enumerate(collected_files, start=1)
+        if source_file.name in provenance
+    }
+    fi.provenance = {**(fi.provenance or {}), **merged_provenance}
+    fi.sequence_provenance = {
+        **(fi.sequence_provenance or {}),
+        f"{base_name}_.seq": list(merged_provenance.values()),
+    }
 
 
 def perhaps_merge_to(fi: FileInfo) -> None:

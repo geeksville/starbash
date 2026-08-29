@@ -10,7 +10,21 @@ from datetime import datetime
 from typing import Any
 
 SESSION_METADATA_KEYS = ("FOCALLEN", "FOCRATIO", "GAIN", "XPIXSZ", "YPIXSZ")
-FRAME_METADATA_KEYS = ("DATE-OBS", "DEWPOINT", "HUMIDITY", "AMBTEMP", "WINDGUST", "WINDSPD", "CCD-TEMP", "EXPTIME")
+FRAME_METADATA_KEYS = (
+    "DATE-OBS",
+    "DEWPOINT",
+    "HUMIDITY",
+    "AMBTEMP",
+    "WINDGUST",
+    "WINDSPD",
+    "CCD-TEMP",
+    "EXPTIME",
+    "FWHM",
+    "Amplitude",
+    "Roundness",
+    "Background",
+    "Stars",
+)
 EQUIPMENT_FITS_KEYS = {
     "camera": ("INSTRUME", "instrumen"),
     "telescope": ("TELESCOP", "telescop"),
@@ -50,9 +64,8 @@ def selected_metadata(metadata: dict[str, Any], keys: Iterable[str], blacklist: 
 
 
 def frame_info(metadata: dict[str, Any], blacklist: Iterable[str] = ()) -> FrameInfo:
-    """Build frame report metadata and include the provisional FWHM value."""
+    """Build frame report metadata, omitting unavailable registration values."""
     values = selected_metadata(metadata, FRAME_METADATA_KEYS, blacklist)
-    values["wFWHM"] = -1
     return FrameInfo(metadata=values)
 
 
