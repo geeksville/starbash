@@ -18,4 +18,5 @@ starbash*.whl
 .local
 .config
 .cache
+.sass-cache
 private/

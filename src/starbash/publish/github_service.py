@@ -208,7 +208,10 @@ class GitHubService:
         try:
             self._request("GET", f"{self.api}/repos/{owner}/{name}/git/ref/heads/{branch}")
         except GitHubError as exc:
-            if str(exc) == "GitHub resource was not found":
+            if str(exc) in {
+                "GitHub resource was not found",
+                "GitHub cannot use the repository's Git database because it is empty; the repository needs an initial commit",
+            }:
                 return False
             raise
         return True
@@ -276,15 +279,25 @@ class GitHubService:
 
     def configure_pages(self, owner: str, name: str) -> dict[str, Any]:
         payload = {"source": {"branch": "gh-pages", "path": "/"}}
-        try:
-            return self._request("PUT", f"{self.api}/repos/{owner}/{name}/pages", payload)
-        except GitHubError as exc:
-            if str(exc) not in {
-                "GitHub API request failed (409)",
-                "GitHub API request failed (422)",
-            }:
-                raise
-            logger.info("GitHub Pages is already enabled; continuing with deployment wait.")
-            return {"status": "already-enabled"}
+        url = f"{self.api}/repos/{owner}/{name}/pages"
+        for attempt in range(3):
+            try:
+                return self._request("PUT", url, payload)
+            except GitHubError as exc:
+                if str(exc) in {
+                    "GitHub API request failed (409)",
+                    "GitHub API request failed (422)",
+                }:
+                    logger.info("GitHub Pages is already enabled; continuing with deployment wait.")
+                    return {"status": "already-enabled"}
+                if str(exc) != "GitHub resource was not found" or attempt == 2:
+                    raise
+                logger.info(
+                    "GitHub Pages configuration is not ready yet; retrying in 5 seconds "
+                    "(%d/3).",
+                    attempt + 2,
+                )
+                time.sleep(5)
+        raise AssertionError("GitHub Pages configuration retry loop did not return")
 
 

@@ -109,7 +109,7 @@ url.info = "https://www.zwoastro.com/product/efw-filter-wheels/"
 [[equipment]]
 type = "telescope"
 vendor = "Askar"
-fits.telescop = "Askar V.*" # note regexes are supported for fits.x matching
+fits.telescop = "As[kc]ar V.*" # match Askar and the common Ascar misspelling
 model.short = "Askar V"
 model.long = "Askar V APO Refractor"
 url.info = "https://www.highpointscientific.com/askar-v-60mm-and-80mm-apo-refractor-w-accessories"

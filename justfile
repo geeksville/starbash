@@ -260,8 +260,9 @@ test:
 # Regenerate and serve the local Jekyll report site.
 site-view:
     sb publish github rewrite
-    jekyll build --source ~/.local/state/starbash/publish/site --destination ~/.local/state/starbash/publish/site/_site
-    jekyll serve --source ~/.local/state/starbash/publish/site --destination ~/.local/state/starbash/publish/site/_site
+    bundle install --quiet --gemfile ~/.local/state/starbash/publish/site/Gemfile
+    bundle exec --gemfile ~/.local/state/starbash/publish/site/Gemfile jekyll build --source ~/.local/state/starbash/publish/site --destination ~/.local/state/starbash/publish/site/_site
+    bundle exec --gemfile ~/.local/state/starbash/publish/site/Gemfile jekyll serve --source ~/.local/state/starbash/publish/site --destination ~/.local/state/starbash/publish/site/_site
 
 # a slow through test
 test-slow: test process-one

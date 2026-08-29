@@ -168,7 +168,8 @@ def upload(dry_run: bool = typer.Option(False, "--dry-run", help="Show planned w
             if repository is None:
                 repository = service.create_repository("starbash-public")
                 progress.update(operation, description="Created starbash-public repository", advance=1)
-            elif not service.branch_exists(owner, "starbash-public", "main"):
+
+            if not service.branch_exists(owner, "starbash-public", "main"):
                 console.print(
                     "[yellow]The GitHub repository is empty; creating its required initial commit.[/yellow]"
                 )
@@ -197,6 +198,6 @@ def upload(dry_run: bool = typer.Option(False, "--dry-run", help="Show planned w
             service.configure_pages(owner, "starbash-public")
             progress.update(operation, description="Configured GitHub Pages", advance=1)
             progress.update(operation, description="GitHub Pages deployment complete", advance=1)
-        console.print(f"Uploaded {len(files)} files to {pages_url}")
+        console.print(f"Uploaded {len(files)} files to {pages_url} ... It should be live within a few minutes.")
     except GitHubError as exc:
         raise typer.BadParameter(str(exc)) from exc
