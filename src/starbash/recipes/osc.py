@@ -140,13 +140,15 @@ def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str
     # Siril commands for registration and stacking. We run this in process_dir.
     commands += f"""
         # We use -2pass to select the best possible reference frame for others to register against
+        # because that frame might get filtered out which breaks stacking.
         register {registration_input} -2pass
 
+        # we use framing=max/min/cog so that registration is not wrt the first frame
         # because we are using -2pass we must complete the registration here before stacking
         # FIXME make drizzle optional
         # note: it is better to do filtering at this stage than when stacking,
         # because it keeps a record of which frames were dropped
-        seqapplyreg {registration_input} -drizzle -filter-wfwhm=80% -filter-round=80% -filter-bkg=80%
+        seqapplyreg {registration_input} -drizzle -framing=cog -filter-wfwhm=80% -filter-round=80% -filter-bkg=80%
 
         # Winsorized Sigma Clipping (w 3 3) with Average rejection to nuke airplane/satellite trails.
         # Trail pixels are bright statistical outliers vs same pixel in other frames, so sigma high 3.0
