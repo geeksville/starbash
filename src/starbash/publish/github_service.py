@@ -9,6 +9,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from importlib import resources
 from typing import Any
@@ -17,8 +18,13 @@ from jinja2 import Environment
 
 logger = logging.getLogger(__name__)
 
+
 class GitHubError(RuntimeError):
     """A safe, user-facing GitHub API error without response credentials."""
+
+
+class GitHubAuthenticationError(GitHubError):
+    """The saved access token was rejected by GitHub."""
 
 
 @dataclass(frozen=True)
@@ -36,9 +42,19 @@ class GitHubService:
     api = "https://api.github.com"
     api_version = "2026-03-10"
 
-    def __init__(self, token: str | None = None, opener: Any = urllib.request.urlopen) -> None:
+    def __init__(
+        self,
+        token: str | None = None,
+        opener: Any = urllib.request.urlopen,
+        refresh_token: str | None = None,
+        client_id: str | None = None,
+        on_token_refresh: Callable[[dict[str, Any]], None] | None = None,
+    ) -> None:
         self.token = token
         self.opener = opener
+        self.refresh_token = refresh_token
+        self.client_id = client_id
+        self.on_token_refresh = on_token_refresh
 
     @staticmethod
     def _json_response(response: Any) -> Any:
@@ -64,7 +80,7 @@ class GitHubService:
         if isinstance(value, dict):
             return {
                 key: "<redacted>"
-                if key in {"access_token", "device_code", "token"}
+                if key in {"access_token", "device_code", "refresh_token", "token"}
                 else cls._safe_response(item)
                 for key, item in value.items()
             }
@@ -72,7 +88,13 @@ class GitHubService:
             return [cls._safe_response(item) for item in value]
         return value
 
-    def _request(self, method: str, url: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _request(
+        self,
+        method: str,
+        url: str,
+        payload: dict[str, Any] | None = None,
+        _retried_after_refresh: bool = False,
+    ) -> dict[str, Any]:
         headers = {
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": self.api_version,
@@ -110,6 +132,14 @@ class GitHubService:
             )
             if exc.code == 404:
                 raise GitHubError("GitHub resource was not found") from exc
+            if exc.code == 401:
+                if self.refresh_token and self.client_id and not _retried_after_refresh:
+                    refreshed = self.refresh_access_token(self.client_id, self.refresh_token)
+                    self.apply_token_response(refreshed)
+                    return self._request(method, url, payload, _retried_after_refresh=True)
+                raise GitHubAuthenticationError(
+                    "GitHub rejected the access token; run 'sb publish github init' again"
+                ) from exc
             if exc.code == 403:
                 raise GitHubError(
                     "GitHub rejected the request; check the OAuth token's permissions "
@@ -125,7 +155,7 @@ class GitHubService:
             logger.debug("GitHub request failed: %s %s error=%r", method, url, exc)
             raise GitHubError("Could not connect to GitHub") from exc
 
-    def device_code(self, client_id: str, scope: str = "repo") -> DeviceCode:
+    def device_code(self, client_id: str, scope: str = "repo offline_access") -> DeviceCode:
         """Request a GitHub Device Flow code."""
         logger.debug("GitHub device-code request: client_id=%s scope=%s", client_id, scope)
         body = urllib.parse.urlencode({"client_id": client_id, "scope": scope}).encode()
@@ -152,7 +182,9 @@ class GitHubService:
             int(value.get("interval", 5)), int(value["expires_in"]),
         )
 
-    def poll_device_token(self, device: DeviceCode, client_id: str, sleeper: Any = time.sleep) -> str:
+    def poll_device_token(
+        self, device: DeviceCode, client_id: str, sleeper: Any = time.sleep
+    ) -> dict[str, Any]:
         """Poll until the user authorizes or GitHub returns a terminal error."""
         deadline = time.monotonic() + device.expires_in
         interval = device.interval
@@ -177,8 +209,8 @@ class GitHubService:
             except (urllib.error.URLError, TimeoutError) as exc:
                 logger.debug("GitHub token request failed: %r", exc)
                 raise GitHubError("Could not complete GitHub authentication") from exc
-            if token := value.get("access_token"):
-                return str(token)
+            if value.get("access_token"):
+                return value
             error = value.get("error")
             if error == "authorization_pending":
                 sleeper(interval)
@@ -191,6 +223,52 @@ class GitHubService:
                 raise GitHubError("GitHub authentication was not completed")
             raise GitHubError("GitHub returned an unexpected authentication response")
         raise GitHubError("GitHub authentication timed out")
+
+    def refresh_access_token(self, client_id: str, refresh_token: str) -> dict[str, Any]:
+        """Rotate an expired access/refresh-token pair."""
+        body = urllib.parse.urlencode(
+            {
+                "client_id": client_id,
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+            }
+        ).encode()
+        request = urllib.request.Request(
+            "https://github.com/login/oauth/access_token",
+            data=body,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "starbash",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            method="POST",
+        )
+        try:
+            with self.opener(request) as response:
+                value = self._json_response(response)
+                logger.debug(
+                    "GitHub token refresh response: status=%s body=%r",
+                    response.status,
+                    self._safe_response(value),
+                )
+        except (urllib.error.URLError, TimeoutError) as exc:
+            raise GitHubError("Could not refresh GitHub authentication") from exc
+        if value.get("access_token"):
+            return value
+        if value.get("error") == "bad_refresh_token":
+            raise GitHubError(
+                "The GitHub refresh token has expired; run 'sb publish github init' again"
+            )
+        raise GitHubError("GitHub returned an unexpected token refresh response")
+
+    def apply_token_response(self, value: dict[str, Any]) -> None:
+        """Replace the in-memory token and persist the rotated credentials."""
+        self.token = str(value["access_token"])
+        self.refresh_token = (
+            str(value["refresh_token"]) if value.get("refresh_token") else self.refresh_token
+        )
+        if self.on_token_refresh:
+            self.on_token_refresh(value)
 
     def user(self) -> dict[str, Any]:
         return self._request("GET", f"{self.api}/user")

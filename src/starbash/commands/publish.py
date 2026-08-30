@@ -10,7 +10,7 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeEl
 
 from starbash import console
 from starbash.app import Starbash
-from starbash.publish.credentials import GitHubCredentialStore
+from starbash.publish.credentials import GitHubCredential, GitHubCredentialStore
 from starbash.publish.github import GitHubPublisher
 from starbash.publish.github_service import GitHubError, GitHubService
 
@@ -147,11 +147,11 @@ def init() -> None:
             )
         with console.status("[bold cyan]Waiting for GitHub authorization…[/bold cyan]"):
             token = service.poll_device_token(device, CLIENT_ID)
-        authenticated_service = GitHubService(token)
-        GitHubCredentialStore().save(token)
+        authenticated_service = GitHubService(token["access_token"])
         if not authenticated_service.app_is_installed(APP_SLUG):
             with console.status("[bold cyan]Checking GitHub App installation…[/bold cyan]"):
                 _require_app_installation(authenticated_service)
+        GitHubCredentialStore().save(GitHubCredential.from_token_response(token))
         console.print(
             Panel(
                 "[bold green]✓ GitHub authentication completed.[/bold green]\n\n"
@@ -199,11 +199,23 @@ def upload(dry_run: bool = typer.Option(False, "--dry-run", help="Show planned w
         for path in files:
             console.print(f"  {path.relative_to(site)} ({path.stat().st_size} bytes)")
         return
-    token = GitHubCredentialStore().load()
-    if not token:
+    credential = GitHubCredentialStore().load()
+    if not credential:
         raise typer.BadParameter("No GitHub credential. Run 'sb publish github init'.")
-    service = GitHubService(token)
+    if isinstance(credential, str):
+        credential = GitHubCredential(credential)
+    store = GitHubCredentialStore()
+    service = GitHubService(
+        credential.access_token,
+        refresh_token=credential.refresh_token,
+        client_id=CLIENT_ID,
+        on_token_refresh=lambda value: store.save(GitHubCredential.from_token_response(value)),
+    )
     try:
+        if credential.needs_refresh() and credential.refresh_token:
+            service.apply_token_response(
+                service.refresh_access_token(CLIENT_ID, credential.refresh_token)
+            )
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
