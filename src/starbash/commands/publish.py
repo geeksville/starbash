@@ -51,6 +51,11 @@ def _open_app_installation() -> None:
             border_style="yellow",
         )
     )
+    typer.prompt(
+        "Press Enter to open the GitHub installation page",
+        default="",
+        show_default=False,
+    )
     try:
         opened = webbrowser.open(APP_INSTALLATION_URL)
     except (OSError, webbrowser.Error):
@@ -68,7 +73,7 @@ def _require_app_installation(service: GitHubService) -> None:
         return
     _open_app_installation()
     typer.prompt(
-        "After clicking Install on GitHub, press Enter here to continue",
+        "After clicking Install on GitHub, press Enter here to check the installation",
         default="",
         show_default=False,
     )
@@ -85,9 +90,8 @@ def rewrite() -> None:
     _rewrite()
 
 
-@github_app.command()
-def init() -> None:
-    """Authenticate with GitHub and save a publishing credential."""
+def _authenticate() -> GitHubCredential:
+    """Run Device Authorization Flow and save a new GitHub credential."""
     service = GitHubService()
     console.print(
         Panel(
@@ -127,10 +131,17 @@ def init() -> None:
                 f"[bold]2. Enter this one-time code:[/bold]\n"
                 f"   [bold green]{device.user_code}[/bold green]\n\n"
                 "The code expires after a short time. If the browser does not "
-                "open automatically, copy the link above into your browser.",
+                "open automatically, copy the link above into your browser.\n\n"
+                "Press Enter when you are ready; the browser may open in front "
+                "of this terminal.",
                 title="[bold yellow]Authorize Starbash on GitHub[/bold yellow]",
                 border_style="yellow",
             )
+        )
+        typer.prompt(
+            "Press Enter to open the GitHub verification page",
+            default="",
+            show_default=False,
         )
         try:
             opened = webbrowser.open(device.verification_uri)
@@ -151,22 +162,22 @@ def init() -> None:
         if not authenticated_service.app_is_installed(APP_SLUG):
             with console.status("[bold cyan]Checking GitHub App installation…[/bold cyan]"):
                 _require_app_installation(authenticated_service)
-        GitHubCredentialStore().save(GitHubCredential.from_token_response(token))
+        credential = GitHubCredential.from_token_response(token)
+        GitHubCredentialStore().save(credential)
         console.print(
             Panel(
                 "[bold green]✓ GitHub authentication completed.[/bold green]\n\n"
-                "Your credential was saved. You can now use "
-                "[bold]sb publish github upload[/bold] to publish your site.\n\n"
-                "To sign in again later, run [bold]sb publish github init[/bold].",
+                "Your credential was saved. Starbash is ready to continue.",
                 title="[bold green]Ready to publish[/bold green]",
                 border_style="green",
             )
         )
+        return credential
     except GitHubError as exc:
         console.print(
             Panel(
                 f"[bold red]GitHub sign-in did not complete.[/bold red]\n\n{exc}\n\n"
-                "Please try [bold]sb publish github init[/bold] again. "
+                "Please try [bold]sb publish github --login[/bold] again. "
                 "Your existing credential, if any, was not replaced.",
                 title="[bold red]Authentication problem[/bold red]",
                 border_style="red",
@@ -175,9 +186,28 @@ def init() -> None:
         raise typer.Exit(code=1) from exc
 
 
-@github_app.command()
-def upload(dry_run: bool = typer.Option(False, "--dry-run", help="Show planned work without changing GitHub.")) -> None:
-    """Upload the generated site to the user's starbash-public repository."""
+def _credential_service(credential: GitHubCredential) -> GitHubService:
+    """Create an authenticated service and persist any rotated token."""
+    store = GitHubCredentialStore()
+    return GitHubService(
+        credential.access_token,
+        refresh_token=credential.refresh_token,
+        client_id=CLIENT_ID,
+        on_token_refresh=lambda value: store.save(GitHubCredential.from_token_response(value)),
+    )
+
+
+def _publish_github(dry_run: bool, login: bool) -> None:
+    """Generate and optionally publish the GitHub Pages site."""
+    credential: GitHubCredential | None = None
+    if not dry_run or login:
+        if login:
+            credential = _authenticate()
+        else:
+            credential = GitHubCredentialStore().load()
+            if credential is None:
+                credential = _authenticate()
+
     site = _rewrite()
     files = sorted(
         path
@@ -198,19 +228,10 @@ def upload(dry_run: bool = typer.Option(False, "--dry-run", help="Show planned w
         console.print(f"Dry run: {len(files)} files, gh-pages, {message}")
         for path in files:
             console.print(f"  {path.relative_to(site)} ({path.stat().st_size} bytes)")
+        console.print("No GitHub repository, branch, commit, or Pages configuration was changed.")
         return
-    credential = GitHubCredentialStore().load()
-    if not credential:
-        raise typer.BadParameter("No GitHub credential. Run 'sb publish github init'.")
-    if isinstance(credential, str):
-        credential = GitHubCredential(credential)
-    store = GitHubCredentialStore()
-    service = GitHubService(
-        credential.access_token,
-        refresh_token=credential.refresh_token,
-        client_id=CLIENT_ID,
-        on_token_refresh=lambda value: store.save(GitHubCredential.from_token_response(value)),
-    )
+    assert credential is not None
+    service = _credential_service(credential)
     try:
         if credential.needs_refresh() and credential.refresh_token:
             service.apply_token_response(
@@ -265,6 +286,28 @@ def upload(dry_run: bool = typer.Option(False, "--dry-run", help="Show planned w
             service.configure_pages(owner, "starbash-public")
             progress.update(operation, description="Configured GitHub Pages", advance=1)
             progress.update(operation, description="GitHub Pages deployment complete", advance=1)
-        console.print(f"Uploaded {len(files)} files to {pages_url} ... It should be live within a few minutes.")
+        console.print(f"Uploaded {len(files)} files to {pages_url} ... It should be live in a few minutes.")
     except GitHubError as exc:
         raise typer.BadParameter(str(exc)) from exc
+
+
+@github_app.callback(invoke_without_command=True)
+def github(
+    ctx: typer.Context,
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show planned work without changing GitHub.",
+    ),
+    login: bool = typer.Option(
+        False,
+        "--login",
+        help="Run GitHub sign-in before generating or publishing the site.",
+    ),
+) -> None:
+    """Generate and publish the GitHub Pages site."""
+    if ctx.invoked_subcommand is not None:
+        if dry_run or login:
+            raise typer.BadParameter("--dry-run and --login apply only to 'sb publish github'.")
+        return
+    _publish_github(dry_run, login)

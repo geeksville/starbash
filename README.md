@@ -167,6 +167,21 @@ If you don't want the automated processing you can still ask Starbash to prepare
 
 Early user guide [here](doc/toml/guide.md).
 
+### Publish a shareable website
+
+Generate a local GitHub Pages-compatible site or publish processed targets to
+your personal public `starbash-public` repository:
+
+```text
+sb publish github rewrite       # Generate the local site only
+sb publish github --dry-run     # Validate and show the planned publication
+sb publish github               # Publish using saved GitHub credentials
+sb publish github --login       # Sign in again, then publish
+```
+
+See the [GitHub publishing guide](doc/publish/github.md) for prerequisites,
+preview instructions, authentication, and troubleshooting.
+
 ## Supported commands
 
 ### Repository Management

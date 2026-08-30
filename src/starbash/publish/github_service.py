@@ -138,7 +138,7 @@ class GitHubService:
                     self.apply_token_response(refreshed)
                     return self._request(method, url, payload, _retried_after_refresh=True)
                 raise GitHubAuthenticationError(
-                    "GitHub rejected the access token; run 'sb publish github init' again"
+                    "GitHub rejected the access token; run 'sb publish github --login' again"
                 ) from exc
             if exc.code == 403:
                 raise GitHubError(
@@ -257,7 +257,7 @@ class GitHubService:
             return value
         if value.get("error") == "bad_refresh_token":
             raise GitHubError(
-                "The GitHub refresh token has expired; run 'sb publish github init' again"
+                "The GitHub refresh token has expired; run 'sb publish github --login' again"
             )
         raise GitHubError("GitHub returned an unexpected token refresh response")
 

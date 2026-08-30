@@ -170,5 +170,5 @@ def test_request_raises_authentication_error_after_refresh_retry_fails():
 
     service = GitHubService("access", opener=opener)
 
-    with pytest.raises(GitHubAuthenticationError, match="publish github init"):
+    with pytest.raises(GitHubAuthenticationError, match="publish github --login"):
         service.user()
