@@ -144,14 +144,17 @@ def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str
 
         # because we are using -2pass we must complete the registration here before stacking
         # FIXME make drizzle optional
-        seqapplyreg {registration_input} -drizzle
+        # note: it is better to do filtering at this stage than when stacking,
+        # because it keeps a record of which frames were dropped
+        seqapplyreg {registration_input} -drizzle -filter-wfwhm=80% -filter-round=80% -filter-bkg=80%
 
         # Winsorized Sigma Clipping (w 3 3) with Average rejection to nuke airplane/satellite trails.
         # Trail pixels are bright statistical outliers vs same pixel in other frames, so sigma high 3.0
         # rejects them and averages dark sky from other frames into those spots. Gold standard for >15-20 frames.
         # If faint ghost survives, lower sigma high to 2.5. Previous GESDT method kept for reference:
         # stack r_{registration_input} rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
-        stack r_{registration_input} rej w 3 3 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
+        #stack r_{registration_input} rej w 3 3 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
+        stack r_{registration_input} rej w 3 3 -norm=addscale -output_norm -32b -out={output_file}
 
         # and flip if required
         mirrorx_single {output_file}

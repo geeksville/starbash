@@ -1,4 +1,10 @@
 as seen in private/processed/sh291
+my hack for now is to exclude the 2026-08-09 and 2026-08-10 sessions
+i did this by renaming to private/from_astroboy/Sh2 91/2026-08-08.sbignore because disabling the session
+lights-vs-bias exposed a different bug
+
+
+tip from rc astro
 
 Mosaics
 When assembling mosaics it is usual for any optical aberrations to be mismatched between frames in the corners and along edges. The top-right corner for one frame is the top-left corner for the next, so the aberrations will generally be different. A good approach is to apply BlurXTerminator in Correct Only mode on each mosaic frame prior to assembly, and then again on the assembled mosaic with any desired sharpening settings.

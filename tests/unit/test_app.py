@@ -717,6 +717,38 @@ class TestReindexRepo:
             assert image is not None
             assert image["FILTER"] == "Ha"
 
+    def test_reindex_repo_skips_sbignore_paths(
+        self, setup_test_environment, mock_analytics, caplog
+    ):
+        """Test that FITS files whose paths contain .sbignore are skipped."""
+        with Starbash() as app:
+            test_repo = setup_test_environment["tmp_path"] / "test_repo"
+            test_repo.mkdir()
+            (test_repo / "starbash.toml").write_text("[repo]\nkind = 'images'\n")
+
+            from astropy.io import fits as astropy_fits
+
+            def create_fits_file(path: Path) -> None:
+                hdu = astropy_fits.PrimaryHDU()
+                hdu.header["DATE-OBS"] = "2023-10-15T20:30:00"
+                hdu.header["IMAGETYP"] = "Light"
+                astropy_fits.HDUList([hdu]).writeto(path)
+
+            included_file = test_repo / "included.fit"
+            ignored_file = test_repo / ".sbignore" / "ignored.fit"
+            ignored_file.parent.mkdir()
+            create_fits_file(included_file)
+            create_fits_file(ignored_file)
+
+            repo = app.repo_manager.add_repo(f"file://{test_repo}")
+
+            with caplog.at_level("WARNING"):
+                app.reindex_repo(repo)
+
+            assert app.db.get_image(str(included_file)) is not None
+            assert app.db.get_image(str(ignored_file)) is None
+            assert f'Skipping "{ignored_file}"' in caplog.text
+
     def test_reindex_repo_with_force(self, setup_test_environment, mock_analytics):
         """Test reindexing with force=True re-reads existing files."""
         with Starbash() as app:

@@ -781,6 +781,10 @@ class Starbash:
                 all_files,
                 description=f"Indexing {repo.url}...",
             ):
+                if ".sbignore" in str(f):
+                    logging.warning('Skipping "%s": path contains ".sbignore".', f)
+                    continue
+
                 try:
                     # progress.console.print(f"Indexing {f}...")
                     if repo_kind == "master":
