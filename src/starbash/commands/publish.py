@@ -9,6 +9,7 @@ from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from starbash import console
+from starbash.analytics import analytics_start_span
 from starbash.app import Starbash
 from starbash.publish.credentials import GitHubCredential, GitHubCredentialStore
 from starbash.publish.github import GitHubPublisher
@@ -121,69 +122,70 @@ def _authenticate() -> GitHubCredential:
         "\n[dim]Your GitHub password is never entered into Starbash and is never "
         "shared with Starbash.[/dim]"
     )
-    try:
-        device = service.device_code(CLIENT_ID)
-        console.print()
-        console.print(
-            Panel(
-                f"[bold]1. Open this page:[/bold]\n"
-                f"   [link={device.verification_uri}]{device.verification_uri}[/link]\n\n"
-                f"[bold]2. Enter this one-time code:[/bold]\n"
-                f"   [bold green]{device.user_code}[/bold green]\n\n"
-                "The code expires after a short time. If the browser does not "
-                "open automatically, copy the link above into your browser.\n\n"
-                "Press Enter when you are ready; the browser may open in front "
-                "of this terminal.",
-                title="[bold yellow]Authorize Starbash on GitHub[/bold yellow]",
-                border_style="yellow",
-            )
-        )
-        typer.prompt(
-            "Press Enter to open the GitHub verification page",
-            default="",
-            show_default=False,
-        )
+    with analytics_start_span(name="github", op="init"):
         try:
-            opened = webbrowser.open(device.verification_uri)
-        except (OSError, webbrowser.Error):
-            opened = False
-        if opened:
+            device = service.device_code(CLIENT_ID)
+            console.print()
             console.print(
-                "[green]✓[/green] I opened the verification page. "
+                Panel(
+                    f"[bold]1. Open this page:[/bold]\n"
+                    f"   [link={device.verification_uri}]{device.verification_uri}[/link]\n\n"
+                    f"[bold]2. Enter this one-time code:[/bold]\n"
+                    f"   [bold green]{device.user_code}[/bold green]\n\n"
+                    "The code expires after a short time. If the browser does not "
+                    "open automatically, copy the link above into your browser.\n\n"
+                    "Press Enter when you are ready; the browser may open in front "
+                    "of this terminal.",
+                    title="[bold yellow]Authorize Starbash on GitHub[/bold yellow]",
+                    border_style="yellow",
+                )
             )
-        else:
+            typer.prompt(
+                "Press Enter to open the GitHub verification page",
+                default="",
+                show_default=False,
+            )
+            try:
+                opened = webbrowser.open(device.verification_uri)
+            except (OSError, webbrowser.Error):
+                opened = False
+            if opened:
+                console.print(
+                    "[green]✓[/green] I opened the verification page. "
+                )
+            else:
+                console.print(
+                    "[yellow]⚠ I could not open a browser automatically.[/yellow] "
+                    "Please open the printed link manually."
+                )
+            with console.status("[bold cyan]Waiting for GitHub authorization…[/bold cyan]"):
+                token = service.poll_device_token(device, CLIENT_ID)
+            authenticated_service = GitHubService(token["access_token"])
+            if not authenticated_service.app_is_installed(APP_SLUG):
+                with console.status("[bold cyan]Checking GitHub App installation…[/bold cyan]"):
+                    _require_app_installation(authenticated_service)
+            credential = GitHubCredential.from_token_response(token)
+            GitHubCredentialStore().save(credential)
             console.print(
-                "[yellow]⚠ I could not open a browser automatically.[/yellow] "
-                "Please open the printed link manually."
+                Panel(
+                    "[bold green]✓ GitHub authentication completed.[/bold green]\n\n"
+                    "Your credential was saved. Starbash is ready to continue.",
+                    title="[bold green]Ready to publish[/bold green]",
+                    border_style="green",
+                )
             )
-        with console.status("[bold cyan]Waiting for GitHub authorization…[/bold cyan]"):
-            token = service.poll_device_token(device, CLIENT_ID)
-        authenticated_service = GitHubService(token["access_token"])
-        if not authenticated_service.app_is_installed(APP_SLUG):
-            with console.status("[bold cyan]Checking GitHub App installation…[/bold cyan]"):
-                _require_app_installation(authenticated_service)
-        credential = GitHubCredential.from_token_response(token)
-        GitHubCredentialStore().save(credential)
-        console.print(
-            Panel(
-                "[bold green]✓ GitHub authentication completed.[/bold green]\n\n"
-                "Your credential was saved. Starbash is ready to continue.",
-                title="[bold green]Ready to publish[/bold green]",
-                border_style="green",
+            return credential
+        except GitHubError as exc:
+            console.print(
+                Panel(
+                    f"[bold red]GitHub sign-in did not complete.[/bold red]\n\n{exc}\n\n"
+                    "Please try [bold]sb publish github --login[/bold] again. "
+                    "Your existing credential, if any, was not replaced.",
+                    title="[bold red]Authentication problem[/bold red]",
+                    border_style="red",
+                )
             )
-        )
-        return credential
-    except GitHubError as exc:
-        console.print(
-            Panel(
-                f"[bold red]GitHub sign-in did not complete.[/bold red]\n\n{exc}\n\n"
-                "Please try [bold]sb publish github --login[/bold] again. "
-                "Your existing credential, if any, was not replaced.",
-                title="[bold red]Authentication problem[/bold red]",
-                border_style="red",
-            )
-        )
-        raise typer.Exit(code=1) from exc
+            raise typer.Exit(code=1) from exc
 
 
 def _credential_service(credential: GitHubCredential) -> GitHubService:
@@ -231,64 +233,65 @@ def _publish_github(dry_run: bool, login: bool) -> None:
         console.print("No GitHub repository, branch, commit, or Pages configuration was changed.")
         return
     assert credential is not None
-    service = _credential_service(credential)
-    try:
-        if credential.needs_refresh() and credential.refresh_token:
-            service.apply_token_response(
-                service.refresh_access_token(CLIENT_ID, credential.refresh_token)
-            )
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("{task.completed}/{task.total}"),
-            TimeElapsedColumn(),
-            console=console,
-        ) as progress:
-            operation = progress.add_task("Contacting GitHub", total=8 + len(files))
-
-            owner = str(service.user()["login"])
-            pages_url = f"https://{owner}.github.io/starbash-public/"
-            progress.update(operation, description=f"Authenticated as {owner}", advance=1)
-            _require_app_installation(service)
-            repository = service.repository(owner, "starbash-public")
-            progress.update(operation, description="Checked starbash-public repository", advance=1)
-            if repository is None:
-                repository = service.create_repository("starbash-public")
-                progress.update(operation, description="Created starbash-public repository", advance=1)
-
-            if not service.branch_exists(owner, "starbash-public", "main"):
-                console.print(
-                    "[yellow]The GitHub repository is empty; creating its required initial commit.[/yellow]"
+    with analytics_start_span(name="github", op="upload"):
+        service = _credential_service(credential)
+        try:
+            if credential.needs_refresh() and credential.refresh_token:
+                service.apply_token_response(
+                    service.refresh_access_token(CLIENT_ID, credential.refresh_token)
                 )
-                service.bootstrap_repository(
-                    owner,
-                    "starbash-public",
-                    pages_url,
-                    owner,
-                )
-                progress.update(operation, description="Initialized repository", advance=1)
-            else:
-                progress.update(operation, description="Repository is ready", advance=1)
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                TextColumn("{task.completed}/{task.total}"),
+                TimeElapsedColumn(),
+                console=console,
+            ) as progress:
+                operation = progress.add_task("Contacting GitHub", total=8 + len(files))
 
-            entries: list[dict[str, str]] = []
-            for path in files:
-                relative_path = path.relative_to(site).as_posix()
-                blob = service.create_blob(owner, "starbash-public", path.read_bytes())
-                entries.append({"path": relative_path, "mode": "100644", "type": "blob", "sha": blob})
-                progress.update(operation, description=f"Uploaded {relative_path}", advance=1)
-            tree = service.create_tree(owner, "starbash-public", entries)
-            progress.update(operation, description="Created Git tree", advance=1)
-            commit = service.create_commit(owner, "starbash-public", message, tree)
-            progress.update(operation, description="Created publication commit", advance=1)
-            service.update_branch(owner, "starbash-public", commit)
-            progress.update(operation, description="Updated gh-pages", advance=1)
-            service.configure_pages(owner, "starbash-public")
-            progress.update(operation, description="Configured GitHub Pages", advance=1)
-            progress.update(operation, description="GitHub Pages deployment complete", advance=1)
-        console.print(f"Uploaded {len(files)} files to {pages_url} ... It should be live in a few minutes.")
-    except GitHubError as exc:
-        raise typer.BadParameter(str(exc)) from exc
+                owner = str(service.user()["login"])
+                pages_url = f"https://{owner}.github.io/starbash-public/"
+                progress.update(operation, description=f"Authenticated as {owner}", advance=1)
+                _require_app_installation(service)
+                repository = service.repository(owner, "starbash-public")
+                progress.update(operation, description="Checked starbash-public repository", advance=1)
+                if repository is None:
+                    repository = service.create_repository("starbash-public")
+                    progress.update(operation, description="Created starbash-public repository", advance=1)
+
+                if not service.branch_exists(owner, "starbash-public", "main"):
+                    console.print(
+                        "[yellow]The GitHub repository is empty; creating its required initial commit.[/yellow]"
+                    )
+                    service.bootstrap_repository(
+                        owner,
+                        "starbash-public",
+                        pages_url,
+                        owner,
+                    )
+                    progress.update(operation, description="Initialized repository", advance=1)
+                else:
+                    progress.update(operation, description="Repository is ready", advance=1)
+
+                entries: list[dict[str, str]] = []
+                for path in files:
+                    relative_path = path.relative_to(site).as_posix()
+                    blob = service.create_blob(owner, "starbash-public", path.read_bytes())
+                    entries.append({"path": relative_path, "mode": "100644", "type": "blob", "sha": blob})
+                    progress.update(operation, description=f"Uploaded {relative_path}", advance=1)
+                tree = service.create_tree(owner, "starbash-public", entries)
+                progress.update(operation, description="Created Git tree", advance=1)
+                commit = service.create_commit(owner, "starbash-public", message, tree)
+                progress.update(operation, description="Created publication commit", advance=1)
+                service.update_branch(owner, "starbash-public", commit)
+                progress.update(operation, description="Updated gh-pages", advance=1)
+                service.configure_pages(owner, "starbash-public")
+                progress.update(operation, description="Configured GitHub Pages", advance=1)
+                progress.update(operation, description="GitHub Pages deployment complete", advance=1)
+            console.print(f"Uploaded {len(files)} files to {pages_url} ... It should be live in a few minutes.")
+        except GitHubError as exc:
+            raise typer.BadParameter(str(exc)) from exc
 
 
 @github_app.callback(invoke_without_command=True)

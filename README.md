@@ -62,10 +62,14 @@ If you are interested in alpha-testing we ❤️ you.  This README should have e
 * Repos can be on the local disk or shared via HTTPS/GitHub/etc.  This is particularly useful for recipe repos.
 * [Graxpert](https://graxpert.com/) based [recipe stages](https://github.com/geeksville/starbash-recipes/tree/main/graxpert) added (support for Pixinsight-based recipes will probably be coming at some point...).
 
+### From the alpha 3 (0.3.0) release (2026/08/31)
+
+* Auto publish your finished images and workflow report to github-sites
+
 ## Features coming soon
 
 * Recipe 'writers guide' documentation.  Currently iterating based on usage reports 😄
-* Support for mono-camera workflows (the alpha only includes osc recipes).
+* Support for mono-camera workflows (this alpha only includes osc recipes).
 * The target report can be used to auto-generate a human-friendly 'postable/shareable' report about that image.
 * Target reports are shareable so that you can request comments from others and others can rerender with different settings.
 * Namespaces for recipes are disambiguated to be globally unique
@@ -170,13 +174,11 @@ Early user guide [here](doc/toml/guide.md).
 ### Publish a shareable website
 
 Generate a local GitHub Pages-compatible site or publish processed targets to
-your personal public `starbash-public` repository:
+your personal public `starbash-public` repository.  The first time you run this command
+it will walk you through creating a (free) account and signing into github:
 
 ```text
-sb publish github rewrite       # Generate the local site only
-sb publish github --dry-run     # Validate and show the planned publication
-sb publish github               # Publish using saved GitHub credentials
-sb publish github --login       # Sign in again, then publish
+sb publish github               # Publish to github
 ```
 
 See the [GitHub publishing guide](doc/publish/github.md) for prerequisites,
@@ -247,6 +249,17 @@ We try to make this project useful and friendly.  If you find problems please fi
 We accept pull-requests and enjoy discussing possible new development directions via GitHub issues.  If you might want to work on this, just describe what your interests are and we can talk about how to get it merged.
 
 [Click here](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/development.md) for the current work in progress developer docs.  They will get better before our beta release...
+
+## AI slop and development
+
+I'm okay with using AI tools to help make code.  In fact, I used them a fair amount so far on this project (one of my first experiments with not writing all my code 'by hand').  So far it has been pretty fun.
+
+However, in some of my other open-source projects, I've seen the current hell PR management is becoming.  So I'd **love** any code contributions y'all want to make (and I promise to be kind) but:
+
+* Please only send in PRs **you** are willing to sign off as 'nicely written' (using your experience as an engineer).  If your little AI buddy made something a bit ugly, please iterate with it first to make it not ugly.
+* Send in PRs that are fairly 'atomic' (touch just the code they need to touch for one nicely defined feature or bug-fix)
+* Only send in tested code you've run on real hardware (not just the simulator)
+* If you are new at making software: no problem! We can talk in the pull-request and make it better.
 
 ## License
 

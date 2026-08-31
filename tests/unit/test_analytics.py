@@ -256,9 +256,9 @@ class TestAnalyticsStartSpan:
         mock_span = MagicMock()
         mock_start_span.return_value = mock_span
 
-        result = analytics_start_span(op="test.operation", description="Test")
+        result = analytics_start_span(name="test", op="operation")
 
-        mock_start_span.assert_called_once_with(op="test.operation", description="Test")
+        mock_start_span.assert_called_once_with(name="test", op="operation")
         assert result == mock_span
 
     def test_start_span_when_analytics_disabled(self, reset_analytics):

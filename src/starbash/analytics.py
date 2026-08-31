@@ -75,7 +75,6 @@ def analytics_shutdown() -> None:
 
 def is_development_environment() -> bool:
     """Detect if running in a development environment."""
-
     # Check for explicit environment variable
     if os.getenv("SENTRY_ENVIRONMENT") == "development":
         return True
@@ -139,7 +138,11 @@ class NopAnalytics:
 
 
 def analytics_start_span(**kwargs: Any) -> Any:
-    """Start an analytics/tracing span if analytics is enabled, otherwise return a no-op context manager."""
+    """Start an analytics/tracing span if analytics is enabled, otherwise return a no-op context manager.
+
+    arguments (example):
+        name="operation-name", op="category"
+    """
     if analytics_allowed:
         import sentry_sdk
 
