@@ -1,12 +1,13 @@
 """Publish processed targets locally or to GitHub Pages."""
 
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
 from rich.panel import Panel
-from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn, TimeElapsedColumn
 
 from starbash import console
 from starbash.analytics import analytics_start_span
@@ -23,6 +24,7 @@ CLIENT_ID = "Iv23liewanBO4WT8No6v"
 APP_SLUG = "geeksville-starbash"
 APP_INSTALLATION_URL = f"https://github.com/apps/{APP_SLUG}/installations/new"
 UPLOAD_PATH_BLACKLIST = ("Gemfile",)
+MAX_BLOB_UPLOADS = 4
 
 
 def _rewrite() -> Path:
@@ -199,6 +201,42 @@ def _credential_service(credential: GitHubCredential) -> GitHubService:
     )
 
 
+def _upload_blobs(
+    service: GitHubService,
+    owner: str,
+    site: Path,
+    files: list[Path],
+    progress: Progress,
+    operation: TaskID,
+) -> list[dict[str, str]]:
+    """Upload independent Git blobs concurrently while preserving tree order."""
+
+    def upload(path: Path) -> tuple[str, str]:
+        relative_path = path.relative_to(site).as_posix()
+        blob = service.create_blob(owner, "starbash-public", path.read_bytes())
+        return relative_path, blob
+
+    entries: list[dict[str, str]] = []
+    worker_count = min(MAX_BLOB_UPLOADS, len(files)) or 1
+    with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="github-blob") as executor:
+        futures = {executor.submit(upload, path): path for path in files}
+        for future in as_completed(futures):
+            relative_path, blob = future.result()
+            entries.append({
+                "path": relative_path,
+                "mode": "100644",
+                "type": "blob",
+                "sha": blob,
+            })
+            progress.update(
+                operation,
+                description=f"Uploaded {relative_path}",
+                advance=1,
+            )
+
+    return entries
+
+
 def _publish_github(dry_run: bool, login: bool) -> None:
     """Generate and optionally publish the GitHub Pages site."""
     credential: GitHubCredential | None = None
@@ -274,12 +312,7 @@ def _publish_github(dry_run: bool, login: bool) -> None:
                 else:
                     progress.update(operation, description="Repository is ready", advance=1)
 
-                entries: list[dict[str, str]] = []
-                for path in files:
-                    relative_path = path.relative_to(site).as_posix()
-                    blob = service.create_blob(owner, "starbash-public", path.read_bytes())
-                    entries.append({"path": relative_path, "mode": "100644", "type": "blob", "sha": blob})
-                    progress.update(operation, description=f"Uploaded {relative_path}", advance=1)
+                entries = _upload_blobs(service, owner, site, files, progress, operation)
                 tree = service.create_tree(owner, "starbash-public", entries)
                 progress.update(operation, description="Created Git tree", advance=1)
                 commit = service.create_commit(owner, "starbash-public", message, tree)

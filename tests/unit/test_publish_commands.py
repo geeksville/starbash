@@ -1,5 +1,6 @@
 """Tests for the consolidated GitHub publishing command."""
 
+import threading
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -104,3 +105,40 @@ def test_github_upload_starts_analytics_span(tmp_path):
         publish._publish_github(False, False)
 
     start_span.assert_called_once_with(name="github", op="upload")
+
+
+def test_blob_uploads_use_at_most_four_workers_and_preserve_tree_order(tmp_path):
+    """Independent blob requests run concurrently without reordering the tree."""
+    from starbash.commands import publish
+
+    files = []
+    for index in range(6):
+        path = tmp_path / f"image-{index}.fits"
+        path.write_bytes(f"blob-{index}".encode())
+        files.append(path)
+
+    lock = threading.Lock()
+    first_four_started = threading.Barrier(4)
+    active = 0
+    maximum_active = 0
+
+    def create_blob(owner, name, content):
+        nonlocal active, maximum_active
+        with lock:
+            active += 1
+            maximum_active = max(maximum_active, active)
+        try:
+            if int(content.decode().split("-")[1]) < 4:
+                first_four_started.wait(timeout=2)
+            return content.decode()
+        finally:
+            with lock:
+                active -= 1
+
+    service = MagicMock()
+    service.create_blob.side_effect = create_blob
+    entries = publish._upload_blobs(service, "owner", tmp_path, files, MagicMock(), 1)
+
+    assert maximum_active == 4
+    assert {entry["path"] for entry in entries} == {path.name for path in files}
+    assert {entry["sha"] for entry in entries} == {f"blob-{index}" for index in range(6)}

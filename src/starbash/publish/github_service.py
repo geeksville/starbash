@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -55,6 +56,7 @@ class GitHubService:
         self.refresh_token = refresh_token
         self.client_id = client_id
         self.on_token_refresh = on_token_refresh
+        self._refresh_lock = threading.Lock()
 
     @staticmethod
     def _json_response(response: Any) -> Any:
@@ -103,6 +105,7 @@ class GitHubService:
         }
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
+        request_token = self.token
         data = json.dumps(payload).encode() if payload is not None else None
         request = urllib.request.Request(url, data=data, headers=headers, method=method)
         logger.debug("GitHub request: %s %s params=%r", method, url, self._safe_payload(payload))
@@ -134,8 +137,10 @@ class GitHubService:
                 raise GitHubError("GitHub resource was not found") from exc
             if exc.code == 401:
                 if self.refresh_token and self.client_id and not _retried_after_refresh:
-                    refreshed = self.refresh_access_token(self.client_id, self.refresh_token)
-                    self.apply_token_response(refreshed)
+                    with self._refresh_lock:
+                        if self.token == request_token:
+                            refreshed = self.refresh_access_token(self.client_id, self.refresh_token)
+                            self.apply_token_response(refreshed)
                     return self._request(method, url, payload, _retried_after_refresh=True)
                 raise GitHubAuthenticationError(
                     "GitHub rejected the access token; run 'sb publish github --login' again"
