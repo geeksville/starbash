@@ -9,12 +9,14 @@ A tool for automating/standardizing/sharing astrophotography workflows.
 ## What is starbash?
 <img src="https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/icon/generated/web/icon-192.png" alt="Starbash: Astrophotography workflows simplified" width="30%" align="right" style="margin-bottom: 20px;">
 
-* Automatic - with sensible defaults that you can change as needed.  Just a few keystrokes to preprocess an entire repo of raw images.
-* Easy - provides a 'seestar-like' autoprocessing all your sessions (by default).  You can optionally do manual postprocessing with all this 'grunt work' preprocessing automated.
+* Automatic - with sensible defaults that you can change as needed.  Just a few keystrokes to auto-process an **entire** repo of raw images.  It uses sensible customizable defaults - you can optionally tweak parameters and reprocess as needed.
+* Easy - provides a 'seestar-like' autoprocessing all your sessions (by default).  You can optionally do manual postprocessing with all this 'grunt work' default processing automated.
 * Fast<sup>1</sup> - even with large image repositories.  Automatic master bias and flat generation.  Automatic preprocessing/ stacking/background-elimination with reasonable defaults.
-* Multi-session - by default.  So your workflows can stack from multiple nights (and still use the correct flats etc...).
+* Multi-session - by default.  So your workflows can stack from multiple nights (and still use/auto-generate the correct flats, darks/biases etc...).
 * Shareable - you can share/use recipes for image preprocessing flows.  The eventual goal is a transition away from opaque burried scripts.  Recipes can come from multiple repos and you or other orgs can host recipes.
+* Automatic (optional) posting/creation of your generated images and workflows to a free ['github pages'](https://docs.github.com/en/pages) website.  [Sample](https://geeksville.github.io/starbash-public/targets/sh2-91/).
 * Attribution (by default) - a full set of contributions to final image can be tracked: instrument, raw images, processed-by, recipes-by/version etc...
+* Full session/FITS aware history - select targets by name, date-range, instrument etc... 
 
 (This project is currently 'alpha' and missing recipes for some workflows, but adding new recipes is easy and we're happy to help.  Please file a GitHub issue if your images are not auto-processed and we'll work out a fix.)
 
@@ -24,7 +26,7 @@ A tool for automating/standardizing/sharing astrophotography workflows.
 ## What is starbash NOT
 
 ### Not a new image processing tool (like Siril)
-It is important to understand that Starbash is primarily a tool for **repeatable**, **sharable**, **semi-automated** workflows.  It is tool agnostic and really just focuses on the relationship between tools, images and sessions.  It builds upon the great work of existing tools (currently mainly Siril and Graxpert) so we can grow an ecosystem of recipes.
+It is important to understand that Starbash is primarily a tool for **repeatable**, **sharable**, **semi-automated** workflows.  It is tool agnostic and really just focuses on the relationship between tools, images and sessions.  It builds upon the great work of existing tools (currently mainly [Siril](https://siril.org/), [GraXpert](https://graxpert.com/), [Blurxterminator](https://www.rc-astro.com/software/bxt/) and [Starnet2](https://starnetastro.com/cli-tools/)) so we can grow an ecosystem of recipes.
 
 ### Not a set of scripts
 
@@ -64,7 +66,12 @@ If you are interested in alpha-testing we ❤️ you.  This README should have e
 
 ### From the alpha 3 (0.3.0) release (2026/08/31)
 
-* Auto publish your finished images and workflow report to github-sites
+- Added end-to-end GitHub Pages publishing, including a friendlier GitHub setup flow and automatic token refresh.
+- Introduced the new processing layout with shareable per-target configuration and improved recipe/dependency handling.
+- Added Starnet, BlurXTerminator, and NoiseXTerminator support, with live Siril progress and automatic star recomposition.
+- Improved FITS/session reporting with focal-length and FWHM information, plus more reliable OSC stacking.
+- Added safer cleanup of temporary processing files and clearer warnings when external tools are missing.
+- Publishing is now about twice as fast thanks to concurrent uploads.
 
 ## Features coming soon
 

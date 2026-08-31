@@ -1,5 +1,89 @@
 
+# ngc7635
+
+Subtask: stack_dual_duo_ngc7635 ━━━━━━━━━━━━━━━━━━━╺━━━━━━━━━━━━━━━━━━━━  48% 0:02:04
+Tool completed: python
+    log: Setting CWD (Current Working Directory) to '/home/vscode/.cache/starbash/processing/ngc7635'         
+'siril -d /home/vscode/.cache/starbash/processing/ngc7635 -s -' failed while running             requires 
+1.4.0 1.5.0
+register results -drizzle
+pm 
+"$r_results_00002$*mad($r_results_00001$)/mad($r_results_00002$)-mad($r_results_00001$)/mad($r_results_00002$)
+*median($r_results_00002$)+median($r_results_00001$)"
+update_key FILTER Oiii "OSC Duo filter extracted"
+save "/mnt/pool/big/kevinh/telescope/processed/ngc7635/stacked_OIII.fits"
+load r_results_00001
+update_key FILTER Ha "OSC Duo filter extracted"
+save "/mnt/pool/big/kevinh/telescope/processed/ngc7635/stacked_Ha.fits"
+pm 
+"$r_results_00003$*mad($r_results_00001$)/mad($r_results_00003$)-mad($r_results_00001$)/mad($r_results_00003$)
+*median($r_results_00003$)+median($r_results_00001$)"
+update_key FILTER Sii "OSC dual Duo filter extracted"
+save "/mnt/pool/big/kevinh/telescope/processed/ngc7635/stacked_Sii.fits"
+
+# ic1396
+[16:26:29] INFO     Running Siril for light_vs_bias_ic1396_s117 (151 input files)                  doit.py:352
+Tool completed: Siril
+    log: Script execution finished successfully.                                                              
+    log: Total execution time: 2 min 59 s                                                                     
+    closing pipes                                                                                             
+[16:29:30] INFO     Running Siril for light_vs_bias_ic1396_s119 (142 input files)                  doit.py:352
+Tool completed: Siril
+    log: Script execution finished successfully.                                                              
+    log: Total execution time: 2 min 51 s                                                                     
+    closing pipes                                                                                             
+[16:32:23] INFO     Running Siril for light_vs_bias_ic1396_s56 (197 input files)                   doit.py:352
+Tool completed: Siril
+    log: Script execution finished successfully.                                                              
+    log: Total execution time: 3 min 46 s                                                                     
+    closing pipes                                                                                             
+[16:36:12] INFO     Running Siril for seqextract_haoiii_ic1396_s117                                doit.py:352
+Tool completed: Siril
+    log: Script execution finished successfully.                                                              
+    log: Total execution time: 41.08 s                                                                        
+    closing pipes                                                                                             
+[16:36:56] INFO     Running Siril for seqextract_haoiii_ic1396_s119                                doit.py:352
+Tool completed: Siril
+    log: Script execution finished successfully.                                                              
+    log: Total execution time: 40.96 s                                                                        
+    closing pipes                                                                                             
+[16:37:39] INFO     Running Siril for seqextract_haoiii_ic1396_s56                                 doit.py:352
+Tool completed: Siril
+    log: Script execution finished successfully.                                                              
+    log: Total execution time: 56.74 s                                                                        
+    closing pipes                                                                                             
+[16:38:38] INFO     Running python for stack_dual_duo_ic1396                                       doit.py:352
+           INFO     Executing python script in /home/vscode/.cache/starbash/processing/ic1396    python.py:177
+                    using RestrictedPython                                                                    
+           INFO     Running osc_process(has_ha_oiii=True, has_sii_oiii=True)                        osc.py:278
+           INFO     Registering and stacking for Ha ->                                              osc.py:155
+                    /mnt/pool/big/kevinh/telescope/processed/ic1396/results_00001.fit                         
+[16:39:09] INFO      Initializing FFTW multithreading support...                                   base.py:175
+                    log: Welcome to siril 1.4.4 for linux (x86_64) - GUI                                      
+                    log: Supported file types: BMP images, PIC images (IRIS), PGM and PPM binary              
+                    images, RAW images, FITS-CFA images, Films, SER sequences, TIFF images, XISF              
+                    images, JPG images, JPEG XL images, PNG images, HEIF images, AVIF images.                 
+                    log: Setting CWD (Current Working Directory) to                                           
+                    '/home/vscode/.cache/starbash/processing/ic1396'                                          
+                    log: Parallel processing enabled: using 32 logical processors.                            
+           INFO      … (2957 lines omitted) …                                                      base.py:179
+           ERROR     Reading sequence file `r_r_Ha_bkg_pp_light_s117_.seq'.                        base.py:183
+                    bitpix for the sequence is set as -32                                                     
+                    Reading sequence file `r_r_Ha_bkg_pp_light_s117_.seq'.                                    
+                    bitpix for the sequence is set as -32                                                     
+                    log: Stacking sequence r_r_Ha_bkg_pp_light_s117_                                          
+                    log: The sequence has different image sizes but no registration data, cannot              
+                    stack. Aborting                                                                           
+                    log: Execution time: 1.02 ms                                                              
+                    log: Setting CWD (Current Working Directory) to                                           
+                    '/home/vscode/.cache/starbash/processing/ic1396'                                          
+                    log: Script execution failed.                                                             
+                    progress: Script execution failed., 100.00%                                               
+           ERROR     log: The sequence has different image sizes but no registration data, cannot  base.py:335
+                    stack. Aborting                                                                           
+
 # ngc6888
+fixed. was
 
  number of filtered-in images: 209                                             base.py:183
                     number of filtered-in images: 355                                                         
