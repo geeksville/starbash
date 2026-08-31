@@ -11,6 +11,7 @@ from . import console
 from .analytics import is_development_environment
 from .app import Starbash
 from .commands import info, process, publish, repo, select, user
+from .commands.fix_targets import fix_targets as fix_targets_command
 from .paths import get_user_config_path
 
 # Suppress deprecation warnings in production mode to provide a cleaner user experience.
@@ -34,6 +35,10 @@ app.add_typer(
     name="publish",
     help="Generate a local Jekyll report site or publish it to GitHub Pages.",
 )
+app.command(
+    "fix-targets",
+    help="Upgrade processed targets to the current layout.",
+)(fix_targets_command)
 
 
 @app.callback(invoke_without_command=True)

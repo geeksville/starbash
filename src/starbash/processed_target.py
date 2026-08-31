@@ -30,6 +30,7 @@ from starbash.report import (
     sort_datetime,
 )
 from starbash.safety import get_safe
+from starbash.target_migration import migrate_legacy_target
 from starbash.toml import toml_from_template
 
 __all__ = [
@@ -51,11 +52,7 @@ class ProcessedTarget:
     """
 
     def __init__(self, p: ProcessingLike, target: str | None) -> None:
-        """Initialize a ProcessedTarget with the given processing context.
-
-        Args:
-            context: The processing context dictionary containing output paths and metadata.
-        """
+        """Initialize a processed target or generated master configuration."""
         self.p = p
         self.sessions_info: list[SessionInfo] = []
         self._init_processing_dir(target)
@@ -71,20 +68,13 @@ class ProcessedTarget:
             if legacy_config_path.exists():
                 if config_path.exists():
                     logging.warning(
-                        "Removing stale legacy processed-target configuration at %s; "
-                        "using %s",
+                        "Removing stale legacy processed-target configuration at %s; using %s",
                         legacy_config_path,
                         config_path,
                     )
                     legacy_config_path.unlink()
                 else:
-                    self._migrate_legacy_config(
-                        legacy_config_path,
-                        metadata_dir,
-                        config_path,
-                        metadata_dir / "about.toml",
-                        metadata_dir / "sessions.toml",
-                    )
+                    migrate_legacy_target(dir)
             metadata_dir.mkdir(parents=True, exist_ok=True)
             log_path = metadata_dir / "starbash.log"
             repo_path = config_path
@@ -116,9 +106,7 @@ class ProcessedTarget:
             assert about_path is not None and sessions_path is not None
             self.about_path = about_path
             self.sessions_path = sessions_path
-            self.about_config = self._load_metadata_file(
-                self.about_path, "target/processed/about"
-            )
+            self.about_config = self._load_metadata_file(self.about_path, "target/processed/about")
             self.sessions_config = self._load_metadata_file(
                 self.sessions_path, "target/processed/sessions"
             )
@@ -164,78 +152,6 @@ class ProcessedTarget:
         document = cls._as_toml_document(toml_from_template(template_name, overrides=None))
         TOMLFile(path).write(document)
         return document
-
-    @staticmethod
-    def _migrate_legacy_config(
-        legacy_path: Path,
-        metadata_dir: Path,
-        main_path: Path,
-        about_path: Path,
-        sessions_path: Path,
-    ) -> None:
-        """Split a legacy target file and delete it after successful migration."""
-        legacy = tomlkit.parse(legacy_path.read_text(encoding="utf-8"))
-        main = ProcessedTarget._as_toml_document(
-            toml_from_template("target/processed/main", overrides=None)
-        )
-        about = ProcessedTarget._as_toml_document(
-            toml_from_template("target/processed/about", overrides=None)
-        )
-        sessions = ProcessedTarget._as_toml_document(
-            toml_from_template("target/processed/sessions", overrides=None)
-        )
-
-        metadata_dir.mkdir(parents=True, exist_ok=True)
-        for key, value in legacy.items():
-            if key not in {"about", "sessions"}:
-                main[key] = deepcopy(value)
-
-        old_about = legacy.get("about", {})
-        if isinstance(old_about, dict):
-            for key, value in old_about.items():
-                if key != "sessions":
-                    about[key] = deepcopy(value)
-
-        report_sessions = old_about.get("sessions", []) if isinstance(old_about, dict) else []
-        state_sessions = legacy.get("sessions", [])
-        state_by_id = {
-            state.get("id"): state
-            for state in state_sessions
-            if isinstance(state, dict) and state.get("id") is not None
-        }
-        migrated_sessions = tomlkit.aot()
-        for report_session in report_sessions:
-            if not isinstance(report_session, dict):
-                continue
-            session = deepcopy(report_session)
-            state = state_by_id.get(session.pop("id", None))
-            if isinstance(state, dict):
-                for key in ("stages", "masters"):
-                    if key in state:
-                        session[key] = deepcopy(state[key])
-            migrated_sessions.append(session)
-
-        if not migrated_sessions:
-            for state in state_sessions:
-                if not isinstance(state, dict):
-                    continue
-                session = tomlkit.table()
-                for key in ("date", "start", "end", "filter", "imagetyp", "object", "telescop"):
-                    if state.get(key) is not None:
-                        session[key] = deepcopy(state[key])
-                for key in ("stages", "masters"):
-                    if key in state:
-                        session[key] = deepcopy(state[key])
-                migrated_sessions.append(session)
-
-        sessions["sessions"] = migrated_sessions
-        TOMLFile(main_path).write(main)
-        TOMLFile(about_path).write(about)
-        TOMLFile(sessions_path).write(sessions)
-
-        for path in (main_path, about_path, sessions_path):
-            tomlkit.parse(path.read_text(encoding="utf-8"))
-        legacy_path.unlink()
 
     def _init_processing_dir(self, target: str | None) -> None:
         processing_dir = get_processing_dir()
@@ -301,14 +217,11 @@ class ProcessedTarget:
         # database identifiers, which are intentionally not written to sessions.toml.
         for sess in self.p.sessions:
             for proc_sess in proc_sessions:
-                if (
-                    self._session_key(sess) == self._session_key(proc_sess)
-                    or (
-                        sess.get("start")
-                        and sess.get("end")
-                        and sess.get("start") == proc_sess.get("start")
-                        and sess.get("end") == proc_sess.get("end")
-                    )
+                if self._session_key(sess) == self._session_key(proc_sess) or (
+                    sess.get("start")
+                    and sess.get("end")
+                    and sess.get("start") == proc_sess.get("start")
+                    and sess.get("end") == proc_sess.get("end")
                 ):
                     for field in ["stages", "masters"]:
                         if field in proc_sess:
@@ -441,8 +354,7 @@ class ProcessedTarget:
                 (
                     candidate
                     for candidate in self.p.sessions
-                    if candidate.get("start") == info.start
-                    and candidate.get("end") == info.end
+                    if candidate.get("start") == info.start and candidate.get("end") == info.end
                 ),
                 None,
             )
@@ -520,5 +432,10 @@ class ProcessedTarget:
     def __enter__(self) -> ProcessedTarget:
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: types.TracebackType | None) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: types.TracebackType | None,
+    ) -> None:
         self.close()
