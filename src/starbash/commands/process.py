@@ -90,7 +90,7 @@ def siril(
             else:
                 session_to_dir(candidates[0].candidate, subdir)
 
-        # FIXME put an starbash.toml repo file in output_dir (with info about what we picked/why)
+        # FIXME put a processed-target metadata file in output_dir (with info about what we picked/why)
         # to allow users to override/reprocess with the same settings.
         # Also FIXME, check for the existence of such a file
 

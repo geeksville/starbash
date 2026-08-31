@@ -412,7 +412,7 @@ Implemented by `cleanup_temporaries()` in
 
 ## 8. Per‑target control (`processed-target` repos)
 
-Each processed target has its own `starbash.toml` (kind `processed-target`),
+Each processed target has its own `.starbash/main.toml` (kind `processed-target`),
 auto‑generated on first run and preserved thereafter. It records which stages
 ran and lets the user opt in/out and override parameters.
 

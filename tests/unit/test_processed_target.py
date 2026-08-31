@@ -186,53 +186,6 @@ class TestProcessedTargetInit:
             assert (metadata_dir / "sessions.toml").exists()
             assert pt.log_path == metadata_dir / "starbash.log"
 
-    def test_new_layout_wins_when_legacy_file_remains(
-        self, mock_processing_like, temp_processing_dir
-    ):
-        """A stale legacy file cannot override the new main configuration."""
-        mock_processing_like._set_output_by_kind("processed")
-        target_dir = Path(mock_processing_like.context["output"].base)
-        metadata_dir = target_dir / ".starbash"
-        metadata_dir.mkdir(parents=True)
-        (target_dir / "starbash.toml").write_text("[repo]\nkind = 'wrong'\n")
-        (metadata_dir / "main.toml").write_text("[repo]\nkind = 'processed-target'\n")
-        (metadata_dir / "about.toml").write_text("[about]\ntarget.id = 'new'\n")
-        (metadata_dir / "sessions.toml").write_text("")
-
-        with patch("starbash.processed_target.toml_from_template") as mock_template:
-            mock_template.return_value = tomlkit.document()
-            with patch("starbash.processed_target.Repo") as mock_repo_class:
-                mock_repo = MagicMock()
-                mock_repo.get.return_value = {}
-                mock_repo_class.return_value = mock_repo
-                ProcessedTarget(mock_processing_like, "new")
-
-                assert mock_repo_class.call_args.args[0] == metadata_dir / "main.toml"
-
-    def test_init_converts_legacy_only_configuration(
-        self, mock_processing_like, temp_processing_dir
-    ):
-        """Legacy processed targets are split automatically before processing."""
-        mock_processing_like._set_output_by_kind("processed")
-        target_dir = Path(mock_processing_like.context["output"].base)
-        (target_dir / "starbash.toml").write_text("[repo]\nkind = 'legacy'\n")
-
-        with patch("starbash.processed_target.toml_from_template") as mock_template:
-            mock_template.side_effect = [
-                tomlkit.document(),
-                tomlkit.document(),
-                tomlkit.document(),
-                tomlkit.document(),
-            ]
-            ProcessedTarget(mock_processing_like, "legacy")
-
-        metadata_dir = target_dir / ".starbash"
-        assert (metadata_dir / "main.toml").exists()
-        assert (metadata_dir / "about.toml").exists()
-        assert (metadata_dir / "sessions.toml").exists()
-        assert not (target_dir / "starbash.toml").exists()
-
-
 class TestProcessedTargetMethods:
     """Tests for ProcessedTarget methods."""
 
@@ -356,7 +309,7 @@ class TestProcessedTargetStages:
     def test_user_exclusions_from_toml_are_retained(
         self, mock_processing_like, temp_processing_dir
     ):
-        """Regression: exclusions read from the target's starbash.toml must survive init.
+        """Regression: exclusions read from main.toml must survive init.
 
         Previously __init__ reset self.default_stages to {} *after* _init_from_toml()
         populated it, so user-added exclusions (e.g. "stack_osc") were silently dropped

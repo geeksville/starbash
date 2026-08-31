@@ -37,15 +37,3 @@ def test_publisher_reads_split_target_and_publishes_main_toml(tmp_path):
     assert "View processing workflow" in post.read_text()
     assert "../../assets/targets/m-42/main.toml" in post.read_text()
 
-
-def test_publisher_ignores_legacy_only_target(tmp_path):
-    """A target without split metadata is not published."""
-    processed = tmp_path / "processed"
-    target = processed / "legacy"
-    target.mkdir(parents=True)
-    (target / "starbash.toml").write_text('[about]\ntarget.id = "legacy"\n')
-
-    publisher = _publisher(tmp_path)
-    publisher.publish()
-
-    assert not (tmp_path / "site" / "targets" / "legacy.md").exists()

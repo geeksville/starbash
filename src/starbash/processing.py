@@ -1598,5 +1598,5 @@ class Processing(ProcessingLike):
             self._set_output_to_repo(kind)
 
             # Store that FileInfo so that any task that needs to know our final output dir can find it.  This is useful
-            # so we can read/write our per target starbash.toml file for instance...
+            # so we can read/write our per-target .starbash/main.toml file...
             self.context["final_output"] = self.context["output"]

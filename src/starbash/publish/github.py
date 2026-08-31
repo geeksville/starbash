@@ -106,7 +106,7 @@ class GitHubPublisher:
             sessions_config = metadata_dir / "sessions.toml"
             if not main_config.exists() or not about_config.exists():
                 warnings.warn(
-                    f"Skipping legacy or incomplete processed target {directory}; "
+                    f"Skipping incomplete processed target {directory}; "
                     "expected .starbash/main.toml and .starbash/about.toml",
                     stacklevel=2,
                 )

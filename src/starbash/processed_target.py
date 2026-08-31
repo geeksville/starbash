@@ -30,7 +30,6 @@ from starbash.report import (
     sort_datetime,
 )
 from starbash.safety import get_safe
-from starbash.target_migration import migrate_legacy_target
 from starbash.toml import toml_from_template
 
 __all__ = [
@@ -47,7 +46,8 @@ class ProcessedTarget:
     interface.
 
     FIXME: currently this only works for 'targets'.  eventually it should be generalized so
-    it also works for masters.  In the case of a generated master instead of a starbash.toml file in the directory with the 'target'...
+    it also works for masters. In the case of a generated master, metadata is
+    stored beside the generated master file.
     The generated master will be something like 'foo_blah_bias_master.fits' and in that same directory there will be a 'foo_blah_bias_master.toml'
     """
 
@@ -63,18 +63,7 @@ class ProcessedTarget:
         dir = Path(self.p.context["output"].base)
         if output_kind != "master":
             metadata_dir = dir / ".starbash"
-            legacy_config_path = dir / "starbash.toml"
             config_path = metadata_dir / "main.toml"
-            if legacy_config_path.exists():
-                if config_path.exists():
-                    logging.warning(
-                        "Removing stale legacy processed-target configuration at %s; using %s",
-                        legacy_config_path,
-                        config_path,
-                    )
-                    legacy_config_path.unlink()
-                else:
-                    migrate_legacy_target(dir)
             metadata_dir.mkdir(parents=True, exist_ok=True)
             log_path = metadata_dir / "starbash.log"
             repo_path = config_path
@@ -205,7 +194,7 @@ class ProcessedTarget:
             excluded = bool(stage.get("exclude_by_default", False))
             if excluded:
                 logging.debug(
-                    f"Excluding stage '{stage_name}' by default, edit starbash.toml if you'd like it enabled."
+                    f"Excluding stage '{stage_name}' by default, edit .starbash/main.toml if you'd like it enabled."
                 )
             upsert_stage(self.default_stages, stage, excluded=excluded)
 

@@ -2,10 +2,10 @@
 
 ## Goal
 
+The `.starbash/` layout is the only supported processed-target layout. Runtime
 Make each processed target easier to inspect, publish, and maintain by separating
 runtime logs, workflow configuration, target provenance, and session metadata.
-Existing targets will be converted to the new layout separately; this change does
-not need to preserve the old layout indefinitely.
+Malformed files should produce a useful error naming the file and section instead of silently discarding user configuration.
 
 ## Proposed on-disk layout
 
@@ -28,7 +28,7 @@ M42/
 
 #### `.starbash/main.toml`
 
-The authoritative target workflow configuration. It contains the old target
+The authoritative target workflow configuration. It contains the target
 configuration sections other than `about` and `sessions`, including repository
 metadata, target-level `[[stages]]` selections and exclusions, processing
 parameter overrides, and processing citation information if present.
@@ -53,12 +53,9 @@ approved by the report data contract.
 
 #### `.starbash/starbash.log`
 
-The processing log for this target. It should be created and cleared using the
-same lifecycle as the current `starbash.log`, but must no longer share a directory
-with user-facing image products and metadata files.
-
-## Template split
-
+The processing log for this target. It should be created and cleared during the
+same processing lifecycle, but must no longer share a directory with user-facing
+image products and metadata files.
 Replace `src/starbash/templates/target/processed.toml` with:
 
 ```text
@@ -134,36 +131,12 @@ labeled **View processing workflow** link. The publisher should supply the URL
 from the target slug and asset path rather than having the template assemble it
 from filesystem paths.
 
-The link must work for target names containing spaces or punctuation, remain valid
-when served from a project-page subpath, and be omitted or marked unavailable if
-`main.toml` is missing.
-
-## Compatibility and migration
-
-The new `.starbash/` layout is authoritative. Legacy targets will be converted
-before this implementation is used, so runtime processing and publishing do not
-need to read the old root-level `starbash.toml`.
-
-The migration utility or one-time conversion procedure should:
-
-1. split the old file into `main.toml`, `about.toml`, and `sessions.toml`;
-2. preserve stage exclusions, parameter overrides, session stages, and masters;
-3. verify the new files can be parsed;
-4. delete the old root-level `starbash.toml` only after successful verification.
-
-If both layouts are encountered after conversion, use the new `.starbash/` files
-only and ignore the legacy file. Do not merge values between layouts. A warning
-may be emitted to help identify stale files, but conflicting legacy values must
-never override the new layout.
-
-Malformed new-layout files should produce a useful error naming the file and
-section instead of silently discarding user configuration. Legacy-only targets
-are outside the normal runtime contract and should be reported as needing
-conversion rather than silently published.
+The link must work for target names containing spaces or punctuation and remain
+valid when served from a project-page subpath.
 
 ## Implementation sequence
 
-1. **Lock down the contract.** Use the decisions recorded below: new layout only,
+1. **Lock down the contract.** Use the finalized contract: `.starbash` only,
 	session-specific settings stay in `sessions.toml`, complete `main.toml` is
 	public, and master outputs are out of scope.
 2. **Split templates.** Add the three target templates and tests for their
@@ -172,26 +145,32 @@ conversion rather than silently published.
 	log paths.
 4. **Refactor `ProcessedTarget`.** Read, update, and write the three files while
 	preserving stage exclusions, overrides, and session metadata.
-5. **Add conversion tooling or documentation.** Convert legacy targets before
-	rollout, verify the generated files, then delete the old root-level file.
-6. **Update the publisher.** Discover only `.starbash/main.toml`, copy it as a
-	site asset, and pass its URL to the report template. Do not publish legacy-only
-	targets.
-7. **Update documentation and fixtures.** Replace processed-target references to
-	legacy root-level configuration; leave unrelated user/repository configuration
+5. **Update the publisher.** Discover only `.starbash/main.toml`, copy it as a
+	site asset, and pass its URL to the report template.
+6. **Update documentation and fixtures.** Keep processed-target references
+	consistent with `.starbash`; leave unrelated user/repository configuration
 	references unchanged.
-8. **Run regression validation.** Run processed-target, publisher, report, CLI,
+7. **Run regression validation.** Run processed-target, publisher, report, CLI,
 	and full test suites; manually inspect a generated target and site.
 
 ## Tests
 
 Add or update tests for:
 
+- clear errors for incomplete target metadata;
+- publisher discovery of the new layout;
+- copying `main.toml` into the site;
+- correct workflow links for safe slugs and nested site paths;
+- session report rendering with missing optional fields.
+
 
 ## Resolved decisions
 
-	conversion and verification.
-	to legacy values.
-	`sessions.toml`.
-	them first.
-	scope.
+- **Migration:** Complete. All processed targets use the `.starbash` layout.
+- **Precedence:** Use only the `.starbash` files; do not merge alternate layouts.
+- **Session ownership:** Keep session-specific `stages` and `masters` in
+  `sessions.toml`.
+- **Citation:** Keep `[processing.citation]` in `main.toml`.
+- **Publication:** Publish the complete `main.toml`.
+- **Existing publisher:** Publish only targets using the `.starbash` layout.
+- **Scope:** Processed targets only. Generated master metadata remains unchanged.
