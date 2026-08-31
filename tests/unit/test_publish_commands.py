@@ -37,12 +37,17 @@ def test_old_github_commands_are_rejected():
 
 def test_dry_run_does_not_require_a_credential(tmp_path):
     """A dry run can generate and validate the site without signing in."""
+    (tmp_path / "index.md").write_text("site index")
+    (tmp_path / "Gemfile").write_text("excluded upload dependency")
+
     with patch("starbash.commands.publish._rewrite") as rewrite:
         rewrite.return_value = tmp_path
         result = runner.invoke(app, ["publish", "github", "--dry-run"])
 
     assert result.exit_code == 0
     rewrite.assert_called_once_with()
+    assert "index.md" in result.stdout
+    assert "Gemfile" not in result.stdout
 
 
 def test_github_login_starts_analytics_span():

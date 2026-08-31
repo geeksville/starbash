@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import shutil
 import warnings
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -141,20 +142,21 @@ class GitHubPublisher:
         )
         layouts = self.site_dir / "_layouts"
         layouts.mkdir(exist_ok=True)
-        (layouts / "default.html").write_text(
-            "<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>{{ page.title }}</title>"
-            "</head><body><main>{{ content }}</main></body></html>\n"
-        )
-        (layouts / "post.html").write_text(
-            "---\nlayout: default\n---\n{{ content }}\n"
-        )
-        (layouts / "page.html").write_text(
-            "---\nlayout: default\n---\n{{ content }}\n"
-        )
+        default_layout = resources.files("starbash.templates.report").joinpath("default.html")
+        (layouts / "default.html").write_text(default_layout.read_text(encoding="utf-8"), encoding="utf-8")
         index_targets: list[dict[str, Any]] = []
         for directory, document in self._targets(root):
             about = document.get("about", {})
-            target = about.get("target", {})
+            if not isinstance(about, dict):
+                about = {}
+            target = document.get("target")
+            if not isinstance(target, dict):
+                target = about.get("target", {})
+            if not isinstance(target, dict):
+                target = {}
+            summary = document.get("summary")
+            if isinstance(summary, str):
+                about = {**about, "summary": summary}
             name = str(target.get("id") or directory.name)
             slug = slugify(name)
             asset_dir = assets_root / slug

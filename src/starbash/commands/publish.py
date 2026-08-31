@@ -22,7 +22,7 @@ app.add_typer(github_app, name="github")
 CLIENT_ID = "Iv23liewanBO4WT8No6v"
 APP_SLUG = "geeksville-starbash"
 APP_INSTALLATION_URL = f"https://github.com/apps/{APP_SLUG}/installations/new"
-UPLOAD_PATH_BLACKLIST = ("_layouts/", "Gemfile")
+UPLOAD_PATH_BLACKLIST = ("Gemfile",)
 
 
 def _rewrite() -> Path:
