@@ -100,13 +100,29 @@ class GitHubPublisher:
             (path for path in root.iterdir() if path.is_dir()),
             key=lambda path: path.name.lower(),
         ):
-            config = directory / "starbash.toml"
-            if not config.exists():
+            metadata_dir = directory / ".starbash"
+            main_config = metadata_dir / "main.toml"
+            about_config = metadata_dir / "about.toml"
+            sessions_config = metadata_dir / "sessions.toml"
+            if not main_config.exists() or not about_config.exists():
+                warnings.warn(
+                    f"Skipping legacy or incomplete processed target {directory}; "
+                    "expected .starbash/main.toml and .starbash/about.toml",
+                    stacklevel=2,
+                )
                 continue
             try:
-                targets.append((directory, plain(tomlkit.parse(config.read_text()))))
+                document: dict[str, Any] = {}
+                document.update(plain(tomlkit.parse(main_config.read_text(encoding="utf-8"))))
+                document.update(plain(tomlkit.parse(about_config.read_text(encoding="utf-8"))))
+                if sessions_config.exists():
+                    document.update(
+                        plain(tomlkit.parse(sessions_config.read_text(encoding="utf-8")))
+                    )
+                document["_main_config"] = main_config
+                targets.append((directory, document))
             except (OSError, ParseError) as exc:
-                warnings.warn(f"Skipping malformed target {config}: {exc}", stacklevel=2)
+                warnings.warn(f"Skipping malformed target {metadata_dir}: {exc}", stacklevel=2)
         return targets
 
     def publish(self) -> Path:
@@ -143,12 +159,14 @@ class GitHubPublisher:
             slug = slugify(name)
             asset_dir = assets_root / slug
             asset_dir.mkdir(parents=True, exist_ok=True)
+            main_config = document.pop("_main_config")
+            shutil.copy2(main_config, asset_dir / "main.toml")
             image_urls: list[str] = []
             for image in self._images(directory):
                 shutil.copy2(image, asset_dir / image.name)
                 image_urls.append(f"assets/targets/{slug}/{image.name}")
             sessions: list[dict[str, Any]] = []
-            for number, session in enumerate(about.get("sessions", []), start=1):
+            for number, session in enumerate(document.get("sessions", []), start=1):
                 frames = session.get("frames", [])
                 chart = pygal.Line(
                     title=f"Session {session.get('date', number)}",
@@ -177,6 +195,7 @@ class GitHubPublisher:
                 about=about,
                 images=[f"../../{s}" for s in image_urls],
                 sessions=sessions,
+                workflow_url=f"../../assets/targets/{slug}/main.toml",
             )
             (posts / page_name).write_text(post)
             index_targets.append(

@@ -46,3 +46,19 @@ def test_target_template_renders_available_session_optics():
     assert "384.0 mm" in output
     assert "f/4.8" in output
     assert "2.02 arcsec/pixel" in output
+
+
+def test_target_template_renders_workflow_link():
+    """Render the published link to the complete processing workflow."""
+    environment = Environment(loader=PackageLoader("starbash", "templates/report"))
+    template = environment.get_template("target.md.jinja")
+
+    output = template.render(
+        target={"name": "M42"},
+        about={},
+        images=[],
+        sessions=[],
+        workflow_url="../../assets/targets/m42/main.toml",
+    )
+
+    assert "[View processing workflow](../../assets/targets/m42/main.toml)" in output

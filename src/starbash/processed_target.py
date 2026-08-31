@@ -4,13 +4,16 @@ import logging
 import shutil
 import tempfile
 import types
+from copy import deepcopy
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
 import tomlkit
-from toml_repo import Repo, get_config_suffix
+from toml_repo import Repo
 from tomlkit.items import Table
+from tomlkit.toml_document import TOMLDocument
+from tomlkit.toml_file import TOMLFile
 
 from starbash import to_shortdate
 from starbash.doit_types import cleanup_old_contexts, get_processing_dir
@@ -37,8 +40,10 @@ __all__ = [
 class ProcessedTarget:
     """The repo file based config for a single processed target.
 
-    The backing store for this class is a .toml file located in the output directory
-    for the processed target.
+    Processed-target metadata is stored in separate files below the target's
+    ``.starbash`` directory. ``self.repo`` remains the repository wrapper for
+    ``main.toml`` so stage and parameter code can continue to use its existing
+    interface.
 
     FIXME: currently this only works for 'targets'.  eventually it should be generalized so
     it also works for masters.  In the case of a generated master instead of a starbash.toml file in the directory with the 'target'...
@@ -60,15 +65,38 @@ class ProcessedTarget:
 
         dir = Path(self.p.context["output"].base)
         if output_kind != "master":
-            # Get the path to the starbash.toml file
-            config_path = dir / get_config_suffix()
-            log_path = dir / "starbash.log"
-            repo_path = dir
+            metadata_dir = dir / ".starbash"
+            legacy_config_path = dir / "starbash.toml"
+            config_path = metadata_dir / "main.toml"
+            if legacy_config_path.exists():
+                if config_path.exists():
+                    logging.warning(
+                        "Removing stale legacy processed-target configuration at %s; "
+                        "using %s",
+                        legacy_config_path,
+                        config_path,
+                    )
+                    legacy_config_path.unlink()
+                else:
+                    self._migrate_legacy_config(
+                        legacy_config_path,
+                        metadata_dir,
+                        config_path,
+                        metadata_dir / "about.toml",
+                        metadata_dir / "sessions.toml",
+                    )
+            metadata_dir.mkdir(parents=True, exist_ok=True)
+            log_path = metadata_dir / "starbash.log"
+            repo_path = config_path
+            about_path = metadata_dir / "about.toml"
+            sessions_path = metadata_dir / "sessions.toml"
         else:
             # Master file paths are just the base plus .toml
             config_path = dir.with_suffix(".toml")
             log_path = dir.with_suffix(".log")
             repo_path = config_path
+            about_path = None
+            sessions_path = None
 
         self.log_path: Path = log_path  # Let later tools see where to write our logs
 
@@ -76,19 +104,37 @@ class ProcessedTarget:
         if log_path.exists():
             log_path.unlink()
 
-        template_name = f"target/{output_kind}"
+        template_name = "target/processed/main" if output_kind == "processed" else "target/master"
         self.template_name = template_name
-        # Note: we are careful to delay overrides (for the 'about' section) until later
         default_toml = toml_from_template(template_name, overrides=None)
+        default_toml = self._as_toml_document(default_toml)
         self.repo = Repo(
             repo_path, default_toml=default_toml
         )  # a structured Repo object for reading/writing this config
 
+        if output_kind != "master":
+            assert about_path is not None and sessions_path is not None
+            self.about_path = about_path
+            self.sessions_path = sessions_path
+            self.about_config = self._load_metadata_file(
+                self.about_path, "target/processed/about"
+            )
+            self.sessions_config = self._load_metadata_file(
+                self.sessions_path, "target/processed/sessions"
+            )
+        else:
+            self.about_path = None
+            self.sessions_path = None
+            self.about_config = tomlkit.document()
+            self.sessions_config = tomlkit.document()
+
         # Contains "used" and "excluded" lists - used for sessionless tasks.
-        # Populated by _init_from_toml() from the target's starbash.toml.
+        # Populated by _init_from_toml() from the target's main.toml.
         self.default_stages: dict[str, Any] = {}
         self._init_from_toml()
         self._set_default_stages()
+        if output_kind != "master" and not config_path.exists():
+            TOMLFile(config_path).write(default_toml)
 
         self.config_valid = (
             True  # You can set this to False if you'd like to suppress writing the toml to disk
@@ -97,8 +143,99 @@ class ProcessedTarget:
         p.processed_target = self  # a backpointer to our ProcessedTarget
 
         self.parameter_store = ParameterStore()
-        # Load any user-activated per-stage overrides from this target's starbash.toml.
+        # Load any user-activated per-stage overrides from this target's main.toml.
         self.parameter_store.add_overrides_from_repo(self.repo)
+
+    @staticmethod
+    def _as_toml_document(document: Any) -> TOMLDocument:
+        """Normalize a TOML document returned by a template provider."""
+        if isinstance(document, TOMLDocument):
+            return document
+        converted = tomlkit.document()
+        converted.update(document)
+        return converted
+
+    @classmethod
+    def _load_metadata_file(cls, path: Path, template_name: str) -> TOMLDocument:
+        """Load a split target metadata file, creating it from its template."""
+        if path.exists():
+            return tomlkit.parse(path.read_text(encoding="utf-8"))
+
+        document = cls._as_toml_document(toml_from_template(template_name, overrides=None))
+        TOMLFile(path).write(document)
+        return document
+
+    @staticmethod
+    def _migrate_legacy_config(
+        legacy_path: Path,
+        metadata_dir: Path,
+        main_path: Path,
+        about_path: Path,
+        sessions_path: Path,
+    ) -> None:
+        """Split a legacy target file and delete it after successful migration."""
+        legacy = tomlkit.parse(legacy_path.read_text(encoding="utf-8"))
+        main = ProcessedTarget._as_toml_document(
+            toml_from_template("target/processed/main", overrides=None)
+        )
+        about = ProcessedTarget._as_toml_document(
+            toml_from_template("target/processed/about", overrides=None)
+        )
+        sessions = ProcessedTarget._as_toml_document(
+            toml_from_template("target/processed/sessions", overrides=None)
+        )
+
+        metadata_dir.mkdir(parents=True, exist_ok=True)
+        for key, value in legacy.items():
+            if key not in {"about", "sessions"}:
+                main[key] = deepcopy(value)
+
+        old_about = legacy.get("about", {})
+        if isinstance(old_about, dict):
+            for key, value in old_about.items():
+                if key != "sessions":
+                    about[key] = deepcopy(value)
+
+        report_sessions = old_about.get("sessions", []) if isinstance(old_about, dict) else []
+        state_sessions = legacy.get("sessions", [])
+        state_by_id = {
+            state.get("id"): state
+            for state in state_sessions
+            if isinstance(state, dict) and state.get("id") is not None
+        }
+        migrated_sessions = tomlkit.aot()
+        for report_session in report_sessions:
+            if not isinstance(report_session, dict):
+                continue
+            session = deepcopy(report_session)
+            state = state_by_id.get(session.pop("id", None))
+            if isinstance(state, dict):
+                for key in ("stages", "masters"):
+                    if key in state:
+                        session[key] = deepcopy(state[key])
+            migrated_sessions.append(session)
+
+        if not migrated_sessions:
+            for state in state_sessions:
+                if not isinstance(state, dict):
+                    continue
+                session = tomlkit.table()
+                for key in ("date", "start", "end", "filter", "imagetyp", "object", "telescop"):
+                    if state.get(key) is not None:
+                        session[key] = deepcopy(state[key])
+                for key in ("stages", "masters"):
+                    if key in state:
+                        session[key] = deepcopy(state[key])
+                migrated_sessions.append(session)
+
+        sessions["sessions"] = migrated_sessions
+        TOMLFile(main_path).write(main)
+        TOMLFile(about_path).write(about)
+        TOMLFile(sessions_path).write(sessions)
+
+        for path in (main_path, about_path, sessions_path):
+            tomlkit.parse(path.read_text(encoding="utf-8"))
+        legacy_path.unlink()
 
     def _init_processing_dir(self, target: str | None) -> None:
         processing_dir = get_processing_dir()
@@ -159,15 +296,20 @@ class ProcessedTarget:
     def _init_from_toml(self) -> None:
         """Read customized settings (masters, stages etc...) from the toml into our sessions/defaults."""
 
-        proc_sessions = self.repo.get("sessions", default=[], do_create=False)
-        # When populated in the template we have just a bare [sessions] section, which per toml spec
-        # means an array of ONE empty table. We ignore that case by skipping over any session that has no id.
+        proc_sessions = self.sessions_config.get("sessions", [])
+        # Match persisted session state using public session attributes rather than
+        # database identifiers, which are intentionally not written to sessions.toml.
         for sess in self.p.sessions:
-            # look in proc_sessions for a matching session by id, copy certain named fields accross: such as "stages", "masters"
-            id = get_safe(sess, "id")
             for proc_sess in proc_sessions:
-                if proc_sess.get("id") == id:
-                    # copy accross certain named fields
+                if (
+                    self._session_key(sess) == self._session_key(proc_sess)
+                    or (
+                        sess.get("start")
+                        and sess.get("end")
+                        and sess.get("start") == proc_sess.get("start")
+                        and sess.get("end") == proc_sess.get("end")
+                    )
+                ):
                     for field in ["stages", "masters"]:
                         if field in proc_sess:
                             sess[field] = proc_sess[field]
@@ -179,6 +321,17 @@ class ProcessedTarget:
             "stages": self.repo.get("stages", default=tomlkit.aot(), do_create=True)
         }
 
+    @staticmethod
+    def _session_key(session: dict[str, Any]) -> tuple[str, ...]:
+        """Return stable public fields used to match a processed session."""
+        metadata = session.get("metadata", {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+        return tuple(
+            str(session.get(key) or metadata.get(key.upper()) or "")
+            for key in ("start", "end", "filter", "imagetyp", "object", "telescop")
+        )
+
     def _update_from_context(self) -> None:
         """Update the repo toml based on the current context.
 
@@ -186,23 +339,34 @@ class ProcessedTarget:
 
         blacklist: list[str] = self.p.sb.repo_manager.get("repo.metadata_blacklist", default=[])
 
-        # Update the sessions list
-        proc_sessions = self.repo.get("sessions", default=tomlkit.aot(), do_create=True)
-        proc_sessions.clear()
+        # Keep a sanitized copy for callers and compatibility with the previous
+        # in-memory update behavior. The persisted copy is written by _generate_report().
+        proc_sessions = self.sessions_config.get("sessions", [])
+        if hasattr(proc_sessions, "clear"):
+            proc_sessions.clear()
         for sess in self.p.sessions:
-            sess = sess.copy()
-
-            metadata = sess.get("metadata", {})
-            # Remove any blacklisted metadata fields
-            for key in blacklist:
-                if key in metadata:
+            sanitized = deepcopy(sess)
+            metadata = sanitized.get("metadata", {})
+            if isinstance(metadata, dict):
+                for key in blacklist:
                     metadata.pop(key, None)
+            if hasattr(proc_sessions, "append"):
+                proc_sessions.append(sanitized)
 
-            # Record session info (including what masters and stages were used for that session)
-            proc_sessions.append(sess)
-
-        # The target-level [[stages]] AoT (self.default_stages["stages"]) is the same object
-        # stored in the repo config, so used/excluded edits already persist. Nothing else to do.
+        # Keep compatibility with callers that inspect the old in-memory Repo
+        # document. Real processed-target state lives in sessions.toml.
+        legacy_sessions = self.repo.get("sessions", default=None, do_create=False)
+        if legacy_sessions is not None and legacy_sessions is not proc_sessions:
+            if hasattr(legacy_sessions, "clear"):
+                legacy_sessions.clear()
+            for sess in self.p.sessions:
+                sanitized = deepcopy(sess)
+                metadata = sanitized.get("metadata", {})
+                if isinstance(metadata, dict):
+                    for key in blacklist:
+                        metadata.pop(key, None)
+                if hasattr(legacy_sessions, "append"):
+                    legacy_sessions.append(sanitized)
 
     def _generate_report(self) -> None:
         """Generate a summary report about this processed target."""
@@ -251,9 +415,8 @@ class ProcessedTarget:
             overrides["earliest_date"] = "N/A"
             overrides["latest_date"] = "N/A"
 
-        report_toml = toml_from_template(
-            self.template_name, overrides=overrides
-        )  # reload the about section so we can snarf the updated version
+        report_toml = toml_from_template("target/processed/about", overrides=overrides)
+        report_toml = self._as_toml_document(report_toml)
 
         about = cast(Table, report_toml["about"])
         about["generated_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
@@ -261,7 +424,7 @@ class ProcessedTarget:
         sessions = tomlkit.aot()
         for info in self.sessions_info:
             session = tomlkit.table()
-            for key in ("id", "date", "start", "end"):
+            for key in ("date", "start", "end"):
                 value = getattr(info, key)
                 if value is not None:
                     session[key] = value
@@ -273,11 +436,38 @@ class ProcessedTarget:
                 frame["metadata"] = tomlkit.item(frame_info_value.metadata)
                 frames.append(frame)
             session["frames"] = frames
-            sessions.append(session)
-        about["sessions"] = sessions
 
-        # Store the updated about section
-        self.repo.set("about", about)
+            source_session = next(
+                (
+                    candidate
+                    for candidate in self.p.sessions
+                    if candidate.get("start") == info.start
+                    and candidate.get("end") == info.end
+                ),
+                None,
+            )
+            if source_session:
+                for key in ("filter", "imagetyp", "object", "telescop"):
+                    value = source_session.get(key)
+                    if value is not None:
+                        session[key] = value
+                for key in ("stages", "masters"):
+                    if key in source_session:
+                        session[key] = source_session[key]
+            sessions.append(session)
+
+        self.about_config = report_toml
+        self.sessions_config = tomlkit.document()
+        self.sessions_config.add("sessions", sessions)
+
+    def _write_metadata_files(self) -> None:
+        """Write the split processed-target metadata documents."""
+        if self.sessions_path is None or self.about_path is None:
+            return
+        if isinstance(self.about_config, TOMLDocument):
+            TOMLFile(self.about_path).write(self.about_config)
+        if isinstance(self.sessions_config, TOMLDocument):
+            TOMLFile(self.sessions_path).write(self.sessions_config)
 
     def _collect_sessions_info(self) -> None:
         """Collect sanitized, reportable session and frame information."""
@@ -319,6 +509,7 @@ class ProcessedTarget:
         prune_empty_stages(self.default_stages)
         if self.config_valid:
             self.repo.write_config()
+            self._write_metadata_files()
         else:
             logging.debug("ProcessedTarget config marked invalid, not writing to disk")
 

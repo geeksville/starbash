@@ -1,0 +1,14 @@
+# About the target and processing. This file is regenerated each processing run.
+[about]
+summary = """
+## Processing summary
+
+- **Sessions:** $num_sessions
+- **Total exposure:** $total_exposure_hours hours
+- **Filters used:** $filters_used
+- **Observation dates:** $observation_dates
+"""
+
+target.id = "$target"
+target.ra = "$target_ra"
+target.dec = "$target_dec"

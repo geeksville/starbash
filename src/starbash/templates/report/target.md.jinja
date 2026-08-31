@@ -7,6 +7,10 @@ title: "{{ target.name }}"
 
 {{ about.summary | default('Processed astrophotography target.') }}
 
+{% if workflow_url %}
+[View processing workflow]({{ workflow_url }})
+{% endif %}
+
 {% for image in images %}
 ![{{ target.name }}]({{ image }})
 {% endfor %}
