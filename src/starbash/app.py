@@ -10,7 +10,6 @@ from typing import Any
 
 import rich.console
 import typer
-from astropy.io import fits
 from rich.logging import RichHandler
 from rich.progress import track
 from toml_repo import Repo, RepoManager, get_config_suffix
@@ -39,6 +38,7 @@ from starbash.database import (
 )
 from starbash.dwarf3 import extend_dwarf3_headers
 from starbash.exception import NonSoftwareError, UserHandledError, raise_missing_repo
+from starbash.fits import read_fits_header
 from starbash.linux import linux_init
 from starbash.os import symlink_or_copy
 from starbash.paths import get_user_config_dir, get_user_config_path
@@ -719,31 +719,24 @@ class Starbash:
 
         if not found or force:
             # Read and log the primary header (HDU 0)
-            with fits.open(str(f), memmap=False) as hdul:
-                # convert headers to dict
-                hdu0: Any = hdul[0]
-                header = hdu0.header
-                if type(header).__name__ == "Unknown":
-                    raise ValueError("FITS header has Unknown type: %s", f)
+            headers = read_fits_header(f)
+            if not whitelist:
+                headers = dict(headers)
+            else:
+                headers = {key: value for key, value in headers.items() if key in whitelist}
 
-                items = header.items()
-                headers = {}
-                for key, value in items:
-                    if (not whitelist) or (key in whitelist):
-                        headers[key] = value
+            # Add any extra metadata if it was missing in the existing headers
+            for key, value in extra_metadata.items():
+                headers.setdefault(key, value)
 
-                # Add any extra metadata if it was missing in the existing headers
-                for key, value in extra_metadata.items():
-                    headers.setdefault(key, value)
+            # Store relative path in database (use POSIX-style forward slashes for consistency)
+            headers["path"] = relative_path_str
+            if self._extend_image_header(headers, f):
+                image_doc_id = self.db.upsert_image(headers, repo.url)
+                headers[Database.ID_KEY] = image_doc_id
 
-                # Store relative path in database (use POSIX-style forward slashes for consistency)
-                headers["path"] = relative_path_str
-                if self._extend_image_header(headers, f):
-                    image_doc_id = self.db.upsert_image(headers, repo.url)
-                    headers[Database.ID_KEY] = image_doc_id
-
-                    if not found:  # allow a session to also be created
-                        return headers
+                if not found:  # allow a session to also be created
+                    return headers
 
         return None
 

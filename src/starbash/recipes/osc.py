@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from starbash.exception import NotEnoughFilesError
+from starbash.fits import read_dimensions
 from starbash.siril.import_registration import parse_siril_conversion, parse_siril_seq
 from starbash.tool import tools
 
@@ -66,9 +67,7 @@ def _update_ha_registration_metrics() -> None:
         assert len(set(updates)) == len(updates)
         assert len(updates) == expected_count
         if len(updates) != expected_count:
-            raise ValueError(
-                f"Mapped {len(updates)} selected images, expected {expected_count}"
-            )
+            raise ValueError(f"Mapped {len(updates)} selected images, expected {expected_count}")
         updated_count = updater(updates)
         assert updated_count == expected_count
         logger.info("Registration update: updated %d source image records", updated_count)
@@ -82,6 +81,36 @@ def fix_sequence_name(path: str) -> str:
     if base.endswith("_.seq"):
         base = base[: -len("_.seq")]
     return base
+
+
+def _crop_rectangle(width: int, height: int, crop_percent: int = 90) -> tuple[int, int, int, int]:
+    """Calculate a centered crop rectangle for an image."""
+    if width <= 0 or height <= 0:
+        raise ValueError(f"Image dimensions must be positive, got {width}x{height}")
+    if not 0 < crop_percent <= 100:
+        raise ValueError(f"crop_percent must be between 1 and 100, got {crop_percent}")
+
+    crop_width = width * crop_percent // 100
+    crop_height = height * crop_percent // 100
+    crop_x = (width - crop_width) // 2
+    crop_y = (height - crop_height) // 2
+    return crop_x, crop_y, crop_width, crop_height
+
+
+def _crop_final_files(final_paths: list[Path]) -> None:
+    """Crop final OSC outputs in place using Siril's image crop command."""
+    commands = ""
+    for final_path in final_paths:
+        width, height = read_dimensions(final_path)
+        crop_x, crop_y, crop_width, crop_height = _crop_rectangle(width, height)
+        commands += f"""
+            load "{final_path}"
+            crop {crop_x} {crop_y} {crop_width} {crop_height}
+            save "{final_path}"
+            """
+
+    if commands:
+        siril.run(commands, context=context, cwd=context["process_dir"])
 
 
 def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str) -> None:
@@ -148,7 +177,7 @@ def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str
         # FIXME make drizzle optional
         # note: it is better to do filtering at this stage than when stacking,
         # because it keeps a record of which frames were dropped
-        seqapplyreg {registration_input} -drizzle -framing=cog -filter-wfwhm=80% -filter-round=80% -filter-bkg=80%
+        seqapplyreg {registration_input} -drizzle -framing=max -filter-wfwhm=80% -filter-round=80% -filter-bkg=80%
 
         # Winsorized Sigma Clipping (w 3 3) with Average rejection to nuke airplane/satellite trails.
         # Trail pixels are bright statistical outliers vs same pixel in other frames, so sigma high 3.0
@@ -158,11 +187,11 @@ def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str
         #stack r_{registration_input} rej w 3 3 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
         stack r_{registration_input} rej w 3 3 -norm=addscale -output_norm -32b -out={output_file}
 
-        # and flip if required
         mirrorx_single {output_file}
         """
 
     siril.run(commands, context=context, cwd=context["process_dir"])
+
 
 def make_renormalize(channel_num: int) -> None:
     """
@@ -181,10 +210,12 @@ def make_renormalize(channel_num: int) -> None:
     os.makedirs(results_dir, exist_ok=True)
 
     commands = ""
+    final_paths: list[Path] = []
 
     if channel_num == 1:
         # Only one channel - just copy it - eventually we'll add other metadata
         final_path = f"{results_dir}/stacked.fits"
+        final_paths.append(Path(final_path))
         commands += f"""
             load results_00001
             save "{final_path}"
@@ -200,6 +231,7 @@ def make_renormalize(channel_num: int) -> None:
 
         ha_final_path = f"{results_dir}/stacked_Ha.fits"
         oiii_final_path = f"{results_dir}/stacked_OIII.fits"
+        final_paths.extend([Path(ha_final_path), Path(oiii_final_path)])
 
         # Pixel math formula for renormalization.
         # It matches the median and spread (MAD) of a channel to a reference channel (Ha).
@@ -226,6 +258,7 @@ def make_renormalize(channel_num: int) -> None:
         logger.info("Doing renormalisation of extra Sii channel")
 
         sii_final_path = f"{results_dir}/stacked_Sii.fits"
+        final_paths.append(Path(sii_final_path))
         r_sii = f"r_{sii_base}"
         pm_sii = f'"${r_sii}$*mad(${r_ha}$)/mad(${r_sii}$)-mad(${r_ha}$)/mad(${r_sii}$)*median(${r_sii}$)+median(${r_ha}$)"'
         commands += f"""
@@ -235,6 +268,7 @@ def make_renormalize(channel_num: int) -> None:
             """
 
     siril.run(commands, context=context, cwd=context["process_dir"])
+    _crop_final_files(final_paths)
     logger.info(f"Saved final renormalized images to {results_dir}")
 
 
