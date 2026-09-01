@@ -28,6 +28,13 @@ class GitHubAuthenticationError(GitHubError):
     """The saved access token was rejected by GitHub."""
 
 
+class GitHubTimeoutError(GitHubError):
+    """A GitHub request timed out."""
+
+
+GITHUB_REQUEST_ATTEMPTS = 3
+
+
 @dataclass(frozen=True)
 class DeviceCode:
     device_code: str
@@ -97,6 +104,37 @@ class GitHubService:
         payload: dict[str, Any] | None = None,
         _retried_after_refresh: bool = False,
     ) -> dict[str, Any]:
+        """Make a GitHub request, retrying transient timeouts."""
+        for attempt in range(1, GITHUB_REQUEST_ATTEMPTS + 1):
+            try:
+                return self._request_once(
+                    method, url, payload, _retried_after_refresh
+                )
+            except GitHubTimeoutError:
+                if attempt == GITHUB_REQUEST_ATTEMPTS:
+                    logger.warning(
+                        "GitHub request timed out after %d attempts: %s %s",
+                        GITHUB_REQUEST_ATTEMPTS,
+                        method,
+                        url,
+                    )
+                    raise
+                logger.warning(
+                    "GitHub request timed out; retrying (attempt %d/%d): %s %s",
+                    attempt + 1,
+                    GITHUB_REQUEST_ATTEMPTS,
+                    method,
+                    url,
+                )
+        raise AssertionError("unreachable")
+
+    def _request_once(
+        self,
+        method: str,
+        url: str,
+        payload: dict[str, Any] | None = None,
+        _retried_after_refresh: bool = False,
+    ) -> dict[str, Any]:
         headers = {
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": self.api_version,
@@ -122,8 +160,10 @@ class GitHubService:
                 return result
         except urllib.error.HTTPError as exc:
             response_body = exc.read().decode("utf-8", errors="replace")
+            parsed_response: Any = None
             try:
-                response_body = repr(self._safe_response(json.loads(response_body)))
+                parsed_response = json.loads(response_body)
+                response_body = repr(self._safe_response(parsed_response))
             except json.JSONDecodeError:
                 response_body = response_body[:1000]
             logger.debug(
@@ -133,6 +173,10 @@ class GitHubService:
                 exc.code,
                 response_body,
             )
+            if exc.code == 422 and isinstance(parsed_response, dict):
+                message = parsed_response.get("message")
+                if isinstance(message, str) and "timed out" in message.lower():
+                    raise GitHubTimeoutError("GitHub request timed out") from exc
             if exc.code == 404:
                 raise GitHubError("GitHub resource was not found") from exc
             if exc.code == 401:
@@ -158,6 +202,11 @@ class GitHubService:
             raise GitHubError(f"GitHub API request failed ({exc.code})") from exc
         except (urllib.error.URLError, TimeoutError) as exc:
             logger.debug("GitHub request failed: %s %s error=%r", method, url, exc)
+            if isinstance(exc, TimeoutError) or (
+                isinstance(exc, urllib.error.URLError)
+                and isinstance(exc.reason, TimeoutError)
+            ):
+                raise GitHubTimeoutError("GitHub request timed out") from exc
             raise GitHubError("Could not connect to GitHub") from exc
 
     def device_code(self, client_id: str, scope: str = "repo offline_access") -> DeviceCode:
@@ -349,8 +398,11 @@ class GitHubService:
         )
 
     def create_blob(self, owner: str, name: str, content: bytes) -> str:
+        """Create a Git blob."""
         encoded = base64.b64encode(content).decode("ascii")
-        return str(self._request("POST", f"{self.api}/repos/{owner}/{name}/git/blobs", {"content": encoded, "encoding": "base64"})["sha"])
+        url = f"{self.api}/repos/{owner}/{name}/git/blobs"
+        payload = {"content": encoded, "encoding": "base64"}
+        return str(self._request("POST", url, payload)["sha"])
 
     def create_tree(self, owner: str, name: str, entries: list[dict[str, str]]) -> str:
         return str(self._request("POST", f"{self.api}/repos/{owner}/{name}/git/trees", {"tree": entries})["sha"])

@@ -6,7 +6,7 @@ import urllib.parse
 
 import pytest
 
-from starbash.publish.github_service import GitHubAuthenticationError, GitHubService
+from starbash.publish.github_service import GitHubAuthenticationError, GitHubError, GitHubService
 
 
 class FakeResponse:
@@ -172,3 +172,72 @@ def test_request_raises_authentication_error_after_refresh_retry_fails():
 
     with pytest.raises(GitHubAuthenticationError, match="publish github --login"):
         service.user()
+
+
+def test_create_blob_retries_timeouts_up_to_three_attempts(caplog):
+    """GitHub calls retry transient timeouts and warn about each retry."""
+    attempts = 0
+
+    def opener(request):
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise TimeoutError("timed out")
+        return FakeResponse({"sha": "blob-sha"})
+
+    service = GitHubService(opener=opener)
+
+    with caplog.at_level("WARNING"):
+        assert service.create_blob("owner", "repo", b"content") == "blob-sha"
+
+    assert attempts == 3
+    assert caplog.messages == [
+        "GitHub request timed out; retrying (attempt 2/3): POST "
+        "https://api.github.com/repos/owner/repo/git/blobs",
+        "GitHub request timed out; retrying (attempt 3/3): POST "
+        "https://api.github.com/repos/owner/repo/git/blobs",
+    ]
+
+
+def test_create_blob_stops_after_three_timeouts(caplog):
+    """GitHub calls stop retrying after three timed-out attempts."""
+    attempts = 0
+
+    def opener(request):
+        nonlocal attempts
+        attempts += 1
+        raise TimeoutError("timed out")
+
+    service = GitHubService(opener=opener)
+
+    with caplog.at_level("WARNING"), pytest.raises(GitHubError, match="timed out"):
+        service.create_blob("owner", "repo", b"content")
+
+    assert attempts == 3
+    assert caplog.messages[-1] == (
+        "GitHub request timed out after 3 attempts: POST "
+        "https://api.github.com/repos/owner/repo/git/blobs"
+    )
+
+
+def test_create_tree_retries_github_timeout_responses(caplog):
+    """GitHub timeout responses are retried for tree creation too."""
+    attempts = 0
+
+    def opener(request):
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise http_error(
+                422,
+                {"message": "Sorry, your request timed out. It's likely too large."},
+            )
+        return FakeResponse({"sha": "tree-sha"})
+
+    service = GitHubService(opener=opener)
+
+    with caplog.at_level("WARNING"):
+        assert service.create_tree("owner", "repo", []) == "tree-sha"
+
+    assert attempts == 3
+    assert len(caplog.records) == 2
