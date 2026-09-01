@@ -151,6 +151,9 @@ class GitHubPublisher:
         layouts.mkdir(exist_ok=True)
         default_layout = resources.files("starbash.templates.report").joinpath("default.html")
         (layouts / "default.html").write_text(default_layout.read_text(encoding="utf-8"), encoding="utf-8")
+        favicon = resources.files("starbash.assets").joinpath("favicon.ico")
+        with favicon.open("rb") as source, (self.site_dir / "favicon.ico").open("wb") as destination:
+            shutil.copyfileobj(source, destination)
         index_targets: list[dict[str, Any]] = []
         for directory, document in self._targets(root):
             about = document.get("about", {})

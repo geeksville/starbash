@@ -47,6 +47,12 @@ def test_publisher_reads_split_target_and_publishes_main_toml(tmp_path):
     assert "../../assets/targets/m-42/main.toml" in post.read_text()
     assert 'image: "/assets/targets/m-42/M 42.jpg"' in post.read_text()
     assert "baseurl: /starbash-public" in (tmp_path / "site" / "_config.yml").read_text()
+    assert (tmp_path / "site" / "favicon.ico").read_bytes() == (
+        Path(__file__).parents[2] / "src" / "starbash" / "assets" / "favicon.ico"
+    ).read_bytes()
+    assert "href=\"{{ '/favicon.ico' | relative_url }}\"" in (
+        tmp_path / "site" / "_layouts" / "default.html"
+    ).read_text()
 
 
 def test_publisher_renders_github_username_in_target_title(tmp_path):
