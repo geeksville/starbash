@@ -3,3 +3,5 @@ markdown: kramdown
 permalink: pretty
 timezone: UTC
 theme: jekyll-theme-midnight
+plugins:
+  - jekyll-seo-tag

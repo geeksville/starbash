@@ -137,9 +137,9 @@ class GitHubPublisher:
         (self.site_dir / "_config.yml").write_text(
             config.read_text(encoding="utf-8"), encoding="utf-8"
         )
+        gemfile = resources.files("starbash.templates.report").joinpath("Gemfile")
         (self.site_dir / "Gemfile").write_text(
-            'source "https://rubygems.org"\n'
-            'gem "github-pages", group: :jekyll_plugins\n'
+            gemfile.read_text(encoding="utf-8"), encoding="utf-8"
         )
         layouts = self.site_dir / "_layouts"
         layouts.mkdir(exist_ok=True)
@@ -159,6 +159,11 @@ class GitHubPublisher:
             if isinstance(summary, str):
                 about = {**about, "summary": summary}
             name = str(target.get("id") or directory.name)
+            description = about.get("description")
+            if not isinstance(description, str) or not description.strip():
+                description = about.get("summary")
+            if not isinstance(description, str) or not description.strip():
+                description = f"Processed Starbash target: {name}."
             slug = slugify(name)
             asset_dir = assets_root / slug
             asset_dir.mkdir(parents=True, exist_ok=True)
@@ -192,11 +197,14 @@ class GitHubPublisher:
                         "chart": f"../../assets/targets/{slug}/{chart_name}",
                     }
                 )
+            page_images = [f"../../{url}" for url in image_urls]
             page_name = f"{slug}.md"
             post = self.environment.get_template("target.md.jinja").render(
                 target={**target, "name": name},
                 about=about,
-                images=[f"../../{s}" for s in image_urls],
+                description=description,
+                images=page_images,
+                image=page_images[0] if page_images else None,
                 sessions=sessions,
                 workflow_url=f"../../assets/targets/{slug}/main.toml",
             )

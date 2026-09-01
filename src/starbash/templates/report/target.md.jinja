@@ -1,6 +1,8 @@
 ---
 layout: default
 title: "{{ target.name }}"
+description: {{ description | default('Processed Starbash target.', true) | tojson }}
+{% if image is defined and image %}image: {{ image | tojson }}{% endif %}
 ---
 
 # {{ target.name }}

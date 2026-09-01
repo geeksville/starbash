@@ -257,12 +257,19 @@ format:
 test:
     poetry run pytest # test must pass
 
-# Regenerate and serve the local Jekyll report site.
-site-view:
+# Regenerate the local Jekyll report site.
+site-rewrite:
     sb publish github rewrite
-    bundle install --quiet --gemfile ~/.local/state/starbash/publish/site/Gemfile
-    bundle exec --gemfile ~/.local/state/starbash/publish/site/Gemfile jekyll build --source ~/.local/state/starbash/publish/site --destination ~/.local/state/starbash/publish/site/_site
-    bundle exec --gemfile ~/.local/state/starbash/publish/site/Gemfile jekyll serve --source ~/.local/state/starbash/publish/site --destination ~/.local/state/starbash/publish/site/_site
+
+# serve the local Jekyll report site.
+site-serve:
+    sb publish github rewrite
+    sudo bundle install --quiet --gemfile ~/.local/state/starbash/publish/site/Gemfile
+    bundle exec --gemfile ~/.local/state/starbash/publish/site/Gemfile jekyll build --source ~/.local/state/starbash/publish/site --destination ~/.local/state/starbash/publish/_site
+    bundle exec --gemfile ~/.local/state/starbash/publish/site/Gemfile jekyll serve --source ~/.local/state/starbash/publish/site --destination ~/.local/state/starbash/publish/_site
+
+# Regenerate and serve the local Jekyll report site.
+site-view: site-rewrite site-serve
 
 # a slow through test
 test-slow: test process-one

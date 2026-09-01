@@ -62,3 +62,21 @@ def test_target_template_renders_workflow_link():
     )
 
     assert "[View processing workflow](../../assets/targets/m42/main.toml)" in output
+
+
+def test_target_template_renders_frontmatter_description_and_first_image():
+    """Render SEO metadata from the page description and first page image."""
+    environment = Environment(loader=PackageLoader("starbash", "templates/report"))
+    template = environment.get_template("target.md.jinja")
+
+    output = template.render(
+        target={"name": "M42"},
+        about={},
+        description="A nebula image",
+        image="../../assets/targets/m42/hero.jpg",
+        images=["../../assets/targets/m42/hero.jpg", "../../assets/targets/m42/other.jpg"],
+        sessions=[],
+    )
+
+    assert 'description: "A nebula image"' in output
+    assert 'image: "../../assets/targets/m42/hero.jpg"' in output

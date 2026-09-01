@@ -36,17 +36,3 @@ You need to inject this tracking script into the <head> section of your website.
   {% include google-analytics.html %}
 </head>
 
-## Step 4: Deploy and Verify
-Commit your changes and push them to GitHub.
-Because of the environment check code used in Step 2, you must build your site with the production environment flag if you want to test it locally:
-
-JEKYLL_ENV=production bundle exec jekyll serve
-
-To see if it works on your live GitHub Pages site, open your webpage in a browser, then check the Realtime report inside your Google Analytics dashboard to see your active visit.
-If you hit any snags, let me know:
-
-* What Jekyll theme are you using? (Some themes have this built into a specific file name).
-* Do you see any errors when you build your site?
-* Do you want to track custom events, like when someone clicks a specific link in your Markdown?
-
-
