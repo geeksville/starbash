@@ -936,6 +936,65 @@ class TestStarnetRecipe:
         assert names.index("palette.sho") < names.index("starnet")
 
 
+class TestCropRecipe:
+    """Tests that the generalized crop recipe is wired correctly."""
+
+    def _load_recipe(self):
+        import tomlkit
+
+        recipe = (
+            Path(__file__).parents[2] / "starbash-recipes" / "common" / "crop.toml"
+        )
+        return tomlkit.parse(recipe.read_text())
+
+    def test_stage_is_multiplexed_after_stack(self):
+        doc = self._load_recipe()
+        stage = doc["stages"][0]
+        input_def = stage["inputs"][0]
+
+        assert stage["name"] == "crop"
+        assert stage["tool"]["name"] == "python"
+        assert input_def["after"] == "stack_.*"
+        assert input_def["multiplex"] is True
+        assert input_def["requires"][0]["value"] == 1
+        assert 'context["input"][0]' in stage["script"]
+        assert 'context["output"]' in stage["script"]
+
+    def test_stage_parameters_and_output(self):
+        doc = self._load_recipe()
+        stage = doc["stages"][0]
+        params = {p["name"]: p for p in stage["parameters"]}
+
+        assert params["crop_percent"]["default"] == 90
+        assert params["rotate_deg"]["default"] == 0
+        assert stage["outputs"][0]["auto"]["prefix"] == "crop_"
+
+    def test_default_manifest_includes_crop_recipe(self):
+        import tomlkit
+
+        manifest = tomlkit.parse(
+            (
+                Path(__file__).parents[2]
+                / "starbash-recipes"
+                / "starbash.toml"
+            ).read_text()
+        )
+        refs = [ref.get("dir") for ref in manifest["repo-ref"]]
+        assert "common/crop.toml" in refs
+
+    def test_background_follows_crop(self):
+        import tomlkit
+
+        recipe = (
+            Path(__file__).parents[2]
+            / "starbash-recipes"
+            / "graxpert"
+            / "background.toml"
+        )
+        doc = tomlkit.parse(recipe.read_text())
+        assert doc["stages"][0]["inputs"][0]["after"] == "crop"
+
+
 class TestMergeStarsRecipe:
     """Tests that the merge_stars recipe is wired correctly."""
 
