@@ -410,6 +410,20 @@ class TestPythonTool:
             # The error is wrapped, so we get the generic message
             assert "Python script error" in str(exc_info.value)
 
+    def test_python_tool_hides_unused_print_collector_warning(self):
+        """Recipe compilation does not expose RestrictedPython internals to users."""
+        import warnings
+
+        tool = PythonTool()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                tool.run("print('hello')", {}, temp_dir)
+
+        assert not any(
+            "never reads 'printed' variable" in str(warning.message) for warning in caught
+        )
+
     def test_python_tool_changes_directory(self):
         """Test that Python tool changes to the working directory."""
         tool = PythonTool()

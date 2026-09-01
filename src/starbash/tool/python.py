@@ -6,6 +6,7 @@ import linecache
 import logging
 import os
 import traceback
+import warnings
 from typing import Any
 
 from RestrictedPython.compile import compile_restricted
@@ -40,9 +41,7 @@ class PythonScriptError(UserHandledError):
         message = str(self)
         bt = ""
         if self.__cause__:
-            bt = "Traceback" + "  \n".join(
-                traceback.format_exception(self.__cause__)
-                )
+            bt = "Traceback" + "  \n".join(traceback.format_exception(self.__cause__))
 
         console.print(
             f"""[red]Python Script Error[/red] please contact the script author and
@@ -54,7 +53,7 @@ class PythonScriptError(UserHandledError):
 
         # way too verbose (but pretty colors)
         # Show the traceback with Rich formatting
-        #if self.__cause__:
+        # if self.__cause__:
         #    traceback = Traceback.from_exception(
         #        type(self.__cause__),
         #        self.__cause__,
@@ -62,7 +61,7 @@ class PythonScriptError(UserHandledError):
         #        show_locals=True,
         #    )
         #    console.print(traceback)
-        #else:
+        # else:
         #    console.print(f"[yellow]{str(self)}[/yellow]")
 
         return True
@@ -82,22 +81,21 @@ class PermissiveNodeTransformer(RestrictingNodeTransformer):
             return
 
         # FIXME, nasty hack to allow __name__ to work in our test of siril scripts
-        allow_magic_methods= True
+        allow_magic_methods = True
 
         allowed_func_names = set(ALLOWED_FUNC_NAMES)
-        allowed_func_names.add('__name__')
+        allowed_func_names.add("__name__")
 
-        if (name.startswith('_')
-                and name != '_'
-                and not (allow_magic_methods
-                         and name in allowed_func_names
-                         and node.col_offset != 0)):
+        if (
+            name.startswith("_")
+            and name != "_"
+            and not (allow_magic_methods and name in allowed_func_names and node.col_offset != 0)
+        ):
+            self.error(node, f'"{name}" is an invalid variable name because it starts with "_"')
+        elif name.endswith("__roles__"):
             self.error(
-                node,
-                f'"{name}" is an invalid variable name because it '
-                'starts with "_"')
-        elif name.endswith('__roles__'):
-            self.error(node, '"%s" is an invalid variable name because it ends with "__roles__".' % name)  # noqa: UP031
+                node, f'"{name}" is an invalid variable name because it ends with "__roles__".'
+            )
         elif name in FORBIDDEN_FUNC_NAMES:
             self.error(node, f'"{name}" is a reserved name.')
 
@@ -111,31 +109,32 @@ class PermissiveNodeTransformer(RestrictingNodeTransformer):
         The _write_ function should return a security proxy.
         """
         # FIXME - disabled so that __init__ and others can be used in scripts
-        #if node.attr.startswith('_') and node.attr != '_':
+        # if node.attr.startswith('_') and node.attr != '_':
         #    self.error(
         #        node,
         #        f'"{node.attr}" is an invalid attribute name because it starts '
         #        'with "_".')
 
-        if node.attr.endswith('__roles__'):
+        if node.attr.endswith("__roles__"):
             self.error(
                 node,
-                f'"{node.attr}" is an invalid attribute name because it ends '
-                'with "__roles__".')
+                f'"{node.attr}" is an invalid attribute name because it ends with "__roles__".',
+            )
 
         if node.attr in INSPECT_ATTRIBUTES:
             self.error(
                 node,
                 f'"{node.attr}" is a restricted name,'
-                ' that is forbidden to access in RestrictedPython.',
+                " that is forbidden to access in RestrictedPython.",
             )
 
         if isinstance(node.ctx, ast.Load):
             node = self.node_contents_visit(node)
             new_node = ast.Call(
-                func=ast.Name('_getattr_', ast.Load()),
+                func=ast.Name("_getattr_", ast.Load()),
                 args=[node.value, ast.Constant(node.attr)],  # pyright: ignore[reportAttributeAccessIssue]
-                keywords=[])
+                keywords=[],
+            )
 
             copy_locations(new_node, node)
             return new_node
@@ -143,9 +142,10 @@ class PermissiveNodeTransformer(RestrictingNodeTransformer):
         elif isinstance(node.ctx, (ast.Store, ast.Del)):
             node = self.node_contents_visit(node)
             new_value = ast.Call(
-                func=ast.Name('_write_', ast.Load()),
+                func=ast.Name("_write_", ast.Load()),
                 args=[node.value],  # pyright: ignore[reportAttributeAccessIssue]
-                keywords=[])
+                keywords=[],
+            )
 
             copy_locations(new_value, node.value)  # pyright: ignore[reportAttributeAccessIssue]
             node.value = new_value  # pyright: ignore[reportAttributeAccessIssue]
@@ -153,8 +153,8 @@ class PermissiveNodeTransformer(RestrictingNodeTransformer):
 
         else:  # pragma: no cover
             # Impossible Case only ctx Load, Store and Del are defined in ast.
-            raise NotImplementedError(
-                f"Unknown ctx type: {type(node.ctx)}")
+            raise NotImplementedError(f"Unknown ctx type: {type(node.ctx)}")
+
 
 class PythonTool(Tool):
     """Expose Python as a tool"""
@@ -166,7 +166,12 @@ class PythonTool(Tool):
         self.default_script_file = "starbash.py"
 
     def _run(
-        self, cwd: str, commands: str | list[str], context: dict = {}, log_out: io.TextIOWrapper | None = None, **kwargs: dict[str, Any]
+        self,
+        cwd: str,
+        commands: str | list[str],
+        context: dict = {},
+        log_out: io.TextIOWrapper | None = None,
+        **kwargs: dict[str, Any],
     ) -> None:
         assert isinstance(commands, str), "Python tool requires commands as a string, not a list"
         original_cwd = os.getcwd()
@@ -182,16 +187,21 @@ class PythonTool(Tool):
 
                 # Cache the source code so tracebacks show proper line numbers
                 lines = commands.splitlines(keepends=True)
-                linecache.cache[script_filename] = (
-                    len(commands),
-                    None,
-                    lines,
-                    script_filename
-                )
+                linecache.cache[script_filename] = (len(commands), None, lines, script_filename)
 
-                byte_code = compile_restricted(
-                    commands, filename=script_filename, mode="exec", policy=PermissiveNodeTransformer
-                )
+                with warnings.catch_warnings():
+                    warnings.simplefilter("default")
+                    warnings.filterwarnings(
+                        "ignore",
+                        message=r"Line .*: Prints, but never reads 'printed' variable\.",
+                        category=SyntaxWarning,
+                    )
+                    byte_code = compile_restricted(
+                        commands,
+                        filename=script_filename,
+                        mode="exec",
+                        policy=PermissiveNodeTransformer,
+                    )
                 # No locals yet
                 execution_locals = None
                 globals = {"context": context}
