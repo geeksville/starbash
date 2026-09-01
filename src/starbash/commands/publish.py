@@ -27,10 +27,10 @@ UPLOAD_PATH_BLACKLIST = ("Gemfile",)
 MAX_BLOB_UPLOADS = 4
 
 
-def _rewrite() -> Path:
+def _rewrite(github_username: str | None = None) -> Path:
     site: Path | None = None
     with Starbash("publish.github.rewrite") as sb:
-        site = GitHubPublisher(sb).publish()
+        site = GitHubPublisher(sb, github_username=github_username).publish()
     assert site is not None
     console.print(f"Generated site: {site}")
     return site
@@ -248,7 +248,18 @@ def _publish_github(dry_run: bool, login: bool) -> None:
             if credential is None:
                 credential = _authenticate()
 
-    site = _rewrite()
+    service: GitHubService | None = None
+    owner: str | None = None
+    if not dry_run:
+        assert credential is not None
+        service = _credential_service(credential)
+        if credential.needs_refresh() and credential.refresh_token:
+            service.apply_token_response(
+                service.refresh_access_token(CLIENT_ID, credential.refresh_token)
+            )
+        owner = str(service.user()["login"])
+
+    site = _rewrite(owner) if owner else _rewrite()
     files = sorted(
         path
         for path in site.rglob("*")
@@ -271,13 +282,10 @@ def _publish_github(dry_run: bool, login: bool) -> None:
         console.print("No GitHub repository, branch, commit, or Pages configuration was changed.")
         return
     assert credential is not None
+    assert service is not None
+    assert owner is not None
     with analytics_start_span(name="github", op="upload"):
-        service = _credential_service(credential)
         try:
-            if credential.needs_refresh() and credential.refresh_token:
-                service.apply_token_response(
-                    service.refresh_access_token(CLIENT_ID, credential.refresh_token)
-                )
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
@@ -288,7 +296,6 @@ def _publish_github(dry_run: bool, login: bool) -> None:
             ) as progress:
                 operation = progress.add_task("Contacting GitHub", total=8 + len(files))
 
-                owner = str(service.user()["login"])
                 pages_url = f"https://{owner}.github.io/starbash-public/"
                 progress.update(operation, description=f"Authenticated as {owner}", advance=1)
                 _require_app_installation(service)

@@ -64,9 +64,15 @@ def equipment_rows(equipment: Any) -> list[dict[str, str | None]]:
 class GitHubPublisher:
     """Generate a complete local Jekyll site from one processed repository."""
 
-    def __init__(self, sb: Any, site_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        sb: Any,
+        site_dir: Path | None = None,
+        github_username: str | None = None,
+    ) -> None:
         self.sb = sb
         self.site_dir = site_dir or get_publish_site_dir()
+        self.github_username = github_username
         self.environment = Environment(loader=PackageLoader("starbash", "templates/report"))
 
     def _processed_root(self) -> Path:
@@ -198,13 +204,15 @@ class GitHubPublisher:
                     }
                 )
             page_images = [f"../../{url}" for url in image_urls]
+            seo_image = f"/{image_urls[0]}" if image_urls else None
             page_name = f"{slug}.md"
             post = self.environment.get_template("target.md.jinja").render(
                 target={**target, "name": name},
                 about=about,
                 description=description,
+                github_username=self.github_username,
                 images=page_images,
-                image=page_images[0] if page_images else None,
+                image=seo_image,
                 sessions=sessions,
                 workflow_url=f"../../assets/targets/{slug}/main.toml",
             )

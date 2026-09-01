@@ -1,6 +1,6 @@
 ---
 layout: default
-title: "{{ target.name }}"
+title: {{ (target.name ~ ' by ' ~ (github_username | default('Starbash', true))) | tojson }}
 description: {{ description | default('Processed Starbash target.', true) | tojson }}
 {% if image is defined and image %}image: {{ image | tojson }}{% endif %}
 ---

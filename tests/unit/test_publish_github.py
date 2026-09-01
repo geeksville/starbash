@@ -14,6 +14,14 @@ def _publisher(tmp_path: Path) -> GitHubPublisher:
     return GitHubPublisher(sb, tmp_path / "site")
 
 
+def _publisher_for_user(tmp_path: Path, username: str) -> GitHubPublisher:
+    processed = tmp_path / "processed"
+    processed.mkdir(exist_ok=True)
+    repo = SimpleNamespace(get_path=lambda: processed)
+    sb = SimpleNamespace(repo_manager=SimpleNamespace(get_repos_by_kind=lambda kind: [repo]))
+    return GitHubPublisher(sb, tmp_path / "site", github_username=username)
+
+
 def test_publisher_reads_split_target_and_publishes_main_toml(tmp_path):
     """The publisher discovers split metadata and copies the workflow file."""
     processed = tmp_path / "processed"
@@ -27,6 +35,7 @@ def test_publisher_reads_split_target_and_publishes_main_toml(tmp_path):
     (metadata / "sessions.toml").write_text(
         '[[sessions]]\ndate = "2026-08-31"\nframes = []\n'
     )
+    (target / "M 42.jpg").write_bytes(b"jpeg")
 
     publisher = _publisher(tmp_path)
     publisher.publish()
@@ -36,6 +45,23 @@ def test_publisher_reads_split_target_and_publishes_main_toml(tmp_path):
     assert asset.read_text() == (metadata / "main.toml").read_text()
     assert "View processing workflow" in post.read_text()
     assert "../../assets/targets/m-42/main.toml" in post.read_text()
+    assert 'image: "/assets/targets/m-42/M 42.jpg"' in post.read_text()
+    assert "baseurl: /starbash-public" in (tmp_path / "site" / "_config.yml").read_text()
+
+
+def test_publisher_renders_github_username_in_target_title(tmp_path):
+    """The publisher passes the authenticated GitHub username to Jinja."""
+    processed = tmp_path / "processed"
+    target = processed / "M 42"
+    metadata = target / ".starbash"
+    metadata.mkdir(parents=True)
+    (metadata / "main.toml").write_text('[repo]\nkind = "processed-target"\n')
+    (metadata / "about.toml").write_text('[target]\nid = "M 42"\n')
+
+    _publisher_for_user(tmp_path, "geeksville").publish()
+
+    post = (tmp_path / "site" / "targets" / "m-42.md").read_text()
+    assert 'title: "M 42 by geeksville"' in post
 
 
 def test_publisher_generates_distinct_pages_for_legacy_targets(tmp_path):

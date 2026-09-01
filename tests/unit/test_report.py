@@ -48,6 +48,22 @@ def test_target_template_renders_available_session_optics():
     assert "2.02 arcsec/pixel" in output
 
 
+def test_target_template_uses_github_owner_in_title():
+    """Render the known GitHub username into the target title."""
+    environment = Environment(loader=PackageLoader("starbash", "templates/report"))
+    template = environment.get_template("target.md.jinja")
+
+    output = template.render(
+        target={"name": "M42"},
+        about={},
+        github_username="geeksville",
+        images=[],
+        sessions=[],
+    )
+
+    assert 'title: "M42 by geeksville"' in output
+
+
 def test_target_template_renders_workflow_link():
     """Render the published link to the complete processing workflow."""
     environment = Environment(loader=PackageLoader("starbash", "templates/report"))
@@ -73,10 +89,10 @@ def test_target_template_renders_frontmatter_description_and_first_image():
         target={"name": "M42"},
         about={},
         description="A nebula image",
-        image="../../assets/targets/m42/hero.jpg",
+        image="/assets/targets/m42/hero.jpg",
         images=["../../assets/targets/m42/hero.jpg", "../../assets/targets/m42/other.jpg"],
         sessions=[],
     )
 
     assert 'description: "A nebula image"' in output
-    assert 'image: "../../assets/targets/m42/hero.jpg"' in output
+    assert 'image: "/assets/targets/m42/hero.jpg"' in output
