@@ -40,7 +40,7 @@ install-starnet:
 install-rc-astro:
     #!/usr/bin/env bash
     [ -f /usr/local/bin/rc-astro ] && exit 0
-    wget -O /tmp/rcastro.sh https://www.rc-astro-cdn.com/clients/2.6.4/rc-astro-cli-2.6.4-linux-x64.sh
+    wget -O /tmp/rcastro.sh https://www.rc-astro-cdn.com/clients/2.6.7/rc-astro-cli-2.6.7-linux-x64.sh
     chmod a+x /tmp/rcastro.sh
     /tmp/rcastro.sh
     sudo /tmp/rc-astro-cli/install.sh

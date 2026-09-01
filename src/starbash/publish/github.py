@@ -133,8 +133,9 @@ class GitHubPublisher:
         assets_root = self.site_dir / "assets" / "targets"
         posts.mkdir(parents=True, exist_ok=True)
         assets_root.mkdir(parents=True, exist_ok=True)
+        config = resources.files("starbash.templates.report").joinpath("_config.yml")
         (self.site_dir / "_config.yml").write_text(
-            "title: Starbash Images\nmarkdown: kramdown\npermalink: pretty\ntimezone: UTC\ntheme: jekyll-theme-midnight\n"
+            config.read_text(encoding="utf-8"), encoding="utf-8"
         )
         (self.site_dir / "Gemfile").write_text(
             'source "https://rubygems.org"\n'
