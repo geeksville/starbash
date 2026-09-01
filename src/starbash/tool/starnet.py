@@ -1,7 +1,6 @@
-
-
 import configparser
 import logging
+import shutil
 from pathlib import Path
 
 from platformdirs import PlatformDirs
@@ -25,16 +24,38 @@ class StarnetTool(SirilTool):
         return Path(PlatformDirs("siril").user_config_dir)
 
     def _starnet_configured(self) -> bool:
-        """True if any Siril config file has a non-empty ``starnet_exe`` in ``[core]``."""
+        """Ensure Siril has a usable ``starnet_exe`` and report whether it is configured."""
         config_dir = self._siril_config_dir()
         # Siril versions its config file (e.g. config.1.4.ini); check whichever exist.
-        for ini_path in sorted(config_dir.glob("config.*.ini")):
+        ini_paths = sorted(config_dir.glob("config.*.ini"))
+        for ini_path in ini_paths:
             parser = configparser.ConfigParser()
             try:
                 parser.read(ini_path)
             except (OSError, configparser.Error):
                 continue
             if parser.get("core", "starnet_exe", fallback="").strip():
+                return True
+
+        starnet_path = shutil.which("starnet2")
+        if starnet_path and ini_paths:
+            ini_path = ini_paths[-1]
+            parser = configparser.ConfigParser()
+            try:
+                parser.read(ini_path)
+                if not parser.has_section("core"):
+                    parser.add_section("core")
+                parser.set("core", "starnet_exe", str(Path(starnet_path).resolve()))
+                with ini_path.open("w", encoding="utf-8") as config_file:
+                    parser.write(config_file)
+            except (OSError, configparser.Error) as exc:
+                logger.warning("Unable to add starnet2 to Siril config %s: %s", ini_path, exc)
+            else:
+                logger.warning(
+                    "Added starnet2 at %s to the Siril config file %s",
+                    Path(starnet_path).resolve(),
+                    ini_path,
+                )
                 return True
         return False
 

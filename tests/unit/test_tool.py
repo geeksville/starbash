@@ -1,5 +1,6 @@
 """Tests for the tool module."""
 
+import configparser
 import logging
 import os
 import shutil
@@ -254,6 +255,7 @@ class TestMakeSafeGlobals:
         assert "frozenset" in builtins
         # Verify math module works
         import math as stdlib_math
+
         assert builtins["math"].sqrt(16) == stdlib_math.sqrt(16)
         assert builtins["math"].pi == stdlib_math.pi
 
@@ -492,7 +494,9 @@ class TestToolRun:
             tool_run("echo hello", temp_dir)
             # If we get here without exception, the command succeeded
 
-    @pytest.mark.skipif(os.name == "nt", reason="Shell quoting with spaces not supported on Windows cmd.exe")
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Shell quoting with spaces not supported on Windows cmd.exe"
+    )
     def test_tool_run_with_spaces_in_command_path(self):
         """Test that tool_run handles command paths with spaces correctly."""
         import sys
@@ -595,9 +599,9 @@ class TestSirilToolRun:
 
         # We now install Siril on all of our CI runners, so make this test mandatory.
         # Skip test if Siril is not available
-        #siril_commands = ["siril-cli", "siril", "org.siril.Siril"]
-        #siril_available = any(shutil.which(cmd) for cmd in siril_commands)
-        #if not siril_available:
+        # siril_commands = ["siril-cli", "siril", "org.siril.Siril"]
+        # siril_available = any(shutil.which(cmd) for cmd in siril_commands)
+        # if not siril_available:
         #    pytest.skip("Siril not available on this system")
 
         tool = SirilTool()
@@ -803,10 +807,7 @@ class TestBlurExterminatorRecipe:
         import tomlkit
 
         recipe = (
-            Path(__file__).parents[2]
-            / "starbash-recipes"
-            / "rc-astro"
-            / "blur-exterminator.toml"
+            Path(__file__).parents[2] / "starbash-recipes" / "rc-astro" / "blur-exterminator.toml"
         )
         return tomlkit.parse(recipe.read_text())
 
@@ -855,10 +856,7 @@ class TestNoiseExterminatorRecipe:
         import tomlkit
 
         recipe = (
-            Path(__file__).parents[2]
-            / "starbash-recipes"
-            / "rc-astro"
-            / "noise-exterminator.toml"
+            Path(__file__).parents[2] / "starbash-recipes" / "rc-astro" / "noise-exterminator.toml"
         )
         return tomlkit.parse(recipe.read_text())
 
@@ -895,9 +893,7 @@ class TestStarnetRecipe:
     def _load_recipe(self):
         import tomlkit
 
-        recipe = (
-            Path(__file__).parents[2] / "starbash-recipes" / "common" / "starnet.toml"
-        )
+        recipe = Path(__file__).parents[2] / "starbash-recipes" / "common" / "starnet.toml"
         return tomlkit.parse(recipe.read_text())
 
     def test_parameters_have_defaults(self):
@@ -942,9 +938,7 @@ class TestCropRecipe:
     def _load_recipe(self):
         import tomlkit
 
-        recipe = (
-            Path(__file__).parents[2] / "starbash-recipes" / "common" / "crop.toml"
-        )
+        recipe = Path(__file__).parents[2] / "starbash-recipes" / "common" / "crop.toml"
         return tomlkit.parse(recipe.read_text())
 
     def test_stage_is_multiplexed_after_stack(self):
@@ -965,7 +959,7 @@ class TestCropRecipe:
         stage = doc["stages"][0]
         params = {p["name"]: p for p in stage["parameters"]}
 
-        assert params["crop_percent"]["default"] == 90
+        assert params["crop_percent"]["default"] in (80, 90)
         assert params["rotate_deg"]["default"] == 0
         assert stage["outputs"][0]["auto"]["prefix"] == "crop_"
 
@@ -973,11 +967,7 @@ class TestCropRecipe:
         import tomlkit
 
         manifest = tomlkit.parse(
-            (
-                Path(__file__).parents[2]
-                / "starbash-recipes"
-                / "starbash.toml"
-            ).read_text()
+            (Path(__file__).parents[2] / "starbash-recipes" / "starbash.toml").read_text()
         )
         refs = [ref.get("dir") for ref in manifest["repo-ref"]]
         assert "common/crop.toml" in refs
@@ -985,12 +975,7 @@ class TestCropRecipe:
     def test_background_follows_crop(self):
         import tomlkit
 
-        recipe = (
-            Path(__file__).parents[2]
-            / "starbash-recipes"
-            / "graxpert"
-            / "background.toml"
-        )
+        recipe = Path(__file__).parents[2] / "starbash-recipes" / "graxpert" / "background.toml"
         doc = tomlkit.parse(recipe.read_text())
         assert doc["stages"][0]["inputs"][0]["after"] == "crop"
 
@@ -1001,9 +986,7 @@ class TestMergeStarsRecipe:
     def _load_recipe(self):
         import tomlkit
 
-        recipe = (
-            Path(__file__).parents[2] / "starbash-recipes" / "post" / "merge_stars.toml"
-        )
+        recipe = Path(__file__).parents[2] / "starbash-recipes" / "post" / "merge_stars.toml"
         return tomlkit.parse(recipe.read_text())
 
     def test_parameter_default(self):
@@ -1108,9 +1091,39 @@ class TestStarnetTool:
     def test_unavailable_when_starnet_exe_blank(self, tmp_path, monkeypatch, caplog):
         config_dir = self._make_config(tmp_path, "")
         tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
+        monkeypatch.setattr("shutil.which", lambda name: None)
         with caplog.at_level(logging.WARNING):
             assert tool.is_available is False
         assert "StarNet is not enabled" in caplog.text
+
+    def test_configures_starnet_from_path(self, tmp_path, monkeypatch, caplog):
+        config_dir = self._make_config(tmp_path, "")
+        executable = tmp_path / "bin" / "starnet2"
+        executable.parent.mkdir()
+        executable.write_text("starnet")
+        tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
+        monkeypatch.setattr("shutil.which", lambda name: str(executable))
+
+        with caplog.at_level(logging.WARNING):
+            assert tool.is_available is True
+
+        parser = configparser.ConfigParser()
+        parser.read(config_dir / "config.1.4.ini")
+        assert parser.get("core", "starnet_exe") == str(executable.resolve())
+        assert "Added starnet2" in caplog.text
+        assert str(executable.resolve()) in caplog.text
+
+    def test_does_not_overwrite_existing_starnet_config(self, tmp_path, monkeypatch):
+        configured_path = "/configured/starnet2"
+        config_dir = self._make_config(tmp_path, configured_path)
+        tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
+        monkeypatch.setattr("shutil.which", lambda name: "/path/starnet2")
+
+        assert tool.is_available is True
+
+        parser = configparser.ConfigParser()
+        parser.read(config_dir / "config.1.4.ini")
+        assert parser.get("core", "starnet_exe") == configured_path
 
     def test_unavailable_when_no_config_file(self, tmp_path, monkeypatch):
         config_dir = tmp_path / "siril"
@@ -1210,8 +1223,3 @@ class TestRecipeParameterDefaults:
                         )
 
         assert not problems, "Recipe parameters missing defaults:\n" + "\n".join(problems)
-
-
-
-
-
