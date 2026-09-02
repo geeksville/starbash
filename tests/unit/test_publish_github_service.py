@@ -220,6 +220,31 @@ def test_create_blob_stops_after_three_timeouts(caplog):
     )
 
 
+def test_create_blob_retries_transient_gateway_errors(caplog):
+    """Blob uploads retry temporary gateway failures such as HTTP 502."""
+    attempts = 0
+
+    def opener(request):
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise http_error(502, {"message": "Bad Gateway"})
+        return FakeResponse({"sha": "blob-sha"})
+
+    service = GitHubService(opener=opener)
+
+    with caplog.at_level("WARNING"):
+        assert service.create_blob("owner", "repo", b"content") == "blob-sha"
+
+    assert attempts == 3
+    assert caplog.messages == [
+        "GitHub request failed transiently; retrying (attempt 2/3): POST "
+        "https://api.github.com/repos/owner/repo/git/blobs",
+        "GitHub request failed transiently; retrying (attempt 3/3): POST "
+        "https://api.github.com/repos/owner/repo/git/blobs",
+    ]
+
+
 def test_create_tree_retries_github_timeout_responses(caplog):
     """GitHub timeout responses are retried for tree creation too."""
     attempts = 0

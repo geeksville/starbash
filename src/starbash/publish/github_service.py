@@ -32,7 +32,12 @@ class GitHubTimeoutError(GitHubError):
     """A GitHub request timed out."""
 
 
+class GitHubTransientError(GitHubError):
+    """A GitHub request failed with a retryable server-side response."""
+
+
 GITHUB_REQUEST_ATTEMPTS = 3
+GITHUB_TRANSIENT_STATUS_CODES = frozenset({500, 502, 503, 504})
 
 
 @dataclass(frozen=True)
@@ -104,28 +109,45 @@ class GitHubService:
         payload: dict[str, Any] | None = None,
         _retried_after_refresh: bool = False,
     ) -> dict[str, Any]:
-        """Make a GitHub request, retrying transient timeouts."""
+        """Make a GitHub request, retrying transient failures."""
         for attempt in range(1, GITHUB_REQUEST_ATTEMPTS + 1):
             try:
                 return self._request_once(
                     method, url, payload, _retried_after_refresh
                 )
-            except GitHubTimeoutError:
+            except (GitHubTimeoutError, GitHubTransientError) as exc:
                 if attempt == GITHUB_REQUEST_ATTEMPTS:
+                    if isinstance(exc, GitHubTimeoutError):
+                        logger.warning(
+                            "GitHub request timed out after %d attempts: %s %s",
+                            GITHUB_REQUEST_ATTEMPTS,
+                            method,
+                            url,
+                        )
+                    else:
+                        logger.warning(
+                            "GitHub request failed transiently after %d attempts: %s %s",
+                            GITHUB_REQUEST_ATTEMPTS,
+                            method,
+                            url,
+                        )
+                    raise
+                if isinstance(exc, GitHubTimeoutError):
                     logger.warning(
-                        "GitHub request timed out after %d attempts: %s %s",
+                        "GitHub request timed out; retrying (attempt %d/%d): %s %s",
+                        attempt + 1,
                         GITHUB_REQUEST_ATTEMPTS,
                         method,
                         url,
                     )
-                    raise
-                logger.warning(
-                    "GitHub request timed out; retrying (attempt %d/%d): %s %s",
-                    attempt + 1,
-                    GITHUB_REQUEST_ATTEMPTS,
-                    method,
-                    url,
-                )
+                else:
+                    logger.warning(
+                        "GitHub request failed transiently; retrying (attempt %d/%d): %s %s",
+                        attempt + 1,
+                        GITHUB_REQUEST_ATTEMPTS,
+                        method,
+                        url,
+                    )
         raise AssertionError("unreachable")
 
     def _request_once(
@@ -173,6 +195,10 @@ class GitHubService:
                 exc.code,
                 response_body,
             )
+            if exc.code in GITHUB_TRANSIENT_STATUS_CODES:
+                raise GitHubTransientError(
+                    f"GitHub API request failed transiently ({exc.code})"
+                ) from exc
             if exc.code == 422 and isinstance(parsed_response, dict):
                 message = parsed_response.get("message")
                 if isinstance(message, str) and "timed out" in message.lower():
