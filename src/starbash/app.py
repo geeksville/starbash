@@ -15,6 +15,7 @@ from rich.progress import track
 from toml_repo import Repo, RepoManager, get_config_suffix
 
 import starbash
+from starbash import doit_types
 from starbash.aliases import (
     Aliases,
     get_aliases,
@@ -185,6 +186,9 @@ class Starbash:
 
         # Load app defaults and initialize the repository manager
         self._init_repos()
+        doit_types.configure_max_contexts(
+            self.user_repo.get("config.max_contexts", doit_types.DEFAULT_MAX_CONTEXTS)
+        )
         self._init_analytics(cmd)  # after init repos so we have user prefs
 
         app_version = version("starbash")

@@ -11,7 +11,28 @@ from starbash.paths import get_user_cache_dir
 
 type TaskDict = dict[str, Any]  # a doit task dictionary
 
-max_contexts = 2  # FIXME, eventually make customizable via user preferences
+DEFAULT_MAX_CONTEXTS = 2
+max_contexts = DEFAULT_MAX_CONTEXTS
+
+
+def configure_max_contexts(value: Any) -> None:
+    """Set the maximum number of processing contexts from user configuration.
+
+    Invalid values are ignored so a malformed preference cannot prevent
+    Starbash from starting.
+    """
+    global max_contexts
+
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        logging.warning(
+            "Ignoring invalid max_contexts preference %r; using %d.",
+            value,
+            DEFAULT_MAX_CONTEXTS,
+        )
+        max_contexts = DEFAULT_MAX_CONTEXTS
+        return
+
+    max_contexts = value
 
 
 def get_processing_dir() -> Path:

@@ -257,6 +257,22 @@ class TestStarbashInit:
             assert app.user_repo is not None
             assert app.user_repo.is_scheme("file")
 
+    def test_init_loads_max_contexts_from_user_config(
+        self, setup_test_environment, mock_analytics
+    ):
+        """Test that the processing-context limit is loaded from user preferences."""
+        config_path = paths.get_user_config_path()
+        config_path.write_text(
+            "[repo]\nkind = \"preferences\"\n\n[config]\nmax_contexts = 7\n",
+            encoding="utf-8",
+        )
+
+        with Starbash() as app:
+            from starbash import doit_types
+
+            assert app.user_repo.get("config.max_contexts") == 7
+            assert doit_types.max_contexts == 7
+
     def test_init_with_analytics_disabled(self, setup_test_environment, mock_analytics):
         """Test initialization when analytics is disabled in user config."""
         # Create user config with analytics disabled

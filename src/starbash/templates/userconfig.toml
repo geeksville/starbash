@@ -32,7 +32,7 @@ kind = "preferences"
 # license = "FIXME eventually applied as the default license for generated images Creative commons etc..."
 
 
-# [config]
+[config]
 # Filters fits fields should we store in our DB cache.  By default we store all fits headers.
 #fits-whitelist = [
 #    "INSTRUME",
@@ -62,6 +62,9 @@ kind = "preferences"
 #    "SET-TEMP",
 #    "AMBTEMP",
 #]
+
+# Set this lower if you need to reduce disk usage. If omitted, the default is 2 contexts.
+# max_contexts = 10
 
 # DO NOT edit below this line, they are managed automatically via
 # the "sb repo add" etc... commands.

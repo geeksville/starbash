@@ -47,6 +47,10 @@ def workflow_environment(tmp_path_factory, test_data_dir):
     config_dir.mkdir(parents=True, exist_ok=True)
     data_dir.mkdir(parents=True, exist_ok=True)
     documents_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "starbash.toml").write_text(
+        "[repo]\nkind = \"preferences\"\n\n[config]\nmax_contexts = 1\n",
+        encoding="utf-8",
+    )
 
     # Set the override directories (including documents_dir to prevent writing to real user Documents)
     # Also set cache_dir_override so doit uses temp directory instead of real user cache

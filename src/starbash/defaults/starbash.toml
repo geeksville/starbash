@@ -157,6 +157,9 @@ camera_seestar = ["Seestar", "Seestar S50", "Seestar S30", "Seestar S30 Pro"]
 # http://www.antliafilter.com/pd.jsp?fromColId=2&id=160#_pp=2_671
 SiiHb = ["SiiHb", "S2Hb"]
 
+[config]
+# Set this lower if you need to reduce disk usage. If omitted, the default is 2 contexts.
+max_contexts = 2
 
 # List the initial search path to find other repos, when the app launches it always first loads this sb.toml file and this file should list all of the
 # standard default repo locations.  When searching repos, repos listed LAST have precedence, so target file can override the root processing defaults,

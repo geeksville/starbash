@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from starbash import paths
+from starbash import doit_types, paths
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -72,6 +72,7 @@ def setup_test_environment(tmp_path):
     original_verbose = starbash.verbose_output
     original_force_regen = starbash.force_regen
     original_log_level = starbash.log_filter_level
+    original_max_contexts = doit_types.max_contexts
 
     config_dir = tmp_path / "config"
     data_dir = tmp_path / "data"
@@ -109,6 +110,7 @@ def setup_test_environment(tmp_path):
     starbash.verbose_output = original_verbose
     starbash.force_regen = original_force_regen
     starbash.log_filter_level = original_log_level
+    doit_types.max_contexts = original_max_contexts
 
 
 @pytest.fixture
