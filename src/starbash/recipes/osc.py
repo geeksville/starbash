@@ -168,7 +168,7 @@ def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str
     commands += f"""
         # We use -2pass to select the best possible reference frame for others to register against
         # because that frame might get filtered out which breaks stacking.
-        register {registration_input} -2pass {filtering}
+        register {registration_input} -2pass
 
         # Apply the registration (with optional drizzle). We stack the OUTPUT of
         # seqapplyreg (r_{registration_input}), not the pre-registration sequence, because
