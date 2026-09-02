@@ -1,13 +1,23 @@
 """Unit tests for the Starbash doit module."""
 
 import io
+import logging
 import sys
 from contextlib import redirect_stdout
+from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from starbash import paths
-from starbash.doit import StarbashDoit, cleanup_temporaries, my_builtin_task
+from starbash.doit import (
+    FileInfo,
+    StarbashDoit,
+    ToolAction,
+    cleanup_temporaries,
+    my_builtin_task,
+)
+from starbash.exception import FilesystemUnavailableError
 
 
 @pytest.fixture(autouse=True)
@@ -189,6 +199,35 @@ class TestCleanupTemporaries:
         finally:
             outside.unlink(missing_ok=True)
 
+
+class TestToolActionFilesystemErrors:
+    """Tests for mount loss while a processing tool is running."""
+
+    def test_oserror_becomes_handled_task_failure(self, tmp_path, monkeypatch, caplog):
+        tool = MagicMock()
+        tool.name = "Siril"
+        tool.run.side_effect = OSError(5, "Input/output error")
+
+        task = MagicMock()
+        task.name = "crop_m51"
+        task.meta = {
+            "context": {
+                "stage_input": {},
+                "process_dir": str(tmp_path),
+            },
+            "processed_target": MagicMock(log_path=tmp_path / "starbash.log"),
+            "stage": {},
+        }
+        action = ToolAction(tool, "crop 0 0 1 1")
+        action.task = task
+
+        with caplog.at_level(logging.ERROR):
+            result = action.execute()
+
+        assert result is not None
+        assert isinstance(task.meta["exception"], FilesystemUnavailableError)
+        assert "filesystem became unavailable" in str(task.meta["exception"])
+        assert "drive or network mount" in caplog.text
 
 
 class TestDoitIntegration:

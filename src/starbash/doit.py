@@ -22,7 +22,7 @@ from toml_repo import Repo
 from starbash import InputDef
 from starbash.database import ImageRow
 from starbash.doit_types import TaskDict
-from starbash.exception import UserHandledError
+from starbash.exception import FilesystemUnavailableError, UserHandledError
 from starbash.os import symlink_or_copy
 from starbash.paths import get_user_cache_dir
 from starbash.tool.base import Tool
@@ -257,7 +257,9 @@ def merge_to(base_name: str, fi: FileInfo) -> None:
                             indexed_ids = []
                             break
                         indexed_ids.append(source_ids[source_index - 1])
-                    if len(indexed_ids) == len(matching_files) and len(set(indexed_ids)) == len(indexed_ids):
+                    if len(indexed_ids) == len(matching_files) and len(set(indexed_ids)) == len(
+                        indexed_ids
+                    ):
                         resolved_source_ids = indexed_ids
                     else:
                         logging.warning(
@@ -269,7 +271,9 @@ def merge_to(base_name: str, fi: FileInfo) -> None:
                         )
 
             if resolved_source_ids is not None:
-                for matching_file, source_id in zip(matching_files, resolved_source_ids, strict=True):
+                for matching_file, source_id in zip(
+                    matching_files, resolved_source_ids, strict=True
+                ):
                     source_path = Path(matching_file)
                     collected_files.append(source_path)
                     provenance[source_path.name] = source_id
@@ -288,7 +292,7 @@ def merge_to(base_name: str, fi: FileInfo) -> None:
     ):
         dest_name = f"{base_name}_{index:05d}.fits"
         dest_path = output_dir / dest_name
-        #logging.debug(f"Linking {source_file} to {dest_path}")
+        # logging.debug(f"Linking {source_file} to {dest_path}")
         symlink_or_copy(str(source_file), str(dest_path))
 
     merged_provenance = {
@@ -355,6 +359,17 @@ class ToolAction(BaseAction):
                 self.result = self.tool.run(
                     self.commands, context=context, cwd=self.cwd, log_out=logfile, **self.parameters
                 )
+        except OSError as e:
+            error = FilesystemUnavailableError(
+                f"running {self.tool.name} for task '{self.task.name}'", e
+            )
+            logging.error("%s (%s)", error, e)
+            self.task.meta["exception"] = error
+            return TaskFailed(str(error))
+        except FilesystemUnavailableError as e:
+            logging.error("%s", e)
+            self.task.meta["exception"] = e
+            return TaskFailed(str(e))
         except Exception as e:
             # We pass back any exceptions in task.meta - so that our ConsoleReporter can pick them up (doit normally strips exceptions)
             self.task.meta["exception"] = e
@@ -422,6 +437,12 @@ class ProcessingResult:
                 # General error from user misconfiguration or tools - not a bug in our code
                 logging.error(f"Skipping run due to: {e}")
                 self.notes = str(e)
+            elif isinstance(e, OSError):
+                self.notes = (
+                    "The filesystem became unavailable during processing. "
+                    "Check that the drive or network mount is connected, then retry."
+                )
+                logging.error("Filesystem unavailable during processing: %s", e)
             else:
                 # Unexpected exception - log it and re-raise
                 logging.exception("Unexpected error during processing:")
@@ -562,7 +583,7 @@ class StarbashDoit(TaskLoader2):
             "verbosity": 2,
             "dep_file": dep_file,
             "reporter": MyReporter,
-            "backend": "dbm", # the json backend is slow and buggy, use dbm instead
+            "backend": "dbm",  # the json backend is slow and buggy, use dbm instead
         }
 
     def load_tasks(self, cmd: Any, pos_args: Any) -> list[Task]:

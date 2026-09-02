@@ -25,6 +25,17 @@ class UserHandledError(NonSoftwareError):
         return False
 
 
+class FilesystemUnavailableError(UserHandledError):
+    """Raised when a filesystem disappears while processing is in progress."""
+
+    def __init__(self, operation: str, cause: OSError) -> None:
+        super().__init__(
+            f"The filesystem became unavailable while {operation}. "
+            "Check that the drive or network mount is connected, then retry."
+        )
+        self.cause = cause
+
+
 def raise_missing_repo(kind: str) -> NoReturn:
     """Raise a UserHandledError indicating that a repository of the given kind is missing."""
     raise UserHandledError(
@@ -54,6 +65,7 @@ class NoSuitableMastersException(NonFatalException):
 
 __all__ = [
     "UserHandledError",
+    "FilesystemUnavailableError",
     "NonFatalException",
     "NotEnoughFilesError",
     "NoSuitableMastersException",

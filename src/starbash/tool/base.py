@@ -20,7 +20,7 @@ from rich.spinner import Spinner
 from rich.text import Text
 
 from starbash.commands import SPINNER_STYLE
-from starbash.exception import UserHandledError
+from starbash.exception import FilesystemUnavailableError, UserHandledError
 
 logger = logging.getLogger(__name__)
 
@@ -140,9 +140,7 @@ class ToolLiveDisplay:
 
     def __rich__(self) -> RenderableType:
         header: RenderableType = (
-            Text(f"Tool completed: {self.name}", style="dim")
-            if self._done
-            else self.spinner
+            Text(f"Tool completed: {self.name}", style="dim") if self._done else self.spinner
         )
         # Indent each output line by 4 spaces beneath the header.
         lines = [Padding(line, (0, 0, 0, 4)) for line in self._lines]
@@ -195,12 +193,14 @@ def tool_run(
 
     def _stderr_fixup(stdout_captured: list[str], stderr_lines: list[str]) -> list[str]:
         # Siril writes errors to stdout with "Aborting"; surface those alongside real stderr.
-        abort_lines = [
-            line for line in "".join(stdout_captured).splitlines() if "Aborting" in line
-        ]
+        abort_lines = [line for line in "".join(stdout_captured).splitlines() if "Aborting" in line]
         combined = stderr_lines + abort_lines
         # Drop a bogus harmless Siril noise line that confuses users.
-        return [line for line in combined if "Reading sequence failed, file cannot be opened" not in line]
+        return [
+            line
+            for line in combined
+            if "Reading sequence failed, file cannot be opened" not in line
+        ]
 
     tool_run_streaming(
         cmd,
@@ -278,12 +278,8 @@ def tool_run_streaming(
         finally:
             line_queue.put((name, None))  # EOF sentinel
 
-    threading.Thread(
-        target=_reader, args=("stdout", process.stdout), daemon=True
-    ).start()
-    threading.Thread(
-        target=_reader, args=("stderr", process.stderr), daemon=True
-    ).start()
+    threading.Thread(target=_reader, args=("stdout", process.stdout), daemon=True).start()
+    threading.Thread(target=_reader, args=("stderr", process.stderr), daemon=True).start()
 
     deadline = (time.monotonic() + timeout) if timeout else None
     stdout_captured: list[str] = []
@@ -317,6 +313,15 @@ def tool_run_streaming(
                         logger.exception("Error in tool output line handler")
             else:
                 stderr_captured.append(line)
+    except OSError as exc:
+        # A log file may live on a removable or network filesystem. If that
+        # filesystem disappears, terminate the child rather than leaving the
+        # external tool running after the logging failure.
+        try:
+            process.kill()
+        finally:
+            process.wait()
+        raise FilesystemUnavailableError("writing tool output", exc) from exc
     finally:
         process.stdout.close()
         process.stderr.close()
