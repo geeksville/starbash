@@ -37,7 +37,7 @@ def workflow_environment(tmp_path_factory, test_data_dir):
     All test classes in this module will share the same starbash environment
     with accumulated data from previous operations.
     """
-    from starbash import paths
+    from starbash import doit_types, paths
 
     # Create a persistent test directory for the entire workflow
     test_root = tmp_path_factory.mktemp("workflow")
@@ -51,6 +51,11 @@ def workflow_environment(tmp_path_factory, test_data_dir):
         "[repo]\nkind = \"preferences\"\n\n[config]\nmax_contexts = 1\n",
         encoding="utf-8",
     )
+
+    # Starbash.__init__ calls doit_types.configure_max_contexts() which mutates a
+    # process-global. Save/restore it so this test's max_contexts=1 doesn't leak into
+    # later tests (which could then prune the REAL user cache dir down to 1 context).
+    original_max_contexts = doit_types.max_contexts
 
     # Set the override directories (including documents_dir to prevent writing to real user Documents)
     # Also set cache_dir_override so doit uses temp directory instead of real user cache
@@ -70,6 +75,7 @@ def workflow_environment(tmp_path_factory, test_data_dir):
 
     # Clean up after all tests in the module
     paths.set_test_directories(None, None)
+    doit_types.max_contexts = original_max_contexts
 
 
 @pytest.mark.usefixtures("mock_analytics")

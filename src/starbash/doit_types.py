@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -46,8 +47,26 @@ def get_processing_dir() -> Path:
 def cleanup_old_contexts() -> None:
     """Remove oldest context directories if we exceed max_contexts."""
     processing_dir = get_processing_dir()
+    logging.debug(f"Removing old processing contexts in: {processing_dir}")
     if not processing_dir.exists():
         return
+
+    # Safety guard: if we're running under pytest but the processing dir is NOT a test
+    # override (no explicit cache override and no STARBASH_CACHE_DIR), refuse to delete
+    # anything. A leaked test global (e.g. a small max_contexts from a test config) must
+    # never prune the real user's cache.
+    from starbash import paths
+
+    if os.environ.get("PYTEST_CURRENT_TEST") is not None:
+        using_override = (
+            paths._override_cache_dir is not None or os.getenv("STARBASH_CACHE_DIR")
+        )
+        if not using_override:
+            logging.warning(
+                "Refusing to clean processing contexts during tests without a cache override: %s",
+                processing_dir,
+            )
+            return
 
     # Get all subdirectories in processing_dir
     contexts = [d for d in processing_dir.iterdir() if d.is_dir()]
