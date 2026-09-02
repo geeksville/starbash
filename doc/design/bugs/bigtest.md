@@ -1,5 +1,53 @@
 
+# andromeda
+
+[11:30:27] INFO     Running Siril for light_vs_bias_andromedagalaxy_s186 (9 input files)           doit.py:356
+Tool completed: Siril
+    log: Script execution finished successfully.                                                              
+    log: Total execution time: 1.99 s                                                                         
+    closing pipes                                                                                             
+[11:30:32] INFO      Initializing FFTW multithreading support...                                   base.py:173
+                    log: directory `/tmp/Sirilsokuaphg' for config key core.wd doesn't exist, not             
+                    using it.                                                                                 
+                    log: Welcome to siril 1.4.4 for linux (x86_64) - GUI                                      
+                    log: Supported file types: BMP images, PIC images (IRIS), PGM and PPM binary              
+                    images, RAW images, FITS-CFA images, Films, SER sequences, TIFF images, XISF              
+                    images, JPG images, JPEG XL images, PNG images, HEIF images, AVIF images.                 
+                    log: Setting CWD (Current Working Directory) to                                           
+                    '/home/vscode/.cache/starbash/processing/andromedagalaxy'                                 
+           INFO      … (227 lines omitted) …                                                       base.py:177
+           ERROR     progress: Apply registration. Processing image 8 (in_00008.fit), 76.92%       base.py:181
+                    progress: Sequence processing succeeded., 0.00%                                           
+                    log: Sequence processing succeeded.                                                       
+                    log: Execution time: 687.16 ms                                                            
+                    log: No image was registered to the reference                                             
+                    log: Transformation aborted.                                                              
+                    log: Finalizing sequence processing failed.                                               
+                    log: Setting CWD (Current Working Directory) to                                           
+                    '/home/vscode/.cache/starbash/processing/andromedagalaxy'                                 
+                    log: Script execution failed.                                                             
+                    progress: Script execution failed., 100.00%                                               
+Tool completed: Siril
+    log: Setting CWD (Current Working Directory) to '/home/vscode/.cache/starbash/processing/andromedagalaxy' 
+    log: Script execution failed.                                                                             
+    progress: Script execution failed., 100.00%                                                               
+Processing: andromedagalaxy        ━━╸━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   7% -:--:--
+Subtask: stack_osc_andromedagalaxy ━━━━╺━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  11% -:--:--TaskFailed - taskid:stack_osc_andromedagalaxy
+tool failed
+'siril -d /home/vscode/.cache/starbash/processing/andromedagalaxy -s -' failed while running             
+requires 1.4.0 1.5.0
+cd in
+convert in -debayer -out=..
+cd ..
+register in -2pass
+seqapplyreg in  -filter-wfwhm=80% -filter-round=80% -filter-bkg=80% -framing=min
+stack r_in rej w 3 3 -norm=addscale -output_norm -rgb_equal -32b -out=results
+mirrorx_single results
+load results
+save "/mnt/pool/big/kevinh/telescope/processed/andromedagalaxy/stacked.fits"
+
 # m20
+fixed
 
 # ngc7635
 

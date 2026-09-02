@@ -82,6 +82,19 @@ def fix_sequence_name(path: str) -> str:
     return base
 
 
+def _get_param(name: str, default: str) -> str:
+    """Read a stage parameter (resolved into context["parameters"] by the runtime).
+
+    Falls back to ``default`` when the parameter isn't defined (e.g. unit tests
+    or stages that haven't declared ``[[stages.parameters]]``).
+    """
+    params = context.get("parameters")
+    value = getattr(params, name, None) if params is not None else None
+    if value is None:
+        return default  # parameter not declared/overridden
+    return str(value)  # an explicitly empty override is meaningful (e.g. disable drizzle)
+
+
 def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str) -> None:
     """
     Registers and stacks all pre-processed light frames for a given filter configuration
@@ -135,25 +148,41 @@ def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str
             merge {" ".join(seqs_to_merge)} {merged_seq_base}
             """
 
+    # Options come from stage parameters (see [[stages.parameters]] in the recipe
+    # toml), overridable per-target via [[stages.overrides]].
+    drizzle = _get_param("drizzle", "")
+    # Note: framing must NOT be "max" here. Siril's `stack` can only consume
+    # shift-only registration data (see test_regdata_is_valid_and_shift in
+    # Siril's io/sequence.c), so we must stack the seqapplyreg output (r_...),
+    # which has identity H matrices. That only works if all output frames have
+    # identical sizes. With framing=max, Siril's compute_Hmax() sizes each
+    # output frame independently from its warped corners, giving ±1px size
+    # differences -> stack aborts with "different image sizes but no
+    # registration data". framing=cog/min use a single shared roi_out for all
+    # frames -> uniform sizes -> stack succeeds. cog is the sweet spot (no FOV
+    # loss, no dependence on the first frame).
+    framing = _get_param("framing", "cog")
+    filtering = _get_param("filtering", "")
+
     # Siril commands for registration and stacking. We run this in process_dir.
     commands += f"""
         # We use -2pass to select the best possible reference frame for others to register against
         # because that frame might get filtered out which breaks stacking.
-        register {registration_input} -2pass
+        register {registration_input} -2pass {filtering}
 
-        # we use framing=max/min/cog so that registration is not wrt the first frame
-        # because we are using -2pass we must complete the registration here before stacking
-        # FIXME make drizzle optional
-        # note: it is better to do filtering at this stage than when stacking,
-        # because it keeps a record of which frames were dropped
-        seqapplyreg {registration_input} -drizzle -framing=max -filter-wfwhm=80% -filter-round=80% -filter-bkg=80%
+        # Apply the registration (with optional drizzle). We stack the OUTPUT of
+        # seqapplyreg (r_{registration_input}), not the pre-registration sequence, because
+        # Siril's stack only supports shift-only registration data; multi-session merges
+        # contain rotation, i.e. full homographies, which stack rejects ("registration
+        # data with more than simple shifts"). The applied output has identity H matrices,
+        # which stack accepts. See the framing comment above for why framing=cog/min is
+        # required (uniform output sizes). Filtering here keeps a record of dropped frames.
+        seqapplyreg {registration_input} {drizzle} -framing={framing} {filtering}
 
         # Winsorized Sigma Clipping (w 3 3) with Average rejection to nuke airplane/satellite trails.
         # Trail pixels are bright statistical outliers vs same pixel in other frames, so sigma high 3.0
         # rejects them and averages dark sky from other frames into those spots. Gold standard for >15-20 frames.
-        # If faint ghost survives, lower sigma high to 2.5. Previous GESDT method kept for reference:
-        # stack r_{registration_input} rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
-        #stack r_{registration_input} rej w 3 3 -filter-wfwhm=3k -norm=addscale -output_norm -32b -out={output_file}
+        # If faint ghost survives, lower sigma high to 2.5.
         stack r_{registration_input} rej w 3 3 -norm=addscale -output_norm -32b -out={output_file}
 
         mirrorx_single {output_file}
