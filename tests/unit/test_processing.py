@@ -13,6 +13,121 @@ from starbash.stages import (
 )
 
 
+class TestImportFromPriorStages:
+    """Tests for filtering outputs imported from multiplexed stages."""
+
+    def _run_import(
+        self,
+        requires: list[dict],
+        prior_tasks: list[dict],
+        optional: bool = False,
+    ):
+        from starbash.processing import Processing
+
+        processing = Processing.__new__(Processing)
+        processing.stage = {"inputs": [{"after": "upstream"}]}
+        processing.processed_target = None
+        processing.context = {"default_metadata": {}}
+        processing._get_prior_tasks = lambda _stage: prior_tasks
+        return processing._import_from_prior_stages(
+            {"kind": "job", "requires": requires, "optional": optional}
+        )
+
+    @staticmethod
+    def _task(index: int) -> dict:
+        from starbash.doit import FileInfo
+
+        path = f"source_{index}.fits"
+        output_path = f"output_{index}.fits"
+        return {
+            "name": f"upstream_i{index}",
+            "meta": {
+                "stage": {"name": "upstream"},
+                "context": {
+                    "input": {
+                        0: FileInfo(
+                            image_rows=[
+                                {
+                                    "abspath": f"/tmp/{path}",
+                                    "path": path,
+                                }
+                            ]
+                        )
+                    },
+                    "output": FileInfo(
+                        base="/tmp",
+                        image_rows=[
+                            {
+                                "abspath": f"/tmp/{output_path}",
+                                "path": output_path,
+                            }
+                        ],
+                    ),
+                },
+            },
+        }
+
+    def test_min_count_is_checked_across_prior_tasks(self):
+        """A count applies to the complete input group, not each multiplexed task."""
+        result = self._run_import(
+            [{"kind": "min_count", "value": 2}],
+            [self._task(0), self._task(1)],
+        )
+
+        assert [row["path"] for row in result.image_rows] == [
+            "output_0.fits",
+            "output_1.fits",
+        ]
+
+    def test_min_count_still_rejects_an_input_group_when_insufficient(self):
+        """A named input group still fails when its own aggregate is too small."""
+        from starbash.exception import NotEnoughFilesError
+
+        with pytest.raises(NotEnoughFilesError):
+            self._run_import(
+                [{"kind": "min_count", "value": 2}],
+                [self._task(0)],
+            )
+
+    def test_optional_input_group_can_be_empty(self):
+        """An optional group returns an empty FileInfo when nothing matches."""
+        result = self._run_import(
+            [{"kind": "metadata", "name": "filter", "value": ["SiiOiii"]}],
+            [self._task(0)],
+            optional=True,
+        )
+
+        assert result.image_rows == []
+
+
+class TestPaletteRecipes:
+    """Tests that palette recipes declare independent channel inputs."""
+
+    @staticmethod
+    def _load(name: str):
+        import tomlkit
+
+        path = Path(__file__).parents[2] / "starbash-recipes" / "palette" / name
+        return tomlkit.parse(path.read_text())
+
+    def test_sho_requires_ha_oiii_and_has_optional_sii(self):
+        stage = self._load("sho.toml")["stages"][0]
+        inputs = {item["name"]: item for item in stage["inputs"]}
+
+        assert inputs["ha"]["requires"][-1]["value"] == 1
+        assert inputs["oiii"]["requires"][-1]["value"] == 1
+        assert inputs["sii"]["optional"] is True
+        assert inputs["sii"]["requires"][0]["value"] == ["SiiOiii"]
+
+    def test_hoo_requires_separate_ha_and_oiii_inputs(self):
+        stage = self._load("hoo.toml")["stages"][0]
+        inputs = {item["name"]: item for item in stage["inputs"]}
+
+        assert set(inputs) == {"ha", "oiii"}
+        assert [r["value"] for r in inputs["ha"]["requires"] if r["kind"] == "min_count"] == [1]
+        assert [r["value"] for r in inputs["oiii"]["requires"] if r["kind"] == "min_count"] == [1]
+
+
 def remove_tasks_by_stage_name(tasks: list[dict], excluded: list[str]) -> list[dict]:
     """Helper function to remove tasks by stage name (for testing)."""
     return [t for t in tasks if t["meta"]["stage"]["name"] not in excluded]

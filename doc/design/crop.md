@@ -1,8 +1,8 @@
-# Generalized crop stage
+# stage c1: Generalized crop stage
 
 ## Status
 
-**Design plan — implementation not started.**
+**C1 and C2 implemented.**
 
 Extract the current OSC-specific centered crop into reusable code and expose it
 as a default recipe stage. The stage consumes the FITS outputs of a preceding
@@ -279,3 +279,45 @@ in the normal test environment.
 - Invalid parameters fail before Siril is invoked with actionable errors.
 - Downstream stages that previously consumed stack outputs consume crop outputs.
 - Excluded upstream stages do not create orphan crop tasks.
+
+# stage c2: improvements
+
+## C2: maximum pixel dimensions
+
+Add optional `crop_width` and `crop_height` parameters to
+`starbash-recipes/common/crop.toml`. They specify maximum output dimensions in
+pixels and intentionally have no defaults: when both are omitted, the existing
+centered `crop_percent` behavior remains unchanged.
+
+### Behavior
+
+- If both dimensions are omitted, retain `crop_percent` percent of the source
+  width and height, centered independently.
+- If either dimension is supplied, use dimension mode and ignore
+  `crop_percent`.
+- If only one dimension is supplied, use that value for both axes and emit one
+  warning identifying the missing dimension.
+- Treat the values as maximum dimensions. Clamp each requested dimension to the
+  corresponding source dimension rather than enlarging the image.
+- Reject booleans, non-integers, zero, and negative values before invoking
+  Siril. The error must identify the invalid parameter.
+- Emit the percentage-precedence warning once per `crop_files()` invocation,
+  even when several input/output pairs are processed.
+
+The resulting rectangle remains centered and the existing crop-then-rotate
+command order is unchanged. `crop_percent = 100` remains the supported way to
+retain the complete image when pixel dimensions are not configured.
+
+### Implementation and verification
+
+1. `crop_rectangle()` and `crop_files()` accept optional pixel dimensions,
+  validate them, clamp them to the source dimensions, and log precedence and
+  one-axis fallback warnings.
+2. `common/crop.toml` declares the two no-default parameters and passes them
+  through the recipe script; `crop_percent` defaults to `90`.
+3. Unit coverage verifies both-dimension, one-dimension, clamped, invalid, and
+  percentage-precedence cases, including warning counts and multiple pairs.
+4. Recipe wiring coverage verifies the declarations, defaults, script arguments,
+  multiplexing, and output naming. Existing processing tests continue to cover
+  the task graph and extension preservation.
+5. The TOML recipe guide documents the sizing modes and per-target overrides.

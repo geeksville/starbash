@@ -17,8 +17,22 @@ context: dict[str, Any] = {}
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-def crop_rectangle(width: int, height: int, crop_percent: int = 90) -> tuple[int, int, int, int]:
-    """Return a centered crop rectangle retaining ``crop_percent`` of an image."""
+def _validate_crop_dimension(name: str, value: int | None) -> None:
+    """Validate an optional maximum crop dimension."""
+    if value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError(f"{name} must be a positive integer, got {value!r}")
+
+
+def crop_rectangle(
+    width: int,
+    height: int,
+    crop_percent: int = 90,
+    crop_width: int | None = None,
+    crop_height: int | None = None,
+) -> tuple[int, int, int, int]:
+    """Return a centered crop rectangle using percentages or maximum dimensions."""
     if width <= 0 or height <= 0:
         raise ValueError(f"Image dimensions must be positive, got {width}x{height}")
     if isinstance(crop_percent, bool) or not isinstance(crop_percent, int):
@@ -26,11 +40,24 @@ def crop_rectangle(width: int, height: int, crop_percent: int = 90) -> tuple[int
     if not 1 <= crop_percent <= 100:
         raise ValueError(f"crop_percent must be between 1 and 100, got {crop_percent}")
 
-    crop_width = width * crop_percent // 100
-    crop_height = height * crop_percent // 100
+    _validate_crop_dimension("crop_width", crop_width)
+    _validate_crop_dimension("crop_height", crop_height)
+
+    if crop_width is not None or crop_height is not None:
+        if crop_width is None:
+            crop_width = crop_height
+        if crop_height is None:
+            crop_height = crop_width
+        assert crop_width is not None and crop_height is not None
+        crop_width = min(width, crop_width)
+        crop_height = min(height, crop_height)
+    else:
+        crop_width = width * crop_percent // 100
+        crop_height = height * crop_percent // 100
+
     if crop_width < 1 or crop_height < 1:
         raise ValueError(
-            f"crop_percent={crop_percent} produces an empty crop for {width}x{height}"
+            f"Crop dimensions produce an empty crop for {width}x{height}"
         )
     crop_x = (width - crop_width) // 2
     crop_y = (height - crop_height) // 2
@@ -42,12 +69,26 @@ def crop_files(
     output_paths: list[Path],
     crop_percent: int = 90,
     rotate_deg: int | float = 0,
+    crop_width: int | None = None,
+    crop_height: int | None = None,
 ) -> None:
     """Crop and rotate each input FITS file into its corresponding output."""
     if not input_paths or not output_paths:
         raise ValueError("crop_files requires at least one input and output path")
     if len(input_paths) != len(output_paths):
         raise ValueError("crop_files requires equal numbers of input and output paths")
+    _validate_crop_dimension("crop_width", crop_width)
+    _validate_crop_dimension("crop_height", crop_height)
+    if crop_width is not None or crop_height is not None:
+        if crop_width is None:
+            logger.warning(
+                "crop_width was not specified; using crop_height ({crop_height}) for both dimensions"
+            )
+        elif crop_height is None:
+            logger.warning(
+                "crop_height was not specified; using crop_width ({crop_width}) for both dimensions"
+            )
+        logger.warning("crop_percent is ignored because crop dimensions were specified")
     if isinstance(rotate_deg, bool) or not isinstance(rotate_deg, (int, float)):
         raise ValueError(f"rotate_deg must be numeric, got {rotate_deg!r}")
     if not math.isfinite(rotate_deg):
@@ -56,13 +97,13 @@ def crop_files(
     commands: list[str] = []
     for input_path, output_path in zip(input_paths, output_paths, strict=True):
         width, height = read_dimensions(input_path)
-        crop_x, crop_y, crop_width, crop_height = crop_rectangle(
-            width, height, crop_percent
+        crop_x, crop_y, actual_width, actual_height = crop_rectangle(
+            width, height, crop_percent, crop_width, crop_height
         )
         commands.extend(
             [
                 f'load "{input_path}"',
-                f"crop {crop_x} {crop_y} {crop_width} {crop_height}",
+                f"crop {crop_x} {crop_y} {actual_width} {actual_height}",
             ]
         )
         if rotate_deg != 0:

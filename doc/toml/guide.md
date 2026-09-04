@@ -28,7 +28,7 @@ A typical narrowband chain looks like:
 
 ```
 master_bias / master_flat  →  light_vs_dark  →  seqextract_haoiii
-  →  stack_dual_duo  →  blur_exterminator  →  noise_exterminator
+  →  stack_dual_duo  →  crop  →  blur_exterminator  →  noise_exterminator
   →  palette_sho  →  starnet  →  veralux  →  merge_stars  →  thumbnail
 ```
 
@@ -112,11 +112,22 @@ Parameters are **scoped to their owning stage**: an override only affects the
 stage that declared the parameter, and two stages may declare the same parameter
 name independently.
 
-Any parameter your script references as `{parameters.<name>}` **must declare a
-real `default`**. A commented‑out `# default = …` is invisible to the parser, so
-the placeholder would expand to nothing at runtime. (If you truly want a value
-only sometimes passed to a tool, gate it inside the script rather than relying on
-a missing default.)
+The default `crop` stage supports two sizing modes. With no pixel dimensions,
+`crop_percent` (default `90`) retains that percentage of each source dimension,
+centered. Optional `crop_width` and `crop_height` values select maximum pixel
+dimensions instead; each value is clamped to the source dimension so images are
+never enlarged. If only one is supplied, it is used for both axes and a warning
+is logged. When either pixel dimension is supplied, `crop_percent` is ignored.
+Set `crop_percent = 100` when the complete image should be retained without
+using pixel dimensions.
+
+Any parameter your script references as `{parameters.<name>}` normally **must
+declare a real `default`**. A commented‑out `# default = …` is invisible to the
+parser, so the placeholder would expand to nothing at runtime. The built-in
+`crop_width` and `crop_height` parameters are an intentional exception: they
+have no defaults and are passed as optional values to the crop helper. For
+other optional tool arguments, gate their use inside the script rather than
+relying on a missing default.
 
 ---
 
@@ -224,6 +235,12 @@ put `min_count` last so it tests what remains. Implementation:
 | `unprocessed` | Keep only files from non‑`processed`/non‑`master` repos (used by master generation so it never re‑consumes its own output). |
 | `filename` | Keep files whose **basename** matches the regex `value`. `mode = "include"` (default) keeps matches; `mode = "exclude"` keeps non‑matches. |
 | `min_count` | Require at least `value` files, else the stage is rejected/skipped. `accept_single = true` reuses a lone file instead of stacking. |
+
+`min_count` is scoped to its enclosing `[[stages.inputs]]` block. For a
+multiplexed upstream stage, matching upstream input rows are accumulated across
+all upstream tasks before the count is checked. Set `optional = true` on an
+input block when no matching upstream files should still allow the stage to
+run; that block is exposed as an empty `FileInfo`.
 
 Examples:
 

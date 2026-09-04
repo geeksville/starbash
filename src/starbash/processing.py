@@ -16,7 +16,7 @@ from toml_repo import Repo
 from tomlkit.items import AoT
 
 import starbash
-from starbash import InputDef, OutputDef, RequireDef, StageDict
+from starbash import InputDef, Metadata, OutputDef, RequireDef, StageDict
 from starbash.aliases import get_aliases, normalize_target_name
 from starbash.app import Starbash
 from starbash.database import (
@@ -970,11 +970,19 @@ class Processing(ProcessingLike):
             self.context.pop("stage_input", None)
             self.context.pop("multiplex_index", None)
 
-    def _with_defaults(self, img: ImageRow) -> ImageRow:
+    def _with_defaults(
+        self, img: ImageRow, defaults: Metadata | None = None
+    ) -> ImageRow:
         """Try to provide missing metadata for image rows.  Some imagerows are 'sparse'
         with just a filename and minor other info.  In that case try to assume the metadata matches
-        the input metadata for this single pipeline of images."""
-        r = self.context.get("default_metadata", {}).copy()
+        the input metadata for this single pipeline of images.
+
+        Args:
+            img: The image row to complete.
+            defaults: Metadata belonging to the task that produced ``img``.
+                When omitted, use the current processing context.
+        """
+        r = (defaults if defaults is not None else self.context.get("default_metadata", {})).copy()
 
         # values from the passed in img override our defaults
         for key, value in img.items():
@@ -1033,6 +1041,7 @@ class Processing(ProcessingLike):
 
         # Collect all image rows from prior stage outputs
         child_exception: Exception | None = None
+        matching_input_rows: list[ImageRow] = []
 
         # `filename` requires match the actual files we consume (the prior stage's
         # OUTPUT names), which differ from its inputs; every other requires kind
@@ -1040,9 +1049,17 @@ class Processing(ProcessingLike):
         # INPUT rows. So split them and apply each to the correct row set.
         all_requires: list[RequireDef] = input.get("requires", [])
         filename_requires = [r for r in all_requires if r.get("kind") == "filename"]
+        min_count_requires = [r for r in all_requires if r.get("kind") == "min_count"]
         gating_input: InputDef = (
-            {**input, "requires": [r for r in all_requires if r.get("kind") != "filename"]}
-            if filename_requires
+            {
+                **input,
+                "requires": [
+                    r
+                    for r in all_requires
+                    if r.get("kind") not in ("filename", "min_count")
+                ],
+            }
+            if filename_requires or min_count_requires
             else input
         )
 
@@ -1055,12 +1072,18 @@ class Processing(ProcessingLike):
             for _input_type, file_info in task_inputs.items():
                 if isinstance(file_info, FileInfo) and file_info.image_rows:
                     images = file_info.image_rows
-                    images = [self._with_defaults(img) for img in images]
+                    # A multiplexed upstream stage has one task per channel.
+                    # Use that task's metadata, rather than the current
+                    # context's metadata (which is usually copied from the
+                    # last multiplexed task), when applying metadata filters.
+                    task_defaults = task_context.get("default_metadata", {})
+                    images = [self._with_defaults(img, task_defaults) for img in images]
                     try:
                         task_filtered_input = filter_by_requires(gating_input, images)
                         if (
                             task_filtered_input
                         ):  # This task had matching inputs for us, so therefore we want its outputs
+                            matching_input_rows.extend(task_filtered_input)
                             task_output = task_context.get("output")
                             if (
                                 task_output
@@ -1081,15 +1104,29 @@ class Processing(ProcessingLike):
                         # just because one prior task doesn't have what we need, we shouldn't stop looking
                         logging.debug(f"Prior task '{task['name']}' skipped, still looking... {e}")
 
-        if child_exception and len(image_rows) == 0:
+        if child_exception and len(image_rows) == 0 and not input.get("optional", False):
             # we failed on every child, give up
             raise child_exception
 
-        if filename_requires and len(image_rows) == 0:
+        if filename_requires and len(image_rows) == 0 and not input.get("optional", False):
             # Prior outputs existed but none matched the filename filter; skip this stage.
             raise NotEnoughFilesError(
                 "No prior stage outputs matched the input filename filter", []
             )
+
+        if min_count_requires:
+            # Apply min_count to this input group's aggregate, rather than to
+            # each multiplexed upstream task.  This keeps the requirement
+            # scoped to one [[stages.inputs]] block, so separate input groups
+            # can have independent counts.
+            try:
+                filter_by_requires({"requires": min_count_requires}, matching_input_rows)
+            except NotEnoughFilesError:
+                if not input.get("optional", False):
+                    raise
+
+        if not image_rows and input.get("optional", False):
+            return FileInfo(image_rows=[], definition=input)
 
         sequence_provenance: dict[str, list[int]] = {}
         provenance: dict[str, int] = {}
