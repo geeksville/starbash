@@ -1,4 +1,97 @@
 
+# sh2115
+Selection limited to target: sh2115
+                           Sessions (14 selected out of 194)                            
+┏━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┓
+┃ Id  ┃ Date       ┃ # images ┃ Time   ┃ Type/Filter  ┃ Telescope            ┃ About   ┃
+┡━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━┩
+│ 97  │ 2026-07-11 │ 127      │ 4h 14m │ HaOiii       │ Ascar V 60mm reducer │ Sh2 115 │
+│ 98  │ 2026-07-11 │ 10       │ 25s    │ FLAT/HaOiii  │ Ascar V 60mm reducer │ Sh2 115 │
+│ 99  │ 2026-07-26 │ 77       │ 2h 34m │ SiiOiii      │ Ascar V 60mm reducer │ Sh2 115 │
+│ 100 │ 2026-07-22 │ 178      │ 5h 56m │ HaOiii       │ Ascar V 60mm reducer │ Sh2 115 │
+│ 101 │ 2026-07-22 │ 10       │ 19s    │ FLAT/HaOiii  │ Ascar V 60mm reducer │ Sh2 115 │
+[10:49:50] INFO     Aligning and renormalizing stacked images.                                      osc.py:199
+           INFO     Doing renormalisation of extra Ha/Oiii channels                                 osc.py:225
+           INFO     Doing renormalisation of extra Sii channel                                      osc.py:252
+[10:49:55] INFO      Initializing FFTW multithreading support...                                   base.py:173
+                    log: Welcome to siril 1.4.4 for linux (x86_64) - GUI                                      
+                    log: Supported file types: BMP images, PIC images (IRIS), PGM and PPM binary              
+                    images, RAW images, FITS-CFA images, Films, SER sequences, TIFF images, XISF              
+                    images, JPG images, JPEG XL images, PNG images, HEIF images, AVIF images.                 
+                    log: Setting CWD (Current Working Directory) to                                           
+                    '/home/vscode/.cache/starbash/processing/sh2115'                                          
+                    log: Parallel processing enabled: using 32 logical processors.                            
+           INFO      … (111 lines omitted) …                                                       base.py:177
+           ERROR     Writing sequence file r_results_.seq                                          base.py:181
+                    Writing sequence file results_.seq                                                        
+                    log: Running command: pm                                                                  
+                    1788544195: running command pm                                                            
+                    log: r_results_00002. not found.                                                          
+                    log: Error in line 10 ('pm'): invalid input image.                                        
+                    log: Exiting batch processing.                                                            
+                    log: Setting CWD (Current Working Directory) to                                           
+                    '/home/vscode/.cache/starbash/processing/sh2115'                                          
+                    log: Script execution failed.                                                             
+                    progress: Script execution failed., 100.00%                                               
+Tool completed: python
+    log: Setting CWD (Current Working Directory) to '/home/vscode/.cache/starbash/processing/sh2115'          
+    log: Script execution failed.                                                                             
+    progress: Script execution failed., 100.00%                                                               
+Processing: sh2115             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   0% -:--:--
+Subtask: stack_dual_duo_sh2115 ━━━━━━━━━━╸━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  27% 0:00:01
+Tool completed: python
+    log: Setting CWD (Current Working Directory) to '/home/vscode/.cache/starbash/processing/sh2115'          
+'siril -d /home/vscode/.cache/starbash/processing/sh2115 -s -' failed while running             requires 1.4.0
+1.5.0
+register results -drizzle
+pm 
+"$r_results_00002$*mad($r_results_00001$)/mad($r_results_00002$)-mad($r_results_00001$)/mad($r_results_00002$)
+*median($r_results_00002$)+median($r_results_00001$)"
+update_key FILTER Oiii "OSC Duo filter extracted"
+save "/mnt/pool/big/kevinh/telescope/processed/sh2115/stacked_OIII.fits"
+load r_results_00001
+update_key FILTER Ha "OSC Duo filter extracted"
+save "/mnt/pool/big/kevinh/telescope/processed/sh2115/stacked_Ha.fits"
+pm 
+"$r_results_00003$*mad($r_results_00001$)/mad($r_results_00003$)-mad($r_results_00001$)/mad($r_results_00003$)
+*median($r_results_00003$)+median($r_results_00001$)"
+update_key FILTER Sii "OSC dual Duo filter extracted"
+save "/mnt/pool/big/kevinh/telescope/processed/sh2115/stacked_Sii.fits"
+                          Autoprocessed to /mnt/pool/big/kevinh/telescope/processed                           
+┏━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Target ┃                          Session ┃  Status   ┃ Notes (links are clickable!)                       ┃
+┡━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ sh2115 │ 2026-07-17:light_SiiOiii_gain100 │ Ø Current │ light_vs_bias_sh2115_s107 → bkg_pp_light_s107_.seq │
+│ sh2115 │  2026-07-22:light_HaOiii_gain100 │ Ø Current │ light_vs_bias_sh2115_s100 → bkg_pp_light_s100_.seq │
+│ sh2115 │ 2026-07-15:light_SiiOiii_gain100 │ Ø Current │ light_vs_bias_sh2115_s103 → bkg_pp_light_s103_.seq │
+│ sh2115 │    2026-07-15:light_None_gain100 │ Ø Current │ light_vs_bias_sh2115_s104 → bkg_pp_light_s104_.seq │
+│ sh2115 │  2026-07-16:light_HaOiii_gain100 │ Ø Current │ light_vs_bias_sh2115_s109 → bkg_pp_light_s109_.seq │
+│ sh2115 │  2026-07-11:light_HaOiii_gain100 │ Ø Current │ light_vs_bias_sh2115_s97 → bkg_pp_light_s97_.seq   │
+│ sh2115 │ 2026-07-26:light_SiiOiii_gain100 │ Ø Current │ light_vs_bias_sh2115_s99 → bkg_pp_light_s99_.seq   │
+│ sh2115 │ 2026-07-17:light_SiiOiii_gain100 │ Ø Current │ seqextract_haoiii_sh2115_s107 →                    │
+│        │                                  │           │ r_Ha_bkg_pp_light_s107_.seq,                       │
+│        │                                  │           │ r_OIII_bkg_pp_light_s107_.seq                      │
+│ sh2115 │  2026-07-11:light_HaOiii_gain100 │ Ø Current │ seqextract_haoiii_sh2115_s97 →                     │
+│        │                                  │           │ r_Ha_bkg_pp_light_s97_.seq,                        │
+│        │                                  │           │ r_OIII_bkg_pp_light_s97_.seq                       │
+│ sh2115 │  2026-07-16:light_HaOiii_gain100 │ Ø Current │ seqextract_haoiii_sh2115_s109 →                    │
+│        │                                  │           │ r_Ha_bkg_pp_light_s109_.seq,                       │
+│        │                                  │           │ r_OIII_bkg_pp_light_s109_.seq                      │
+│ sh2115 │  2026-07-22:light_HaOiii_gain100 │ Ø Current │ seqextract_haoiii_sh2115_s100 →                    │
+│        │                                  │           │ r_Ha_bkg_pp_light_s100_.seq,                       │
+│        │                                  │           │ r_OIII_bkg_pp_light_s100_.seq                      │
+│ sh2115 │ 2026-07-15:light_SiiOiii_gain100 │ Ø Current │ seqextract_haoiii_sh2115_s103 →                    │
+│        │                                  │           │ r_Ha_bkg_pp_light_s103_.seq,                       │
+│        │                                  │           │ r_OIII_bkg_pp_light_s103_.seq                      │
+│ sh2115 │ 2026-07-26:light_SiiOiii_gain100 │ Ø Current │ seqextract_haoiii_sh2115_s99 →                     │
+│        │                                  │           │ r_Ha_bkg_pp_light_s99_.seq,                        │
+│        │                                  │           │ r_OIII_bkg_pp_light_s99_.seq                       │
+│ sh2115 │  2026-07-16:light_HaOiii_gain100 │ Ø Current │ stack_osc_sh2115 → stacked.fits                    │
+│ sh2115 │  2026-07-16:light_HaOiii_gain100 │ ✗ Failed  │ stack_dual_duo_sh2115: Tool: 'siril -d             │
+│        │                                  │           │ /home/vscode/.cache/starbash/processing/sh2115 -s  │
+│        │                                  │           │ -' failed                                          │
+└────────┴──────────────────────────────────┴───────────┴────────────────────────────────────────────────────┘
+
 # andromeda
 
 [11:30:27] INFO     Running Siril for light_vs_bias_andromedagalaxy_s186 (9 input files)           doit.py:356

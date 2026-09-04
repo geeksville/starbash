@@ -189,6 +189,27 @@ Common keys:
 - `multiplex = true` — create **one task per upstream file** instead of a single
   task consuming all of them (used for per‑file stretch, denoise, thumbnails).
 
+The default `crop` stage follows stack stages and creates one centered crop for
+each stacked FITS output. Its `crop_width` and `crop_height` parameters accept
+positive integers or numeric strings as maximum pixel dimensions, or strings
+ending in `%` to retain that percentage of the corresponding source
+dimension. Both default to `"80%"`; pixel values are clamped to the source
+dimensions and never enlarge an image. The axes may use different units. For
+example, a target can override the defaults with:
+
+```toml
+[[stages.overrides]]
+name = "crop_width"
+value = 1600
+
+[[stages.overrides]]
+name = "crop_height"
+value = "90%"
+```
+
+Use `"100%"` on both parameters to retain the complete image. The old
+`crop_percent` parameter is no longer supported.
+
 ```toml
 [[stages.inputs]]
 kind = "job"

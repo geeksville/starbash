@@ -973,11 +973,9 @@ class TestCropRecipe:
         stage = doc["stages"][0]
         params = {p["name"]: p for p in stage["parameters"]}
 
-        assert params["crop_percent"]["default"] == 90
-        assert "crop_width" in params
-        assert "crop_height" in params
-        assert "default" not in params["crop_width"]
-        assert "default" not in params["crop_height"]
+        assert "crop_percent" not in params
+        assert params["crop_width"]["default"] == "80%"
+        assert params["crop_height"]["default"] == "80%"
         assert params["rotate_deg"]["default"] == 0
         assert "crop_width=context[\"parameters\"].crop_width" in stage["script"]
         assert "crop_height=context[\"parameters\"].crop_height" in stage["script"]

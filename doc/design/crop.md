@@ -321,3 +321,127 @@ retain the complete image when pixel dimensions are not configured.
   multiplexing, and output naming. Existing processing tests continue to cover
   the task graph and extension preservation.
 5. The TOML recipe guide documents the sizing modes and per-target overrides.
+
+# stage c3: Simplified crop sizing parameters
+
+## Status
+
+**Planned.** C3 replaces the C2 crop parameter interface while preserving the
+existing centered crop, crop-then-rotate behavior, and multiplexed task graph.
+
+The current `crop_percent`, `crop_width`, and `crop_height` combination is more
+complicated than necessary. The crop stage should expose exactly two sizing
+parameters: `crop_width` and `crop_height`.
+
+## Proposed interface
+
+Declare both parameters in `starbash-recipes/common/crop.toml` with the same
+defaults:
+
+```toml
+[[stages.parameters]]
+name = "crop_width"
+default = "80%"
+
+[[stages.parameters]]
+name = "crop_height"
+default = "80%"
+```
+
+Remove `crop_percent` entirely. There should be no separate percentage-mode,
+dimension-mode, or `nocrop` switch: the units in each value select the sizing
+behavior.
+
+### Accepted values
+
+Each parameter accepts either an integer or a string:
+
+| Value | Meaning |
+| --- | --- |
+| Positive integer, such as `1000` | Maximum size in pixels |
+| Numeric string, such as `"1000"` | Maximum size in pixels |
+| Percent string, such as `"80%"` | Retain that percentage of the source dimension |
+
+For percentage values, calculate the retained width and height independently
+and center the resulting rectangle on the source image. For pixel values,
+clamp each requested maximum to the corresponding source dimension; never
+enlarge an image. A string that does not end in `%` is pixel-based for now.
+This deliberately leaves room for future units without changing the recipe
+parameter names.
+
+The default configuration therefore retains the centered inner 80% of both
+dimensions. Users can request the complete image with:
+
+```toml
+[[stages.overrides]]
+name = "crop_width"
+value = "100%"
+[[stages.overrides]]
+name = "crop_height"
+value = "100%"
+```
+
+Width and height are resolved independently, so mixed configurations such as
+`crop_width = "80%"` and `crop_height = 1200` are valid.
+
+## Implementation plan
+
+1. **Centralize value parsing.** Add a small parser in
+  `src/starbash/recipes/crop.py` that converts each parameter into an explicit
+  sizing representation (percentage or pixels). Reject booleans, empty
+  strings, malformed numeric strings, non-positive values, and unsupported
+  percent values before invoking Siril. Keep the parser separate from the
+  geometry calculation so it can be unit tested directly.
+2. **Update crop geometry.** Change `crop_rectangle()` and `crop_files()` to
+  accept only `crop_width` and `crop_height` for sizing. Compute each axis
+  from its parsed value, clamp pixel dimensions to the source image, and
+  retain the existing centered rectangle and minimum-one-pixel validation.
+3. **Update the recipe script.** Remove the `crop_percent` argument from
+  `starbash-recipes/common/crop.toml`. Pass the two new values directly to
+  `crop_files()` and set both recipe defaults to `"80%"`.
+4. **Migrate target configuration.** Add a throwaway Python migration script
+  outside the runtime package to update existing
+  `private/processed/**/.starbash/main.toml` files:
+  - remove `crop_percent` overrides;
+  - create `crop_width` and `crop_height` overrides with equivalent values;
+  - preserve unrelated stages, comments where practical, and existing
+    explicitly configured crop dimensions;
+  - make the script idempotent and print every changed file.
+5. **Update documentation and examples.** Replace references to
+  `crop_percent`, optional pixel dimensions, and percentage-precedence rules
+  in the crop design document and TOML recipe documentation. Document the
+  accepted integer/string forms, defaults, clamping, and future-unit rule.
+
+## Validation and error behavior
+
+Validate the complete parameter set before reading or processing any input.
+Errors should identify the parameter name and the invalid value, for example
+`crop_width must be a positive pixel value` or `crop_height has an invalid
+percentage`. A non-finite or non-numeric rotation value remains invalid under
+the existing C1/C2 behavior.
+
+The existing warning about percentage precedence is no longer needed because
+there is no precedence rule. Do not emit a warning merely because the two
+axes use different units.
+
+## Test plan
+
+Update `tests/unit/test_crop.py` and recipe wiring tests to cover:
+
+- default `"80%"` behavior on both axes;
+- integer and numeric-string pixel values;
+- percentage strings, including `"100%"`;
+- mixed percentage/pixel configurations;
+- odd and small dimensions, centered geometry, and pixel-value clamping;
+- booleans, empty strings, malformed strings, zero, negative values, and
+  unsupported percent forms;
+- command order, preserved extensions, quoted paths, and rotation behavior;
+- multiple multiplexed input/output pairs;
+- absence of the `crop_percent` parameter and its script argument;
+- migration of representative existing `main.toml` files, including an
+  idempotent second run.
+
+Run the focused crop and recipe tests first, then the complete test suite.
+Optionally run the existing Siril integration test to confirm that the default
+80% output, `100%` output, metadata preservation, and rotation behavior remain
+correct.
