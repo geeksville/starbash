@@ -95,7 +95,10 @@ def _get_param(name: str, default: str) -> str:
     return str(value)  # an explicitly empty override is meaningful (e.g. disable drizzle)
 
 
-def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str) -> None:
+def make_stacked(inputs_to_use: list[Any],
+        variant: str | None,
+        output_file: str,
+        output_band: str = "any") -> None:
     """
     Registers and stacks all pre-processed light frames for a given filter configuration
     across all sessions.
@@ -117,7 +120,7 @@ def make_stacked(inputs_to_use: list[Any], variant: str | None, output_file: str
 
         # The sequence name for all frames of this variant across all sessions
         # e.g. Ha_bkg_pp_light_cHaOiii
-        merged_seq_base = f"all_{input_base}"
+        merged_seq_base = f"all_{output_band}"
 
         # Absolute path for the output stacked file
         stacked_output_path = f"{context['output'].base}/{output_file}.fit"
@@ -284,13 +287,13 @@ def osc_process(has_ha_oiii: bool, has_sii_oiii: bool) -> None:
         # red output channel - from the SiiOiii filter Sii is on the 672nm red channel (mistakenly called Ha by siril)
         channel_num += 1
         sii_base = f"results_{channel_num:05d}"
-        make_stacked(["sii"], "Ha", sii_base)
+        make_stacked(["sii"], "Ha", sii_base, "sii")
 
     if has_ha_oiii:
         # green output channel - from the HaOiii filter Ha is on the 656nm red channel
         channel_num += 1
         ha_base = f"results_{channel_num:05d}"
-        make_stacked(["ha"], "Ha", ha_base)
+        make_stacked(["ha"], "Ha", ha_base, "ha")
         ha_input = context.get("input", {}).get("ha")
         if ha_input is not None and getattr(ha_input, "provenance", None):
             context["ha_registration_source_by_name"] = ha_input.provenance
@@ -306,7 +309,7 @@ def osc_process(has_ha_oiii: bool, has_sii_oiii: bool) -> None:
         # blue output channel - both filters have Oiii on the 500nm blue channel.  Note the case here is uppercase to match siril output
         channel_num += 1
         oiii_base = f"results_{channel_num:05d}"
-        make_stacked(["ha", "sii"], "OIII", oiii_base)
+        make_stacked(["ha", "sii"], "OIII", oiii_base, "oiii")
 
     # if we haven't already processed some other way - just do a single channel process
     # FIXME in this case we want to use a siril line like "stack r_bkg_pp_light rej g 0.3 0.05 -filter-wfwhm=3k -norm=addscale -output_norm -rgb_equal -32b -out=result"
