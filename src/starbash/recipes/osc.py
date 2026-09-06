@@ -157,6 +157,10 @@ def make_renormalize(
     os.makedirs(results_dir, exist_ok=True)
 
     commands = ""
+    # Basename for the registered Ha file (output of 'register' command),
+    # reused by the Sii renormalization below when channel_num >= 3.
+    r_ha = f"r_{ha_base}"
+
     if channel_num == 1:
         # Only one channel - just copy it - eventually we'll add other metadata
         final_path = f"{results_dir}/stacked.fits"
@@ -166,8 +170,6 @@ def make_renormalize(
             """
 
     if channel_num >= 2:
-        # Basenames for registered files (output of 'register' command)
-        r_ha = f"r_{ha_base}"
         r_oiii = f"r_{oiii_base}"
         # Do pixelmath to fixup channel brightness
         logger.info("Doing renormalisation of extra Ha/Oiii channels")
