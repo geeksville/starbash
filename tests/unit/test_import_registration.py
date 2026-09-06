@@ -38,6 +38,32 @@ def test_parse_siril_seq_preserves_positional_selection_and_metrics(tmp_path: Pa
     assert results[1].selected is False
 
 
+def test_parse_siril_seq_accepts_osc_r1_rows(tmp_path: Path):
+    sequence = tmp_path / "test.seq"
+    sequence.write_text(
+        "S 'r_osc_' 18 2 2 5 114 6 1 0 0\n"
+        "L 3\n"
+        "I 18 1 6305,4262\n"
+        "I 19 1 6302,4260\n"
+        "R1 2.9777 4.34938 0.834657 0 0.00311803 1330 H 1 0 1 0 1 13 0 0 1\n"
+        "R1 3.11946 4.09791 0.846969 0 0.00286644 1457 H 1 0 12 0 1 5 0 0 1\n"
+    )
+
+    results = parse_siril_seq(sequence)
+
+    assert len(results) == 2
+    assert results[0].sequence_index == 18
+    assert results[0].selected is True
+    assert results[0].as_metadata() == {
+        "FWHM": 2.9777,
+        "Amplitude": 4.34938,
+        "Roundness": 0.834657,
+        "Background": 0.00311803,
+        "Stars": 1330,
+    }
+    assert results[1].sequence_index == 19
+
+
 def test_parse_siril_seq_rejects_count_mismatch(tmp_path: Path):
     sequence = tmp_path / "test.seq"
     sequence.write_text(

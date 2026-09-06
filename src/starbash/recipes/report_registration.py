@@ -279,9 +279,9 @@ def update_from_seq(
             effective = fallback
             sequence_path = workdir / f"{effective}_.seq"
 
-        log.info("Registration update: parsing %s", sequence_path)
+        log.debug("Registration update: parsing %s", sequence_path)
         results = parse_siril_seq(sequence_path)
-        log.info("Registration update: parsed %d results", len(results))
+        log.debug("Registration update: parsed %d results", len(results))
 
         # Use the ordered source IDs from the upstream stage. A registered
         # sequence may contain fewer rows than its input after seqapplyreg

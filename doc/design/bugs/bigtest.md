@@ -1,9 +1,3 @@
-dont apply veralux to sho?  try by hand exp.
-
-m27
-wrong flats picked?  have odd artifacts on input to graxpert. already messed up in results.seq not sure about earlier. not a drizzle problem.
-
-look into sho+rgb auto workflows https://www.youtube.com/watch?v=R7uZ758ErCc 
 
 # ic1848
 

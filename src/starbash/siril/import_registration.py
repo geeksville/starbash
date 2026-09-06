@@ -58,11 +58,15 @@ def _parse_float(value: str, description: str) -> float:
 
 
 def parse_siril_seq(file_path: str | Path) -> list[RegistrationResult]:
-    """Parse ``R0`` rows and associate them positionally with ``I`` records.
+    """Parse ``R<layer>`` rows and associate them positionally with ``I`` records.
 
-    Siril writes one ``I`` record and one ``R0`` record for each sequence
-    member. Unselected members are retained so callers can apply their update
-    policy without losing sequence alignment.
+    Siril writes one ``I`` record and one registration record for each sequence
+    member. The registration record type is ``R`` followed by the layer/channel
+    index used for registration: ``R0`` for monochrome sequences and ``R1`` for
+    OSC color sequences (registration is computed on the green channel). All
+    variants share the same field layout, so they are treated identically here.
+    Unselected members are retained so callers can apply their update policy
+    without losing sequence alignment.
     """
     path = Path(file_path)
     try:
@@ -93,9 +97,11 @@ def parse_siril_seq(file_path: str | Path) -> list[RegistrationResult]:
             if any(existing == index for existing, _ in sequence_members):
                 raise SirilSequenceError(f"Duplicate sequence index {index}")
             sequence_members.append((index, bool(selected)))
-        elif record_type == "R0":
+        elif len(record_type) > 1 and record_type[0] == "R" and record_type[1:].isdigit():
             if len(parts) < 7:
-                raise SirilSequenceError(f"Malformed R0 record at line {line_number}: {line!r}")
+                raise SirilSequenceError(
+                    f"Malformed R registration record at line {line_number}: {line!r}"
+                )
             registration_rows.append(
                 (
                     _parse_float(parts[1], f"FWHM at line {line_number}"),
@@ -121,7 +127,7 @@ def parse_siril_seq(file_path: str | Path) -> list[RegistrationResult]:
         )
     if len(registration_rows) != len(sequence_members):
         raise SirilSequenceError(
-            f"Siril sequence has {len(sequence_members)} I records but {len(registration_rows)} R0 registration rows"
+            f"Siril sequence has {len(sequence_members)} I records but {len(registration_rows)} R registration rows"
         )
 
     return [
