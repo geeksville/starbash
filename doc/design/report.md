@@ -619,3 +619,11 @@ known generated site paths.
 The remaining implementation must define only deterministic details such as
 hero filename ordering, target slug collisions, malformed-target warning text,
 and the exact fake FWHM values used by charts.
+
+## stage r3: generalizing per frame reporting
+
+the per frame reporting (as seen in _update_ha_registration_metrics()) we have been doing we have been restricting to frames with Ha data only.
+that isnt really correct - I just used that as a crutch to get a first implementation.  it works okay on starbash-recipes/osc/stack_single_duo.toml & starbash-recipes/osc/stack_dual_duo.toml
+based workflows but not on the simpler starbash-recipes/osc/stack_osc.toml based flows.
+
+try to find a way to move that per frame reporting into its own toml stage (run after stack*.toml) instead.  it should look at the appropriate registered .seq file to update our db of frame metadata similar to what we did in _update_ha_registration_metrics but working for any of the three stacking toml variants.

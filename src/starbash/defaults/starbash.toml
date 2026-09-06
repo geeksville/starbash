@@ -92,6 +92,14 @@ url.info = "https://www.highpointscientific.com/optolong-2-inch-l-extreme-dual-b
 subtype = "HaOiii"
 
 [[equipment]]
+type = "filter"
+vendor = "Agena"
+fits.filter = "Tri" # must match the FITS header FILTER field for this filter if you want auto matching.
+model.short = "ant-tri"
+model.long = "Agena Tri-Band RGB Ultra Filter"
+url.info = "https://agenaastro.com/antlia-triband-rgb-ultra-filter-2-mounted.html"
+
+[[equipment]]
 type = "mount"
 vendor = "Juwei"
 model.short = "j17"
@@ -138,7 +146,9 @@ HaOiii = ["HaOiii", "HaO3", "Duo"]
 # Astro is the name Dwarf3 uses for their IR cut filter
 # VIS is the name Dwarf3 uses for their 'clear' filter
 # IRCUT/LP are the names Seestar uses for their filters
-None = ["None", "Astro", "IRCUT", "LP", "VIS"]
+# Tri is a common name for a tri-band light pollution filter (LPF)
+
+None = ["None", "Astro", "IRCUT", "LP", "VIS", "Tri"]
 
 camera_osc = ["OSC", "ZWO ASI2600MC Duo"]
 camera_seestar = ["Seestar", "Seestar S50", "Seestar S30", "Seestar S30 Pro"]

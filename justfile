@@ -161,6 +161,12 @@ select-ha:
 # select a small/fast to process target
 select-small: select-seestar-ir
 
+select-131:
+    sb select telescope "Askar 131F"
+
+select-80-ext:
+    sb select telescope "Askar V 80mm extender"
+
 process:
     sb process auto
 
