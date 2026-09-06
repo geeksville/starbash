@@ -3,11 +3,9 @@
 
 import logging
 import os
-from pathlib import Path
 from typing import Any
 
 from starbash.exception import NotEnoughFilesError
-from starbash.siril.import_registration import parse_siril_conversion, parse_siril_seq
 from starbash.tool import tools
 
 siril = tools["siril"]
@@ -15,63 +13,6 @@ siril = tools["siril"]
 # ('context' and 'logger' are normally injected by the starbash runtime)
 context: dict[str, Any] = {}
 logger: logging.Logger = None  # type: ignore
-
-
-def _update_ha_registration_metrics() -> None:
-    """Parse the merged Ha sequence and update its original source images."""
-    updater = context.get("update_image_metadata")
-    logger.info(
-        "Registration update: updater=%s process_dir=%s source_map=%s",
-        updater is not None,
-        context.get("process_dir"),
-        len(context.get("ha_registration_source_by_name", {})),
-    )
-    if updater is None:
-        logger.warning("Siril registration metadata updater is not configured; skipping")
-        return
-
-    sequence_path = Path(context["process_dir"]) / "all_r_Ha_bkg_pp_light_.seq"
-    try:
-        source_by_name = context.get("ha_registration_source_by_name", {})
-        if not isinstance(source_by_name, dict):
-            raise ValueError("Missing Ha registration source-name mapping")
-        logger.debug("Registration update: parsing %s", sequence_path)
-        results = parse_siril_seq(sequence_path)
-        conversions = parse_siril_conversion(
-            sequence_path.with_name("all_r_Ha_bkg_pp_light_conversion.txt")
-        )
-        logger.debug(
-            "Registration update: parsed %d results and %d conversion mappings",
-            len(results),
-            len(conversions),
-        )
-        if len(conversions) != len(results):
-            raise ValueError(
-                f"Siril returned {len(results)} registration rows for "
-                f"{len(conversions)} conversion mappings"
-            )
-        updates = {}
-        for result, conversion in zip(results, conversions, strict=True):
-            if not result.selected:
-                continue
-            source_id = source_by_name.get(Path(conversion.source_name).name)
-            if source_id is None:
-                source_id = source_by_name.get(conversion.merged_name)
-            if source_id is None:
-                raise ValueError(f"No database image for {conversion.source_name}")
-            updates[source_id] = result.as_metadata()
-
-        expected_count = sum(result.selected for result in results)
-        assert len({result.sequence_index for result in results}) == len(results)
-        assert len(set(updates)) == len(updates)
-        assert len(updates) == expected_count
-        if len(updates) != expected_count:
-            raise ValueError(f"Mapped {len(updates)} selected images, expected {expected_count}")
-        updated_count = updater(updates)
-        assert updated_count == expected_count
-        logger.info("Registration update: updated %d source image records", updated_count)
-    except Exception as exc:
-        logger.warning("Unable to update Siril registration metadata: %s", exc)
 
 
 def fix_sequence_name(path: str) -> str:
@@ -95,10 +36,9 @@ def _get_param(name: str, default: str) -> str:
     return str(value)  # an explicitly empty override is meaningful (e.g. disable drizzle)
 
 
-def make_stacked(inputs_to_use: list[Any],
-        variant: str | None,
-        output_file: str,
-        output_band: str = "any") -> None:
+def make_stacked(
+    inputs_to_use: list[Any], variant: str | None, output_file: str, output_band: str = "any"
+) -> None:
     """
     Registers and stacks all pre-processed light frames for a given filter configuration
     across all sessions.
@@ -134,7 +74,6 @@ def make_stacked(inputs_to_use: list[Any],
                 seqs_to_merge.extend(cur_seq.short_paths)
 
         # We only want to process seqs_to_merge for our CURRENT variant.  So drop any files that don't start with that
-        # fixme-ai be extra careful for doc/design/fwhm.md because this will change the mapping back to the original files
         seqs_to_merge = [fix_sequence_name(s) for s in seqs_to_merge if s.startswith(input_base)]
 
         logger.info(f"Registering and stacking for {variant} -> {stacked_output_path}")
@@ -294,16 +233,6 @@ def osc_process(has_ha_oiii: bool, has_sii_oiii: bool) -> None:
         channel_num += 1
         ha_base = f"results_{channel_num:05d}"
         make_stacked(["ha"], "Ha", ha_base, "ha")
-        ha_input = context.get("input", {}).get("ha")
-        if ha_input is not None and getattr(ha_input, "provenance", None):
-            context["ha_registration_source_by_name"] = ha_input.provenance
-            logger.info(
-                "Registration update: captured %d Ha provenance entries",
-                len(ha_input.provenance),
-            )
-        else:
-            logger.warning("Registration update: Ha input has no provenance entries")
-        _update_ha_registration_metrics()
 
     if has_ha_oiii or has_sii_oiii:
         # blue output channel - both filters have Oiii on the 500nm blue channel.  Note the case here is uppercase to match siril output

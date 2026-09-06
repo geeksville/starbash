@@ -82,11 +82,7 @@ def _clone_context(context: dict[str, Any]) -> dict[str, Any]:
     Returns:
         A deep copy of the current context dictionary.
     """
-    shared = {
-        key: context[key]
-        for key in ["session", "update_image_metadata"]
-        if key in context
-    }
+    shared = {key: context[key] for key in ["session", "update_image_metadata"] if key in context}
     r = copy.deepcopy({key: value for key, value in context.items() if key not in shared})
 
     # A few fields (if populated) we want SHARED between all contexts, so that if two contexts were initially pointing
@@ -197,7 +193,12 @@ class Processing(ProcessingLike):
     def __enter__(self) -> "Processing":
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: types.TracebackType | None) -> bool:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: types.TracebackType | None,
+    ) -> bool:
         self.close()
         return False
 
@@ -637,9 +638,11 @@ class Processing(ProcessingLike):
                 try:
                     script = source.read(script_filename)
                     try:
-                        script_filename = source.resolve_path(script_filename) # Try to let the tool give the full filepath in error messages
+                        script_filename = source.resolve_path(
+                            script_filename
+                        )  # Try to let the tool give the full filepath in error messages
                     except Exception:
-                        pass # some repos might not be on a local disk.  In that case just use the base name
+                        pass  # some repos might not be on a local disk.  In that case just use the base name
                     tool_parameters["script_file"] = str(script_filename)
 
                 except OSError as e:
@@ -691,9 +694,18 @@ class Processing(ProcessingLike):
             return None
 
         after = get_safe(input_with_after, "after")
-        prior_task_name = self._get_unique_task_name(
-            after
-        )  # find the right task for our stage and multiplex
+        # ``after`` is a regex over task/stage names. Preserve it as a regex
+        # instead of passing it through ``_get_unique_task_name()``, which is
+        # intended for literal task names and would turn e.g.
+        # ``stack_(single|dual)_duo`` into a non-matching literal prefix.
+        prior_task_name = self._get_unique_task_name(after)
+        # ``_get_unique_task_name`` appends target/session suffixes after the
+        # regex. Wrap the dependency expression so the suffix remains outside
+        # the alternation (``stack_(single|dual)_duo_sh2126`` must match both
+        # concrete stage names).
+        if "(" in after or "[" in after or "|" in after:
+            suffix = prior_task_name[len(after) :]
+            prior_task_name = f"(?:{after}){suffix}"
 
         # Compile the prior_task_name into a regex pattern for prefix matching.
         # The pattern from TOML may contain wildcards like "light.*" which should match
@@ -970,9 +982,7 @@ class Processing(ProcessingLike):
             self.context.pop("stage_input", None)
             self.context.pop("multiplex_index", None)
 
-    def _with_defaults(
-        self, img: ImageRow, defaults: Metadata | None = None
-    ) -> ImageRow:
+    def _with_defaults(self, img: ImageRow, defaults: Metadata | None = None) -> ImageRow:
         """Try to provide missing metadata for image rows.  Some imagerows are 'sparse'
         with just a filename and minor other info.  In that case try to assume the metadata matches
         the input metadata for this single pipeline of images.
@@ -1035,9 +1045,7 @@ class Processing(ProcessingLike):
             )
         ]
         if not prior_tasks:
-            raise NotEnoughFilesError(
-                "All prior stages for this input were excluded", []
-            )
+            raise NotEnoughFilesError("All prior stages for this input were excluded", [])
 
         # Collect all image rows from prior stage outputs
         child_exception: Exception | None = None
@@ -1054,9 +1062,7 @@ class Processing(ProcessingLike):
             {
                 **input,
                 "requires": [
-                    r
-                    for r in all_requires
-                    if r.get("kind") not in ("filename", "min_count")
+                    r for r in all_requires if r.get("kind") not in ("filename", "min_count")
                 ],
             }
             if filename_requires or min_count_requires
@@ -1314,13 +1320,9 @@ class Processing(ProcessingLike):
                 definition=input,
             )
             source_images = [image for image in images if image.get("id") is not None]
-            fi.sequence_provenance = {
-                f"{fi.base}_.seq": [image["id"] for image in source_images]
-            }
+            fi.sequence_provenance = {f"{fi.base}_.seq": [image["id"] for image in source_images]}
             fi.provenance = {
-                image["path"]: image["id"]
-                for image in source_images
-                if image.get("path")
+                image["path"]: image["id"] for image in source_images if image.get("path")
             }
             ci[imagetyp] = fi
 
@@ -1497,9 +1499,7 @@ class Processing(ProcessingLike):
                     continue
                 sequence_provenance[filename] = source_ids.copy()
                 stem = (
-                    filename[: -len("_.seq")]
-                    if filename.endswith("_.seq")
-                    else Path(filename).stem
+                    filename[: -len("_.seq")] if filename.endswith("_.seq") else Path(filename).stem
                 )
                 generated_provenance.update(
                     {

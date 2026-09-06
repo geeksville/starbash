@@ -82,13 +82,13 @@ def sort_stages(stages: list[StageDict]) -> list[StageDict]:
                     if pattern.match(candidate_name):
                         dependencies[stage_name].add(candidate_name)
             except re.error as e:
-                logging.warning(f"Invalid regex pattern '{after_pattern}' in stage '{stage_name}': {e}")
+                logging.warning(
+                    f"Invalid regex pattern '{after_pattern}' in stage '{stage_name}': {e}"
+                )
 
     # Topological sort using Kahn's algorithm with priority-based ordering
     # Track which dependencies remain for each stage
-    remaining_deps: dict[str, set[str]] = {
-        name: deps.copy() for name, deps in dependencies.items()
-    }
+    remaining_deps: dict[str, set[str]] = {name: deps.copy() for name, deps in dependencies.items()}
 
     # Start with stages that have no dependencies
     available = [name for name in stage_by_name.keys() if len(remaining_deps[name]) == 0]
@@ -127,12 +127,15 @@ def sort_stages(stages: list[StageDict]) -> list[StageDict]:
         remaining_stages = sorted(
             [stage_by_name[name] for name in remaining],
             key=lambda s: s.get("priority", 0),
-            reverse=True
+            reverse=True,
         )
         sorted_stages.extend(remaining_stages)
 
-    logging.debug(f"Stages in dependency and priority order: {[s.get('name') for s in sorted_stages]}")
+    logging.debug(
+        f"Stages in dependency and priority order: {[s.get('name') for s in sorted_stages]}"
+    )
     return sorted_stages
+
 
 def tasks_to_stages(tasks: list[TaskDict]) -> list[StageDict]:
     """Extract unique stages from the given list of tasks, sorted by priority."""
@@ -240,14 +243,17 @@ def create_default_task(tasks: list[TaskDict]) -> TaskDict:
     task_deps = []
     for task in tasks:
         # We consider tasks that are writing to the final output repos
-        # 'high value' and what we should run by default
+        # 'high value' and should run by default. State-only stages can opt in
+        # with ``run_by_default = true`` because they have no output file.
         stage = task["meta"]["stage"]
+        if stage.get("run_by_default", False):
+            task_deps.append(task["name"])
+            continue
         outputs = stage.get("outputs", [])
         for output in outputs:
             output_kind = get_safe(output, "kind")
             if output_kind == "master" or output_kind == "processed":
-                high_value_task = task
-                task_deps.append(high_value_task["name"])
+                task_deps.append(task["name"])
                 break  # no need to check other outputs for this task
 
     task_dict: TaskDict = {

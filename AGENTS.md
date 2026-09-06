@@ -62,3 +62,15 @@ populated (not reset) before the filter runs.
 - Add/adjust unit tests for behavior changes. Tests that only assert a mock "was called"
   don't verify real behavior — assert on actual resulting state.
 - Rich markup mode is on for the Typer app; SQLite row factory is `sqlite3.Row`.
+
+## Workspace search safety
+
+- Do not run unrestricted recursive `grep` or similar searches in data-heavy
+  directories such as `private/`, processed-image trees, caches, or build
+  outputs. These directories can contain very large FITS, image, database, and
+  log files and searches may take an excessive amount of time.
+- When searching those directories, restrict the search to the relevant text
+  file types (for example `*.toml`, `*.py`, `*.md`, or explicitly selected log
+  extensions) and scope the search to the smallest useful subtree.
+- Prefer targeted file listing and inspection over searching binary or large
+  generated files.

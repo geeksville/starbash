@@ -620,10 +620,184 @@ The remaining implementation must define only deterministic details such as
 hero filename ordering, target slug collisions, malformed-target warning text,
 and the exact fake FWHM values used by charts.
 
-## stage r3: generalizing per frame reporting
+## Stage R3: Generalize per-frame reporting as a TOML stage
 
-the per frame reporting (as seen in _update_ha_registration_metrics()) we have been doing we have been restricting to frames with Ha data only.
-that isnt really correct - I just used that as a crutch to get a first implementation.  it works okay on starbash-recipes/osc/stack_single_duo.toml & starbash-recipes/osc/stack_dual_duo.toml
-based workflows but not on the simpler starbash-recipes/osc/stack_osc.toml based flows.
+### Status
 
-try to find a way to move that per frame reporting into its own toml stage (run after stack*.toml) instead.  it should look at the appropriate registered .seq file to update our db of frame metadata similar to what we did in _update_ha_registration_metrics but working for any of the three stacking toml variants.
+**Proposed plan — stage R3. Implementation not started.**
+
+Move per-frame Siril registration reporting out of `src/starbash/recipes/osc.py`
+(`_update_ha_registration_metrics()`) into a dedicated TOML stage that runs
+after `stack_*.toml` and works for all three stacking variants:
+
+- `starbash-recipes/osc/stack_osc.toml` (basic OSC, `variant is None`)
+- `starbash-recipes/osc/stack_single_duo.toml` (Ha/OIII)
+- `starbash-recipes/osc/stack_dual_duo.toml` (Sii/Ha/OIII)
+
+### Confirmed decisions
+
+1. One representative sequence per target. Do not update from every channel.
+   Ha is preferred when present; otherwise use the OSC sequence.
+2. Explicit `seq_basename` parameter per reporting mode. No directory
+  scanning for `.seq` files. The basic OSC and shared duo stages use
+  different basenames.
+3. Move `temporaries = ["in*", "r_in*"]` from `stack_osc.toml` to the
+  basic OSC reporting stage, so `r_in_.seq` survives until the DB update.
+   Audit duo variants for equivalent deletable intermediates and move those
+   likewise.
+4. Remove `_update_ha_registration_metrics()` and its call in `osc_process()`
+   once the TOML stage lands. Refactor shared logic into a helper imported by
+   the new stage; no dual-path fallback.
+
+### Current architecture
+
+- `osc_process()` calls `make_stacked()` then inline
+  `_update_ha_registration_metrics()`, hardcoded to
+  `process_dir/all_r_Ha_bkg_pp_light_.seq` plus
+  `all_r_Ha_bkg_pp_light_conversion.txt`, using
+  `context["ha_registration_source_by_name"]` captured from
+  `context["input"]["ha"].provenance`.
+- `make_stacked()` current naming uses `merged_seq_base = "all_{output_band}"`
+  (`all_ha`, `all_oiii`, `all_sii`) for duo paths and `registration_input =
+  "in"` for the `variant is None` path (`register in`, `seqapplyreg in`,
+  `stack r_in`). The hardcoded `all_r_Ha_bkg_pp_light_.seq` name is stale and
+  must be re-verified before writing defaults.
+- `process_dir` is per-target shared (`ProcessedTarget._init_processing_dir`),
+  so a later stage in the same job sees the same `.seq` files unless
+  `temporaries` deleted them.
+- Provenance (`FileInfo.provenance`, `FileInfo.sequence_provenance`) is
+  propagated through job inputs by `Processing._import_from_prior_stages()`.
+  `context["update_image_metadata"]` is bound to
+  `sb.db.update_images_metadata` and shared via `_clone_context()`.
+- Parser (`parse_siril_seq`, `parse_siril_conversion`,
+  `RegistrationResult.as_metadata()`) and atomic DB API
+  (`Database.update_images_metadata()`) already exist per `doc/design/fwhm.md`.
+  Report whitelist (`FWHM`, `Amplitude`, `Roundness`, `Background`, `Stars`)
+  already exists in `src/starbash/report.py`.
+
+### TOML contract
+
+New file `starbash-recipes/osc/report_registration.toml` (or
+`common/report_registration.toml` if preferred) with two `[[stages]]` entries
+sharing one helper: one for basic OSC and one for both duo variants. Example:
+
+```toml
+[[stages]]
+name = "report_stack_osc"
+description = "Record per-frame registration metrics for basic OSC stacks"
+tool.name = "python"
+priority = 340
+temporaries = ["in*", "r_in*"]
+
+[[stages.inputs]]
+kind = "job"
+name = "frames"
+after = "stack_osc"
+
+[[stages.inputs.requires]]
+kind = "min_count"
+value = 1
+
+[[stages.parameters]]
+name = "seq_basename"
+default = "r_in"
+description = "Registered sequence basename in process_dir (without _.seq suffix)"
+
+# shared duo stage:
+# name = "report_duo", after = "stack_(single|dual)_duo", seq_basename = "r_all_ha"
+```
+
+Rules:
+
+- `priority` above 330 (`stack_dual_duo`) so ordering is guaranteed; the duo
+  stage uses the anchored regex `stack_(single|dual)_duo` to depend on either
+  duo producer.
+- Each reporting stage declares only `min_count = 1`; no metadata/camera
+  filters. If its `after` stage did not run, the reporting task is skipped via
+  the existing `NoPriorTaskException` / `NotEnoughFilesError` path.
+- Script is `tool.name = "python"`; both stages use
+  `src/starbash/recipes/report_registration.py:update_from_seq()`.
+- `seq_basename` values must be confirmed in Phase 0 by running each stack
+  variant and listing `process_dir/*.seq` (candidates: `r_in` for OSC,
+  `all_ha` for duo; verify single-input no-merge case where `registration_input`
+  is the single per-session seq and no conversion file exists).
+
+### Script contract
+
+Shared helper (new module, imported by the stage script):
+
+```python
+def update_from_seq(seq_basename, process_dir, provenance_by_name, updater, logger) -> int
+```
+
+Flow:
+
+1. Resolve `process_dir/{seq_basename}_.seq`. If missing: warn, return 0.
+2. `results = parse_siril_seq(seq_path)`.
+3. Resolve optional `process_dir/{seq_basename}_conversion.txt`. If present,
+   `conversions = parse_siril_conversion(...)` and validate
+   `len(conversions) == len(results)`; else require single-input path
+   (exactly one prior seq, direct index mapping) or warn and return 0.
+4. Build provenance union from all `context["input"]` `FileInfo.provenance`
+   dicts (basename and merged-name keys, as in current code).
+5. For each selected result, map via conversion (or direct) to source basename
+   to image ID. Validate counts/uniqueness with assertions before any write
+   (same policy as `fwhm.md`: selected count, unique indexes, unique IDs).
+6. `updater(updates)` atomically; assert returned count. On any exception:
+   warn, no partial update (DB API already rolls back).
+
+Only selected members update source rows. Omitted/filtered frames remain
+untouched. Reruns overwrite the same five keys in place (idempotent); failed
+runs leave prior values intact.
+
+### Temporaries plan
+
+- Delete `temporaries = ["in*", "r_in*"]` from `stack_osc.toml`.
+- Add it to `report_stack_osc` so cleanup still happens via
+  `cleanup_temporaries()` after reporting (success or failure).
+- Duo variants currently declare no `temporaries`; audit `process_dir` after
+  duo stacks for safe patterns (e.g. `all_ha*`, `all_oiii*`, `r_all_*`) and
+  move only reporting-safe patterns to the duo reporting stages. Never delete
+  `stacked_*.fits` final outputs.
+
+### Removal plan
+
+- Delete `_update_ha_registration_metrics()` from
+  `src/starbash/recipes/osc.py`.
+- Delete `ha_registration_source_by_name` capture in `osc_process()`.
+- Keep `make_stacked()` / `osc_process()` otherwise unchanged. Remove the
+  stale `fixme-ai ... fwhm.md` comment once mapping is owned by the new stage.
+
+### Test plan
+
+- Helper unit tests (mocked `process_dir` with fixture `.seq` + conversion):
+  selected-only update, unselected skipped, non-contiguous merge mapping
+  (`00008 -> 00008`, `00010 -> 00009` style), missing conversion with
+  single-input path, missing `.seq` warns with zero updates, duplicate/missing
+  mapping fails with no DB write, idempotent rerun.
+- TOML tests: priority ordering after stack stages, shared duo regex wiring,
+  `seq_basename` defaults present, and `temporaries` absent from
+  `stack_osc.toml` but present on the OSC reporting stage.
+- Regression: OSC-only fixture (no HaOiii filter) produces `FWHM` metadata
+  via `r_in_.seq`; duo fixtures still produce Ha-based metrics; OIII/Sii
+  sequences are not parsed.
+- Existing suites: `test_import_registration.py`, database atomicity tests,
+  report whitelist tests unchanged.
+
+### Implementation phases
+
+1. Phase 0 — verify actual `.seq` basenames per stack variant; fix defaults.
+2. Phase 1 — extract shared helper from current function; add helper unit tests.
+3. Phase 2 — add `report_registration.toml` with two stages + parameters.
+4. Phase 3 — move `temporaries`; remove inline call; run TOML + regression tests.
+
+### Acceptance criteria
+
+- `stack_osc.toml` flows record `FWHM`/`Amplitude`/`Roundness`/`Background`/
+  `Stars` on source rows; duo flows unchanged in behavior but routed through
+  the new stage.
+- No `.seq` scan; each reporting stage uses its explicit `seq_basename`.
+- `r_in_.seq` (and duo equivalents) available at reporting time; intermediates
+  still cleaned afterwards.
+- No `_update_ha_registration_metrics` references remain.
+- Missing/failed parse logs a warning and skips without partial writes.

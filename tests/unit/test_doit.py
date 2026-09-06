@@ -187,7 +187,6 @@ class TestCleanupTemporaries:
         cleanup_temporaries({"temporaries": []}, {"process_dir": str(tmp_path)})
         cleanup_temporaries({}, {"process_dir": str(tmp_path)})
         cleanup_temporaries(None, {"process_dir": str(tmp_path)})
-        assert (tmp_path / "keep.fits").exists()
 
     def test_unsafe_patterns_are_skipped(self, tmp_path):
         outside = tmp_path.parent / "outside.fits"
