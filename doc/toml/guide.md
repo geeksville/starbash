@@ -251,7 +251,7 @@ put `min_count` last so it tests what remains. Implementation:
 
 | `kind` | Effect |
 |--------|--------|
-| `metadata` | Keep files whose FITS header `name` matches `value`. `value` may be a **list** (matches if *any* value matches — logical OR). Use multiple `requires` blocks for AND. Values are normalized via the alias table. |
+| `metadata` | Keep files whose FITS header `name` matches `value`. `value` may be a **list** (matches if *any* value matches — logical OR). Use multiple `requires` blocks for AND. Values are normalized via the alias table. Add `invert = true` to keep files matching **none** of the values. |
 | `camera` | `value = "color"` keeps only sessions with a `BAYERPAT` header (OSC/color cameras). |
 | `unprocessed` | Keep only files from non‑`processed`/non‑`master` repos (used by master generation so it never re‑consumes its own output). |
 | `filename` | Keep files whose **basename** matches the regex `value`. `mode = "include"` (default) keeps matches; `mode = "exclude"` keeps non‑matches. |
@@ -276,6 +276,13 @@ mode = "exclude"
 [[stages.inputs.requires]]
 kind = "min_count"
 value = 2
+
+# Broadband: keep sessions whose filter is neither HaOiii nor SiiOiii
+[[stages.inputs.requires]]
+kind = "metadata"
+name = "filter"
+value = ["HaOiii", "SiiOiii"]
+invert = true
 ```
 
 ### 5.3 Outputs (`[[stages.outputs]]`)

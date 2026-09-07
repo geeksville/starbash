@@ -98,6 +98,39 @@ class TestFilterByRequires:
         finally:
             starbash.filtering.get_aliases = original_get_aliases
 
+    def test_filter_metadata_invert(self):
+        """metadata/invert keeps candidates NOT matching any listed value."""
+        input_def = {
+            "requires": [
+                {
+                    "kind": "metadata",
+                    "name": "FILTER",
+                    "value": ["HaOiii", "SiiOiii"],
+                    "invert": True,
+                }
+            ]
+        }
+
+        import starbash.filtering
+
+        mock_aliases = MagicMock()
+        mock_aliases.normalize = lambda x: x
+
+        original_get_aliases = starbash.filtering.get_aliases
+        starbash.filtering.get_aliases = lambda: mock_aliases
+
+        try:
+            candidates = [
+                {"FILTER": "HaOiii", "path": "img1.fits"},
+                {"FILTER": "SiiOiii", "path": "img2.fits"},
+                {"FILTER": "Tri", "path": "img3.fits"},
+            ]
+
+            result = filter_by_requires(input_def, candidates)
+            assert [img["path"] for img in result] == ["img3.fits"]
+        finally:
+            starbash.filtering.get_aliases = original_get_aliases
+
     def test_filter_camera_color(self):
         """Test filtering by color camera (has BAYERPAT)."""
         input_def = {"requires": [{"kind": "camera", "value": "color"}]}

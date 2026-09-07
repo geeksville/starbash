@@ -1056,6 +1056,43 @@ class TestMergeStarsRecipe:
         assert names.index("veralux") < names.index("merge_stars")
 
 
+class TestBroadbandPaletteRecipe:
+    """Tests that the broadband palette recipe is wired correctly."""
+
+    def _load_recipe(self):
+        import tomlkit
+
+        recipe = Path(__file__).parents[2] / "starbash-recipes" / "palette" / "broadband.toml"
+        return tomlkit.parse(recipe.read_text())
+
+    def test_siril_pass_through(self):
+        doc = self._load_recipe()
+        stage = doc["stages"][0]
+        assert stage["name"] == "palette_broadband"
+        assert stage["tool"]["name"] == "siril"
+        assert stage["inputs"][0]["after"] == "noise_exterminator"
+        assert list(stage["outputs"][0]["name"]) == ["broadband.fits"]
+
+    def test_inverted_metadata_filter(self):
+        doc = self._load_recipe()
+        requires = doc["stages"][0]["inputs"][0]["requires"]
+        metadata_reqs = [r for r in requires if r["kind"] == "metadata"]
+        assert len(metadata_reqs) == 1
+        assert metadata_reqs[0]["name"] == "filter"
+        assert list(metadata_reqs[0]["value"]) == ["HaOiii", "SiiOiii"]
+        assert metadata_reqs[0].get("invert") is True
+        assert any(r["kind"] == "min_count" for r in requires)
+
+    def test_default_manifest_includes_broadband_recipe(self):
+        import tomlkit
+
+        manifest = tomlkit.parse(
+            (Path(__file__).parents[2] / "starbash-recipes" / "starbash.toml").read_text()
+        )
+        refs = [ref.get("dir") for ref in manifest["repo-ref"]]
+        assert "palette/broadband.toml" in refs
+
+
 class TestVeraluxFilter:
     """Tests that VeraLux only stretches starless (not starmask) files."""
 

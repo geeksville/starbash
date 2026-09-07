@@ -30,6 +30,10 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
 
     kind = get_safe(requires, "kind")
     value = requires.get("value")  # value is optional for some kinds
+    # Optional `invert` negates the boolean match so non-matching candidates are
+    # kept (e.g. select sessions whose filter is NOT narrowband). Only meaningful
+    # for boolean-match kinds (metadata/camera/unprocessed/filename), not min_count.
+    invert = bool(requires.get("invert", False))
 
     # Stage 1: Filter candidates using kind-specific filter functions
     def _filter_metadata(metadata: Metadata) -> bool:
@@ -95,7 +99,10 @@ def _apply_filter(requires: RequireDef, candidates: list[ImageRow]) -> list[Imag
         raise ValueError(f"Unknown requires kind: {kind}")
 
     # Apply the filter function to all candidates
-    filtered_candidates = [img for img in candidates if filter_func(img)]
+    if invert:
+        filtered_candidates = [img for img in candidates if not filter_func(img)]
+    else:
+        filtered_candidates = [img for img in candidates if filter_func(img)]
 
     # Stage 2: Handle min_count check after filtering
     if kind == "min_count":
