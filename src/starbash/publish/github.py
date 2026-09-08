@@ -12,8 +12,10 @@ from typing import Any
 import pygal
 import tomlkit
 from jinja2 import Environment, PackageLoader
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from tomlkit.exceptions import ParseError
 
+from starbash import console
 from starbash.paths import get_publish_site_dir
 
 
@@ -135,100 +137,123 @@ class GitHubPublisher:
     def publish(self) -> Path:
         """Regenerate the complete site and return its root directory."""
         root = self._processed_root()
+        targets = self._targets(root)
+
+        # Wipe any previously generated site so stale files don't persist.
+        if self.site_dir.exists():
+            shutil.rmtree(self.site_dir)
+        self.site_dir.mkdir(parents=True, exist_ok=True)
+
         posts = self.site_dir / "targets"
         assets_root = self.site_dir / "assets" / "targets"
         posts.mkdir(parents=True, exist_ok=True)
         assets_root.mkdir(parents=True, exist_ok=True)
-        config = resources.files("starbash.templates.report").joinpath("_config.yml")
-        (self.site_dir / "_config.yml").write_text(
-            config.read_text(encoding="utf-8"), encoding="utf-8"
-        )
-        gemfile = resources.files("starbash.templates.report").joinpath("Gemfile")
-        (self.site_dir / "Gemfile").write_text(
-            gemfile.read_text(encoding="utf-8"), encoding="utf-8"
-        )
-        layouts = self.site_dir / "_layouts"
-        layouts.mkdir(exist_ok=True)
-        default_layout = resources.files("starbash.templates.report").joinpath("default.html")
-        (layouts / "default.html").write_text(default_layout.read_text(encoding="utf-8"), encoding="utf-8")
-        favicon = resources.files("starbash.assets").joinpath("favicon.ico")
-        with favicon.open("rb") as source, (self.site_dir / "favicon.ico").open("wb") as destination:
-            shutil.copyfileobj(source, destination)
-        index_targets: list[dict[str, Any]] = []
-        for directory, document in self._targets(root):
-            about = document.get("about", {})
-            if not isinstance(about, dict):
-                about = {}
-            target = document.get("target")
-            if not isinstance(target, dict):
-                target = about.get("target", {})
-            if not isinstance(target, dict):
-                target = {}
-            summary = document.get("summary")
-            if isinstance(summary, str):
-                about = {**about, "summary": summary}
-            name = str(target.get("id") or directory.name)
-            description = about.get("description")
-            if not isinstance(description, str) or not description.strip():
-                description = about.get("summary")
-            if not isinstance(description, str) or not description.strip():
-                description = f"Processed Starbash target: {name}."
-            slug = slugify(name)
-            asset_dir = assets_root / slug
-            asset_dir.mkdir(parents=True, exist_ok=True)
-            main_config = document.pop("_main_config")
-            shutil.copy2(main_config, asset_dir / "main.toml")
-            image_urls: list[str] = []
-            for image in self._images(directory):
-                shutil.copy2(image, asset_dir / image.name)
-                image_urls.append(f"assets/targets/{slug}/{image.name}")
-            sessions: list[dict[str, Any]] = []
-            for number, session in enumerate(document.get("sessions", []), start=1):
-                frames = session.get("frames", [])
-                chart = pygal.Line(
-                    title=f"Session {session.get('date', number)}",
-                    height=300,
-                    show_x_labels=False,
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("{task.completed}/{task.total}"),
+            TimeElapsedColumn(),
+            console=console,
+        ) as progress:
+            task = progress.add_task("Generating site", total=2 + len(targets))
+
+            config = resources.files("starbash.templates.report").joinpath("_config.yml")
+            (self.site_dir / "_config.yml").write_text(
+                config.read_text(encoding="utf-8"), encoding="utf-8"
+            )
+            gemfile = resources.files("starbash.templates.report").joinpath("Gemfile")
+            (self.site_dir / "Gemfile").write_text(
+                gemfile.read_text(encoding="utf-8"), encoding="utf-8"
+            )
+            layouts = self.site_dir / "_layouts"
+            layouts.mkdir(exist_ok=True)
+            default_layout = resources.files("starbash.templates.report").joinpath("default.html")
+            (layouts / "default.html").write_text(default_layout.read_text(encoding="utf-8"), encoding="utf-8")
+            favicon = resources.files("starbash.assets").joinpath("favicon.ico")
+            with favicon.open("rb") as source, (self.site_dir / "favicon.ico").open("wb") as destination:
+                shutil.copyfileobj(source, destination)
+            progress.update(task, description="Copied static assets", advance=1)
+            index_targets: list[dict[str, Any]] = []
+            for directory, document in targets:
+                about = document.get("about", {})
+                if not isinstance(about, dict):
+                    about = {}
+                target = document.get("target")
+                if not isinstance(target, dict):
+                    target = about.get("target", {})
+                if not isinstance(target, dict):
+                    target = {}
+                summary = document.get("summary")
+                if isinstance(summary, str):
+                    about = {**about, "summary": summary}
+                name = str(target.get("id") or directory.name)
+                description = about.get("description")
+                if not isinstance(description, str) or not description.strip():
+                    description = about.get("summary")
+                if not isinstance(description, str) or not description.strip():
+                    description = f"Processed Starbash target: {name}."
+                slug = slugify(name)
+                asset_dir = assets_root / slug
+                asset_dir.mkdir(parents=True, exist_ok=True)
+                main_config = document.pop("_main_config")
+                shutil.copy2(main_config, asset_dir / "main.toml")
+                image_urls: list[str] = []
+                for image in self._images(directory):
+                    shutil.copy2(image, asset_dir / image.name)
+                    image_urls.append(f"assets/targets/{slug}/{image.name}")
+                sessions: list[dict[str, Any]] = []
+                for number, session in enumerate(document.get("sessions", []), start=1):
+                    frames = session.get("frames", [])
+                    chart = pygal.Line(
+                        title=f"Session {session.get('date', number)}",
+                        height=300,
+                        show_x_labels=False,
+                    )
+                    chart.add(
+                        "Wind gust",
+                        [frame.get("metadata", {}).get("WINDGUST", 0) for frame in frames],
+                    )
+                    fwhm_values = [frame.get("metadata", {}).get("FWHM") for frame in frames]
+                    if any(value is not None for value in fwhm_values):
+                        chart.add("FWHM", fwhm_values)
+                    chart_name = f"session-{number}.svg"
+                    chart.render_to_file(str(asset_dir / chart_name))
+                    sessions.append(
+                        {
+                            **session,
+                            "equipment_rows": equipment_rows(session.get("equipment", {})),
+                            "chart": f"../../assets/targets/{slug}/{chart_name}",
+                        }
+                    )
+                page_images = [f"../../{url}" for url in image_urls]
+                seo_image = f"/{image_urls[0]}" if image_urls else None
+                page_name = f"{slug}.md"
+                post = self.environment.get_template("target.md.jinja").render(
+                    target={**target, "name": name},
+                    about=about,
+                    description=description,
+                    github_username=self.github_username,
+                    images=page_images,
+                    image=seo_image,
+                    sessions=sessions,
+                    workflow_url=f"../../assets/targets/{slug}/main.toml",
                 )
-                chart.add(
-                    "Wind gust",
-                    [frame.get("metadata", {}).get("WINDGUST", 0) for frame in frames],
-                )
-                fwhm_values = [frame.get("metadata", {}).get("FWHM") for frame in frames]
-                if any(value is not None for value in fwhm_values):
-                    chart.add("FWHM", fwhm_values)
-                chart_name = f"session-{number}.svg"
-                chart.render_to_file(str(asset_dir / chart_name))
-                sessions.append(
+                (posts / page_name).write_text(post)
+                index_targets.append(
                     {
-                        **session,
-                        "equipment_rows": equipment_rows(session.get("equipment", {})),
-                        "chart": f"../../assets/targets/{slug}/{chart_name}",
+                        "name": name,
+                        "url": f"targets/{slug}",
+                        "image": image_urls[0] if image_urls else None,
                     }
                 )
-            page_images = [f"../../{url}" for url in image_urls]
-            seo_image = f"/{image_urls[0]}" if image_urls else None
-            page_name = f"{slug}.md"
-            post = self.environment.get_template("target.md.jinja").render(
-                target={**target, "name": name},
-                about=about,
-                description=description,
-                github_username=self.github_username,
-                images=page_images,
-                image=seo_image,
-                sessions=sessions,
-                workflow_url=f"../../assets/targets/{slug}/main.toml",
+                progress.update(task, description=f"Generated {name}", advance=1)
+
+            index = self.environment.get_template("index.md.jinja").render(
+                targets=index_targets
             )
-            (posts / page_name).write_text(post)
-            index_targets.append(
-                {
-                    "name": name,
-                    "url": f"targets/{slug}",
-                    "image": image_urls[0] if image_urls else None,
-                }
-            )
-        index = self.environment.get_template("index.md.jinja").render(
-            targets=index_targets
-        )
-        (self.site_dir / "index.md").write_text(index)
+            (self.site_dir / "index.md").write_text(index)
+            progress.update(task, description="Wrote index", advance=1)
+
         return self.site_dir

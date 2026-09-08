@@ -70,6 +70,28 @@ def test_publisher_renders_github_username_in_target_title(tmp_path):
     assert 'title: "M 42 by geeksville"' in post
 
 
+def test_publisher_wipes_stale_site_files(tmp_path):
+    """The publisher removes old generated files before rebuilding the site."""
+    processed = tmp_path / "processed"
+    target = processed / "M 42"
+    metadata = target / ".starbash"
+    metadata.mkdir(parents=True)
+    (metadata / "main.toml").write_text('[repo]\nkind = "processed-target"\n')
+    (metadata / "about.toml").write_text('[target]\nid = "M 42"\n')
+    (target / "M 42.jpg").write_bytes(b"jpeg")
+
+    site = tmp_path / "site"
+    stale = site / "stale-file.txt"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("should be removed")
+
+    publisher = GitHubPublisher(_publisher(tmp_path).sb, site)
+    publisher.publish()
+
+    assert not stale.exists()
+    assert (site / "index.md").exists()
+
+
 def test_publisher_generates_distinct_pages_for_legacy_targets(tmp_path):
     """Legacy root-level target metadata does not collapse targets to one page."""
     processed = tmp_path / "processed"
