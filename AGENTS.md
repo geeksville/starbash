@@ -53,6 +53,12 @@ populated (not reset) before the filter runs.
 
 ## Build / test / run
 
+- **This project uses Poetry, NOT uv/uvx.** If a skill, doc, or habit suggests
+  `uvx <tool>` or `uv run <cmd>`, use the Poetry equivalent instead:
+  - `uvx <tool>` → `poetry run <tool>` (run a tool in the project venv)
+  - `uv run <cmd>` → `poetry run <cmd>`
+  - `uv add <pkg>` / `uv pip install <pkg>` → `poetry add <pkg>`
+  - `uv sync` → `poetry install --with dev`
 - Install: `poetry install --with dev`
 - Test: `poetry run pytest` (tests in `tests/`, isolated via `paths.set_test_directories`)
 - Run: `sb <command>` (via poetry venv)
