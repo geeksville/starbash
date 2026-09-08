@@ -45,7 +45,7 @@ def check_version() -> None:
             current_version = version("starbash")
             # This (somewhat optional) function can stall for up to 30 seconds if DNS is down.
             # So we use a faster heuristic to see if there is internet connectivity.
-            result = checker.check("starbash", current_version)
+            result = checker.check(package_name="starbash", package_version=current_version)
             if result:
                 logging.warning(result)
         else:
