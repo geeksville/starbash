@@ -492,9 +492,10 @@ For each palette (`SHO`, `HOO`, ...) the current pipeline produces, in the targe
 processed repo directory:
 
 - `starnet` → linear `starless_<palette>.fits` + `starmask_<palette>.fits`.
-- `veralux` (after `starnet.*`, `multiplex`, `auto.prefix = "hms_"`) → currently
-  stretches **every** upstream file, yielding `hms_starless_<palette>.fits` **and**
-  `hms_starmask_<palette>.fits`.
+- `veralux` (after `(starnet|palette_broadband).*`, `multiplex`,
+  `auto.prefix = "hms_"`) → stretches each matched upstream file, yielding
+  `hms_starless_<palette>.fits` (and, for broadband, `hms_broadband.fits`);
+  `starmask_<palette>.fits` is skipped by the filename filter.
 - `thumbnail` (after `veralux.*`) → a `.jpg` per VeraLux output.
 
 `merge_stars` needs the **stretched** starless (`hms_starless_<palette>.fits`, from
@@ -546,11 +547,12 @@ Add to `siril-scripts/processing/VeraLux_HyperMetric_Stretch.toml`'s job input:
 ```toml
 [[stages.inputs.requires]]
 kind = "filename"
-value = "starless"
-mode = "include"
+value = "starmask"
+mode = "exclude"
 ```
 
-so only `starless_<palette>.fits` is stretched; `starmask_<palette>.fits` is skipped.
+so `starmask_<palette>.fits` is skipped; VeraLux stretches the starless output
+(and, for broadband, the `broadband.fits` palette output).
 
 ### Recipe: `starbash-recipes/post/merge_stars.toml`
 

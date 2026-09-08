@@ -28,8 +28,9 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   Input `requires` filters live in `src/starbash/filtering.py` (`_apply_filter`): kinds
   `metadata`, `camera`, `unprocessed`, `filename`, `min_count`. `filename` keeps candidates whose
   basename matches a regex `value`, with `mode = "include"` (default) or `"exclude"` (used by
-  VeraLux to stretch only `starless`, and by `merge_stars` which blends the linear starmask back
-  into the stretched starless). Any boolean-match `requires` node may add `invert = true` to keep
+  VeraLux to skip `starmask` files, and by `merge_stars` to keep only `hms_starless` files when
+  blending the linear starmask back into the stretched starless). Any boolean-match `requires`
+  node may add `invert = true` to keep
   the non-matching candidates (used by `palette/broadband.toml` to select non-narrowband sessions).
 - **Per-target config**: `src/starbash/processed_target.py` (`ProcessedTarget`). Backed by a
   `starbash.toml` in each target's output dir (e.g. `images/processed/<target>/starbash.toml`).

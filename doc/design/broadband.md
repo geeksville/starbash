@@ -55,6 +55,7 @@ downstream of it) is skipped.
    [[stages.inputs]]
    kind = "job"
    after = "noise_exterminator"
+   multiplex = true
 
    [[stages.inputs.requires]]
    kind = "metadata"
@@ -87,15 +88,18 @@ downstream of it) is skipped.
    - `tests/unit/test_filtering.py` — `metadata`/`invert` keeps non-matching
      filters.
    - `tests/unit/test_tool.py` — `palette_broadband` is a siril pass-through with
-     `after = "noise_exterminator"`, an inverted metadata filter, a `min_count`,
-     and output `broadband.fits`; the default manifest references the recipe.
+     `after = "noise_exterminator"`, `multiplex = true`, an inverted metadata
+     filter, a `min_count`, and output `broadband.fits`; the default manifest
+     references the recipe.
 
 ## Decisions
 
 - `invert` is generic (inverts any boolean `requires` node), matching "any requires
   node" — not metadata-only.
-- The broadband palette is non-multiplexed with a single `input[0]` (broadband
-  produces one stacked file), consistent with the "simple" description.
+- The broadband palette is **multiplexed** (`multiplex = true`) even though it
+  produces a single `broadband.fits`. The `_i0` suffix it adds to the task name
+  stops `veralux`'s `after = "(starnet|palette_broadband).*"` from taking the
+  exact-match shortcut and dropping the multiplexed `starnet` task.
 - `palette/broadband.toml` is listed last among palettes (fallback position).
 
 ## Validation

@@ -1011,7 +1011,7 @@ class TestMergeStarsRecipe:
         doc = self._load_recipe()
         params = {p["name"]: p for s in doc["stages"] for p in s.get("parameters", [])}
         assert "merge_star_stretch" not in params
-        assert params["stretch"]["default"] == 800.0
+        assert params["stretch"]["default"] == 1000.0
 
     def test_stage_uses_siril_after_veralux(self):
         doc = self._load_recipe()
@@ -1073,6 +1073,10 @@ class TestBroadbandPaletteRecipe:
         assert stage["inputs"][0]["after"] == "noise_exterminator"
         assert list(stage["outputs"][0]["name"]) == ["broadband.fits"]
 
+    def test_multiplexed(self):
+        doc = self._load_recipe()
+        assert doc["stages"][0]["inputs"][0]["multiplex"] is True
+
     def test_inverted_metadata_filter(self):
         doc = self._load_recipe()
         requires = doc["stages"][0]["inputs"][0]["requires"]
@@ -1114,6 +1118,10 @@ class TestVeraluxFilter:
         assert len(filename_reqs) == 1
         assert filename_reqs[0]["value"] == "starmask"
         assert filename_reqs[0].get("mode", "include") == "exclude"
+
+    def test_follows_starnet_or_palette_broadband(self):
+        doc = self._load_recipe()
+        assert doc["stages"][0]["inputs"][0]["after"] == "(starnet|palette_broadband).*"
 
 
 class TestStarnetTool:
