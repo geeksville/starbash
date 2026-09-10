@@ -57,6 +57,12 @@ Targets page specifics (recent tweak round):
   Without that, a dropped reference let C++ destroy the `QRunnable` and its signals
   before the queued callback was delivered — only **7 of 60** callbacks arrived.
   The unit test for this fails loudly if the retention is removed.
+- **Checkbox indicators are drawn explicitly in `theme.STYLESHEET`** (visible
+  outline off, accent + `assets/check.png` tick on). Qt's native indicator was a dark
+  box on the dark panel — invisible. `theme.checkmark_path()` resolves the glyph with
+  `importlib.resources`; if it cannot be found the tick is simply omitted (solid
+  accent box), so a packaging slip degrades rather than breaks. The same rules cover
+  the Targets/Processing tree indicators.
 - `services.load_stage_options()` merges recipe declarations with the target's
   `.starbash/main.toml` overrides; `save_stage_options()` rewrites only
   `[[stages]]` (round-trip idempotent, preserves other sections such as citation).

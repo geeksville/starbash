@@ -95,7 +95,13 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
   cooperative `CancelToken`), `ui/qt/bridge.py` (event bus → Qt signals),
   `ui/qt/interaction.py` (Qt `UserInteraction`), `ui/qt/theme.py` (QSS + the app
   icon), `ui/qt/desktop.py` (Linux `.desktop` entry + hicolor icons). Binary/assets
-  (icon, favicon, `.desktop` template) live in the packaged `src/starbash/assets/`.
+  (icon, favicon, checkmark, `.desktop` template) live in the packaged
+  `src/starbash/assets/`.
+- **Theme gotcha**: `theme.py`'s dark palette makes Qt's *native* control indicators
+  invisible (Fusion draws a dark checkbox on the dark panel), so `QCheckBox::indicator`
+  and the item-view indicators are drawn explicitly in the QSS — a visible outline off,
+  the accent plus `assets/check.png` on. Keep new styled controls away from
+  palette-derived colours, which have no contrast against this theme.
 - **Threading rule (important)**: the shared `Starbash`/SQLite connection belongs
   to the GUI thread. Every long operation runs in a worker that builds its **own**
   `Starbash` (hence its own SQLite connection) and reports through the event bus.

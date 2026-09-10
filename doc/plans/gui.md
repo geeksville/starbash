@@ -107,7 +107,7 @@ src/starbash/ui/
     __init__.py
     main.py            # entry: build QApplication, theme, MainWindow
     main_window.py     # QMainWindow: nav rail + QStackedWidget + status bar
-    theme.py           # QSS dark theme + palette constants (mirrors CLI colors)
+    theme.py           # QSS dark theme + palette + asset paths (icon, checkbox tick)
     bridge.py          # event-bus -> Qt signal marshaler; logging.Handler -> Qt
     workers.py         # QObject workers: browse, reindex, process, publish
     models/

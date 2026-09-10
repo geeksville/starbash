@@ -7,16 +7,47 @@ in one place makes the look consistent across every page and easy to tweak.
 from __future__ import annotations
 
 from importlib import resources
+from pathlib import Path
 
 from PySide6.QtGui import QColor, QIcon, QPalette, QPixmap
 from PySide6.QtWidgets import QApplication
 
-__all__ = ["apply_theme", "load_app_icon", "STYLESHEET", "ACCENT", "APP_ICON_NAME"]
+__all__ = [
+    "apply_theme",
+    "checkmark_path",
+    "load_app_icon",
+    "STYLESHEET",
+    "ACCENT",
+    "APP_ICON_NAME",
+    "CHECKMARK_NAME",
+]
 
 ACCENT = "#4aa3df"
 
 #: Application icon, shipped inside the package (``src/starbash/assets/``).
 APP_ICON_NAME = "icon.png"
+#: Tick glyph drawn inside a checked box, shipped alongside the icon.
+CHECKMARK_NAME = "check.png"
+
+
+def checkmark_path() -> str | None:
+    """Filesystem path to the packaged tick glyph, or ``None`` if it is unavailable.
+
+    Qt stylesheets can only reference an image by path, so this is best-effort: an
+    install where the asset has no real path (a zipped wheel) simply falls back to
+    the solid accent fill for a checked box.
+    """
+    try:
+        asset = resources.files("starbash.assets").joinpath(CHECKMARK_NAME)
+        path = Path(str(asset))
+    except (FileNotFoundError, ModuleNotFoundError, OSError):
+        return None
+    return path.as_posix() if path.is_file() else None
+
+
+_checkmark = checkmark_path()
+#: ``image:`` declaration for a checked box, empty when the glyph cannot be found.
+_CHECK_IMAGE = "" if _checkmark is None else f'image: url("{_checkmark}");'
 
 
 def load_app_icon() -> QIcon:
@@ -201,6 +232,40 @@ QTabBar::tab:selected {{
 QTabBar::tab:hover:!selected {{
     background-color: #2b343d;
     color: #e6edf3;
+}}
+
+/* Checkboxes ------------------------------------------------------------- */
+/* The dark palette makes Fusion's native indicator a dark box on a dark panel,
+   i.e. nearly invisible, so it is drawn explicitly: a visible outline when off,
+   the accent with a tick when on. */
+QCheckBox, QRadioButton {{ spacing: 8px; }}
+QCheckBox::indicator, QTreeView::indicator, QListView::indicator {{
+    width: 16px;
+    height: 16px;
+    border: 1px solid #5b6a78;
+    border-radius: 4px;
+    background-color: #10161b;
+}}
+QCheckBox::indicator:hover, QTreeView::indicator:hover {{
+    border-color: {ACCENT};
+    background-color: #16202a;
+}}
+QCheckBox::indicator:checked, QTreeView::indicator:checked, QListView::indicator:checked {{
+    background-color: {ACCENT};
+    border-color: {ACCENT};
+    {_CHECK_IMAGE}
+}}
+QCheckBox::indicator:checked:hover {{
+    background-color: #61b2e8;
+    border-color: #61b2e8;
+}}
+QCheckBox::indicator:disabled {{
+    border-color: #333d46;
+    background-color: #171d22;
+}}
+QCheckBox::indicator:checked:disabled {{
+    background-color: #2f5a77;
+    border-color: #2f5a77;
 }}
 
 /* Progress + status ------------------------------------------------------ */

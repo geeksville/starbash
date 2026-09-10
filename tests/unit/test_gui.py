@@ -22,6 +22,9 @@ try:  # Probe Qt startup once, so an unusable Qt skips rather than erroring.
 except Exception as _qt_error:  # pragma: no cover - environment dependent
     pytest.skip(f"Qt cannot start here: {_qt_error}", allow_module_level=True)
 
+from PySide6.QtGui import QColor, QPixmap  # noqa: E402
+from PySide6.QtWidgets import QWidget  # noqa: E402
+
 from starbash import events  # noqa: E402
 from starbash.ui.qt import QTSIDE6_IMPORT_HINT, GuiUnavailableError, qt_available  # noqa: E402
 
@@ -390,6 +393,99 @@ def test_create_application_applies_theme(qapp):
 
     app = create_application([])
     assert "NavRail" in app.styleSheet()
+
+
+# --- checkboxes ------------------------------------------------------------
+
+
+def _indicator_pixels(box: QWidget) -> list[QColor]:
+    """Colours of the checkbox's indicator area (its leftmost ~18 columns).
+
+    The stylesheet pins the indicator to the left edge and the label starts after
+    ``spacing``, so this window contains the box and none of the text.
+    """
+    image = box.grab().toImage()
+    return [
+        image.pixelColor(x, y) for x in range(min(18, image.width())) for y in range(image.height())
+    ]
+
+
+def _luminance(colour: QColor) -> float:
+    """Rough perceived brightness (0-255), enough to answer "can I see it?"."""
+    return (colour.red() + colour.green() + colour.blue()) / 3
+
+
+def _is_near(colour: QColor, other: QColor, tolerance: int = 40) -> bool:
+    return (
+        abs(colour.red() - other.red()) < tolerance
+        and abs(colour.green() - other.green()) < tolerance
+        and abs(colour.blue() - other.blue()) < tolerance
+    )
+
+
+def test_an_unchecked_box_draws_a_visible_outline(qtbot, qapp):
+    """Regression: the indicator was a dark box on a dark panel - invisible.
+
+    The dark palette makes Fusion's native indicator use ``Base`` (#171d22) plus a
+    black border, so it vanished into the page.  It is now drawn explicitly, and
+    this renders a real checkbox to prove the outline is actually there.
+    """
+    from PySide6.QtWidgets import QCheckBox
+
+    from starbash.ui.qt import theme
+
+    theme.apply_theme(qapp)
+    box = QCheckBox("Send anonymous crash reports and usage data")
+    qtbot.addWidget(box)
+    box.resize(320, 28)
+    box.show()
+    qtbot.waitExposed(box)
+
+    assert box.isChecked() is False
+    # An outline must be noticeably lighter than the #10161b fill behind it.
+    assert max(_luminance(colour) for colour in _indicator_pixels(box)) > 70
+
+
+def test_a_checked_box_is_filled_with_the_accent_and_a_tick(qtbot, qapp):
+    """A checked box shows the accent colour and a light tick, not an empty hole."""
+    from PySide6.QtWidgets import QCheckBox
+
+    from starbash.ui.qt import theme
+
+    theme.apply_theme(qapp)
+    box = QCheckBox("Send anonymous crash reports and usage data")
+    qtbot.addWidget(box)
+    box.resize(320, 28)
+    box.show()
+    qtbot.waitExposed(box)
+
+    box.setChecked(True)
+    pixels = _indicator_pixels(box)
+
+    accent = QColor(theme.ACCENT)
+    assert sum(1 for colour in pixels if _is_near(colour, accent)) > 50
+    # ...plus the tick glyph itself, which is white.
+    assert sum(1 for colour in pixels if min(colour.red(), colour.green(), colour.blue()) > 200) >= 5
+
+
+def test_the_checkmark_is_packaged_and_referenced_by_the_stylesheet(qapp):
+    """The tick is a real, packaged asset and the QSS points at it by path."""
+    from starbash.ui.qt import theme
+
+    path = theme.checkmark_path()
+    assert path is not None, "checkmark asset not found next to the app icon"
+    assert Path(path).is_file()
+    assert not QPixmap(path).isNull()
+    assert f'image: url("{path}")' in theme.STYLESHEET
+
+
+def test_a_missing_checkmark_only_drops_the_tick(monkeypatch, qapp):
+    """Best effort: no glyph means a solid accent box, not a broken stylesheet."""
+    from starbash.ui.qt import theme
+
+    monkeypatch.setattr(theme, "CHECKMARK_NAME", "definitely-not-a-real-check.png")
+    assert theme.checkmark_path() is None
+
 
 
 # --- main window and pages -------------------------------------------------
