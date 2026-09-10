@@ -155,6 +155,14 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
   unimportable, and asserts the CLI never loads Qt or the GUI package. If you ever
   make the CLI import Qt (even transitively), that test will fail — that is the
   point, since SSH users must keep working.
+  `tests/unit/test_qt_environment_guard.py` covers the same for the *suite*: PySide6
+  wheels bundle Qt but not the OS libraries it links against (libEGL/...), and
+  pytest-qt imports `QtGui` while pytest is still configuring — so a missing library
+  used to kill the whole run with an `INTERNALERROR` before collection. Both
+  `tests/conftest.py` (which refuses to run with the fix printed; see
+  `doc/development.md` → *Running the tests*) and `.github/workflows/ci.yml`
+  (which installs `libegl1 libgl1 libxcb-cursor0 ...` on the Linux runner) deal with
+  this; keep the CI package list in sync with `integration.yml`.
 
 ## Terminal commands (never block on a prompt)
 

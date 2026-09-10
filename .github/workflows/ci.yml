@@ -101,7 +101,15 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends flatpak pipx
+          # The Qt libraries we need at runtime. PySide6's wheel bundles Qt but not
+          # the system libraries Qt links against, so on a bare runner
+          # `import PySide6.QtGui` dies with "libEGL.so.1: cannot open shared object
+          # file". pytest-qt imports QtGui while pytest is still configuring, so
+          # that aborts the entire session (INTERNALERROR) before a single test is
+          # collected - even ones that never touch the GUI.
+          sudo apt-get install -y --no-install-recommends flatpak pipx \
+            libegl1 libgl1 libxcb-cursor0 libxkbcommon-x11-0 libdbus-1-3 libfontconfig1 \
+            fonts-dejavu-core
 
       # No longer needed - because we now have a pip dependency from starbash to graxpert
       #- name: Install GraXpert (Linux)

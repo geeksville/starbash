@@ -52,6 +52,57 @@ This is mostly useful if you want a second 'virgin' build machine to compare aga
 
 ![screencap](img/codespace.png)
 
+## Running the tests
+
+```bash
+poetry install --with dev     # test deps (pytest, xdist, pytest-qt, ...)
+poetry run pytest             # the whole (parallel) suite
+poetry run pytest -m "not gui"        # skip the Qt/GUI tests
+poetry run pytest -m integration      # the integration tests (need /test-data)
+poetry run pytest tests/unit/test_selection.py -k some_name -q
+```
+
+The GUI tests run by default: PySide6 is a normal dependency and
+`tests/conftest.py` forces `QT_QPA_PLATFORM=offscreen`, so they need no display.
+
+### Troubleshooting: `libEGL.so.1: cannot open shared object file`
+
+If `pytest` dies with
+
+```
+INTERNALERROR> ImportError: libEGL.so.1: cannot open shared object file: No such file or directory
+```
+
+then PySide6 is installed but the **operating system libraries Qt links against are
+not**. The PySide6 wheel bundles Qt itself but not `libEGL`/`libGL`/xcb/etc., and
+these are OS packages — `pip`/`poetry` cannot install them:
+
+```bash
+# Debian / Ubuntu (also what our GitHub CI runner installs)
+sudo apt-get install -y libegl1 libgl1 libxcb-cursor0 libxkbcommon-x11-0 libdbus-1-3 libfontconfig1
+
+# Fedora / RHEL
+sudo dnf install mesa-libEGL libglvnd-glx libxkbcommon-x11 libxcb dbus-libs fontconfig
+
+# Arch
+sudo pacman -S libgl libxcb libxkbcommon dbus fontconfig
+```
+
+Note this affects **every** test run, not just the GUI ones: `pytest-qt` imports
+`QtGui` while pytest is still configuring, so the failure happens before a single
+test is collected. That is why the project's `tests/conftest.py` checks for it up
+front and prints the commands above instead of the raw traceback.
+
+If you cannot install those packages (or just don't care about the GUI), you can run
+the non-GUI tests without Qt at all:
+
+```bash
+STARBASH_SKIP_QT_LOAD_CHECK=1 poetry run pytest -p no:pytest-qt -m "not gui"
+```
+
+(`STARBASH_SKIP_QT_LOAD_CHECK` only silences the upfront check; `-p no:pytest-qt` is
+what removes the plugin that needs Qt.)
+
 ## Development vs Production Mode
 
 Starbash automatically detects whether it's running in a development or production environment:

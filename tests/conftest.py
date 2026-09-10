@@ -1,6 +1,7 @@
 """Shared fixtures for all tests (unit and integration)."""
 
 import os
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -10,6 +11,59 @@ from starbash import doit_types, paths
 # Qt tests (marked `gui`) must never need a display.  Set this before any
 # QApplication is created so `pytest -m gui` works on headless CI runners.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+#: How to install the system libraries Qt needs, per platform.  PySide6's wheel
+#: bundles Qt itself but *not* what Qt links against (libEGL, libGL, xcb, ...).
+_QT_SYSTEM_LIBRARY_HINTS = {
+    "linux": (
+        "    Debian/Ubuntu: sudo apt-get install -y libegl1 libgl1 libxcb-cursor0 "
+        "libxkbcommon-x11-0 libdbus-1-3 libfontconfig1\n"
+        "    Fedora/RHEL:   sudo dnf install mesa-libEGL libglvnd-glx libxkbcommon-x11 "
+        "libxcb dbus-libs fontconfig\n"
+        "    Arch:          sudo pacman -S libgl libxcb libxkbcommon dbus fontconfig"
+    ),
+    "darwin": "    Qt's libraries ship inside the wheel - try: poetry install --with dev",
+    "win32": "    Qt's libraries ship inside the wheel - try: poetry install --with dev",
+}
+
+
+def _qt_import_failure_hint(error: ImportError) -> str:
+    """Explain an ``import PySide6.QtGui`` failure in terms the user can act on."""
+    message = str(error)
+    looks_like_missing_library = ".so" in message or "cannot open shared object" in message
+
+    if not looks_like_missing_library:
+        return (
+            f"PySide6 is installed but cannot be imported ({message}).\n"
+            "Reinstall the development dependencies:\n"
+            "    poetry install --with dev"
+        )
+
+    platform_hint = _QT_SYSTEM_LIBRARY_HINTS.get(sys.platform, "")
+    return (
+        f"PySide6 is installed, but Qt cannot load its system libraries ({message}).\n"
+        "These are OS packages, not pip packages:\n"
+        f"{platform_hint}\n"
+        "Why this matters even for non-GUI tests: pytest-qt imports QtGui while\n"
+        "pytest is still configuring, so a missing library aborts the whole run\n"
+        "(INTERNALERROR) before any test is collected."
+    )
+
+
+def _fail_early_if_qt_cannot_load() -> None:
+    """Turn Qt's "missing system library" crash into an actionable message.
+
+    This conftest is imported before pytest-qt's ``pytest_configure`` hook runs, so
+    raising here replaces that opaque INTERNALERROR traceback with the fix.
+    """
+    try:
+        import PySide6.QtGui  # noqa: F401
+    except ImportError as error:
+        raise pytest.UsageError(_qt_import_failure_hint(error)) from error
+
+
+if os.environ.get("STARBASH_SKIP_QT_LOAD_CHECK") != "1":
+    _fail_early_if_qt_cannot_load()
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -95,7 +95,14 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends flatpak pipx libegl1
+          # libegl1 & friends are the system libraries PySide6's wheel links against
+          # but does not bundle; pytest-qt imports QtGui while pytest is still
+          # configuring, so a missing one aborts the whole session with an
+          # INTERNALERROR ("libEGL.so.1: cannot open shared object file").
+          # Keep this list in sync with .github/workflows/ci.yml.
+          sudo apt-get install -y --no-install-recommends flatpak pipx \
+            libegl1 libgl1 libxcb-cursor0 libxkbcommon-x11-0 libdbus-1-3 libfontconfig1 \
+            fonts-dejavu-core
 
       - name: Add pipx to PATH (Linux)
         if: matrix.os == 'ubuntu-latest'

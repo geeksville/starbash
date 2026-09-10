@@ -8,6 +8,8 @@ htmlcov/
 .coverage.*
 coverage.xml
 junit.xml
+# pytest --junit-xml (same as junit.xml; CI regenerates it as an artifact)
+pytest.xml
 
 # Doit database files (if created in workspace)
 .doit.db*

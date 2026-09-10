@@ -63,6 +63,15 @@ Targets page specifics (recent tweak round):
   `importlib.resources`; if it cannot be found the tick is simply omitted (solid
   accent box), so a packaging slip degrades rather than breaks. The same rules cover
   the Targets/Processing tree indicators.
+- **Qt needs OS libraries the wheel does not ship.** CI failed with
+  `INTERNALERROR> ImportError: libEGL.so.1: cannot open shared object file` because
+  `pytest-qt` imports `QtGui` while pytest is still configuring, so a missing system
+  library kills the session before collection — even for non-GUI tests.
+  Fixed in `.github/workflows/ci.yml` (and `integration.yml`) by installing
+  `libegl1 libgl1 libxcb-cursor0 libxkbcommon-x11-0 libdbus-1-3 libfontconfig1`;
+  `tests/conftest.py` now detects it and prints the fix, and `doc/development.md`
+  has the per-distro commands plus the no-Qt workaround
+  (`STARBASH_SKIP_QT_LOAD_CHECK=1 pytest -p no:pytest-qt -m "not gui"`).
 - `services.load_stage_options()` merges recipe declarations with the target's
   `.starbash/main.toml` overrides; `save_stage_options()` rewrites only
   `[[stages]]` (round-trip idempotent, preserves other sections such as citation).
