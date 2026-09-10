@@ -404,6 +404,71 @@ def test_option_editor_is_tall_enough_for_the_tab_pane(qtbot, app_context, proce
     assert page._tabs.height() >= page._tabs.sizeHint().height()
 
 
+def test_editor_pane_is_hidden_until_a_row_is_selected(qtbot, app_context, processed_repo):
+    """Nothing selected => no option-editor pane at all (not an inert one)."""
+    _make_target(processed_repo)
+    app_context.selection.set_targets(["sh2126"])
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    page.resize(1000, 800)
+    page.show()
+    page.refresh()
+    qtbot.waitExposed(page)
+    qtbot.wait(20)
+
+    # A freshly refreshed tree has no selection, so the pane stays hidden.
+    assert page._tree.selectedItems() == []
+    assert page._editor.isVisible() is False
+
+    # Selecting a stage still shows the pane (it describes the stage)...
+    page._tree.setCurrentItem(page._stage_items["crop"])
+    qtbot.wait(20)
+    assert page._editor.isVisible() is True
+    assert page._param_desc.text().startswith("Crop and rotate")
+
+    # ...and selecting a parameter fills in the editor.
+    page._tree.setCurrentItem(page._param_items[("crop", "crop_height")])
+    qtbot.wait(20)
+    assert page._editor.isVisible() is True
+    assert page._editing == ("crop", "crop_height")
+
+    # Dropping the selection hides it again.
+    page._tree.clearSelection()
+    qtbot.wait(20)
+    assert page._tree.selectedItems() == []
+    assert page._editor.isVisible() is False
+
+
+def test_columns_are_separated_by_a_horizontal_gap(qtbot, app_context, processed_repo):
+    """Regression: the stages column must not touch the target list's scrollbar.
+
+    The splitter handle alone is only a few pixels wide, so the right pane needs its
+    own left margin or the stages tree / editor sit flush against the left table.
+    """
+    from PySide6.QtCore import QPoint
+
+    from starbash.ui.qt.pages.targets import _COLUMN_GAP
+
+    _make_target(processed_repo)
+    app_context.selection.set_targets(["sh2126"])
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    page.resize(1000, 800)
+    page.show()
+    page.refresh()
+    qtbot.waitExposed(page)
+    qtbot.wait(20)
+
+    assert page._right.layout().contentsMargins().left() >= _COLUMN_GAP
+
+    # ...and the gap is real on screen.  The layout margin insets this column's
+    # *children*, so measure from the table's right edge to the tree's left edge.
+    splitter = page._table.parentWidget()
+    table_right = page._table.mapTo(splitter, QPoint(page._table.width(), 0)).x()
+    tree_left = page._tree.mapTo(splitter, QPoint(0, 0)).x()
+    assert tree_left - table_right >= _COLUMN_GAP
+
+
 def test_path_label_has_its_own_padded_style(qtbot, app_context, processed_repo):
     """The target's output directory uses a padded style, not a plain subtitle."""
     from starbash.ui.qt import theme

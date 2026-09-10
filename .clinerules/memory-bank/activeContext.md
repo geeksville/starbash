@@ -44,7 +44,19 @@ Targets page specifics (recent tweak round):
   default as the starting value. The editor is height-floored
   (`_EDITOR_MIN_HEIGHT`, grown when a description wraps) so the tab pane is never
   clipped by the tree above, and the output-directory label uses the padded
-  `PathLabel` style.
+  `PathLabel` style. The stages column keeps a `_COLUMN_GAP` (12px) left margin so
+  it is not flush against the target list's vertical scrollbar, and the option
+  editor pane is hidden (not just disabled) until a row is selected.
+- **Image previews are asynchronous.** `widgets/image_viewer.py` decodes on a worker
+  thread via `workers.run_async` and shows `widgets/busy_indicator.py`
+  (`BusyIndicator` — a self-centring rotating arc + caption) over the image pane
+  meanwhile; `show_file()` no longer raises, it reports a broken frame in the view.
+  A `_request` counter drops stale loads. `Sessions` and `Masters` are the two
+  pages that show JPEG/FITS previews.
+- **`run_async` retains its `Worker`** (`workers._live_workers`) until it finishes.
+  Without that, a dropped reference let C++ destroy the `QRunnable` and its signals
+  before the queued callback was delivered — only **7 of 60** callbacks arrived.
+  The unit test for this fails loudly if the retention is removed.
 - `services.load_stage_options()` merges recipe declarations with the target's
   `.starbash/main.toml` overrides; `save_stage_options()` rewrites only
   `[[stages]]` (round-trip idempotent, preserves other sections such as citation).

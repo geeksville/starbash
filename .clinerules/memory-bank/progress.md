@@ -15,6 +15,10 @@
 - **Publishing**: `sb publish` generates a GitHub Pages-compatible Jekyll site (Jinja2 + Pygal charts), and `sb publish github` uploads to `starbash-public`.
 - **External tools**: Siril (Flatpak stdin script), GraXpert (CLI), Starnet2, rc-astro (`bxt`/`nxt` with JSON progress streaming), Python (RestrictedPython sandbox).
 - **Desktop GUI** (`sb gui`, `feat-gui` branch): PySide6 app providing Dashboard, Sessions (filter/browse/export + FITS & raster preview), Masters, Targets (per-target options tree: stage toggles + overridable recipe parameters, with unsaved-change protection), live Processing (task tree + streamed log + progress), Repositories (add/remove/re-index with live progress), Publish (local site) and Settings + first-run wizard. PySide6 is a normal dependency; the CLI never imports Qt. Backed by the new `starbash.events` bus and `starbash.interaction` protocol.
+- Image previews decode on a worker thread and show a rotating-arc `BusyIndicator`
+  (`ui/qt/widgets/busy_indicator.py`) over the pane while loading, so selecting a big
+  FITS frame no longer freezes the window.
+
 
 ## What's Left to Build
 

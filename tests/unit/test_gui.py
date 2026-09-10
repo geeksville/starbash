@@ -509,6 +509,42 @@ def test_repositories_page_reports_indexing_progress(qtbot, app_context, bus):
     assert page._progress.value() == 3
 
 
+# --- background workers -----------------------------------------------------
+
+
+def test_run_async_callbacks_fire_even_when_the_worker_is_dropped(qtbot):
+    """Regression: run_async must retain its Worker until it finishes.
+
+    A Worker is a QRunnable with ``autoDelete`` set, so a dropped Python reference
+    let C++ delete it - and its signal object - before the queued ``finished``
+    signal was delivered.  Measured here: only 7 of 60 callbacks arrived.  Since
+    ignoring the return value of ``run_async`` is the natural thing to do, the
+    worker is now kept alive internally, which makes it 60 of 60.
+    """
+    from starbash.ui.qt.workers import run_async
+
+    results: list[int] = []
+    for index in range(40):
+        run_async(lambda _report, _token, i=index: i, on_finished=results.append)
+
+    qtbot.waitUntil(lambda: len(results) == 40, timeout=10000)
+    assert sorted(results) == list(range(40))
+
+
+def test_run_async_releases_finished_workers(qtbot):
+    """The internal keep-alive set must not grow without bound."""
+    from starbash.ui.qt import workers
+    from starbash.ui.qt.workers import run_async
+
+    before = len(workers._live_workers)
+    finished: list[object] = []
+    run_async(lambda _report, _token: "done", on_finished=finished.append)
+
+    qtbot.waitUntil(lambda: bool(finished), timeout=5000)
+    qtbot.waitUntil(lambda: len(workers._live_workers) <= before, timeout=5000)
+    assert len(workers._live_workers) <= before
+
+
 # --- setup wizard ----------------------------------------------------------
 
 

@@ -121,6 +121,7 @@ src/starbash/ui/
       session_table.py
       stat_cards.py
       image_viewer.py    # JPEG/PNG via QImageReader; FITS via astropy+numpy->QImage
+      busy_indicator.py  # rotating arc + caption, centred over any parent widget
       log_view.py        # QPlainTextEdit, colored stdout/stderr, follow-tail
       task_list.py
       results_table.py
@@ -453,7 +454,7 @@ Landed on branch `feat-gui`. Phases 0–7 are implemented except where noted.
 | 2 Read-only browsing | ✅ | Dashboard, Sessions list, Repositories list, Masters; `ImageViewer` renders FITS (percentile stretch) and raster formats. |
 | 3 Selection & export | ✅ | `SelectionPanel` bound to `Selection` (apply/clear/persist, DB-suggested completion); session export via `copy_images_to_dir`. *Export-to-Siril dir tree not surfaced.* |
 | 4 Processing (live) | ✅ | Worker runs `run_all_stages`/`run_master_stages`; the event bus drives the task tree, log pane, progress bar and per-target caption. Cooperative cancel at phase boundaries. *Result links/thumbnails not added.* |
-| 5 Targets editor | ✅ | Targets list; a **tree** of stages whose child rows are the parameters the recipe declares (`[[stages.parameters]]`). Overridden values are shown bright yellow, recipe defaults dim; a stage's summary column lists its overridden values (not option counts). Selecting a param opens an editor with two tabs, **Use default** vs **Edit override**. Edits save to `.starbash/main.toml` via `services.load_stage_options`/`save_stage_options`; Save/Undo appear only when dirty and leaving with unsaved edits prompts (via `Page.can_leave()`). The row for the currently selected target (`sb select target …`) is pre-selected. *In-app TOML editor and "Reprocess target" not added.* |
+| 5 Targets editor | ✅ | Targets list; a **tree** of stages whose child rows are the parameters the recipe declares (`[[stages.parameters]]`). Overridden values are shown bright yellow, recipe defaults dim; a stage's summary column lists its overridden values (not option counts). Selecting a param opens an editor with two tabs, **Use default** vs **Edit override**; nothing selected hides the editor pane entirely (a stage row shows just its description). Edits save to `.starbash/main.toml` via `services.load_stage_options`/`save_stage_options`; Save/Undo appear only when dirty and leaving with unsaved edits prompts (via `Page.can_leave()`). The row for the currently selected target (`sb select target …`) is pre-selected. The two columns are separated by a 12px gap (`_COLUMN_GAP`) so the stages tree/editor never sit flush against the target list's scrollbar. *In-app TOML editor and "Reprocess target" not added.* |
 | 6 Settings, wizard, publish | ✅ partial | Settings (profile/analytics/paths) + first-run wizard. Publish page generates the local site; **GitHub upload stays CLI-only** (needs the interactive device flow). *Aliases editor / Tools tab not added.* |
 | 7 Polish & docs | ✅ partial | `tests/unit/test_gui.py` (27 tests, `gui` marker), `tests/unit/test_targets_page.py` (11 tests: recipe/override merge, save round-trip + idempotency, dirty tracking, unsaved prompts, nav guard), `tests/unit/test_gui_command.py` (broken-install path), `tests/unit/test_desktop_entry.py` (`sb` desktop integration) and `tests/unit/test_cli_headless.py` (subprocess proof that `sb info` works with no display and Qt unimportable, and that the CLI never imports Qt). App icon + Linux `.desktop`/hicolor install (`src/starbash/assets/`). AGENTS.md + memory bank updated. *Command palette, shortcuts, demo GIF not added.* |
 
@@ -471,9 +472,12 @@ than an `ImportError` traceback.
 
 **Known simplifications / follow-ups**
 
-- FITS preview decoding runs on the GUI thread when a frame is selected; the §9.4
-  mitigation (decode in a worker, cache downsampled previews) is not implemented.
+- Preview decoding (FITS and raster) runs on a worker thread with a `BusyIndicator`
+  arc over the image pane (§9.4 is partly addressed); downsampled preview caching is
+  still not implemented, so each selection re-decodes the file.
 - Cancellation is cooperative at phase boundaries; in-flight doit subprocesses are
-  not killed (§9.6).
-- GUI tests are excluded from the default run; run them with `poetry run pytest -m gui`.
+  not killed (§9.6). An in-flight preview decode is likewise not cancelled - its
+  result is discarded instead (see `_request` in `widgets/image_viewer.py`).
+- GUI tests run as part of the default suite (PySide6 is a normal dependency);
+  deselect them with `poetry run pytest -m "not gui"`.
 

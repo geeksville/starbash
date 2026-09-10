@@ -87,7 +87,9 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
   cannot be imported, i.e. the install is incomplete or broken; the command prints
   it as a reinstall hint instead of an `ImportError` traceback.
 - **Layout**: `ui/qt/main_window.py` (nav rail + `QStackedWidget`), `ui/qt/pages/**`
-  (one page per nav entry), `ui/qt/widgets/**` (reusable widgets), `ui/qt/models.py`
+  (one page per nav entry), `ui/qt/widgets/**` (reusable widgets — `image_viewer.py`
+  for FITS/raster previews, `busy_indicator.py` for the loading arc, `log_view.py`,
+  `selection_panel.py`, `stat_card.py`), `ui/qt/models.py`
   (dict-backed `QAbstractTableModel`s), `ui/qt/services.py` (GUI-thread reads),
   `ui/qt/jobs.py` (long operations), `ui/qt/workers.py` (`QThreadPool` +
   cooperative `CancelToken`), `ui/qt/bridge.py` (event bus → Qt signals),
@@ -98,6 +100,22 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
   to the GUI thread. Every long operation runs in a worker that builds its **own**
   `Starbash` (hence its own SQLite connection) and reports through the event bus.
   Never use one SQLite connection from two threads.
+- **`run_async` rules (important)**: anything slow — including image decoding, which
+  is why `ImageViewer.show_file()` is asynchronous — goes through
+  `workers.run_async()`. Two invariants make it safe:
+  - *Callbacks are delivered on the GUI thread*, so a callback may touch widgets;
+    the job itself must only compute and **return data** (a `QImage` is fine, a
+    `QPixmap` is not — it needs the GUI thread).
+  - *`run_async` retains the `Worker` until it finishes*, so callers may ignore its
+    return value. This matters: a `Worker` is a `QRunnable` with `autoDelete`, so a
+    dropped reference let C++ destroy it (and its signals) before the queued
+    `finished`/`failed` signal was delivered — measured at **7 of 60** callbacks
+    arriving. Don't remove `_live_workers` from `workers.py`.
+- **Busy states**: long work in a view shows
+  `ui/qt/widgets/busy_indicator.py` (`BusyIndicator`), an understated arc plus
+  caption that centres itself over any parent widget and only animates while
+  visible. Use `BusyIndicator(widget)` + `start()`/`stop()` rather than a frozen
+  window or a modal dialog.
 - **Live updates**: the core publishes on `starbash.events`; `EventBusBridge`
   re-emits each event as one Qt signal delivered on the GUI thread, so pages can
   update widgets directly. To add live feedback, publish an event in the core and
@@ -119,6 +137,10 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
   as part of the default suite (deselect with `-m "not gui"`). They use
   `QT_QPA_PLATFORM=offscreen` (set in `tests/conftest.py`) so they pass headless,
   and the module skips cleanly if Qt cannot start at all.
+  `tests/unit/test_targets_page.py` and `tests/unit/test_image_viewer.py` cover the
+  Targets option editor and the preview/busy-arc paths respectively (the latter
+  stubs the decoder with a `threading.Event` so a load can be held open and the
+  "GUI stays responsive" / "stale result is dropped" behaviours are testable).
   `tests/unit/test_gui_command.py` covers the broken-install path, and
   `tests/unit/test_desktop_entry.py` (Qt-free, so it always runs) covers the
   `.desktop` install.

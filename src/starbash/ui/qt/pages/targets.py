@@ -3,7 +3,8 @@
 The stage list is a tree: each top-level item is a stage (ticked = active) and its
 children are the parameters the recipe declares, showing either the recipe default
 or the value the user overrode.  Selecting a parameter reveals an editor below the
-tree with its description, default and an override switch.
+tree with its description, default and an override switch; with nothing selected
+the editor pane is hidden entirely.
 
 Edits live in memory and are only written by **Save options**; **Undo changes**
 discards them.  Leaving the page (or picking another target) with unsaved edits
@@ -55,6 +56,10 @@ _OVERRIDE_COLOR = QColor("#ffd75f")
 _DEFAULT_COLOR = QColor("#7f8c9b")
 #: Smallest height that fits the option editor's title, description and tab pane.
 _EDITOR_MIN_HEIGHT = 200
+#: Horizontal gap between the target list and the stages column, so the right pane
+#: does not sit flush against the left table's scrollbar (the splitter handle alone
+#: is only a few pixels wide).
+_COLUMN_GAP = 12
 
 
 class UnsavedChoice(StrEnum):
@@ -95,9 +100,11 @@ class TargetsPage(Page):
         self._table.selectionModel().selectionChanged.connect(self._on_target_selected)
 
         right = QWidget()
+        self._right = right
         right_layout = QVBoxLayout(right)
-        # A little breathing room at the bottom keeps the path box off the pane edge.
-        right_layout.setContentsMargins(0, 0, 0, 8)
+        # The left margin separates this column from the target list's vertical
+        # scrollbar; the bottom margin keeps the path box off the pane edge.
+        right_layout.setContentsMargins(_COLUMN_GAP, 0, 0, 8)
 
         hint = QLabel("Stages — ticked = active. Expand a stage to edit its options.")
         hint.setObjectName("PageSubtitle")
@@ -183,6 +190,9 @@ class TargetsPage(Page):
         editor_layout.addWidget(self._tabs)
 
         self._editor.setEnabled(False)
+        # Nothing is selected yet, so the pane stays out of the way until there is
+        # something to edit (see _clear_editor / _load_editor).
+        self._editor.setVisible(False)
         return self._editor
 
     # --- tree -----------------------------------------------------------------
@@ -319,6 +329,8 @@ class TargetsPage(Page):
             self._param_desc.setText(
                 (stage.description if stage else None) or "Expand to see this stage's options."
             )
+            self._editor.setVisible(True)
+            self._sync_editor_height()
             return
 
         self._load_editor(parent.text(0), item.text(0))
@@ -344,14 +356,17 @@ class TargetsPage(Page):
             self._tabs.setCurrentIndex(1 if parameter.is_overridden else 0)
             # A long description wraps and grows the editor; make sure the taller
             # layout is allowed rather than clipped.
-            self._editor.setMinimumHeight(
-                max(_EDITOR_MIN_HEIGHT, self._editor.sizeHint().height())
-            )
+            self._sync_editor_height()
+            self._editor.setVisible(True)
         finally:
             self._guard = False
 
+    def _sync_editor_height(self) -> None:
+        """Floor the editor's height so a wrapping description cannot clip the tabs."""
+        self._editor.setMinimumHeight(max(_EDITOR_MIN_HEIGHT, self._editor.sizeHint().height()))
+
     def _clear_editor(self) -> None:
-        """Return the editor to its empty, disabled state."""
+        """Return the editor to its empty state and hide it (nothing to edit)."""
         self._editing = None
         self._guard = True
         try:
@@ -362,6 +377,9 @@ class TargetsPage(Page):
             self._override_value.clear()
             self._override_value.setPlaceholderText("")
             self._default_label.setText("")
+            # No option (or no valid row) selected: hide the whole pane rather than
+            # showing an inert editor taking up half the page.
+            self._editor.setVisible(False)
         finally:
             self._guard = False
 

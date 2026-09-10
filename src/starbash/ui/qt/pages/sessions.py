@@ -121,10 +121,9 @@ class SessionsPage(Page):
         if not path:
             self._viewer.show_message(f"{row.get('basename', 'frame')}\n\nNo file path recorded.")
             return
-        try:
-            self._viewer.show_file(path)
-        except Exception as exc:  # noqa: BLE001 - a broken frame must not break the page
-            self._viewer.show_message(f"Preview failed:\n{exc}")
+        # Decoding happens on a worker thread and the viewer shows a busy arc;
+        # an unreadable frame is reported in the viewer, not raised here.
+        self._viewer.show_file(path)
 
     def _on_export(self) -> None:
         session = self._selected_session()
