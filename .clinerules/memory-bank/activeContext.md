@@ -2,8 +2,8 @@
 
 ## Current work focus — Phase GUI (branch `feat-gui`)
 
-Implementing [`doc/plans/gui.md`](../../doc/plans/gui.md): an **optional PySide6
-desktop GUI** launched by `sb gui`, and the removal of the Textual prototype.
+Implementing [`doc/plans/gui.md`](../../doc/plans/gui.md): a **PySide6 desktop GUI**
+launched by `sb gui`, and the removal of the Textual prototype.
 Status (all phases 0–7 landed except GitHub upload from the GUI):
 
 - **Phase 0 (core seams)** — added `src/starbash/events.py` (dependency-free
@@ -15,11 +15,13 @@ Status (all phases 0–7 landed except GitHub upload from the GUI):
   `AutoAccept`, `get/set_interaction`) and routed the guided prompts in
   `commands/user.py` through it. Tests: `tests/unit/test_events.py`,
   `tests/unit/test_emit_hooks.py`.
-- **Phase 1 (skeleton + Textual removal)** — `gui = ["pyside6"]` extra, `pytest-qt`
-  dev dep, new `gui` pytest marker (excluded by default), `commands/gui.py`,
-  `sb gui` registered. Deleted `src/starbash/ui/main.py` and the `textual` /
-  `textual-dev` deps; removed the justfile `textual-*`/`ui`/`download-textual`
-  recipes and added a `gui` recipe; marked `doc/textual.md` superseded.
+- **Phase 1 (skeleton + Textual removal)** — `pyside6` is a **normal dependency**
+  (no `gui` extra: the GUI is first-class, "optional" only meant users may keep using
+  the CLI), `pytest-qt` dev dep, `gui` pytest marker (runs by default, deselect with
+  `-m "not gui"`), `commands/gui.py`, `sb gui` registered. Deleted
+  `src/starbash/ui/main.py` and the `textual` / `textual-dev` deps; removed the
+  justfile `textual-*`/`ui`/`download-textual` recipes and added a `gui` recipe;
+  marked `doc/textual.md` superseded.
 - **Phases 2–6** — `ui/qt/**`: main window (nav rail + stacked pages), theme QSS,
   event bridge, workers (`QThreadPool` + `CancelToken`), jobs, services, dict table
   models, widgets (stat card, log view, FITS/raster image viewer, selection panel)
@@ -33,10 +35,13 @@ Still open: uploading to GitHub Pages from the GUI (still needs the CLI's
 interactive device flow; the GUI page builds the site locally and points at
 `sb publish github --login`).
 
-Decision made: **keep `pyqt6`** and add PySide6 as the optional extra. `pyqt6` is
-only used by out-of-process `siril-scripts/` experiments, not by Starbash itself,
-so the two bindings cannot conflict in-process — dropping it would have broken
-that experiment for no benefit.
+Decision made: **`pyside6` is a normal dependency, not an extra.** The GUI is a
+first-class way to drive Starbash; "optional" only meant users may keep working from
+the CLI. (An earlier `gui` extra was reverted.)
+
+Decision made: **keep `pyqt6`**. `pyqt6` is only used by out-of-process
+`siril-scripts/` experiments, not by Starbash itself, so the two bindings cannot
+conflict in-process — dropping it would have broken that experiment for no benefit.
 
 ## Previous focus (report R3)
 

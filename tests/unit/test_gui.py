@@ -1,14 +1,25 @@
-"""Tests for the optional PySide6 desktop GUI.
+"""Tests for the PySide6 desktop GUI.
 
-Every test here is marked ``gui`` so the default test run (which excludes
-``gui``) still passes on a machine without the optional ``gui`` extra.  Run them
-with ``poetry run pytest -m gui`` after ``poetry install -E gui``.
+PySide6 is a normal dependency, so these tests run as part of the default suite.
+They build real widgets, which needs a Qt platform plugin: ``tests/conftest.py``
+sets ``QT_QPA_PLATFORM=offscreen`` so they work headless.  If Qt cannot start at
+all on this machine the whole module skips instead of failing.
 """
+
+import os
 
 import numpy as np
 import pytest
 
 pytest.importorskip("PySide6")
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+try:  # Probe Qt startup once, so an unusable Qt skips rather than erroring.
+    from PySide6.QtWidgets import QApplication as _QApplication
+
+    _QApplication.instance() or _QApplication([])
+except Exception as _qt_error:  # pragma: no cover - environment dependent
+    pytest.skip(f"Qt cannot start here: {_qt_error}", allow_module_level=True)
 
 from starbash import events  # noqa: E402
 from starbash.ui.qt import QTSIDE6_IMPORT_HINT, GuiUnavailableError, qt_available  # noqa: E402
@@ -41,9 +52,10 @@ def test_qt_available_matches_import():
     assert qt_available() is True
 
 
-def test_gui_unavailable_error_mentions_the_extra():
-    """The install hint tells the user exactly how to enable the GUI."""
-    assert "gui" in QTSIDE6_IMPORT_HINT
+def test_gui_unavailable_error_explains_reinstall():
+    """The hint names PySide6 and tells the user to reinstall."""
+    assert "PySide6" in QTSIDE6_IMPORT_HINT
+    assert "reinstall" in QTSIDE6_IMPORT_HINT.lower()
     assert issubclass(GuiUnavailableError, RuntimeError)
 
 

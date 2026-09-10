@@ -37,7 +37,7 @@ app.add_typer(
 )
 app.command(
     name="gui",
-    help="Launch the optional desktop GUI (requires the 'gui' extra).",
+    help="Launch the desktop GUI.",
 )(gui_command)
 
 

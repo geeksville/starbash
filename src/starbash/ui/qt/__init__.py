@@ -1,9 +1,12 @@
-"""The optional PySide6 desktop GUI for Starbash (``sb gui``).
+"""The PySide6 desktop GUI for Starbash (``sb gui``).
 
-Everything underneath this package imports PySide6, which is an *optional*
-dependency installed via the ``gui`` extra.  Callers must therefore import this
-package lazily (from inside the command) and be ready to handle
-:class:`GuiUnavailableError` when Qt is not installed.
+PySide6 is a normal dependency of Starbash — the GUI is a first-class way to drive
+the app, and users who prefer the CLI simply never open it.  Imports here are still
+kept lazy so a plain CLI run never pays for loading Qt.
+
+Callers should therefore import this package lazily (from inside the command) and
+handle :class:`GuiUnavailableError`, which means the local install is broken rather
+than that an optional feature is missing.
 """
 
 from __future__ import annotations
@@ -15,13 +18,14 @@ __all__ = [
     "run_gui",
 ]
 
-#: Friendly, copy-pasteable instructions shown when PySide6 is missing.
+#: Shown when PySide6 cannot be imported, i.e. the installation is incomplete.
 QTSIDE6_IMPORT_HINT = (
-    "The Starbash desktop GUI needs PySide6, which is an optional dependency.\n"
-    "Install it with one of:\n"
-    "  pipx install --force 'starbash[gui]'\n"
-    "  pip install 'starbash[gui]'\n"
-    "  poetry install -E gui        (when working from a git checkout)"
+    "The Starbash GUI could not load PySide6. PySide6 is a normal dependency of\n"
+    "starbash, so this usually means the installation is incomplete or broken.\n"
+    "Reinstall it with one of:\n"
+    "  pipx install --force starbash\n"
+    "  pip install --force-reinstall starbash\n"
+    "  poetry install --with dev        (when working from a git checkout)"
 )
 
 

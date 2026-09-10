@@ -14,7 +14,7 @@
 - **Processed-target persistence**: split `.starbash/main.toml` / `about.toml` / `sessions.toml` layout; `about.generated_at` + `schema_version = 1`.
 - **Publishing**: `sb publish` generates a GitHub Pages-compatible Jekyll site (Jinja2 + Pygal charts), and `sb publish github` uploads to `starbash-public`.
 - **External tools**: Siril (Flatpak stdin script), GraXpert (CLI), Starnet2, rc-astro (`bxt`/`nxt` with JSON progress streaming), Python (RestrictedPython sandbox).
-- **Optional desktop GUI** (`sb gui`, `feat-gui` branch): PySide6 app providing Dashboard, Sessions (filter/browse/export + FITS & raster preview), Masters, Targets (per-target stage editor), live Processing (task tree + streamed log + progress), Repositories (add/remove/re-index with live progress), Publish (local site) and Settings + first-run wizard. Backed by the new `starbash.events` bus and `starbash.interaction` protocol; Qt-free by default (`gui` extra).
+- **Desktop GUI** (`sb gui`, `feat-gui` branch): PySide6 app providing Dashboard, Sessions (filter/browse/export + FITS & raster preview), Masters, Targets (per-target stage editor), live Processing (task tree + streamed log + progress), Repositories (add/remove/re-index with live progress), Publish (local site) and Settings + first-run wizard. PySide6 is a normal dependency; the CLI never imports Qt. Backed by the new `starbash.events` bus and `starbash.interaction` protocol.
 
 ## What's Left to Build
 

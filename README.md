@@ -191,20 +191,21 @@ sb publish github               # Publish to github
 See the [GitHub publishing guide](doc/publish/github.md) for prerequisites,
 preview instructions, authentication, and troubleshooting.
 
-### Desktop GUI (optional)
+### Desktop GUI
 
-Prefer clicking to typing? Starbash ships an **optional** desktop app (built on
-PySide6) that covers the same ground as the CLI — browse sessions and preview
-frames, edit the selection, run the pipeline and watch every stage live, tweak
-per-target stage exclusions, manage repositories, and build the report site.
+Prefer clicking to typing? Starbash ships a desktop app (built on PySide6) that
+covers the same ground as the CLI — browse sessions and preview frames, edit the
+selection, run the pipeline and watch every stage live, tweak per-target stage
+exclusions, manage repositories, and build the report site.
 
 ```bash
-pipx install --force 'starbash[gui]'   # add the GUI to an existing install
 sb gui
 ```
 
-The base install stays lean: the GUI is an optional extra, and `sb gui` prints
-install instructions if PySide6 is missing.
+PySide6 is installed with Starbash, so there is nothing extra to add. The GUI is
+optional in the sense that you can ignore it completely and keep driving Starbash
+from the command line: both front ends share the same selection, config and
+database, so you can mix them freely.
 
 ## Supported commands
 

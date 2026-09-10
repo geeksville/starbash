@@ -44,7 +44,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 - **repo add/remove/list/reindex** — manage TOML repo references
 - **user name/email/analytics/setup** — manage user profile and analytics opt-in
 - **publish** — generate the Jekyll report site; `publish github` uploads to GitHub Pages
-- **gui** — launch the optional PySide6 desktop app (requires the `gui` extra)
+- **gui** — launch the PySide6 desktop app
 - Console script aliases: `starbash` and `sb` (defined in `pyproject.toml`)
 
 ## Selection and filtering system

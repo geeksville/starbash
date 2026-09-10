@@ -20,4 +20,4 @@ Implementation and design plans live in `doc/plans/*.md` and are tracked in git.
 
 ## Existing plans
 
-- `doc/plans/gui.md` — optional PySide6 desktop GUI launched via `sb gui`.
+- `doc/plans/gui.md` — PySide6 desktop GUI launched via `sb gui`.

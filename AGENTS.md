@@ -50,8 +50,8 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   (`confirm`/`text`/`notify`/`open_url`) with a Rich default (identical CLI
   behaviour), an `AutoAccept` headless impl, and a process-wide accessor. Guided
   prompts go through `get_interaction()` rather than reading stdin directly.
-- **GUI (optional)**: `src/starbash/ui/qt/**` — the PySide6 desktop app, launched
-  by `sb gui`. Never imported by the CLI unless the command is used.
+- **GUI**: `src/starbash/ui/qt/**` — the PySide6 desktop app, launched by
+  `sb gui`. Never imported by the CLI unless the command is used.
 
 ## Stage exclusion flow (common source of bugs)
 
@@ -76,14 +76,16 @@ populated (not reset) before the filter runs.
 
 ## Desktop GUI (`sb gui`)
 
-An **optional** PySide6 desktop app. The base CLI never imports Qt.
+A PySide6 desktop app. PySide6 is a **normal dependency** — "optional" here only
+means that users may keep driving Starbash entirely from the CLI instead. The CLI
+never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
 
-- **Install**: provided by the optional `gui` extra (`pyside6`) —
-  `poetry install -E gui`, or `pipx install --force 'starbash[gui]'`.
+- **Install**: nothing extra to do — PySide6 ships with Starbash.
+  (Dev: `poetry install --with dev`.)
 - **Entry**: `src/starbash/commands/gui.py` → `starbash.ui.qt.run_gui()` →
-  `starbash.ui.qt.app.run()`. Importing `starbash.ui.qt` does **not** import Qt;
-  every Qt import is lazy, so `run_gui()` raises `GuiUnavailableError` (printed as
-  a friendly install hint) instead of an `ImportError` traceback.
+  `starbash.ui.qt.app.run()`. `run_gui()` raises `GuiUnavailableError` when Qt
+  cannot be imported, i.e. the install is incomplete or broken; the command prints
+  it as a reinstall hint instead of an `ImportError` traceback.
 - **Layout**: `ui/qt/main_window.py` (nav rail + `QStackedWidget`), `ui/qt/pages/**`
   (one page per nav entry), `ui/qt/widgets/**` (reusable widgets), `ui/qt/models.py`
   (dict-backed `QAbstractTableModel`s), `ui/qt/services.py` (GUI-thread reads),
@@ -98,10 +100,16 @@ An **optional** PySide6 desktop app. The base CLI never imports Qt.
   re-emits each event as one Qt signal delivered on the GUI thread, so pages can
   update widgets directly. To add live feedback, publish an event in the core and
   handle it in the relevant page — do not poll.
-- **Tests**: Qt tests live in `tests/unit/test_gui.py`, are marked `gui`, and are
-  excluded from the default run. Run them with `poetry run pytest -m gui`; they use
-  `QT_QPA_PLATFORM=offscreen` (set in `tests/conftest.py`) so they pass headless.
-  `tests/unit/test_gui_command.py` covers graceful degradation without PySide6.
+- **Tests**: Qt tests live in `tests/unit/test_gui.py`, are marked `gui`, and run
+  as part of the default suite (deselect with `-m "not gui"`). They use
+  `QT_QPA_PLATFORM=offscreen` (set in `tests/conftest.py`) so they pass headless,
+  and the module skips cleanly if Qt cannot start at all.
+  `tests/unit/test_gui_command.py` covers the broken-install path.
+  `tests/unit/test_cli_headless.py` **locks in the headless guarantee**: it runs
+  `sb info` in a subprocess with `DISPLAY` stripped and `PySide6` made
+  unimportable, and asserts the CLI never loads Qt or the GUI package. If you ever
+  make the CLI import Qt (even transitively), that test will fail — that is the
+  point, since SSH users must keep working.
 
 ## Terminal commands (never block on a prompt)
 

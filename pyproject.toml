@@ -36,16 +36,12 @@ graxpert = {version = "^3.2.0a2", extras = ["cpuonly"]}
 # The following two libs are only needed for the (temporary) experiment of running siril scripts directly...
 # experimenting with siril-scripts/processing/VeraLux_HyperMetric_Stretch.py
 # pyqt6 is used *only* by those out-of-process siril scripts; Starbash itself never imports it,
-# so it can safely coexist with the PySide6 GUI extra (see [tool.poetry.extras] below).
+# so it can safely coexist with PySide6 (which the GUI *does* import).
 numpy = "2.2.6"
 pyqt6 = "^6.10.1"
-# The optional desktop GUI (`sb gui`) binding. Install with: poetry install -E gui
-pyside6 = {version = "^6.11.2", optional = true}
-
-# Optional dependency groups that users can opt into at install time, e.g.
-# `pipx install "starbash[gui]"` or `poetry install -E gui`.
-[tool.poetry.extras]
-gui = ["pyside6"]
+# The desktop GUI (`sb gui`) binding. A normal dependency: the GUI is a first-class
+# way to drive Starbash. "Optional" only means users may keep using the CLI instead.
+pyside6 = "^6.11.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.4.2,<10.0.0"
@@ -54,7 +50,7 @@ pytest-xdist = ">=3.8.0"
 pre-commit = ">=4.3.0"
 ruff = ">=0.14.4"
 basedpyright = ">=1.33.0"
-# Qt widget testing for the optional `sb gui` desktop app (drives real widgets offscreen).
+# Qt widget testing for the `sb gui` desktop app (drives real widgets offscreen).
 pytest-qt = ">=4.4.0"
 
 # Adds the `graph` command to doit (GraphViz output) for `sb process doit graph`.
@@ -73,16 +69,17 @@ sb = "starbash.main:app"       # std alias for convenience
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests requiring /test-data (deselect with '-m \"not integration\"')",
-    "gui: marks tests that construct real Qt widgets (requires the `gui` extra + PySide6; deselect with '-m \"not gui\"')",
+    "gui: marks tests that build real Qt widgets (offscreen; deselect with '-m \"not gui\"')",
 ]
 # -n auto enables parallel test execution plugin
-# By default, exclude slow and integration tests, plus Qt/GUI tests (the `gui` extra
-# is optional, so a plain `poetry install --with dev` must still pass every test).
+# By default we exclude only slow and integration tests. GUI tests DO run: PySide6
+# ships as a normal dependency, and tests/conftest.py forces QT_QPA_PLATFORM=offscreen
+# so they work headless. If Qt cannot start at all on a machine, they skip cleanly.
 # --tb=line shows minimal tracebacks (just one line per failure)
 # --tb=short shows shorter tracebacks
 # -rfE shows summary of failed and error test outcomes at end (not passed)
 # --ignore excludes third-party test directories
-addopts = "-m 'not slow and not integration and not gui' -n auto --tb=short -rfE --ignore=GraXpert --ignore=starbash-recipes"
+addopts = "-m 'not slow and not integration' -n auto --tb=short -rfE --ignore=GraXpert --ignore=starbash-recipes"
 
 # Note: To limit captured output further, you can:
 # 1. Use --tb=line for minimal tracebacks

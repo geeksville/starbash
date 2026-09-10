@@ -5,8 +5,8 @@ Starbash is CLI-first: the core modules (``tool.base``, ``doit``, ``app``,
 structured events here, and any interested observer *subscribes*.
 
 The CLI subscribes to nothing, so its behaviour is completely unchanged.  The
-optional desktop GUI (`sb gui`) subscribes and bridges these events onto Qt
-signals so widgets update live while a tool or processing run is in progress.
+desktop GUI (`sb gui`) subscribes and bridges these events onto Qt signals so
+widgets update live while a tool or processing run is in progress.
 
 Design notes
 ------------

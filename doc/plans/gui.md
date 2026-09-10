@@ -3,11 +3,11 @@
 > **Status:** Proposed (not yet implemented) — for review
 > **Owner:** Kevin Hester
 > **Last updated:** 2026-09-10
-> **Scope:** New optional desktop GUI covering the full `sb` CLI surface
+> **Scope:** New desktop GUI covering the full `sb` CLI surface
 
 ## 1. Summary & recommendation
 
-Add a first-class, **optional** desktop GUI launched by `sb gui`, built on **PySide6 (Qt 6)**. It reuses the existing Python core directly (`Starbash`, `Database`, `Selection`, `RepoManager`, `Processing`, `GitHubPublisher`) rather than shelling out to the CLI, so there is one implementation of behavior. The GUI is a new optional dependency extra so the base `pipx install starbash` stays lean; `sb gui` degrades gracefully with an install hint if Qt isn't present.
+Add a first-class desktop GUI launched by `sb gui`, built on **PySide6 (Qt 6)**. It reuses the existing Python core directly (`Starbash`, `Database`, `Selection`, `RepoManager`, `Processing`, `GitHubPublisher`) rather than shelling out to the CLI, so there is one implementation of behavior. PySide6 ships as a **normal dependency** (not an extra): the GUI is a first-class way to drive Starbash, and "optional" only means users may ignore it and keep working from the CLI. `sb gui` still degrades gracefully with a reinstall hint if Qt cannot be imported (a broken install).
 
 The GUI covers **every existing command**: onboarding, user settings, repos, selection/sessions, info, processing (auto/masters/siril export), and publishing — plus a persistent **targets/results browser** that the CLI can't offer (image thumbnails, FITS preview, per-target stage include/exclude editing, one-click reprocess).
 
@@ -38,7 +38,7 @@ pyside6 = { version = "^6.8", optional = true }
 gui = ["pyside6"]
 ```
 
-Doc: `pipx install "starbash[gui]"` (or `poetry install -E gui`). Dev testing adds `pytest-qt` to the dev group.
+Doc: PySide6 is a normal dependency of `starbash`, so no extra is needed. Dev testing adds `pytest-qt` to the dev group. *(Originally planned as a `gui` extra; changed to a normal dependency — see §10.)*
 
 ---
 
@@ -137,12 +137,13 @@ Replaces the Textual stub `src/starbash/ui/main.py`.
 ```python
 @app.command()
 def gui(no_wizard: bool = False, target: str | None = None) -> None:
-    """Launch the optional graphical user interface."""
+    """Launch the graphical user interface."""
     try:
         from starbash.ui.qt.main import run_gui
     except ImportError:
-        console.print("[red]The GUI requires extra packages.[/red] "
-                      "Install with: [cyan]pipx install \"starbash[gui]\"[/cyan]")
+        # PySide6 is a normal dependency, so this means a broken install.
+        console.print("[red]The GUI could not load PySide6.[/red] "
+                      "Your install looks incomplete; reinstall starbash.")
         raise typer.Exit(1)
     run_gui(no_wizard=no_wizard, initial_target=target)
 ```
@@ -418,7 +419,7 @@ Final step shows the "add raw repo -> process auto" next-steps panel from `do_re
 - **Models** — pure `QAbstractTableModel` logic (row/column mapping, totals, sorting) tested with `pytest-qt` under `QT_QPA_PLATFORM=offscreen`; no display needed.
 - **Smoke** — a `qapp` fixture constructing `MainWindow` and switching pages; `sb gui` lazy-import test asserts a clean error when Qt is absent.
 - **Isolation** — reuse `paths.set_test_directories(...)` for any GUI test touching config/DB; point the read worker at a temp DB.
-- **CI** — keep GUI tests behind a marker (`-m "not gui"` default) so headless CI without Qt still passes; run the offscreen suite in a dedicated job with the `gui` extra installed.
+- **CI** — GUI tests carry a `gui` marker so they can be deselected (`-m "not gui"`), but they run by default now that PySide6 is a normal dependency; `QT_QPA_PLATFORM=offscreen` keeps them headless and the module skips if Qt cannot start.
 - No GUI test should ever open a real window or run a real tool.
 
 ---
@@ -429,7 +430,7 @@ Final step shows the "add raw repo -> process auto" next-steps panel from `do_re
 2. **Event bus is the crux** — bad thread marshaling = UI freezes or crashes. Mitigation: Phase 0 first, all core work off the GUI thread, signals carry plain data only.
 3. **SQLite across threads** — one connection per thread; worker owns the processing `Starbash`, GUI owns a read connection. Confirm WAL/journal behavior under concurrent read (worker writes frame metrics while GUI browses).
 4. **FITS rendering cost** — large stacks are slow to decode; render on the worker and cache downsampled previews; never block the GUI thread.
-5. **Packaging weight / pipx** — Qt is heavy; must stay an extra. Some users may lack system Qt libs on Linux (bundled wheels usually cover this) — document `starbash[gui]`.
+5. **Packaging weight / pipx** — Qt is heavy. *Resolved:* PySide6 is a normal dependency (the GUI is first-class; "optional" only means users may keep using the CLI), so no extra is needed and there is no "GUI not installed" state to design for. Some users may still lack system Qt libs on Linux (bundled wheels usually cover this).
 6. **Cancellation semantics** — doit subprocesses need the cancel token to actually kill children (`tool_run_streaming` already has a timeout/kill path to reuse).
 7. **Publish/App-install interactivity** — depends on the callback refactor (section 4.4); if we skip it, publishing stays terminal-only initially.
 8. **Scope** — full coverage is large. The plan is deliberately phased so Phases 0-4 already deliver the headline value ("pick target, run, watch, see result"), with the rest incremental.
@@ -437,7 +438,7 @@ Final step shows the "add raw repo -> process auto" next-steps panel from `do_re
 ---
 
 ### Proposed first move
-Execute **Phase 0 + Phase 1**: add `events.py` + emit hooks + interaction protocol with tests, add the `gui` extra and `sb gui` command, stand up the themed shell, and remove Textual — all reviewable without committing to the later screens.
+Execute **Phase 0 + Phase 1**: add `events.py` + emit hooks + interaction protocol with tests, add the `gui` extra *(later changed to a normal dependency — see §10)* and `sb gui` command, stand up the themed shell, and remove Textual — all reviewable without committing to the later screens.
 
 ---
 
@@ -448,18 +449,25 @@ Landed on branch `feat-gui`. Phases 0–7 are implemented except where noted.
 | Phase | Status | Notes |
 |---|---|---|
 | 0 Core seams | ✅ | `src/starbash/events.py` + emit hooks (`tool/base`, `doit`, `processing`, `app`); `src/starbash/interaction.py` protocol + Rich default; guided prompts in `commands/user.py` routed through it. Tests: `tests/unit/test_events.py`, `test_emit_hooks.py`. |
-| 1 Skeleton + Textual removal | ✅ | `gui = ["pyside6"]` extra; `pytest-qt` dev dep; `gui` marker (excluded by default); `sb gui`; Textual file, deps and justfile recipes removed. |
+| 1 Skeleton + Textual removal | ✅ | `pyside6` added as a **normal dependency** (no extra — see §10); `pytest-qt` dev dep; `gui` marker; `sb gui`; Textual file, deps and justfile recipes removed. |
 | 2 Read-only browsing | ✅ | Dashboard, Sessions list, Repositories list, Masters; `ImageViewer` renders FITS (percentile stretch) and raster formats. |
 | 3 Selection & export | ✅ | `SelectionPanel` bound to `Selection` (apply/clear/persist, DB-suggested completion); session export via `copy_images_to_dir`. *Export-to-Siril dir tree not surfaced.* |
 | 4 Processing (live) | ✅ | Worker runs `run_all_stages`/`run_master_stages`; the event bus drives the task tree, log pane, progress bar and per-target caption. Cooperative cancel at phase boundaries. *Result links/thumbnails not added.* |
 | 5 Targets editor | ✅ | Targets list; stage used/excluded toggles written to `.starbash/main.toml` via `stage_utils`. *In-app TOML editor and "Reprocess target" not added.* |
 | 6 Settings, wizard, publish | ✅ partial | Settings (profile/analytics/paths) + first-run wizard. Publish page generates the local site; **GitHub upload stays CLI-only** (needs the interactive device flow). *Aliases editor / Tools tab not added.* |
-| 7 Polish & docs | ✅ partial | `tests/unit/test_gui.py` (21 tests, `gui` marker, offscreen) and `tests/unit/test_gui_command.py` (no-Qt graceful path). AGENTS.md + memory bank updated. *Command palette, shortcuts, demo GIF not added.* |
+| 7 Polish & docs | ✅ partial | `tests/unit/test_gui.py` (21 tests, `gui` marker), `tests/unit/test_gui_command.py` (broken-install path) and `tests/unit/test_cli_headless.py` (subprocess proof that `sb info` works with no display and Qt unimportable, and that the CLI never imports Qt). AGENTS.md + memory bank updated. *Command palette, shortcuts, demo GIF not added.* |
 
-**§9.1 resolved — kept `pyqt6`.** We added PySide6 as the optional extra instead of
+**§9.1 resolved — kept `pyqt6`.** We added PySide6 as a normal dependency instead of
 dropping `pyqt6`. `pyqt6` is referenced only by the out-of-process `siril-scripts/`
 experiments and is never imported by Starbash, so the two bindings cannot conflict
 in-process; removing it would break that experiment for no benefit.
+
+**§9.5 resolved — no `gui` extra.** The plan originally proposed a `gui` extra to keep
+the base install lean. That was wrong: the GUI is a first-class way to drive Starbash,
+and "optional" only ever meant *users may keep using the CLI instead*. `pyside6` is now
+a normal dependency, and GUI tests run by default. The only remnant is defensive: if
+PySide6 cannot be imported (broken install), `sb gui` prints a reinstall hint rather
+than an `ImportError` traceback.
 
 **Known simplifications / follow-ups**
 
