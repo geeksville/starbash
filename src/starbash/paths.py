@@ -24,6 +24,7 @@ __all__ = [
     "get_user_config_dir",
     "get_user_config_path",
     "get_user_data_dir",
+    "get_user_data_base_dir",
     "get_user_cache_dir",
     "get_user_state_dir",
     "get_publish_site_dir",
@@ -93,6 +94,19 @@ def get_user_state_dir() -> Path:
     dir_to_use = _override_state_dir if _override_state_dir is not None else state_dir
     os.makedirs(dir_to_use, exist_ok=True)
     return dir_to_use
+
+
+def get_user_data_base_dir() -> Path:
+    """Get the shared XDG data directory that *contains* our app data directory.
+
+    Desktop integration (a ``.desktop`` entry in ``applications/``, themed icons in
+    ``icons/hicolor/``) must live beside ``~/.local/share/starbash`` rather than
+    inside it, so launchers can find it.  Like the other path helpers this follows
+    the test override, so tests stay isolated from the real user directories.
+    """
+    if _override_data_dir is not None:
+        return _override_data_dir.parent
+    return Path(dirs.user_data_dir).parent
 
 
 def get_publish_site_dir() -> Path:

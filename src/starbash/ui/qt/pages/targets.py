@@ -1,37 +1,88 @@
-"""Review processed targets and choose which stages run for each.
+"""Review processed targets: pick stages, and tune their overridable options.
 
-Edits the same ``[[stages]]`` array-of-tables (``name`` / ``excluded``) that
-``sb process`` reads, via :mod:`starbash.stage_utils`.
+The stage list is a tree: each top-level item is a stage (ticked = active) and its
+children are the parameters the recipe declares, showing either the recipe default
+or the value the user overrode.  Selecting a parameter reveals an editor below the
+tree with its description, default and an override switch.
+
+Edits live in memory and are only written by **Save options**; **Undo changes**
+discards them.  Leaving the page (or picking another target) with unsaved edits
+prompts the user via :meth:`TargetsPage.can_leave`.
 """
 
 from __future__ import annotations
 
+import copy
+from enum import StrEnum
+from typing import Any
+
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
+    QGroupBox,
+    QHBoxLayout,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
+    QLineEdit,
+    QMessageBox,
     QPushButton,
     QSplitter,
+    QTabWidget,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
+from starbash.aliases import normalize_target_name
 from starbash.ui.qt.models import TARGET_COLUMNS, DictTableModel
 from starbash.ui.qt.pages.base import Page
-from starbash.ui.qt.services import load_target_config, load_targets, save_target_stages
+from starbash.ui.qt.services import (
+    ParameterOption,
+    StageOption,
+    coerce_override,
+    load_stage_options,
+    load_targets,
+    preferred_target,
+    save_stage_options,
+)
 
-__all__ = ["TargetsPage"]
+__all__ = ["TargetsPage", "UnsavedChoice"]
+
+#: Colour for a value the user has overridden (stands out against the theme).
+_OVERRIDE_COLOR = QColor("#ffd75f")
+#: Colour for a value the recipe supplies (deliberately muted, so overrides pop).
+_DEFAULT_COLOR = QColor("#7f8c9b")
+
+
+class UnsavedChoice(StrEnum):
+    """What the user decided when asked about unsaved option edits."""
+
+    SAVE = "save"
+    DISCARD = "discard"
+    CANCEL = "cancel"
 
 
 class TargetsPage(Page):
-    """Pick a processed target, then tick/untick its stages and save."""
+    """Pick a processed target, tick its stages and override their options."""
 
     nav_title = "Targets"
-    subtitle = "Review processed targets and choose which stages run for each."
+    subtitle = "Review processed targets, choose which stages run, and tune their options."
 
     def _build(self) -> None:
-        self._current: dict | None = None
+        #: Stages exactly as loaded from disk (the baseline for "dirty" and Undo).
+        self._original: list[StageOption] = []
+        #: Stages as currently edited in the UI.
+        self._current: list[StageOption] = []
+        self._stage_items: dict[str, QTreeWidgetItem] = {}
+        self._param_items: dict[tuple[str, str], QTreeWidgetItem] = {}
+        self._editing: tuple[str, str] | None = None
+        #: Target whose options are loaded, and its on-disk directory.
+        self._loaded_target: str | None = None
+        self._loaded_path: str | None = None
+        #: Target to select on the next refresh (keeps the row selected after a save).
+        self._desired_target: str | None = None
+        #: Suppresses selection/editor handlers while we mutate widgets ourselves.
+        self._guard = False
 
         layout = QVBoxLayout(self)
         layout.addLayout(self.heading())
@@ -40,83 +91,477 @@ class TargetsPage(Page):
         self._table = self.make_table(self._model)
         self._table.selectionModel().selectionChanged.connect(self._on_target_selected)
 
-        panel = QWidget()
-        panel_layout = QVBoxLayout(panel)
-        panel_layout.setContentsMargins(0, 0, 0, 0)
-        panel_layout.addWidget(QLabel("Stages — ticked = active, unticked = excluded"))
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
 
-        self._stages = QListWidget()
-        panel_layout.addWidget(self._stages, 1)
+        hint = QLabel("Stages — ticked = active. Expand a stage to edit its options.")
+        hint.setObjectName("PageSubtitle")
+        right_layout.addWidget(hint)
 
-        self._save = QPushButton("Save stage selection")
-        self._save.setObjectName("Primary")
-        self._save.setEnabled(False)
-        self._save.clicked.connect(self._on_save)
-        panel_layout.addWidget(self._save)
+        self._tree = QTreeWidget()
+        self._tree.setHeaderLabels(["Stage / option", "Value"])
+        self._tree.setAlternatingRowColors(True)
+        self._tree.setColumnWidth(0, 200)
+        self._tree.itemChanged.connect(self._on_item_changed)
+        self._tree.itemSelectionChanged.connect(self._on_tree_selection_changed)
+        right_layout.addWidget(self._tree, 1)
+
+        right_layout.addWidget(self._build_editor())
+
+        self._save_button = QPushButton("Save options")
+        self._save_button.setObjectName("Primary")
+        self._save_button.clicked.connect(self._on_save_clicked)
+        self._undo_button = QPushButton("Undo changes")
+        self._undo_button.clicked.connect(self._on_undo_clicked)
+
+        buttons = QHBoxLayout()
+        buttons.addWidget(self._save_button)
+        buttons.addWidget(self._undo_button)
+        buttons.addStretch(1)
+        right_layout.addLayout(buttons)
 
         self._path = QLabel("")
         self._path.setObjectName("PageSubtitle")
         self._path.setWordWrap(True)
-        panel_layout.addWidget(self._path)
+        right_layout.addWidget(self._path)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self._table)
-        splitter.addWidget(panel)
+        splitter.addWidget(right)
         splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
+        splitter.setStretchFactor(1, 4)
         layout.addWidget(splitter, 1)
 
+        self._mark_dirty()
+
+    def _build_editor(self) -> QGroupBox:
+        """Build the per-parameter editor shown below the tree."""
+        self._editor = QGroupBox("Option")
+        editor_layout = QVBoxLayout(self._editor)
+
+        self._param_title = QLabel("Select an option to edit it.")
+        self._param_desc = QLabel("")
+        self._param_desc.setObjectName("PageSubtitle")
+        self._param_desc.setWordWrap(True)
+
+        # "Use default" vs "Edit override" as two tabs, so the state is explicit
+        # and there is no separate checkbox to reason about.
+        self._tabs = QTabWidget()
+        self._tabs.currentChanged.connect(self._on_override_tab_changed)
+
+        default_tab = QWidget()
+        default_layout = QVBoxLayout(default_tab)
+        self._default_label = QLabel("")
+        self._default_label.setObjectName("PageSubtitle")
+        self._default_label.setWordWrap(True)
+        default_layout.addWidget(self._default_label)
+        default_layout.addStretch(1)
+
+        override_tab = QWidget()
+        override_layout = QVBoxLayout(override_tab)
+        self._override_value = QLineEdit()
+        self._override_value.textEdited.connect(self._on_value_edited)
+        override_layout.addWidget(self._override_value)
+        override_layout.addStretch(1)
+
+        self._tabs.addTab(default_tab, "Use default")
+        self._tabs.addTab(override_tab, "Edit override")
+
+        editor_layout.addWidget(self._param_title)
+        editor_layout.addWidget(self._param_desc)
+        editor_layout.addWidget(self._tabs)
+
+        self._editor.setEnabled(False)
+        return self._editor
+
+    # --- tree -----------------------------------------------------------------
+    def _rebuild_tree(self) -> None:
+        """Rebuild the whole tree from the working model."""
+        self._guard = True
+        try:
+            self._tree.clear()
+            self._stage_items.clear()
+            self._param_items.clear()
+            self._editing = None
+
+            for stage in self._current:
+                item = QTreeWidgetItem([stage.name, self._stage_value_text(stage)])
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setCheckState(
+                    0, Qt.CheckState.Unchecked if stage.excluded else Qt.CheckState.Checked
+                )
+                if stage.description:
+                    item.setToolTip(0, stage.description)
+                self._tree.addTopLevelItem(item)
+                self._stage_items[stage.name] = item
+
+                for parameter in stage.parameters:
+                    child = QTreeWidgetItem([parameter.name, self._value_text(parameter)])
+                    if parameter.description:
+                        child.setToolTip(0, parameter.description)
+                        child.setToolTip(1, parameter.description)
+                    item.addChild(child)
+                    self._param_items[(stage.name, parameter.name)] = child
+                    self._apply_param_style(stage.name, parameter.name)
+        finally:
+            self._guard = False
+
+        self._clear_editor()
+
+    def _apply_param_style(self, stage_name: str, param_name: str) -> None:
+        """Colour a parameter row: overrides stand out, defaults stay muted."""
+        parameter = self._param(stage_name, param_name)
+        item = self._param_items.get((stage_name, param_name))
+        if parameter is None or item is None:
+            return
+        colour = _OVERRIDE_COLOR if parameter.is_overridden else _DEFAULT_COLOR
+        item.setForeground(1, QBrush(colour))
+
+    @staticmethod
+    def _value_text(parameter: ParameterOption) -> str:
+        """Row text for a parameter: the override value, or the recipe default."""
+        if parameter.is_overridden:
+            return f"{parameter.value}"
+        if parameter.default is None:
+            return "(no default)"
+        return f"{parameter.default}  (default)"
+
+    @staticmethod
+    def _stage_value_text(stage: StageOption) -> str:
+        """Row text for a stage: the values of any overridden options.
+
+        Deliberately *not* a count of options - that told the user nothing useful.
+        Showing ``crop_width=85%, crop_height=4150`` lets them see what they changed
+        without expanding the stage.
+        """
+        overridden = [
+            f"{parameter.name}={parameter.value}"
+            for parameter in stage.parameters
+            if parameter.is_overridden
+        ]
+        return ", ".join(overridden)
+
+    def _stage(self, name: str) -> StageOption | None:
+        """Return the working stage with ``name``, if present."""
+        return next((stage for stage in self._current if stage.name == name), None)
+
+    def _param(self, stage_name: str, param_name: str) -> ParameterOption | None:
+        """Return the working parameter ``param_name`` of stage ``stage_name``."""
+        stage = self._stage(stage_name)
+        if stage is None:
+            return None
+        return next((param for param in stage.parameters if param.name == param_name), None)
+
+    def _refresh_param_row(self, stage_name: str, param_name: str) -> None:
+        """Re-render one parameter row (and its stage summary) after an edit."""
+        parameter = self._param(stage_name, param_name)
+        item = self._param_items.get((stage_name, param_name))
+        if parameter is None or item is None:
+            return
+        self._guard = True
+        try:
+            item.setText(1, self._value_text(parameter))
+        finally:
+            self._guard = False
+        self._apply_param_style(stage_name, param_name)
+        self._refresh_stage_row(stage_name)
+
+    def _refresh_stage_row(self, stage_name: str) -> None:
+        """Re-render a stage row's option summary."""
+        stage = self._stage(stage_name)
+        item = self._stage_items.get(stage_name)
+        if stage is None or item is None:
+            return
+        self._guard = True
+        try:
+            item.setText(1, self._stage_value_text(stage))
+        finally:
+            self._guard = False
+
+    # --- editing --------------------------------------------------------------
+    def _on_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
+        """A stage checkbox was toggled (parameter rows are not checkable)."""
+        if self._guard or column != 0:
+            return
+        stage = self._stage(item.text(0))
+        if stage is None:
+            return
+        stage.excluded = item.checkState(0) == Qt.CheckState.Unchecked
+        self._mark_dirty()
+
+    def _on_tree_selection_changed(self) -> None:
+        """Load the editor for the selected parameter row, if any."""
+        if self._guard:
+            return
+        items = self._tree.selectedItems()
+        if not items:
+            self._clear_editor()
+            return
+
+        item = items[0]
+        parent = item.parent()
+        if parent is None:
+            # A stage row: show its description rather than an editor.
+            stage = self._stage(item.text(0))
+            self._clear_editor()
+            self._param_title.setText(item.text(0))
+            self._param_desc.setText(
+                (stage.description if stage else None) or "Expand to see this stage's options."
+            )
+            return
+
+        self._load_editor(parent.text(0), item.text(0))
+
+    def _load_editor(self, stage_name: str, param_name: str) -> None:
+        """Populate the editor for one parameter."""
+        parameter = self._param(stage_name, param_name)
+        if parameter is None:
+            self._clear_editor()
+            return
+
+        self._editing = (stage_name, param_name)
+        self._guard = True
+        try:
+            self._editor.setEnabled(True)
+            self._param_title.setText(parameter.name)
+            self._param_desc.setText(
+                parameter.description or "This recipe gives no description for this option."
+            )
+            self._default_label.setText(self._default_text(parameter))
+            self._override_value.setText(self._editor_value_text(parameter))
+            self._override_value.setPlaceholderText(self._default_text(parameter))
+            self._tabs.setCurrentIndex(1 if parameter.is_overridden else 0)
+        finally:
+            self._guard = False
+
+    def _clear_editor(self) -> None:
+        """Return the editor to its empty, disabled state."""
+        self._editing = None
+        self._guard = True
+        try:
+            self._editor.setEnabled(False)
+            self._param_title.setText("Select an option to edit it.")
+            self._param_desc.setText("")
+            self._tabs.setCurrentIndex(0)
+            self._override_value.clear()
+            self._override_value.setPlaceholderText("")
+            self._default_label.setText("")
+        finally:
+            self._guard = False
+
+    @staticmethod
+    def _default_text(parameter: ParameterOption) -> str:
+        """Human text for the parameter's recipe default."""
+        if parameter.default is None:
+            return "Recipe default: (none)"
+        return f"Recipe default: {parameter.default}"
+
+    @staticmethod
+    def _editor_value_text(parameter: ParameterOption) -> str:
+        """Text to preload the value box with: the override, else the default."""
+        if parameter.is_overridden:
+            return str(parameter.value)
+        return "" if parameter.default is None else str(parameter.default)
+
+    def _on_override_tab_changed(self, index: int) -> None:
+        """Switching to 'Use default' drops the override; 'Edit override' sets one."""
+        if self._guard or self._editing is None:
+            return
+        stage_name, param_name = self._editing
+        parameter = self._param(stage_name, param_name)
+        if parameter is None:
+            return
+
+        if index == 0:
+            parameter.value = None
+        else:
+            # Adopt the text (the default, unless the user already typed something).
+            parameter.value = coerce_override(self._override_value.text(), parameter.default)
+
+        self._refresh_param_row(stage_name, param_name)
+        self._mark_dirty()
+
+    def _on_value_edited(self, text: str) -> None:
+        """Apply a typed value (only meaningful on the 'Edit override' tab)."""
+        if self._guard or self._editing is None:
+            return
+        stage_name, param_name = self._editing
+        parameter = self._param(stage_name, param_name)
+        if parameter is None or not parameter.is_overridden:
+            return
+
+        parameter.value = coerce_override(text, parameter.default)
+        self._refresh_param_row(stage_name, param_name)
+        self._mark_dirty()
+
+    # --- dirty state, save and undo -------------------------------------------
+    def _is_dirty(self) -> bool:
+        """True when the working model differs from what is on disk."""
+        return self._current != self._original
+
+    def _mark_dirty(self) -> None:
+        """Show Save/Undo only when there is something to save or discard."""
+        dirty = self._is_dirty()
+        self._save_button.setVisible(dirty)
+        self._undo_button.setVisible(dirty)
+
+    def _on_save_clicked(self) -> None:
+        self._save()
+
+    def _on_undo_clicked(self) -> None:
+        self._undo()
+
+    def _save(self) -> bool:
+        """Write the working model to disk. Returns True on success."""
+        if self._loaded_target is None or self._loaded_path is None:
+            return True
+        try:
+            save_stage_options(self._loaded_path, self._current)
+        except Exception as exc:  # noqa: BLE001 - report, never crash the page
+            self.show_error(f"Could not save options for {self._loaded_target}: {exc}")
+            return False
+
+        self._original = copy.deepcopy(self._current)
+        self._update_row_counts()
+        self._mark_dirty()
+        self.status.emit(f"Saved options for {self._loaded_target}.")
+        return True
+
+    def _undo(self) -> None:
+        """Discard in-memory edits and restore what is on disk."""
+        self._current = copy.deepcopy(self._original)
+        self._rebuild_tree()
+        self._mark_dirty()
+        self.status.emit("Discarded option changes.")
+
+    def _update_row_counts(self) -> None:
+        """Refresh the table row for the loaded target (keeps the selection)."""
+        if self._loaded_target is None:
+            return
+        for index, row in enumerate(self._model.rows()):
+            if row.get("target") != self._loaded_target:
+                continue
+            self._model.update_cells(
+                index,
+                {
+                    "used": sum(1 for stage in self._current if not stage.excluded),
+                    "excluded": sum(1 for stage in self._current if stage.excluded),
+                },
+            )
+            return
+
+    # --- unsaved-change prompts ----------------------------------------------
+    def can_leave(self) -> bool:
+        """Ask about unsaved edits before navigating away; False cancels it."""
+        return self._resolve_unsaved()
+
+    def _resolve_unsaved(self) -> bool:
+        """True if it is OK to proceed (nothing dirty, or the user saved/discarded)."""
+        if not self._is_dirty():
+            return True
+        choice = self._ask_unsaved()
+        if choice is UnsavedChoice.SAVE:
+            return self._save()
+        if choice is UnsavedChoice.DISCARD:
+            self._undo()
+            return True
+        return False
+
+    def _ask_unsaved(self) -> UnsavedChoice:
+        """Show the save/discard/cancel dialog. Split out so tests can drive it."""
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("Unsaved options")
+        box.setText(f"You have unsaved option changes for {self._loaded_target or 'this target'}.")
+        box.setInformativeText("Save them before continuing?")
+        save_button = box.addButton("Save options", QMessageBox.ButtonRole.AcceptRole)
+        discard_button = box.addButton("Discard", QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+
+        clicked = box.clickedButton()
+        if clicked is save_button:
+            return UnsavedChoice.SAVE
+        if clicked is discard_button:
+            return UnsavedChoice.DISCARD
+        return UnsavedChoice.CANCEL
+
+    # --- target selection -----------------------------------------------------
     def refresh(self) -> None:
-        """Reload the list of processed targets."""
+        """Reload the target list, selecting the current or preferred target."""
         self._model.set_rows(load_targets(self.sb))
-        self._stages.clear()
-        self._save.setEnabled(False)
-        self._current = None
-        self._path.setText("")
+        wanted = self._desired_target or preferred_target(self.sb)
+        self._desired_target = None
+        self._select_target(wanted)
+
+    def _select_target(self, name: str | None) -> None:
+        """Select the row for ``name`` (normalised), or clear the selection."""
+        index = self._find_row(name)
+        self._guard = True
+        try:
+            if index is None:
+                self._table.clearSelection()
+            else:
+                self._table.selectRow(index)
+                self._table.scrollTo(self._model.index(index, 0))
+        finally:
+            self._guard = False
+
+        self._load_target(self._model.row_at(index) if index is not None else None)
+
+    def _find_row(self, name: str | None) -> int | None:
+        """Row index of the target matching ``name`` (ignoring case and separators)."""
+        if not name:
+            return None
+        wanted = normalize_target_name(str(name))
+        for index, row in enumerate(self._model.rows()):
+            if normalize_target_name(str(row.get("target", ""))) == wanted:
+                return index
+        return None
 
     def _on_target_selected(self) -> None:
+        """Load the selected target, resolving any unsaved edits first."""
+        if self._guard:
+            return
         indexes = self._table.selectionModel().selectedRows()
         row = self._model.row_at(indexes[0].row()) if indexes else None
-        self._current = row
-        self._stages.clear()
+        if row is None:
+            self._load_target(None)
+            return
+        if row.get("target") == self._loaded_target:
+            return
+        if not self._resolve_unsaved():
+            # The user cancelled: put the selection back where it was.
+            self._select_target(self._loaded_target)
+            return
+        self._load_target(row)
 
-        if not row:
-            self._save.setEnabled(False)
+    def _load_target(self, row: dict[str, Any] | None) -> None:
+        """Load stage options for ``row`` (or clear the panel when None)."""
+        if row is None:
+            self._loaded_target = None
+            self._loaded_path = None
+            self._original = []
+            self._current = []
+            self._rebuild_tree()
+            self._mark_dirty()
             self._path.setText("")
             return
 
+        target = str(row.get("target", ""))
+        path = str(row.get("path", ""))
         try:
-            stages = load_target_config(row["path"])
-        except Exception as exc:  # noqa: BLE001 - report, don't crash
-            self.show_error(f"Could not read target config: {exc}")
+            stages = load_stage_options(self.sb, path)
+        except Exception as exc:  # noqa: BLE001 - report, never crash the page
+            self.show_error(f"Could not read options for {target}: {exc}")
             return
 
-        for stage in stages:
-            item = QListWidgetItem(stage["name"])
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(
-                Qt.CheckState.Unchecked if stage["excluded"] else Qt.CheckState.Checked
-            )
-            self._stages.addItem(item)
-
-        self._save.setEnabled(bool(stages))
-        self._path.setText(row.get("path", ""))
-
-    def _on_save(self) -> None:
-        if not self._current:
-            return
-        used: list[str] = []
-        excluded: list[str] = []
-        for index in range(self._stages.count()):
-            item = self._stages.item(index)
-            target = used if item.checkState() == Qt.CheckState.Checked else excluded
-            target.append(item.text())
-
-        try:
-            save_target_stages(self._current["path"], used, excluded)
-        except Exception as exc:  # noqa: BLE001 - report, don't crash
-            self.show_error(f"Could not save stage selection: {exc}")
-            return
-
-        self.status.emit(f"Saved stage selection for {self._current['target']}.")
-        self.refresh()
+        self._loaded_target = target
+        self._loaded_path = path
+        self._original = stages
+        self._current = copy.deepcopy(stages)
+        self._rebuild_tree()
+        self._mark_dirty()
+        self._path.setText(path)
+        self.status.emit(f"{len(stages)} stage(s) for {target}.")

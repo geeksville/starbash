@@ -92,7 +92,8 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
   `ui/qt/jobs.py` (long operations), `ui/qt/workers.py` (`QThreadPool` +
   cooperative `CancelToken`), `ui/qt/bridge.py` (event bus → Qt signals),
   `ui/qt/interaction.py` (Qt `UserInteraction`), `ui/qt/theme.py` (QSS + the app
-  icon, loaded from the packaged `src/starbash/assets/`).
+  icon), `ui/qt/desktop.py` (Linux `.desktop` entry + hicolor icons). Binary/assets
+  (icon, favicon, `.desktop` template) live in the packaged `src/starbash/assets/`.
 - **Threading rule (important)**: the shared `Starbash`/SQLite connection belongs
   to the GUI thread. Every long operation runs in a worker that builds its **own**
   `Starbash` (hence its own SQLite connection) and reports through the event bus.
@@ -101,11 +102,26 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
   re-emits each event as one Qt signal delivered on the GUI thread, so pages can
   update widgets directly. To add live feedback, publish an event in the core and
   handle it in the relevant page — do not poll.
+- **Unsaved edits**: a page with editable state implements `Page.can_leave()`.
+  `MainWindow` calls it before switching pages (and on close); returning `False`
+  cancels the navigation. The Targets page uses this for its stage/option editor
+  (Save/Undo appear only when dirty; see `pages/targets.py`).
+- **Linux desktop integration**: `ui/qt/desktop.py` writes
+  `~/.local/share/applications/starbash.desktop` plus hicolor icons
+  (`~/.local/share/icons/hicolor/{512x512,scalable}/apps/starbash.{png,svg}`) on
+  GUI start-up. It is idempotent (rewrites only on change, which repairs the entry
+  after a pipx upgrade moves the executable) and best-effort
+  (`QGuiApplication.setDesktopFileName("starbash")` makes the window join the
+  entry; failures are logged, never raised). Opt out with
+  `STARBASH_NO_DESKTOP_INSTALL=1`. The template is
+  `src/starbash/assets/starbash.desktop.in`.
 - **Tests**: Qt tests live in `tests/unit/test_gui.py`, are marked `gui`, and run
   as part of the default suite (deselect with `-m "not gui"`). They use
   `QT_QPA_PLATFORM=offscreen` (set in `tests/conftest.py`) so they pass headless,
   and the module skips cleanly if Qt cannot start at all.
-  `tests/unit/test_gui_command.py` covers the broken-install path.
+  `tests/unit/test_gui_command.py` covers the broken-install path, and
+  `tests/unit/test_desktop_entry.py` (Qt-free, so it always runs) covers the
+  `.desktop` install.
   `tests/unit/test_cli_headless.py` **locks in the headless guarantee**: it runs
   `sb info` in a subprocess with `DISPLAY` stripped and `PySide6` made
   unimportable, and asserts the CLI never loads Qt or the GUI package. If you ever

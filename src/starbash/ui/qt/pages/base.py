@@ -55,6 +55,14 @@ class Page(QWidget):
     def refresh(self) -> None:
         """Reload data from the core. The default implementation does nothing."""
 
+    def can_leave(self) -> bool:
+        """Return ``True`` if it is safe to navigate away from this page.
+
+        Pages holding unsaved edits override this to prompt the user.  Returning
+        ``False`` cancels the navigation.
+        """
+        return True
+
     # --- shared helpers ---------------------------------------------------
     def start_job(
         self,

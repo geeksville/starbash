@@ -281,32 +281,6 @@ def test_load_targets_without_processed_repo_is_empty(app_context):
     assert load_targets(app_context) == []
 
 
-def test_target_stage_roundtrip(tmp_path):
-    """save_target_stages writes the [[stages]] schema load_target_config reads."""
-    from starbash.ui.qt.services import (
-        TARGET_CONFIG_NAME,
-        load_target_config,
-        save_target_stages,
-    )
-
-    target_dir = tmp_path / "m31"
-    (target_dir / TARGET_CONFIG_NAME).parent.mkdir(parents=True)
-
-    assert load_target_config(str(target_dir)) == []
-
-    save_target_stages(str(target_dir), used=["stack", "stretch"], excluded=["denoise"])
-
-    stages = {entry["name"]: entry["excluded"] for entry in load_target_config(str(target_dir))}
-    assert stages == {"stack": False, "stretch": False, "denoise": True}
-
-    # Re-saving must flip a stage without losing the others.
-    save_target_stages(str(target_dir), used=["denoise"], excluded=["stretch"])
-    stages = {entry["name"]: entry["excluded"] for entry in load_target_config(str(target_dir))}
-    assert stages["denoise"] is False
-    assert stages["stretch"] is True
-    assert stages["stack"] is False
-
-
 def test_load_masters_resolves_absolute_paths_for_preview(app_context, tmp_path, qapp):
     """Master rows must resolve to a real file, so their preview can open it.
 

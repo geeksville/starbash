@@ -51,6 +51,9 @@ class MainWindow(QMainWindow):
 
         self._bus = EventBusBridge(self)
         self._sb = sb
+        #: Set while we programmatically change the nav selection, so the
+        #: currentRowChanged handler doesn't treat it as a user navigation.
+        self._switching = False
 
         self._nav = QListWidget()
         self._nav.setObjectName("NavRail")
@@ -140,8 +143,19 @@ class MainWindow(QMainWindow):
         menu.addAction(quit_action)
 
     def _on_page_changed(self, row: int) -> None:
-        if row < 0:
+        if row < 0 or self._switching:
             return
+
+        previous = self._stack.currentIndex()
+        if previous != row and not self._page_can_leave(previous):
+            # The page being left refused (unsaved edits): undo the navigation.
+            self._switching = True
+            try:
+                self._nav.setCurrentRow(previous)
+            finally:
+                self._switching = False
+            return
+
         # Switch the visible page *and* reload it - forgetting the first half is
         # the classic "nav clicks do nothing" bug.
         self._stack.setCurrentIndex(row)
@@ -152,6 +166,14 @@ class MainWindow(QMainWindow):
         subtitle = getattr(page, "subtitle", "")
         if subtitle:
             self.statusBar().showMessage(subtitle)
+
+    def _page_can_leave(self, index: int) -> bool:
+        """Ask the page at ``index`` whether it is safe to navigate away."""
+        if index < 0:
+            return True
+        page = self._stack.widget(index)
+        can_leave = getattr(page, "can_leave", None)
+        return bool(can_leave()) if callable(can_leave) else True
 
     def _on_setup(self) -> None:
         if run_setup_dialog(self._sb, self):
@@ -165,7 +187,13 @@ class MainWindow(QMainWindow):
                 return
 
     def closeEvent(self, event: object) -> None:  # noqa: N802 - Qt API
-        """Release the event-bus subscription and close the app context."""
+        """Ask about unsaved work, then release the bridge and app context."""
+        if not self._page_can_leave(self._stack.currentIndex()):
+            ignore = getattr(event, "ignore", None)
+            if callable(ignore):
+                ignore()
+            return
+
         self._bus.close()
         try:
             self._sb.close()

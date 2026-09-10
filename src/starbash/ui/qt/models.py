@@ -111,6 +111,19 @@ class DictTableModel(QAbstractTableModel):
             return self._rows[index]
         return None
 
+    def update_cells(self, row_index: int, values: dict[str, Any]) -> None:
+        """Merge ``values`` into one row and notify the view.
+
+        Unlike :meth:`set_rows` this preserves the current selection, which matters
+        when saving edits to the row the user is working on.
+        """
+        if not 0 <= row_index < len(self._rows):
+            return
+        self._rows[row_index].update(values)
+        self.dataChanged.emit(
+            self.index(row_index, 0), self.index(row_index, len(self._columns) - 1)
+        )
+
     # --- QAbstractTableModel API -----------------------------------------
     def rowCount(self, parent: ModelIndex | None = None) -> int:  # noqa: N802
         if parent is not None and parent.isValid():
@@ -196,7 +209,7 @@ REPO_COLUMNS = [
 ]
 
 TARGET_COLUMNS = [
-    Column("Target", "target", 200),
+    Column("Target", "target", 160),
     Column("Active stages", "used", 110, align_right=True),
     Column("Excluded", "excluded", 100, align_right=True),
     Column("Output", "path", 460),

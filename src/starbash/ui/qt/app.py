@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QApplication
 
 from starbash.app import Starbash
 from starbash.interaction import set_interaction
+from starbash.ui.qt.desktop import DESKTOP_FILE_NAME, install_desktop_entry
 from starbash.ui.qt.interaction import QtUserInteraction
 from starbash.ui.qt.main_window import MainWindow
 from starbash.ui.qt.theme import apply_theme, load_app_icon
@@ -36,6 +37,8 @@ def create_application(argv: list[str] | None = None) -> QApplication:
     apply_theme(app)
     # Shows in the title bar / task switcher; a null icon simply means no icon.
     app.setWindowIcon(load_app_icon())
+    # Lets the window join our installed .desktop entry (Wayland app id / WM_CLASS).
+    app.setDesktopFileName(DESKTOP_FILE_NAME)
     return app
 
 
@@ -46,6 +49,9 @@ def run(argv: list[str] | None = None) -> int:
         The Qt event loop's exit code.
     """
     app = create_application(argv)
+    # Best-effort Linux integration so launchers/docks show the name and icon.
+    install_desktop_entry()
+
     sb = Starbash("gui")
 
     window = MainWindow(sb)

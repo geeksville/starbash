@@ -25,11 +25,33 @@ Status (all phases 0–7 landed except GitHub upload from the GUI):
 - **Phases 2–6** — `ui/qt/**`: main window (nav rail + stacked pages), theme QSS,
   event bridge, workers (`QThreadPool` + `CancelToken`), jobs, services, dict table
   models, widgets (stat card, log view, FITS/raster image viewer, selection panel)
-  and pages (dashboard, sessions+browse+export, masters, targets stage editor,
+  and pages (dashboard, sessions+browse+export, masters, targets options tree,
   live processing, repositories w/ progress, publish, settings, setup wizard).
-- **Phase 7 (polish/docs)** — `tests/unit/test_gui.py` (21 tests, `gui` marker,
-  offscreen) and `tests/unit/test_gui_command.py` (graceful no-PySide6 path, runs
-  in the default suite).
+- **Phase 7 (polish/docs)** — `tests/unit/test_gui.py` (27 tests, `gui` marker,
+  offscreen), `tests/unit/test_targets_page.py` (11 tests) and
+  `tests/unit/test_gui_command.py` (graceful no-PySide6 path, runs in the default
+  suite).
+
+Targets page specifics (recent tweak round):
+
+- The stage list is a **`QTreeWidget`**: top-level rows are stages (ticked = active),
+  children are the parameters the recipe declares (`[[stages.parameters]]`), showing
+  the recipe default, the description (tooltip) and any override. Overridden values
+  are bright yellow, defaults dim; a stage's summary column lists its **overridden
+  values** (e.g. `crop_width=85%, crop_height=4150`), not option counts.
+- Selecting a parameter opens an editor with two tabs, **Use default** vs **Edit
+  override** (no checkbox): the former clears the override, the latter adopts the
+  default as the starting value.
+- `services.load_stage_options()` merges recipe declarations with the target's
+  `.starbash/main.toml` overrides; `save_stage_options()` rewrites only
+  `[[stages]]` (round-trip idempotent, preserves other sections such as citation).
+- **Save options / Undo changes** are visible only while the page is dirty. Leaving
+  the page (or picking another target) with unsaved edits prompts Save/Discard/Cancel
+  via `Page.can_leave()`, which `MainWindow` consults before switching pages and on
+  close.
+- The table row for the currently selected target (`sb select target …`) is
+  pre-selected on load.
+- The Targets list's **Target** column is 160px (target names are ~20 chars max).
 
 Still open: uploading to GitHub Pages from the GUI (still needs the CLI's
 interactive device flow; the GUI page builds the site locally and points at

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Starbash
+GenericName=Astrophotography Workflows
+Comment=Automate and standardize astrophotography processing workflows
+Keywords=astronomy;astrophotography;fits;stacking;siril;graxpert;
+Exec="$exec" gui
+TryExec=$exec
+Icon=$icon_name
+Terminal=false
+Categories=Science;Astronomy;Graphics;
+StartupNotify=true
+StartupWMClass=$wm_class
