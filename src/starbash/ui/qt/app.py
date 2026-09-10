@@ -16,7 +16,7 @@ from starbash.app import Starbash
 from starbash.interaction import set_interaction
 from starbash.ui.qt.interaction import QtUserInteraction
 from starbash.ui.qt.main_window import MainWindow
-from starbash.ui.qt.theme import apply_theme
+from starbash.ui.qt.theme import apply_theme, load_app_icon
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,8 @@ def create_application(argv: list[str] | None = None) -> QApplication:
     app.setApplicationName(APP_NAME)
     app.setOrganizationName(ORG_NAME)
     apply_theme(app)
+    # Shows in the title bar / task switcher; a null icon simply means no icon.
+    app.setWindowIcon(load_app_icon())
     return app
 
 

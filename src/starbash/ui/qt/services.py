@@ -26,7 +26,7 @@ from tomlkit.exceptions import ParseError
 from tomlkit.toml_file import TOMLFile
 
 from starbash.app import Starbash
-from starbash.database import Database
+from starbash.database import Database, get_column_name
 from starbash.stage_utils import get_stages_aot, upsert_stage
 
 __all__ = [
@@ -53,18 +53,22 @@ def image_basename(image: dict[str, Any]) -> str:
     return Path(str(path)).name
 
 
+def _as_float(value: Any) -> float:
+    """Best-effort numeric coercion for values coming back out of SQLite."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def load_sessions(sb: Starbash) -> list[dict[str, Any]]:
-    """Return the sessions matching the current selection, shaped for the table."""
-    rows: list[dict[str, Any]] = []
-    for session in sb.search_session():
-        row = dict(session)  # search_session already returns plain dicts
-        total = row.get(Database.EXPTIME_TOTAL_KEY)
-        try:
-            row[Database.EXPTIME_TOTAL_KEY] = round(float(total), 1) if total else 0.0
-        except (TypeError, ValueError):
-            row[Database.EXPTIME_TOTAL_KEY] = 0.0
-        rows.append(row)
-    return rows
+    """Return the sessions matching the current selection, shaped for the table.
+
+    ``search_session()`` already returns plain dicts, but keyed by **SQL column
+    name** (``num_images``, ``exptime_total``, ...).  Display formatting is the
+    model's job (via each :class:`Column`'s formatter), so rows pass through as-is.
+    """
+    return [dict(session) for session in sb.search_session()]
 
 
 def load_session_images(sb: Starbash, session: dict[str, Any]) -> list[dict[str, Any]]:
@@ -218,15 +222,21 @@ def load_selection(sb: Starbash) -> dict[str, Any]:
 
 
 def dashboard_stats(sb: Starbash) -> dict[str, Any]:
-    """Return headline counts for the dashboard cards."""
+    """Return headline counts for the dashboard cards.
+
+    Session rows are keyed by **SQL column name**, whereas ``Database.*_KEY``
+    constants are metadata/toml-style names (``"num-images"`` vs ``"num_images"``).
+    Translating through :func:`get_column_name` is what keeps these totals correct.
+    """
+    frames_key = get_column_name(Database.NUM_IMAGES_KEY)
+    exptime_key = get_column_name(Database.EXPTIME_TOTAL_KEY)
+
     sessions = sb.search_session()
-    frames = sum(int(s.get(Database.NUM_IMAGES_KEY) or 0) for s in sessions)
+    frames = 0
     seconds = 0.0
     for session in sessions:
-        try:
-            seconds += float(session.get(Database.EXPTIME_TOTAL_KEY) or 0.0)
-        except (TypeError, ValueError):
-            continue
+        frames += int(_as_float(session.get(frames_key)))
+        seconds += _as_float(session.get(exptime_key))
 
     return {
         "sessions": len(sessions),

@@ -8,7 +8,7 @@ database - they only format dictionaries.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -19,6 +19,7 @@ from starbash.database import Database
 __all__ = [
     "Column",
     "DictTableModel",
+    "format_minutes",
     "plain_row",
     "plain_rows",
 ]
@@ -48,20 +49,36 @@ def plain_rows(rows: Iterable[Any]) -> list[dict[str, Any]]:
     return [plain_row(row) for row in rows]
 
 
+def format_minutes(seconds: Any) -> str:
+    """Render a duration in seconds as approximately whole minutes.
+
+    Used by compact session tables, where "424" reads far better than
+    "25440.0" (and sidesteps float noise like "4.33369999999999").
+    """
+    try:
+        minutes = float(seconds) / 60.0
+    except (TypeError, ValueError):
+        return ""
+    return f"{minutes:.0f}"
+
+
 @dataclass(frozen=True)
 class Column:
-    """Describes one table column: its header, source key, and width."""
+    """Describes one table column: its header, source key, width and formatter."""
 
     header: str
     key: str
     width: int = 120
     align_right: bool = False
+    fmt: Callable[[Any], str] | None = None
 
     def render(self, row: Mapping[str, Any]) -> str:
         """Format ``row``'s value for this column as display text."""
         value = row.get(self.key)
         if value is None:
             return ""
+        if self.fmt is not None:
+            return self.fmt(value)
         return str(value)
 
 
@@ -83,6 +100,10 @@ class DictTableModel(QAbstractTableModel):
     def rows(self) -> list[dict[str, Any]]:
         """Return the current rows (as plain dicts)."""
         return self._rows
+
+    def columns(self) -> list[Column]:
+        """Return the column definitions (used to size the table view)."""
+        return self._columns
 
     def row_at(self, index: int) -> dict[str, Any] | None:
         """Return the row dict at ``index`` or ``None`` when out of range."""
@@ -151,7 +172,13 @@ SESSION_COLUMNS = [
     Column("Type", "imagetyp", 90),
     Column("Start", "start", 170),
     Column("Frames", "num_images", 80, align_right=True),
-    Column("Integration (s)", "exptime_total", 130, align_right=True),
+    Column(
+        "Integration (min)",
+        "exptime_total",
+        140,
+        align_right=True,
+        fmt=format_minutes,
+    ),
 ]
 
 IMAGE_COLUMNS = [

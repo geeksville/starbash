@@ -7,6 +7,7 @@ all on this machine the whole module skips instead of failing.
 """
 
 import os
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -127,6 +128,118 @@ def test_plain_row_accepts_sqlite_row(tmp_path):
     assert plain_row(row) == {"a": 1, "b": "x"}
 
 
+def test_integration_column_renders_approximately_whole_minutes(qapp):
+    """The sessions table shows integration as compact whole minutes, not seconds."""
+    from starbash.ui.qt.models import SESSION_COLUMNS
+
+    column = next(c for c in SESSION_COLUMNS if c.key == "exptime_total")
+
+    assert column.render({"exptime_total": 25440.0}) == "424"
+    assert column.render({"exptime_total": 60}) == "1"
+    assert column.render({"exptime_total": 4.333699999999999}) == "0"
+    assert column.render({"exptime_total": None}) == ""
+    assert column.render({}) == ""
+
+
+def _seed_session(
+    sb,
+    *,
+    target: str,
+    start: str,
+    end: str,
+    num_images: int,
+    exptime_total: float,
+) -> None:
+    """Insert one image plus its session, so stats have real numbers to report.
+
+    Keys go through ``get_column_name`` exactly like the real indexing path, so the
+    session row is keyed by SQL column name (``num_images``/``exptime_total``).
+    """
+    from starbash.database import Database, get_column_name
+
+    repo_url = "file:///tmp/gui_test_repo"
+    sb.db.upsert_repo(repo_url)
+    image_id = sb.db.upsert_image(
+        {
+            "path": f"{target}-{start}.fits",
+            "DATE-OBS": start,
+            "DATE": start[:10],
+            "IMAGETYP": "LIGHT",
+            "FILTER": "Ha",
+            "OBJECT": target,
+            "TELESCOP": "Test Scope",
+            "EXPTIME": 120.0,
+        },
+        repo_url,
+    )
+    sb.db.upsert_session(
+        {
+            get_column_name(Database.START_KEY): start,
+            get_column_name(Database.END_KEY): end,
+            get_column_name(Database.FILTER_KEY): "Ha",
+            get_column_name(Database.IMAGETYP_KEY): "LIGHT",
+            get_column_name(Database.OBJECT_KEY): target,
+            get_column_name(Database.TELESCOP_KEY): "Test Scope",
+            get_column_name(Database.NUM_IMAGES_KEY): num_images,
+            get_column_name(Database.EXPTIME_TOTAL_KEY): exptime_total,
+            get_column_name(Database.EXPTIME_KEY): 120.0,
+            get_column_name(Database.IMAGE_DOC_KEY): image_id,
+        }
+    )
+
+
+def test_dashboard_stats_counts_frames_and_integration(app_context):
+    """Dashboard totals come from real session rows.
+
+    Regression guard: session rows are keyed by SQL column name, so reading the
+    metadata-style ``Database.*_KEY`` constants directly silently yields 0.
+    """
+    from starbash.ui.qt.services import dashboard_stats, load_sessions
+
+    _seed_session(
+        app_context,
+        target="sh2126",
+        start="2026-09-01T22:00:00",
+        end="2026-09-01T23:00:00",
+        num_images=10,
+        exptime_total=3600.0,
+    )
+    _seed_session(
+        app_context,
+        target="sh2126",
+        start="2026-09-02T22:00:00",
+        end="2026-09-02T23:00:00",
+        num_images=5,
+        exptime_total=1800.0,
+    )
+
+    stats = dashboard_stats(app_context)
+
+    assert stats["sessions"] == 2
+    assert stats["frames"] == 15  # 10 + 5
+    assert stats["integration_hours"] == 1.5  # (3600 + 1800) / 3600
+
+    # And the rows the table receives carry the raw SQL-keyed values.
+    rows = load_sessions(app_context)
+    totals = sorted(row["exptime_total"] for row in rows)
+    assert totals == [1800.0, 3600.0]
+
+
+def test_dashboard_table_does_not_stretch_last_column(qtbot, app_context):
+    """The last column keeps its declared width, so integration stays compact."""
+    from starbash.ui.qt.models import SESSION_COLUMNS
+    from starbash.ui.qt.pages import DashboardPage
+
+    page = DashboardPage(app_context, None)
+    qtbot.addWidget(page)
+
+    header = page._table.horizontalHeader()
+    assert header.stretchLastSection() is False
+
+    last = len(SESSION_COLUMNS) - 1
+    assert page._table.columnWidth(last) == SESSION_COLUMNS[last].width
+
+
 # --- services --------------------------------------------------------------
 
 
@@ -194,8 +307,75 @@ def test_target_stage_roundtrip(tmp_path):
     assert stages["stack"] is False
 
 
-# --- FITS rendering --------------------------------------------------------
+def test_load_masters_resolves_absolute_paths_for_preview(app_context, tmp_path, qapp):
+    """Master rows must resolve to a real file, so their preview can open it.
 
+    Regression guard: ``get_master_images()`` returned repo-relative paths only, so
+    every master/flat preview failed with "No such file or directory".
+    """
+    from astropy.io import fits
+
+    from starbash.ui.qt.services import load_masters
+    from starbash.ui.qt.widgets.image_viewer import load_image_file
+
+    repo_dir = tmp_path / "master_repo"
+    repo_dir.mkdir()
+    hdu = fits.PrimaryHDU(np.zeros((8, 8), dtype=np.float32))
+    hdu.header["DATE-OBS"] = "2026-07-11T05:10:08"
+    hdu.header["IMAGETYP"] = "FLAT"
+    hdu.header["FILTER"] = "Ha"
+    master_file = repo_dir / "master_flat_Ha.fits"
+    hdu.writeto(master_file)
+
+    # Index it through the real path, so the row is keyed like production data.
+    app_context.add_local_repo(str(repo_dir), repo_type="master")
+
+    rows = load_masters(app_context)
+    assert len(rows) == 1, f"expected the indexed master, got {rows}"
+
+    row = rows[0]
+    assert row["abspath"] == str(master_file)
+    assert Path(row["abspath"]).is_file()
+    assert row["basename"] == "master_flat_Ha.fits"
+
+    # And the row really is previewable (the thing the user sees).
+    assert not load_image_file(row["abspath"]).isNull()
+
+
+# --- application icon ------------------------------------------------------
+
+
+def test_app_icon_is_packaged_and_decodes(qapp):
+    """The window icon asset ships inside the package and decodes to a pixmap."""
+    from importlib import resources
+
+    from starbash.ui.qt.theme import APP_ICON_NAME, load_app_icon
+
+    asset = resources.files("starbash.assets").joinpath(APP_ICON_NAME)
+    assert asset.is_file(), f"icon not packaged: starbash/assets/{APP_ICON_NAME}"
+
+    icon = load_app_icon()
+    assert not icon.isNull()
+    assert not icon.pixmap(64, 64).isNull()
+
+
+def test_create_application_sets_the_window_icon(qapp):
+    """The QApplication carries an icon, which is what the title bar shows."""
+    from starbash.ui.qt.app import create_application
+
+    app = create_application([])
+    assert not app.windowIcon().isNull()
+
+
+def test_load_app_icon_tolerates_a_missing_asset(monkeypatch, qapp):
+    """A packaging mistake yields no icon rather than crashing start-up."""
+    from starbash.ui.qt import theme
+
+    monkeypatch.setattr(theme, "APP_ICON_NAME", "definitely-not-a-real-icon.png")
+    assert theme.load_app_icon().isNull()
+
+
+# --- FITS rendering --------------------------------------------------------
 
 def test_fits_to_qimage_renders_grayscale(qapp, tmp_path):
     """A FITS frame is stretched into a non-null QImage of the right size."""

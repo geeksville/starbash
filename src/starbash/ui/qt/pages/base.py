@@ -97,7 +97,13 @@ class Page(QWidget):
         return box
 
     def make_table(self, model: DictTableModel) -> QTableView:
-        """Create a consistently configured, read-only, sortable table view."""
+        """Create a consistently configured, read-only, sortable table view.
+
+        Column widths come from the model's :class:`~starbash.ui.qt.models.Column`
+        definitions.  The last column is deliberately **not** stretched: stretching
+        it made the number we care about (e.g. a session's integration time) occupy a
+        huge, mostly-empty column.
+        """
         view = QTableView()
         view.setModel(model)
         view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -105,8 +111,13 @@ class Page(QWidget):
         view.setAlternatingRowColors(True)
         view.setSortingEnabled(True)
         view.verticalHeader().setVisible(False)
-        view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        view.horizontalHeader().setStretchLastSection(True)
+
+        header = view.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(False)
+
+        for index, column in enumerate(model.columns()):
+            view.setColumnWidth(index, column.width)
         return view
 
     def show_error(self, message: str, title: str = "Starbash") -> None:

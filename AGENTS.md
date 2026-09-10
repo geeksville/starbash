@@ -91,7 +91,8 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
   (dict-backed `QAbstractTableModel`s), `ui/qt/services.py` (GUI-thread reads),
   `ui/qt/jobs.py` (long operations), `ui/qt/workers.py` (`QThreadPool` +
   cooperative `CancelToken`), `ui/qt/bridge.py` (event bus → Qt signals),
-  `ui/qt/interaction.py` (Qt `UserInteraction`), `ui/qt/theme.py` (QSS).
+  `ui/qt/interaction.py` (Qt `UserInteraction`), `ui/qt/theme.py` (QSS + the app
+  icon, loaded from the packaged `src/starbash/assets/`).
 - **Threading rule (important)**: the shared `Starbash`/SQLite connection belongs
   to the GUI thread. Every long operation runs in a worker that builds its **own**
   `Starbash` (hence its own SQLite connection) and reports through the event bus.

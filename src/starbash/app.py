@@ -551,7 +551,10 @@ class Starbash:
         #                 filtered_images.append(img)
         #         images = filtered_images
 
-        return images
+        # Reconstruct absolute paths, exactly like get_session_images() does.  Master
+        # rows only carry a repo-relative ``path``, so without this callers (e.g. the
+        # GUI's master preview) have no way to open the file.
+        return [self._add_image_abspath(image) for image in images]
 
     def add_filter_not_masters(self, conditions: list[SearchCondition]) -> None:
         """Add conditions to filter out master and processed repos from image searches."""

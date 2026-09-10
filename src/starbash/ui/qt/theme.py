@@ -6,12 +6,37 @@ in one place makes the look consistent across every page and easy to tweak.
 
 from __future__ import annotations
 
-from PySide6.QtGui import QColor, QPalette
+from importlib import resources
+
+from PySide6.QtGui import QColor, QIcon, QPalette, QPixmap
 from PySide6.QtWidgets import QApplication
 
-__all__ = ["apply_theme", "STYLESHEET", "ACCENT"]
+__all__ = ["apply_theme", "load_app_icon", "STYLESHEET", "ACCENT", "APP_ICON_NAME"]
 
 ACCENT = "#4aa3df"
+
+#: Application icon, shipped inside the package (``src/starbash/assets/``).
+APP_ICON_NAME = "icon.png"
+
+
+def load_app_icon() -> QIcon:
+    """Return the Starbash application icon from the packaged assets.
+
+    The bytes are read through :mod:`importlib.resources` and decoded with
+    :class:`QPixmap`, so this works even for an installed wheel/zip where the asset
+    has no real filesystem path.  A missing or unreadable asset yields a null
+    ``QIcon`` (i.e. no icon) rather than an exception - a packaging mistake must
+    never stop the app from starting.
+    """
+    try:
+        data = resources.files("starbash.assets").joinpath(APP_ICON_NAME).read_bytes()
+    except (FileNotFoundError, ModuleNotFoundError, OSError):
+        return QIcon()
+
+    pixmap = QPixmap()
+    if not pixmap.loadFromData(data):
+        return QIcon()
+    return QIcon(pixmap)
 
 STYLESHEET = f"""
 * {{
