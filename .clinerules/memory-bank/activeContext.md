@@ -72,6 +72,10 @@ Targets page specifics (recent tweak round):
   `tests/conftest.py` now detects it and prints the fix, and `doc/development.md`
   has the per-distro commands plus the no-Qt workaround
   (`STARBASH_SKIP_QT_LOAD_CHECK=1 pytest -p no:pytest-qt -m "not gui"`).
+- **Platform-sensitive tests**: `test_desktop_entry.py` is skipped off Linux (the
+  XDG `.desktop` installer no-ops there by design) and the Qt-load guard test only
+  asserts the Linux `apt-get` advice on Linux (macOS/Windows get "reinstall" advice,
+  since Qt ships in the wheel there). The CI matrix runs ubuntu + macos + windows.
 - `services.load_stage_options()` merges recipe declarations with the target's
   `.starbash/main.toml` overrides; `save_stage_options()` rewrites only
   `[[stages]]` (round-trip idempotent, preserves other sections such as citation).

@@ -163,6 +163,10 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
   `doc/development.md` → *Running the tests*) and `.github/workflows/ci.yml`
   (which installs `libegl1 libgl1 libxcb-cursor0 ...` on the Linux runner) deal with
   this; keep the CI package list in sync with `integration.yml`.
+  Two suites are **platform-sensitive**, so keep it that way: `test_desktop_entry.py`
+  is skipped off Linux (the `.desktop`/XDG installer no-ops there by design) and the
+  guard test asserts the Linux advice only on Linux. Both run on the
+  ubuntu/macos/windows matrix.
 
 ## Terminal commands (never block on a prompt)
 

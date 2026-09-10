@@ -44,7 +44,12 @@ def _run_pytest_with_broken_qt(
 
 
 def test_a_missing_system_library_reports_the_fix(tmp_path):
-    """Regression: this used to abort the run with an unreadable INTERNALERROR."""
+    """Regression: this used to abort the run with an unreadable INTERNALERROR.
+
+    The advice is platform-specific: on Linux Qt links against OS packages that the
+    wheel does not ship, while on macOS/Windows those libraries are bundled and the
+    fix is a reinstall.
+    """
     result = _run_pytest_with_broken_qt(
         tmp_path, ["tests/unit/test_selection.py", "-q", "-p", "no:cacheprovider"]
     )
@@ -58,9 +63,14 @@ def test_a_missing_system_library_reports_the_fix(tmp_path):
     assert "INTERNALERROR>" not in output, "the opaque crash is back"
     # The cause is named...
     assert "libEGL.so.1" in output
-    # ...along with the command that fixes it on this platform.
-    assert "libegl1" in output
-    assert "apt-get" in output
+
+    # ...along with the fix for *this* platform.
+    if sys.platform.startswith("linux"):
+        assert "apt-get" in output
+        assert "libegl1" in output
+    else:
+        assert "poetry install --with dev" in output
+        assert "apt-get" not in output
 
 
 def test_non_gui_tests_still_run_when_qt_cannot_load(tmp_path):

@@ -103,6 +103,11 @@ STARBASH_SKIP_QT_LOAD_CHECK=1 poetry run pytest -p no:pytest-qt -m "not gui"
 (`STARBASH_SKIP_QT_LOAD_CHECK` only silences the upfront check; `-p no:pytest-qt` is
 what removes the plugin that needs Qt.)
 
+On **macOS and Windows** Qt ships inside the PySide6 wheel, so you should never see
+this error there — if you do, it means a broken install rather than a missing system
+package, and `poetry install --with dev` is the fix. The suite skips the Linux-only
+`.desktop` integration tests on those platforms.
+
 ## Development vs Production Mode
 
 Starbash automatically detects whether it's running in a development or production environment:

@@ -12,18 +12,28 @@ from starbash import doit_types, paths
 # QApplication is created so `pytest -m gui` works on headless CI runners.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-#: How to install the system libraries Qt needs, per platform.  PySide6's wheel
-#: bundles Qt itself but *not* what Qt links against (libEGL, libGL, xcb, ...).
+#: What to tell the user when Qt's shared libraries cannot be loaded.  On Linux the
+#: wheel links against OS packages it does not ship; on macOS/Windows Qt is bundled,
+#: so a load failure there means a broken install.
 _QT_SYSTEM_LIBRARY_HINTS = {
     "linux": (
+        "These are OS packages, not pip packages:\n"
         "    Debian/Ubuntu: sudo apt-get install -y libegl1 libgl1 libxcb-cursor0 "
         "libxkbcommon-x11-0 libdbus-1-3 libfontconfig1\n"
         "    Fedora/RHEL:   sudo dnf install mesa-libEGL libglvnd-glx libxkbcommon-x11 "
         "libxcb dbus-libs fontconfig\n"
         "    Arch:          sudo pacman -S libgl libxcb libxkbcommon dbus fontconfig"
     ),
-    "darwin": "    Qt's libraries ship inside the wheel - try: poetry install --with dev",
-    "win32": "    Qt's libraries ship inside the wheel - try: poetry install --with dev",
+    "darwin": (
+        "Qt ships inside the PySide6 wheel on macOS, so this looks like a broken\n"
+        "install:\n"
+        "    poetry install --with dev"
+    ),
+    "win32": (
+        "Qt ships inside the PySide6 wheel on Windows, so this looks like a broken\n"
+        "install:\n"
+        "    poetry install --with dev"
+    ),
 }
 
 
@@ -42,7 +52,6 @@ def _qt_import_failure_hint(error: ImportError) -> str:
     platform_hint = _QT_SYSTEM_LIBRARY_HINTS.get(sys.platform, "")
     return (
         f"PySide6 is installed, but Qt cannot load its system libraries ({message}).\n"
-        "These are OS packages, not pip packages:\n"
         f"{platform_hint}\n"
         "Why this matters even for non-GUI tests: pytest-qt imports QtGui while\n"
         "pytest is still configuring, so a missing library aborts the whole run\n"

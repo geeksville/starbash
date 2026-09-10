@@ -2,10 +2,18 @@
 
 No Qt is involved: :mod:`starbash.ui.qt.desktop` is deliberately Qt-free, so these
 run in the default suite.
+
+The installer is **Linux-only** by design - it writes an XDG ``.desktop`` entry plus
+hicolor theme icons.  Elsewhere it deliberately does nothing, so there is no install
+path to exercise and these tests are skipped rather than passing for the wrong
+reason.  The skip itself is still covered:
+:func:`test_skipped_on_non_linux_platforms` simulates the platform by patching
+``sys.platform``, so it runs wherever this module runs.
 """
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -14,6 +22,11 @@ from starbash.ui.qt import desktop
 
 #: Keys a usable launcher entry must have.
 REQUIRED_KEYS = ("Type", "Name", "Exec", "Icon", "Terminal", "Categories", "StartupWMClass")
+
+pytestmark = pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="the .desktop/XDG integration is Linux-only",
+)
 
 
 @pytest.fixture
