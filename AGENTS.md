@@ -64,6 +64,24 @@ populated (not reset) before the filter runs.
 - Run: `sb <command>` (via poetry venv)
 - Handy workflows live in `justfile` (e.g. `just process`, `just reinit`, `just select-*`).
 
+## Terminal commands (never block on a prompt)
+
+An agent cannot press `q`, answer `y`, or edit a commit message, so any command
+that prompts will hang until it times out. This environment sets `PAGER=less`, so
+**every unpiped `git` command that pages will stall at `(END)` forever**.
+
+- **Always pass `git --no-pager <subcommand>`** for `log`, `diff`, `show`,
+  `branch -v`, `stash list`, `tag`, etc.
+  Verified here: `git log --oneline -3` hangs (exit 124 under `timeout`), while
+  `git --no-pager log --oneline -3` returns cleanly. Piping (`| cat`, `| head`)
+  also suppresses the pager, but `--no-pager` is explicit and preferred — note
+  that piping also hides decorations such as `(HEAD -> main)`.
+- Prefer non-interactive flags everywhere: `git commit --no-edit`,
+  `--non-interactive`, `-y`/`--yes`, `DEBIAN_FRONTEND=noninteractive`.
+- Never launch an editor or pager (`less`, `vi`, `nano`, `man`) directly; redirect
+  stdout or pass the tool's own no-pager flag.
+- When unsure a command terminates, run it as `timeout <seconds> <cmd>`.
+
 ## Conventions
 
 - Keep typing hints and docstrings on code you change; don't introduce new linter warnings.
@@ -73,41 +91,79 @@ populated (not reset) before the filter runs.
 
 ## Code Search
 
-Use `semble search` to find code by describing what it does or naming a symbol/identifier, instead of grep:
+**Default tool: `semble`.** It is a dev dependency, so always run it through Poetry.
+(Do **not** use `uvx`/`pip install` — see *Build / test / run* above.)
 
-​```bash
-semble search "authentication flow" ./my-project --max-snippet-lines 10  # first 10 lines only, concise
-semble search "save_pretrained" ./my-project                          # full chunk content
-semble search "save model to disk" ./my-project --top-k 10           # more results
-​```
+Use it to find code by describing what it does, or by naming a symbol/identifier, instead of grep:
+
+```bash
+poetry run semble search "where sessions are aggregated"          # describe behaviour
+poetry run semble search "get_column_name"                        # name a symbol
+poetry run semble search "stage exclusion" --top-k 10             # widen results
+poetry run semble search "safe formatter" --max-snippet-lines 10  # shorter output
+```
 
 The index is built on first run (and cached for subsequent runs) and invalidated automatically when files change.
 
 Use `--content docs` to search documentation and prose, `--content config` for config files (yaml, toml, etc.), or `--content all` to search code, docs, and config:
 
-​```bash
-semble search "deployment guide" ./my-project --content docs
-semble search "database host port" ./my-project --content config
-semble search "authentication" ./my-project --content all
-​```
+```bash
+poetry run semble search "how releases are cut" --content docs
+poetry run semble search "repo precedence" --content config
+poetry run semble search "processing pipeline" --content all
+```
 
 Use `semble find-related` to discover code similar to a known location (pass `file_path` and `line` from a prior search result):
 
-​```bash
-semble find-related src/auth.py 42 ./my-project
-​```
+```bash
+poetry run semble find-related src/starbash/app.py 270
+```
 
-`path` defaults to the current directory when omitted; git URLs are accepted.
+`path` defaults to the current directory (the repo root), so you can omit it. The
+`./my-project` argument in semble's upstream docs is a placeholder — never copy it
+into a command here. `--top-k N` widens results; `--max-snippet-lines N` shortens
+output.
 
-If `semble` is not on `$PATH`, use `uvx --from "semble[mcp]" semble` in its place.
+**Prefer scoping to `src` / `tests`.** The first run indexes whatever tree you
+point at; scoping keeps it fast and keeps large non-source trees (`reference/`,
+`test-data/`, `starbash-recipes/`) out of the index:
+
+```bash
+poetry run semble search "stage exclusion" src     # just the package
+poetry run semble search "fixture setup" tests     # just the tests
+```
+
+(`file_path` in the JSON results is relative to the path you passed.)
+
+If `semble` is missing it is a dev dependency: run `poetry install --with dev`
+(or `poetry run semble ...`). Do not reach for `uvx` or a bare `pip install`.
+
+### Choosing a tool (read this before reaching for `grep`)
+
+| You need… | Use |
+|---|---|
+| "where is X handled / what does this do" | `poetry run semble search "<description>"` |
+| a symbol by name (`get_column_name`, `class Tool`) | `poetry run semble search "<symbol>"` |
+| **every** occurrence of a literal string repo-wide (rename/migration sweep) | `grep -rn` (bounded — see *Workspace search safety*) |
+| a structural outline of one already-known file (list its `def`s) | read the file, or `grep -n '^\s*def ' <file>` |
+| a literal/regex sweep semble keeps missing | `grep -rn` or the `search_codebase` tool |
+
+Rules of thumb:
+
+1. Start with `semble search` for anything semantic or symbol-shaped.
+2. Navigate straight to the returned `file:line` — don't re-search or re-grep for the same content.
+3. `grep` is for the two carve-outs above *only*: an exhaustive literal sweep, or outlining a single file you already know.
+4. When in doubt, `semble` first — it's ranked, quieter, and won't dump huge generated output.
+5. Keep sweeps out of `starbash-recipes/`, `.venv/`, `reference/`, `siril-scripts/`, `test-data/`, and image trees.
 
 ### Workflow
 
-1. Start with `semble search` to find relevant chunks. The index is built and cached automatically.
-2. Use `--content docs` for documentation, `--content config` for config files, or `--content all` for everything.
-3. Navigate directly to the returned file and line — do not re-search or grep for the same content.
-4. Optionally use `semble find-related` with a promising result's `file_path` and `line` to discover related implementations.
-5. Use grep only when you need every occurrence of a literal string across the whole repo (e.g., all callers of a renamed function).
+1. `semble search` first — for anything semantic or symbol-shaped.
+2. Use `--content docs` for prose, `--content config` for TOML/YAML, `--content all` for everything.
+3. Navigate directly to the returned `file:line` — do not re-search or `grep` for the same content.
+4. `semble find-related <file> <line>` to find sibling implementations.
+5. `grep` only for an exhaustive literal sweep (e.g. every caller of a renamed
+   function) or to outline a single already-known file — never for semantic/symbol lookups.
 
 ## Workspace search safety
 
