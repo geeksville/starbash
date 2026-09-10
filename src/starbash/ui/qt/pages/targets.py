@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QSizePolicy,
     QSplitter,
     QTabWidget,
     QTreeWidget,
@@ -52,6 +53,8 @@ __all__ = ["TargetsPage", "UnsavedChoice"]
 _OVERRIDE_COLOR = QColor("#ffd75f")
 #: Colour for a value the recipe supplies (deliberately muted, so overrides pop).
 _DEFAULT_COLOR = QColor("#7f8c9b")
+#: Smallest height that fits the option editor's title, description and tab pane.
+_EDITOR_MIN_HEIGHT = 200
 
 
 class UnsavedChoice(StrEnum):
@@ -93,7 +96,8 @@ class TargetsPage(Page):
 
         right = QWidget()
         right_layout = QVBoxLayout(right)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        # A little breathing room at the bottom keeps the path box off the pane edge.
+        right_layout.setContentsMargins(0, 0, 0, 8)
 
         hint = QLabel("Stages — ticked = active. Expand a stage to edit its options.")
         hint.setObjectName("PageSubtitle")
@@ -122,8 +126,9 @@ class TargetsPage(Page):
         right_layout.addLayout(buttons)
 
         self._path = QLabel("")
-        self._path.setObjectName("PageSubtitle")
+        self._path.setObjectName("PathLabel")
         self._path.setWordWrap(True)
+        self._path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         right_layout.addWidget(self._path)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -138,6 +143,13 @@ class TargetsPage(Page):
     def _build_editor(self) -> QGroupBox:
         """Build the per-parameter editor shown below the tree."""
         self._editor = QGroupBox("Option")
+        self._editor.setObjectName("OptionEditor")
+        # The tree above soaks up all the slack, so this editor must never be
+        # squeezed below what its tabs and value box need - otherwise the tab pane
+        # clips its content.  A Minimum height policy lets it grow with a wrapping
+        # description; the explicit floor is the smallest layout that fits.
+        self._editor.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+        self._editor.setMinimumHeight(_EDITOR_MIN_HEIGHT)
         editor_layout = QVBoxLayout(self._editor)
 
         self._param_title = QLabel("Select an option to edit it.")
@@ -156,14 +168,12 @@ class TargetsPage(Page):
         self._default_label.setObjectName("PageSubtitle")
         self._default_label.setWordWrap(True)
         default_layout.addWidget(self._default_label)
-        default_layout.addStretch(1)
 
         override_tab = QWidget()
         override_layout = QVBoxLayout(override_tab)
         self._override_value = QLineEdit()
         self._override_value.textEdited.connect(self._on_value_edited)
         override_layout.addWidget(self._override_value)
-        override_layout.addStretch(1)
 
         self._tabs.addTab(default_tab, "Use default")
         self._tabs.addTab(override_tab, "Edit override")
@@ -332,6 +342,11 @@ class TargetsPage(Page):
             self._override_value.setText(self._editor_value_text(parameter))
             self._override_value.setPlaceholderText(self._default_text(parameter))
             self._tabs.setCurrentIndex(1 if parameter.is_overridden else 0)
+            # A long description wraps and grows the editor; make sure the taller
+            # layout is allowed rather than clipped.
+            self._editor.setMinimumHeight(
+                max(_EDITOR_MIN_HEIGHT, self._editor.sizeHint().height())
+            )
         finally:
             self._guard = False
 

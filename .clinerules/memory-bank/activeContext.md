@@ -41,7 +41,10 @@ Targets page specifics (recent tweak round):
   values** (e.g. `crop_width=85%, crop_height=4150`), not option counts.
 - Selecting a parameter opens an editor with two tabs, **Use default** vs **Edit
   override** (no checkbox): the former clears the override, the latter adopts the
-  default as the starting value.
+  default as the starting value. The editor is height-floored
+  (`_EDITOR_MIN_HEIGHT`, grown when a description wraps) so the tab pane is never
+  clipped by the tree above, and the output-directory label uses the padded
+  `PathLabel` style.
 - `services.load_stage_options()` merges recipe declarations with the target's
   `.starbash/main.toml` overrides; `save_stage_options()` rewrites only
   `[[stages]]` (round-trip idempotent, preserves other sections such as citation).

@@ -82,6 +82,15 @@ QLabel#PageTitle {{
 QLabel#PageSubtitle {{
     color: #8b98a5;
 }}
+/* A selected target's output directory, shown in a subtle inset box so the long
+   path gets breathing room instead of sitting flush against the pane edges. */
+QLabel#PathLabel {{
+    color: #8b98a5;
+    background-color: #141a1f;
+    border: 1px solid #2c353d;
+    border-radius: 6px;
+    padding: 6px 10px;
+}}
 QLabel#StatValue {{
     font-size: 26px;
     font-weight: 700;
@@ -152,6 +161,47 @@ QHeaderView::section {{
     border-bottom: 1px solid #2c353d;
 }}
 QTableView::item {{ padding: 3px 6px; }}
+
+/* The per-parameter option editor on the Targets page --------------------- */
+QGroupBox#OptionEditor {{
+    border: 1px solid #2c353d;
+    border-radius: 8px;
+    margin-top: 10px;
+    padding: 10px;
+}}
+QGroupBox#OptionEditor::title {{
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 12px;
+    padding: 0 5px;
+    color: #9aa7b4;
+}}
+QTabWidget::pane {{
+    border: 1px solid #2c353d;
+    border-radius: 6px;
+    top: -1px;
+    background-color: #171d22;
+    padding: 8px;
+}}
+QTabBar::tab {{
+    background-color: #222930;
+    color: #9aa7b4;
+    border: 1px solid #2c353d;
+    border-bottom: none;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    padding: 5px 14px;
+    margin-right: 2px;
+}}
+QTabBar::tab:selected {{
+    background-color: {ACCENT};
+    color: #0b0e11;
+    font-weight: 600;
+}}
+QTabBar::tab:hover:!selected {{
+    background-color: #2b343d;
+    color: #e6edf3;
+}}
 
 /* Progress + status ------------------------------------------------------ */
 QProgressBar {{

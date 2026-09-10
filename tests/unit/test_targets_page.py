@@ -373,3 +373,47 @@ def test_editor_uses_use_default_and_edit_override_tabs(qtbot, app_context, proc
     # An already-overridden option opens straight on "Edit override".
     page._tree.setCurrentItem(page._param_items[("crop", "crop_width")])
     assert page._tabs.currentIndex() == 1
+
+
+def test_option_editor_is_tall_enough_for_the_tab_pane(qtbot, app_context, processed_repo):
+    """Regression: the option editor must not clip the tab pane's value box.
+
+    The tree above soaks up all the slack, which previously squeezed the editor and
+    cut off the bottom of the value box.
+    """
+    from starbash.ui.qt.pages.targets import _EDITOR_MIN_HEIGHT
+
+    _make_target(processed_repo)
+    app_context.selection.set_targets(["sh2126"])
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    page.resize(1000, 800)
+    page.show()
+    page.refresh()
+    qtbot.waitExposed(page)
+
+    page._tree.setCurrentItem(page._param_items[("crop", "crop_height")])
+    qtbot.wait(20)
+
+    # The editor keeps a floor big enough for its chrome + tab pane...
+    assert page._editor.minimumHeight() >= _EDITOR_MIN_HEIGHT
+
+    # ...and it is actually as tall as it wants to be.  Previously the tree above
+    # squeezed it (height 172 vs a 188 size hint), which clipped the value box.
+    assert page._editor.height() >= page._editor.sizeHint().height()
+    assert page._tabs.height() >= page._tabs.sizeHint().height()
+
+
+def test_path_label_has_its_own_padded_style(qtbot, app_context, processed_repo):
+    """The target's output directory uses a padded style, not a plain subtitle."""
+    from starbash.ui.qt import theme
+
+    _make_target(processed_repo)
+    app_context.selection.set_targets(["sh2126"])
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    page.refresh()
+
+    assert page._path.objectName() == "PathLabel"
+    assert "QLabel#PathLabel" in theme.STYLESHEET
+    assert "padding: 6px 10px;" in theme.STYLESHEET
