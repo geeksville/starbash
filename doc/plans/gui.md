@@ -425,7 +425,7 @@ Final step shows the "add raw repo -> process auto" next-steps panel from `do_re
 
 ## 9. Risks & open decisions
 
-1. **PySide6 vs PyQt6** — recommend PySide6 (LGPL, official). Requires dropping the `pyqt6` dep used by the siril-script experiment. *Decision needed.*
+1. **PySide6 vs PyQt6** — recommend PySide6 (LGPL, official). Requires dropping the `pyqt6` dep used by the siril-script experiment. *Decision needed.* → **Resolved (kept both): see §10.**
 2. **Event bus is the crux** — bad thread marshaling = UI freezes or crashes. Mitigation: Phase 0 first, all core work off the GUI thread, signals carry plain data only.
 3. **SQLite across threads** — one connection per thread; worker owns the processing `Starbash`, GUI owns a read connection. Confirm WAL/journal behavior under concurrent read (worker writes frame metrics while GUI browses).
 4. **FITS rendering cost** — large stacks are slow to decode; render on the worker and cache downsampled previews; never block the GUI thread.
@@ -438,3 +438,34 @@ Final step shows the "add raw repo -> process auto" next-steps panel from `do_re
 
 ### Proposed first move
 Execute **Phase 0 + Phase 1**: add `events.py` + emit hooks + interaction protocol with tests, add the `gui` extra and `sb gui` command, stand up the themed shell, and remove Textual — all reviewable without committing to the later screens.
+
+---
+
+## 10. Implementation status
+
+Landed on branch `feat-gui`. Phases 0–7 are implemented except where noted.
+
+| Phase | Status | Notes |
+|---|---|---|
+| 0 Core seams | ✅ | `src/starbash/events.py` + emit hooks (`tool/base`, `doit`, `processing`, `app`); `src/starbash/interaction.py` protocol + Rich default; guided prompts in `commands/user.py` routed through it. Tests: `tests/unit/test_events.py`, `test_emit_hooks.py`. |
+| 1 Skeleton + Textual removal | ✅ | `gui = ["pyside6"]` extra; `pytest-qt` dev dep; `gui` marker (excluded by default); `sb gui`; Textual file, deps and justfile recipes removed. |
+| 2 Read-only browsing | ✅ | Dashboard, Sessions list, Repositories list, Masters; `ImageViewer` renders FITS (percentile stretch) and raster formats. |
+| 3 Selection & export | ✅ | `SelectionPanel` bound to `Selection` (apply/clear/persist, DB-suggested completion); session export via `copy_images_to_dir`. *Export-to-Siril dir tree not surfaced.* |
+| 4 Processing (live) | ✅ | Worker runs `run_all_stages`/`run_master_stages`; the event bus drives the task tree, log pane, progress bar and per-target caption. Cooperative cancel at phase boundaries. *Result links/thumbnails not added.* |
+| 5 Targets editor | ✅ | Targets list; stage used/excluded toggles written to `.starbash/main.toml` via `stage_utils`. *In-app TOML editor and "Reprocess target" not added.* |
+| 6 Settings, wizard, publish | ✅ partial | Settings (profile/analytics/paths) + first-run wizard. Publish page generates the local site; **GitHub upload stays CLI-only** (needs the interactive device flow). *Aliases editor / Tools tab not added.* |
+| 7 Polish & docs | ✅ partial | `tests/unit/test_gui.py` (21 tests, `gui` marker, offscreen) and `tests/unit/test_gui_command.py` (no-Qt graceful path). AGENTS.md + memory bank updated. *Command palette, shortcuts, demo GIF not added.* |
+
+**§9.1 resolved — kept `pyqt6`.** We added PySide6 as the optional extra instead of
+dropping `pyqt6`. `pyqt6` is referenced only by the out-of-process `siril-scripts/`
+experiments and is never imported by Starbash, so the two bindings cannot conflict
+in-process; removing it would break that experiment for no benefit.
+
+**Known simplifications / follow-ups**
+
+- FITS preview decoding runs on the GUI thread when a frame is selected; the §9.4
+  mitigation (decode in a worker, cache downsampled previews) is not implemented.
+- Cancellation is cooperative at phase boundaries; in-flight doit subprocesses are
+  not killed (§9.6).
+- GUI tests are excluded from the default run; run them with `poetry run pytest -m gui`.
+

@@ -1,10 +1,15 @@
 """Shared fixtures for all tests (unit and integration)."""
 
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from starbash import doit_types, paths
+
+# Qt tests (marked `gui`) must never need a display.  Set this before any
+# QApplication is created so `pytest -m gui` works on headless CI runners.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
 @pytest.fixture(scope="session", autouse=True)

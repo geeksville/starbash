@@ -298,23 +298,12 @@ depends:
     open /tmp/tasks.svg
 
 #
-# The following is for experimenting with Textual UI stuff
+# The desktop GUI (optional - needs the `gui` extra: `poetry install -E gui`)
 #
 
-# Run the textual demo app
-textual-demo:
-    python -m textual
-
-textual-code-demo:
-    python ./textual/examples/code_browser.py
-
-# Run starbash in UI mode
-ui:
-    python ./src/starbash/ui/main.py
-
-# Get a readable copy of the textual source for reference
-download-textual:
-    -git clone https://github.com/Textualize/textual.git reference/textual
+# Run the starbash desktop GUI
+gui:
+    poetry run sb gui
 
 # Download a copy of siril for experimenting with script export
 download-siril:

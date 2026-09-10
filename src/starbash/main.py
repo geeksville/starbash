@@ -11,6 +11,7 @@ from . import console
 from .analytics import is_development_environment
 from .app import Starbash
 from .commands import info, process, publish, repo, select, user
+from .commands.gui import gui as gui_command
 from .paths import get_user_config_path
 
 # Suppress deprecation warnings in production mode to provide a cleaner user experience.
@@ -34,6 +35,10 @@ app.add_typer(
     name="publish",
     help="Generate a local Jekyll report site or publish it to GitHub Pages.",
 )
+app.command(
+    name="gui",
+    help="Launch the optional desktop GUI (requires the 'gui' extra).",
+)(gui_command)
 
 
 @app.callback(invoke_without_command=True)

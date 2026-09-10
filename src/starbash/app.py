@@ -15,7 +15,7 @@ from rich.progress import track
 from toml_repo import Repo, RepoManager, get_config_suffix
 
 import starbash
-from starbash import doit_types
+from starbash import doit_types, events
 from starbash.aliases import (
     Aliases,
     get_aliases,
@@ -774,10 +774,25 @@ class Starbash:
 
             # Find all FITS files under this repo path
             all_files = list(path.rglob("*.fit")) + list(path.rglob("*.fits"))
-            for f in track(
-                all_files,
-                description=f"Indexing {repo.url}...",
+            total_files = len(all_files)
+            events.publish(
+                events.EVENT_REINDEX_PROGRESS,
+                {"repo": repo.url, "done": 0, "total": total_files},
+            )
+            for index, f in enumerate(
+                track(
+                    all_files,
+                    description=f"Indexing {repo.url}...",
+                ),
+                start=1,
             ):
+                # Throttle progress events: a repo can hold tens of thousands of
+                # frames and we don't want to flood the event bus / GUI.
+                if index % 25 == 0 or index == total_files:
+                    events.publish(
+                        events.EVENT_REINDEX_PROGRESS,
+                        {"repo": repo.url, "done": index, "total": total_files, "file": str(f)},
+                    )
                 if ".sbignore" in str(f):
                     logging.warning('Skipping "%s": path contains ".sbignore".', f)
                     continue
@@ -793,6 +808,11 @@ class Starbash:
                         self.add_image_and_session(repo, f, force=starbash.force_regen)
                 except OSError as e:
                     logging.error(f'Skipping "{f}" due to: [red]{e}[/red]')
+
+            events.publish(
+                events.EVENT_REINDEX_FINISHED,
+                {"repo": repo.url, "indexed": total_files},
+            )
 
     def reindex_repos(self) -> None:
         """Reindex all repositories managed by the RepoManager."""

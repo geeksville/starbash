@@ -3,7 +3,6 @@ from typing import Annotated
 
 import typer
 from rich.panel import Panel
-from rich.prompt import Confirm, Prompt
 
 from starbash.app import Starbash
 from starbash.paths import get_user_documents_dir
@@ -75,17 +74,18 @@ def email(
 
 def _ask_masters(sb: Starbash) -> None:
     from starbash import console
+    from starbash.interaction import get_interaction
 
+    interaction = get_interaction()
     has_masters = sb.repo_manager.get_repo_by_kind("master") is not None
     has_processed = sb.repo_manager.get_repo_by_kind("processed") is not None
     if not has_masters or not has_processed:
-        want_default_dirs = Confirm.ask(
+        want_default_dirs = interaction.confirm(
             dedent("""
             Would you like to create default output directories in your Documents folder
             (recommended - you can change this later with [cyan]'sb repo ...'[/cyan])?
             """),
             default=True,
-            console=console,
         )
         if want_default_dirs:
             console.print("Creating default repositories...")
@@ -103,13 +103,15 @@ def _ask_masters(sb: Starbash) -> None:
 
 def _ask_user_config(sb: Starbash) -> None:
     from starbash import console
+    from starbash.interaction import get_interaction
+
+    interaction = get_interaction()
 
     # Ask for username
-    user_name = Prompt.ask(
+    user_name = interaction.text(
         "Enter your name (for attribution in generated images)",
         default=sb.user_repo.get("user.name", ""),
         show_default=False,
-        console=console,
     )
     sb.analytics.set_data("analytics.use_name", user_name != "")
     if user_name:
@@ -119,11 +121,10 @@ def _ask_user_config(sb: Starbash) -> None:
         console.print("[dim]Skipped name[/dim]")
 
     # Ask for email
-    user_email = Prompt.ask(
+    user_email = interaction.text(
         "Enter your email address (for attribution in generated images)",
         default=sb.user_repo.get("user.email", ""),
         show_default=False,
-        console=console,
     )
     sb.analytics.set_data("analytics.use_email", user_email != "")
     if user_email:
@@ -133,11 +134,10 @@ def _ask_user_config(sb: Starbash) -> None:
         console.print("[dim]Skipped email[/dim]")
 
     # Ask about including email in crash reports
-    include_in_reports = Confirm.ask(
+    include_in_reports = interaction.confirm(
         "Would you like to include your email address with crash reports/analytics?\n"
         "(This helps us follow up if we need more information about issues.)",
         default=sb.user_repo.get("analytics.include_user", False),
-        console=console,
     )
     sb.analytics.set_data("analytics.use_email_report", include_in_reports)
     sb.user_repo.set("analytics.include_user", include_in_reports)

@@ -3,6 +3,7 @@
 import io
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,7 @@ from rich.padding import Padding
 from rich.spinner import Spinner
 from rich.text import Text
 
+from starbash import events
 from starbash.commands import SPINNER_STYLE
 from starbash.exception import FilesystemUnavailableError, UserHandledError
 
@@ -97,6 +99,28 @@ def color_line(line: str) -> str:
 def color_lines(lines: list[str]) -> str:
     """Color lines based on presence of 'bad' words."""
     return "\n".join(color_line(line) for line in lines)
+
+
+# Matches a "42%" or "42.5 %" progress token anywhere in a tool output line.
+_PERCENT_RE = re.compile(r"(\d{1,3})(?:\.\d+)?\s*%")
+
+
+def _publish_tool_line(cmd: str, stream_name: str, line: str) -> None:
+    """Publish a tool output line (plus any percentage found in it) to the bus.
+
+    The desktop GUI subscribes to stream a live log pane and progress bar; the
+    CLI has no subscribers, so this is a cheap no-op there.
+    """
+    text = line.rstrip("\n")
+    events.publish(
+        events.EVENT_TOOL_OUTPUT, {"cmd": cmd, "stream": stream_name, "line": text}
+    )
+    match = _PERCENT_RE.search(text)
+    if match:
+        events.publish(
+            events.EVENT_TOOL_PROGRESS,
+            {"cmd": cmd, "percent": min(100, int(match.group(1))), "line": text},
+        )
 
 
 class ToolLiveDisplay:
@@ -237,6 +261,8 @@ def tool_run_streaming(
 
     logger.debug(f"Streaming {cmd} in {cwd}")
 
+    events.publish(events.EVENT_TOOL_STARTED, {"cmd": cmd, "cwd": cwd})
+
     env = os.environ.copy()
 
     process = subprocess.Popen(
@@ -304,6 +330,7 @@ def tool_run_streaming(
             active_display = Tool._active_display
             if active_display is not None:
                 active_display.add_line(line, is_stderr=stream_name == "stderr")
+            _publish_tool_line(cmd, stream_name, line)
             if stream_name == "stdout":
                 stdout_captured.append(line)
                 if on_line:
@@ -327,6 +354,11 @@ def tool_run_streaming(
         process.stderr.close()
 
     returncode = process.wait()
+
+    events.publish(
+        events.EVENT_TOOL_FINISHED,
+        {"cmd": cmd, "returncode": returncode, "success": returncode == 0},
+    )
 
     stdout_str = "".join(stdout_captured)
     if returncode != 0:

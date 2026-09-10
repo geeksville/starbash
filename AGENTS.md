@@ -11,7 +11,7 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
 ## Architecture (the parts you'll touch most)
 
 - **Entry**: `src/starbash/main.py` — Typer app; subcommands registered from `src/starbash/commands/`
-  (`select`, `info`, `process`, `repo`, `user`).
+  (`select`, `info`, `process`, `repo`, `user`, `publish`, `gui`).
 - **App context**: `src/starbash/app.py` (`Starbash`) — wires up database, repo manager,
   selection state, analytics. Context manager.
 - **Data layer**: `src/starbash/database.py` — SQLite. `images` table (FITS metadata as JSON),
@@ -42,6 +42,16 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   `tool_run_streaming`).
 - **Paths**: `src/starbash/paths.py` — platformdirs-based; override in tests via
   `paths.set_test_directories(...)`.
+- **Events**: `src/starbash/events.py` — dependency-free pub/sub bus. The core
+  *publishes* (tool output, task transitions, stage results, reindex/target
+  progress); the CLI subscribes to nothing, so its behaviour is unchanged. See
+  *Desktop GUI* below.
+- **Interaction**: `src/starbash/interaction.py` — `UserInteraction` protocol
+  (`confirm`/`text`/`notify`/`open_url`) with a Rich default (identical CLI
+  behaviour), an `AutoAccept` headless impl, and a process-wide accessor. Guided
+  prompts go through `get_interaction()` rather than reading stdin directly.
+- **GUI (optional)**: `src/starbash/ui/qt/**` — the PySide6 desktop app, launched
+  by `sb gui`. Never imported by the CLI unless the command is used.
 
 ## Stage exclusion flow (common source of bugs)
 
@@ -63,6 +73,35 @@ populated (not reset) before the filter runs.
 - Test: `poetry run pytest` (tests in `tests/`, isolated via `paths.set_test_directories`)
 - Run: `sb <command>` (via poetry venv)
 - Handy workflows live in `justfile` (e.g. `just process`, `just reinit`, `just select-*`).
+
+## Desktop GUI (`sb gui`)
+
+An **optional** PySide6 desktop app. The base CLI never imports Qt.
+
+- **Install**: provided by the optional `gui` extra (`pyside6`) —
+  `poetry install -E gui`, or `pipx install --force 'starbash[gui]'`.
+- **Entry**: `src/starbash/commands/gui.py` → `starbash.ui.qt.run_gui()` →
+  `starbash.ui.qt.app.run()`. Importing `starbash.ui.qt` does **not** import Qt;
+  every Qt import is lazy, so `run_gui()` raises `GuiUnavailableError` (printed as
+  a friendly install hint) instead of an `ImportError` traceback.
+- **Layout**: `ui/qt/main_window.py` (nav rail + `QStackedWidget`), `ui/qt/pages/**`
+  (one page per nav entry), `ui/qt/widgets/**` (reusable widgets), `ui/qt/models.py`
+  (dict-backed `QAbstractTableModel`s), `ui/qt/services.py` (GUI-thread reads),
+  `ui/qt/jobs.py` (long operations), `ui/qt/workers.py` (`QThreadPool` +
+  cooperative `CancelToken`), `ui/qt/bridge.py` (event bus → Qt signals),
+  `ui/qt/interaction.py` (Qt `UserInteraction`), `ui/qt/theme.py` (QSS).
+- **Threading rule (important)**: the shared `Starbash`/SQLite connection belongs
+  to the GUI thread. Every long operation runs in a worker that builds its **own**
+  `Starbash` (hence its own SQLite connection) and reports through the event bus.
+  Never use one SQLite connection from two threads.
+- **Live updates**: the core publishes on `starbash.events`; `EventBusBridge`
+  re-emits each event as one Qt signal delivered on the GUI thread, so pages can
+  update widgets directly. To add live feedback, publish an event in the core and
+  handle it in the relevant page — do not poll.
+- **Tests**: Qt tests live in `tests/unit/test_gui.py`, are marked `gui`, and are
+  excluded from the default run. Run them with `poetry run pytest -m gui`; they use
+  `QT_QPA_PLATFORM=offscreen` (set in `tests/conftest.py`) so they pass headless.
+  `tests/unit/test_gui_command.py` covers graceful degradation without PySide6.
 
 ## Terminal commands (never block on a prompt)
 

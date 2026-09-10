@@ -19,7 +19,7 @@ from doit.task import Task, dict_to_task
 from rich.progress import TaskID, track
 from toml_repo import Repo
 
-from starbash import InputDef
+from starbash import InputDef, events
 from starbash.database import ImageRow
 from starbash.doit_types import TaskDict
 from starbash.exception import FilesystemUnavailableError, UserHandledError
@@ -461,6 +461,11 @@ class MyReporter(ConsoleReporter):
         """Called just before running a task"""
         # self.outstream.write("MyReporter --> %s\n" % task.title())
 
+        events.publish(
+            events.EVENT_TASK_STARTED,
+            {"task": task.name, "title": task.title()},
+        )
+
         if self.processing:
             self.processing.progress.update(
                 self.job_task, description=f"Subtask: {task.title()}", refresh=True
@@ -485,6 +490,18 @@ class MyReporter(ConsoleReporter):
                 result.notes = task.name  # default nodes just show the task name
                 result.update(e or fail)
                 self.processing.add_result(result)
+
+        # Report completion to any observers (e.g. the GUI task tree).  This is
+        # outside the `if self.processing` guard so standalone doit runs report too.
+        events.publish(
+            events.EVENT_TASK_FINISHED,
+            {
+                "task": task.name,
+                "title": task.title(),
+                "success": success,
+                "reason": reason,
+            },
+        )
 
     def skip_uptodate(self, task: Task) -> None:
         """skipped up-to-date task"""

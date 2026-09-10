@@ -16,7 +16,7 @@ from toml_repo import Repo
 from tomlkit.items import AoT
 
 import starbash
-from starbash import InputDef, Metadata, OutputDef, RequireDef, StageDict
+from starbash import InputDef, Metadata, OutputDef, RequireDef, StageDict, events
 from starbash.aliases import get_aliases, normalize_target_name
 from starbash.app import Starbash
 from starbash.database import (
@@ -215,6 +215,8 @@ class Processing(ProcessingLike):
     def add_result(self, result: ProcessingResult) -> None:
         """Add a processing result to the list of results."""
         self.results.append(result)
+        # Let observers (e.g. the GUI) react to each completed stage live.
+        events.publish(events.EVENT_STAGE_RESULT, {"result": result})
 
     def _run_all_tasks(self, tasks: list[TaskDict]) -> list[ProcessingResult]:
         self.doit.set_tasks(tasks)
@@ -328,9 +330,15 @@ class Processing(ProcessingLike):
         # Show two progress bars, one for each target and a second (from inside doit.py) showing the tasks
         progress_task = self.progress.add_task("Processing targets...", total=len(targets_list))
         try:
-            for t in self.progress.track(targets_list, task_id=progress_task):
+            for index, t in enumerate(
+                self.progress.track(targets_list, task_id=progress_task), start=1
+            ):
                 self.progress.update(
                     progress_task, description=f"Processing: {t}" if t else "masters", refresh=True
+                )
+                events.publish(
+                    events.EVENT_PROCESS_TARGET,
+                    {"target": t, "index": index, "total": len(targets_list)},
                 )
                 tasks = self._create_tasks(sessions, [t])
                 results.extend(self._run_all_tasks(tasks))

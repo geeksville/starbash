@@ -1,4 +1,10 @@
 
+> **Superseded.** The Textual prototype (`src/starbash/ui/main.py`) has been
+> removed: Textual cannot display images, and Textualize shut down. The desktop
+> UI is now built on **PySide6** and launched with `sb gui` — see
+> [`doc/plans/gui.md`](plans/gui.md). The notes below are kept only as a record of
+> the UI thinking that fed into the new design.
+
 ## Textual work items
 
 This is an unformatted/rough list of ideas for how to use textual to make a UI

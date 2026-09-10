@@ -18,6 +18,22 @@ __all__ = [
 ]
 
 
+def _dedupe(values: list[str]) -> list[str]:
+    """Return ``values`` with blanks dropped and duplicates removed, order kept.
+
+    Used by the batch setters so a GUI can hand over user-entered lists without
+    having to sanitise them first.
+    """
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        cleaned = value.strip()
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            result.append(cleaned)
+    return result
+
+
 def build_search_conditions(
     conditions: dict[str, Any] | None,
 ) -> list[SearchCondition]:
@@ -227,6 +243,46 @@ class Selection:
         if filter_name in self.filters:
             self.filters.remove(filter_name)
             self._save()
+
+    def add_image_type(self, image_type: str) -> None:
+        """Add an image type to the selection.
+
+        Args:
+            image_type: Image type to add (e.g. "LIGHT", "FLAT")
+        """
+        if image_type not in self.image_types:
+            self.image_types.append(image_type)
+            self._save()
+
+    def remove_image_type(self, image_type: str) -> None:
+        """Remove an image type from the selection.
+
+        Args:
+            image_type: Image type to remove from the selection
+        """
+        if image_type in self.image_types:
+            self.image_types.remove(image_type)
+            self._save()
+
+    def set_targets(self, targets: list[str]) -> None:
+        """Replace the target filter, dropping blanks and duplicates."""
+        self.targets = _dedupe(targets)
+        self._save()
+
+    def set_telescopes(self, telescopes: list[str]) -> None:
+        """Replace the telescope filter, dropping blanks and duplicates."""
+        self.telescopes = _dedupe(telescopes)
+        self._save()
+
+    def set_filters(self, filters: list[str]) -> None:
+        """Replace the filter filter, dropping blanks and duplicates."""
+        self.filters = _dedupe(filters)
+        self._save()
+
+    def set_image_types(self, image_types: list[str]) -> None:
+        """Replace the image-type filter, dropping blanks and duplicates."""
+        self.image_types = _dedupe(image_types)
+        self._save()
 
     def is_empty(self) -> bool:
         """Check if the selection has any criteria set.

@@ -43,6 +43,8 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
   - `process siril SESSION_NUM DESTDIR [--run]` — generate Siril directory tree, optionally launch GUI
 - **repo add/remove/list/reindex** — manage TOML repo references
 - **user name/email/analytics/setup** — manage user profile and analytics opt-in
+- **publish** — generate the Jekyll report site; `publish github` uploads to GitHub Pages
+- **gui** — launch the optional PySide6 desktop app (requires the `gui` extra)
 - Console script aliases: `starbash` and `sb` (defined in `pyproject.toml`)
 
 ## Selection and filtering system
@@ -147,7 +149,7 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 ## Current status (see TODO.md)
 - **Working**: session listing with filtering, repo management, user settings, database indexing, export functionality, Siril prep, CLI with 300 passing tests
 - **In progress**: processing automation (see `poc/process.py`), master frame generation, multi-session support
-- **Planned**: HTTP repos, automated quality tracking, GUI (Flet), target reports, shell autocompletion
+- **Planned**: HTTP repos, automated quality tracking, target reports, shell autocompletion.
 
 ## Gotchas
 - **Test isolation**: Always use `paths.set_test_directories()` in fixtures; manual cleanup with `set_test_directories(None, None)`
