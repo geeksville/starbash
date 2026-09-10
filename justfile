@@ -65,6 +65,7 @@ reinit-dev:
     sb user email "kevinh@geeksville.com"
     sb repo add --master /mnt/pool/big/kevinh/telescope/masters | true
     sb repo add --processed /mnt/pool/big/kevinh/telescope/processed | true
+    sb --install-completion
 
 # wipe install and do standard reinit
 common-init: clean-cache clean-config clean-masters install-completion use-local-recipes reinit-dev
