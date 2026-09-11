@@ -1,5 +1,52 @@
 # Active Context
 
+## Current work focus — `ProcessedTarget` model + live run tree
+
+Implementing [`doc/plans/processed-target-model.md`](../../doc/plans/processed-target-model.md):
+make `ProcessedTarget` the single model for a processed target's ``.starbash``
+files, expose live doit run state, and drive a live tree in both the CLI and GUI.
+
+Landed (all phases):
+
+- **`src/starbash/run_state.py`** (new) — dependency-free dataclasses
+  (`RunStatus`, `FileRef`, `TaskNode`, `StageNode`, `RunTree`) + `RunState`
+  accumulator: per-task results, stage status aggregation, **dependencies from
+  doit data only** (`file_dep` ∩ other stages' `targets`), a bounded per-stage
+  log tail, and `to_document()` / `document_to_tree()` (``run-log.toml``).
+- **`src/starbash/processed_target.py`** — read-only model view
+  `ProcessedTarget.open(dir)` / `discover(root)` (never writes; `close()` is a
+  no-op), accessors `config_url`/`output_dir`/`about`/`sessions`,
+  `stage_entries()`/`stage_counts()`, `stage_options()`/`save_stage_options()`
+  (moved here from `ui/qt/services.py`, with `StageOption`/`ParameterOption`/
+  `coerce_override`/`stage_declarations`), and the run API
+  `task_started()`/`record_log()`/`record_result()`/`run_tree()`/`save_run_log()`/
+  `latest_run()` (persists ``.starbash/run-log.toml``).
+- **Events** — `events.py` gains `EVENT_RUN_STARTED`/`EVENT_RUN_FINISHED`;
+  `doit.py:MyReporter` enriches task events with `target`/`stage`/`is_master` and
+  calls `pt.task_started`; `processing.py:add_result` folds results into the run
+  state (`pt.record_result`), publishes a plain-data `run` snapshot, subscribes to
+  `tool.output`/`log.message` to feed the per-stage log tail, and `_finish_runs()`
+  persists + announces each target's run.
+- **CLI** — `commands/process.py` replaces the end-of-run table with a live
+  `ProcessingView` (one shared `rich.live.Live` hosting the `Progress` bar and the
+  tree); `rich.run_tree_to_rich()` renders `target → stage → task` with status
+  glyphs, clickable output/recipe/config links and the log tail. `Processing`
+  now accepts an external `Progress` so there is only one render loop.
+- **GUI** — `ui/qt/pages/processing.py` builds the same nested tree from the
+  plain `run` snapshots (`_render_run`), coloured by status.  There is **no
+  separate log pane**: tool/log lines are appended live under the running stage
+  node.  Master (calibration) runs get a descriptive label
+  (`ProcessedTarget.run_label`, e.g. `Master flat_Ha · 2024-01-01 · canon`) and
+  their root is **collapsed by default** (`RunTree.is_master`).  Stage rows come
+  from the doit task list, **not** the target's `[[stages]]` config:
+  `Processing._job_to_tasks` calls `pt.set_run_stages(tasks_to_stages(tasks))`,
+  so only stages that actually produced a doit task appear.
+- **Consumers migrated** — `ui/qt/services.py` (`load_targets`,
+  `load_stage_options`, `save_stage_options`) and `publish/github.py` (`_targets`)
+  now go through the model.
+- Tests: `tests/unit/test_run_state.py`, `tests/unit/test_processed_target_model.py`,
+  `tests/unit/test_run_tree_rich.py`; `test_emit_hooks.py`/`test_gui.py` updated.
+
 ## Current work focus — Phase GUI (branch `feat-gui`)
 
 Implementing [`doc/plans/gui.md`](../../doc/plans/gui.md): a **PySide6 desktop GUI**

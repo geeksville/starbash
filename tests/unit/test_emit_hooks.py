@@ -88,6 +88,32 @@ def test_my_reporter_publishes_task_started_and_finished(recorder):
     assert finished[0].data["task"] == "stack_lights"
 
 
+def test_my_reporter_enriches_task_events_with_stage_labels(recorder):
+    """Task events carry target/stage/is_master so consumers can nest them."""
+    reporter = MyReporter(outstream=io.StringIO(), options={})
+    reporter.processing = None
+    task = Task(
+        "stack_lights",
+        [],
+        meta={
+            "context": {"target": "M31"},
+            "stage": {"name": "stack"},
+            "is_master": False,
+        },
+    )
+
+    reporter.execute_task(task)
+    reporter.add_success(task)
+
+    started = next(event for event in recorder if event.kind == events.EVENT_TASK_STARTED)
+    assert started.data["target"] == "M31"
+    assert started.data["stage"] == "stack"
+    assert started.data["is_master"] is False
+    finished = next(event for event in recorder if event.kind == events.EVENT_TASK_FINISHED)
+    assert finished.data["target"] == "M31"
+    assert finished.data["stage"] == "stack"
+
+
 def test_reindex_repo_publishes_progress_and_finished(setup_test_environment, mock_analytics, recorder):
     """Indexing a repo reports coarse progress and a final count."""
     from starbash.app import Starbash

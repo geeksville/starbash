@@ -81,6 +81,78 @@ def to_rich_link(f: str | Path, label: str | None = None) -> str:
     return f"[link={file_url}]{link_label}[/link]"
 
 
+def _file_ref_links(refs: Iterable[Any]) -> str:
+    """Render a list of plain ``{label, url}`` file refs as clickable Rich links."""
+    parts: list[str] = []
+    for ref in refs:
+        if not isinstance(ref, dict):
+            continue
+        label = ref.get("label") or ""
+        url = ref.get("url")
+        parts.append(to_rich_link(url, label) if url else label)
+    return ", ".join(parts)
+
+
+def run_tree_to_rich(run: dict[str, Any], root_label: str | None = None) -> Tree:
+    """Render a plain run-tree dict (from ``RunTree.to_plain()``) as a Rich Tree.
+
+    The tree is ``target -> stage -> tasks`` with a status glyph per node, a dim
+    log tail, and clickable links for outputs, the recipe toml and the target
+    config.  Shared by the CLI's live processing view.
+    """
+    from starbash.run_state import RunStatus
+
+    target = run.get("target") or "masters"
+    label = root_label or f"[bold]{target}[/bold]"
+    if run.get("output_url"):
+        label += f"  [dim]{to_rich_link(run['output_url'], '→ output')}[/dim]"
+    tree = Tree(label, guide_style="dim")
+
+    for stage in run.get("stages", []):
+        if not isinstance(stage, dict):
+            continue
+        status = RunStatus(stage.get("status", RunStatus.PENDING))
+        if stage.get("excluded"):
+            head = f"[dim]{RunStatus.EXCLUDED.glyph} {stage.get('name')} (excluded)[/dim]"
+        else:
+            head = (
+                f"[{status.rich_style}]{status.glyph} {stage.get('name')}[/{status.rich_style}]"
+            )
+        if stage.get("dependencies"):
+            head += f" [dim]← {', '.join(stage['dependencies'])}[/dim]"
+        if stage.get("recipe_url"):
+            head += " " + to_rich_link(stage["recipe_url"], "recipe")
+        if stage.get("config_url"):
+            head += " " + to_rich_link(stage["config_url"], "config")
+        branch = tree.add(head)
+
+        for line in stage.get("logs", []):
+            branch.add(f"[dim]{line}[/dim]")
+
+        outputs = _file_ref_links(stage.get("outputs", []))
+        if outputs:
+            branch.add(f"[dim]out:[/dim] {outputs}")
+
+        for task in stage.get("tasks", []):
+            if not isinstance(task, dict):
+                continue
+            tstatus = RunStatus(task.get("status", RunStatus.PENDING))
+            row = (
+                f"[{tstatus.rich_style}]{tstatus.glyph}[/{tstatus.rich_style}] "
+                f"{task.get('title') or task.get('name')}"
+            )
+            if task.get("session"):
+                row += f" [dim]{task['session']}[/dim]"
+            if task.get("reason"):
+                row += f" [dim]({task['reason']})[/dim]"
+            task_out = _file_ref_links(task.get("outputs", []))
+            if task_out:
+                row += f" [dim]→[/dim] {task_out}"
+            branch.add(row)
+
+    return tree
+
+
 def to_rich_string(obj: Any) -> str:
     """Render any object to a Rich formatted string."""
 

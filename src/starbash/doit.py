@@ -457,13 +457,49 @@ class MyReporter(ConsoleReporter):
         self.job_task = TaskID(0)
         self.processing: ProcessingLike | None = None
 
+    @staticmethod
+    def _task_labels(task: Task) -> dict[str, Any]:
+        """Plain-data labels (target/stage/is_master) for a task's events."""
+        meta = task.meta or {}
+        stage = meta.get("stage") or {}
+        pt = meta.get("processed_target")
+        context = meta.get("context", {}) or {}
+
+        # Prefer the model's run label so master (temp-dir) runs get the same
+        # descriptive name the tree uses, and real targets keep their name.
+        target = None
+        run_label = getattr(pt, "run_label", None)
+        if run_label is not None:
+            try:
+                target = run_label(context)
+            except Exception:  # noqa: BLE001 - labels must never break a run
+                target = None
+        target = target or context.get("target")
+
+        return {
+            "target": target,
+            "stage": stage.get("name") if hasattr(stage, "get") else None,
+            "is_master": bool(meta.get("is_master", False)),
+        }
+
     def execute_task(self, task: Task) -> None:
         """Called just before running a task"""
         # self.outstream.write("MyReporter --> %s\n" % task.title())
 
+        # Update the target's live run state (best-effort; never break a run).
+        pt = (task.meta or {}).get("processed_target")
+        if pt is not None:
+            setter = getattr(self.processing, "set_active_target", None)
+            if setter is not None:
+                setter(pt)
+            try:
+                pt.task_started(task)
+            except Exception as e:  # noqa: BLE001
+                logging.debug(f"run-state task_started failed: {e}")
+
         events.publish(
             events.EVENT_TASK_STARTED,
-            {"task": task.name, "title": task.title()},
+            {"task": task.name, "title": task.title(), **self._task_labels(task)},
         )
 
         if self.processing:
@@ -500,6 +536,7 @@ class MyReporter(ConsoleReporter):
                 "title": task.title(),
                 "success": success,
                 "reason": reason,
+                **self._task_labels(task),
             },
         )
 

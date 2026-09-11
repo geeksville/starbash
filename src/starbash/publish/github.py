@@ -10,13 +10,13 @@ from pathlib import Path
 from typing import Any
 
 import pygal
-import tomlkit
 from jinja2 import Environment, PackageLoader
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 from tomlkit.exceptions import ParseError
 
 from starbash import console
 from starbash.paths import get_publish_site_dir
+from starbash.processed_target import ProcessedTarget
 
 
 def slugify(value: str) -> str:
@@ -112,7 +112,6 @@ class GitHubPublisher:
             metadata_dir = directory / ".starbash"
             main_config = metadata_dir / "main.toml"
             about_config = metadata_dir / "about.toml"
-            sessions_config = metadata_dir / "sessions.toml"
             if not main_config.exists() or not about_config.exists():
                 warnings.warn(
                     f"Skipping incomplete processed target {directory}; "
@@ -121,13 +120,11 @@ class GitHubPublisher:
                 )
                 continue
             try:
+                target = ProcessedTarget.open(directory)
                 document: dict[str, Any] = {}
-                document.update(plain(tomlkit.parse(main_config.read_text(encoding="utf-8"))))
-                document.update(plain(tomlkit.parse(about_config.read_text(encoding="utf-8"))))
-                if sessions_config.exists():
-                    document.update(
-                        plain(tomlkit.parse(sessions_config.read_text(encoding="utf-8")))
-                    )
+                document.update(plain(target.repo.config))
+                document.update(plain(target.about))
+                document.update(plain(target.sessions))
                 document["_main_config"] = main_config
                 targets.append((directory, document))
             except (OSError, ParseError) as exc:

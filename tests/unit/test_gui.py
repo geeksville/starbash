@@ -567,26 +567,90 @@ def test_selection_panel_clear_resets_everything(qtbot, app_context):
 
 
 def test_processing_page_renders_core_events(qtbot, app_context, bus):
-    """Core events drive the task tree, progress bar and log pane."""
+    """Core events drive the nested run tree, progress bar and per-stage log."""
     from starbash.ui.qt.pages.processing import ProcessingPage
 
     page = ProcessingPage(app_context, bus)
     qtbot.addWidget(page)
 
-    events.publish(events.EVENT_TASK_STARTED, {"task": "stack", "title": "Stack lights"})
+    run = {
+        "target": "M31",
+        "output_url": "file:///out",
+        "is_master": False,
+        "stages": [
+            {
+                "name": "stack",
+                "status": "running",
+                "excluded": False,
+                "dependencies": [],
+                "outputs": [{"label": "stack.fits", "url": "file:///out/stack.fits"}],
+                "logs": [],
+                "tasks": [],
+            }
+        ],
+    }
+    events.publish(events.EVENT_RUN_STARTED, {"target": "M31"})
+    events.publish(events.EVENT_STAGE_RESULT, {"result": None, "run": run})
+    events.publish(
+        events.EVENT_TASK_STARTED,
+        {"task": "stack", "title": "Stack lights", "target": "M31", "stage": "stack"},
+    )
     events.publish(events.EVENT_TOOL_OUTPUT, {"stream": "stdout", "line": "working 42%"})
     events.publish(events.EVENT_TOOL_PROGRESS, {"percent": 42})
-    events.publish(
-        events.EVENT_TASK_FINISHED,
-        {"task": "stack", "title": "Stack lights", "success": True},
-    )
 
     assert page._tasks.topLevelItemCount() == 1
-    assert page._tasks.topLevelItem(0).text(1) == "ok"
+    target_item = page._tasks.topLevelItem(0)
+    assert target_item.text(0) == "M31"
+    assert target_item.isExpanded()
+    assert target_item.childCount() == 1
+    stage_item = target_item.child(0)
+    assert "stack" in stage_item.text(0)
+
+    # The tool log line lands under the running stage node, not in a side pane.
+    log_lines = [
+        stage_item.child(i).text(0) for i in range(stage_item.childCount())
+    ]
+    assert any("working 42%" in line for line in log_lines)
     assert page._progress.value() == 42
-    log_text = page._log.toPlainText()
-    assert "42%" in log_text
-    assert "Stack lights" in log_text
+
+
+def test_processing_page_labels_unused_stages(qtbot, app_context, bus):
+    """A stage that never ran reads as 'unused' rather than 'pending'."""
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    run = {
+        "target": "M31",
+        "is_master": False,
+        "stages": [{"name": "noise_exterminator", "status": "pending", "excluded": False}],
+    }
+    events.publish(events.EVENT_STAGE_RESULT, {"result": None, "run": run})
+
+    stage_item = page._tasks.topLevelItem(0).child(0)
+    assert stage_item.text(1) == "unused"
+
+
+def test_processing_page_collapses_master_nodes(qtbot, app_context, bus):
+    """Master (calibration) runs are collapsed so they don't crowd the tree."""
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    run = {
+        "target": "Master flat_Ha · 2024-01-01 · canon",
+        "is_master": True,
+        "stages": [{"name": "stack_bias", "status": "ok", "excluded": False}],
+    }
+    events.publish(events.EVENT_STAGE_RESULT, {"result": None, "run": run})
+
+    root = page._tasks.topLevelItem(0)
+    assert root.text(0) == "Master flat_Ha · 2024-01-01 · canon"
+    assert not root.isExpanded()
+
+
 
 
 def test_repositories_page_reports_indexing_progress(qtbot, app_context, bus):

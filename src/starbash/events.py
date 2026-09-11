@@ -48,6 +48,8 @@ __all__ = [
     "EVENT_REINDEX_PROGRESS",
     "EVENT_REINDEX_FINISHED",
     "EVENT_PROCESS_TARGET",
+    "EVENT_RUN_STARTED",
+    "EVENT_RUN_FINISHED",
     "EVENT_LOG_MESSAGE",
 ]
 
@@ -63,11 +65,11 @@ EVENT_TOOL_PROGRESS = "tool.progress"
 EVENT_TOOL_STARTED = "tool.started"
 #: An external tool finished. data: {cmd, returncode, success}
 EVENT_TOOL_FINISHED = "tool.finished"
-#: A doit task is about to run. data: {task, title}
+#: A doit task is about to run. data: {task, title, target?, stage?, is_master?}
 EVENT_TASK_STARTED = "task.started"
-#: A doit task finished. data: {task, title, success, reason, duration?}
+#: A doit task finished. data: {task, title, success, reason, target?, stage?, is_master?}
 EVENT_TASK_FINISHED = "task.finished"
-#: A processing stage produced a result. data: {result}
+#: A processing stage produced a result. data: {result, run: {..plain run-tree..}}
 EVENT_STAGE_RESULT = "stage.result"
 #: Reindexing progress for a repo. data: {repo, done, total, file?}
 EVENT_REINDEX_PROGRESS = "reindex.progress"
@@ -75,6 +77,10 @@ EVENT_REINDEX_PROGRESS = "reindex.progress"
 EVENT_REINDEX_FINISHED = "reindex.finished"
 #: A whole target is about to be processed. data: {target, index, total}
 EVENT_PROCESS_TARGET = "process.target"
+#: A processing run started (for the target in data). data: {target, total}
+EVENT_RUN_STARTED = "run.started"
+#: A processing run finished. data: {target, run: {..plain run-tree..}}
+EVENT_RUN_FINISHED = "run.finished"
 #: A log record was emitted (for the GUI log pane). data: {level, message}
 EVENT_LOG_MESSAGE = "log.message"
 

@@ -162,7 +162,7 @@ class Processing(ProcessingLike):
     - run_master_stages(): Generate master calibration frames
     """
 
-    def __init__(self, sb: Starbash) -> None:
+    def __init__(self, sb: Starbash, progress: Progress | None = None) -> None:
         self.sb: Starbash = sb
         self.context: dict[str, Any] = {}
 
@@ -180,14 +180,25 @@ class Processing(ProcessingLike):
 
         self.results: list[ProcessingResult] = []
 
-        self.progress = Progress(console=starbash.console, refresh_per_second=2)
-        self.progress.start()
+        self._owns_progress = progress is None
+        self.progress = progress or Progress(console=starbash.console, refresh_per_second=2)
+        if self._owns_progress:
+            # A caller-supplied progress (the CLI's live tree view) is driven by
+            # that view's own Live, so we must not start a competing one here.
+            self.progress.start()
 
         self._stages_cache: list[StageDict] | None = None  # Cache for stages property
+        #: The target whose tasks are currently executing (for live log attribution).
+        self._active_target: ProcessedTarget | None = None
+        # Attribute streamed tool/log lines to the currently-running stage.
+        self._run_log_subscriber = self._on_log_event
+        events.subscribe(self._run_log_subscriber)
 
     # --- Lifecycle ---
     def close(self) -> None:
-        self.progress.stop()
+        events.unsubscribe(self._run_log_subscriber)
+        if self._owns_progress:
+            self.progress.stop()
 
     # Context manager support
     def __enter__(self) -> "Processing":
@@ -215,8 +226,62 @@ class Processing(ProcessingLike):
     def add_result(self, result: ProcessingResult) -> None:
         """Add a processing result to the list of results."""
         self.results.append(result)
-        # Let observers (e.g. the GUI) react to each completed stage live.
-        events.publish(events.EVENT_STAGE_RESULT, {"result": result})
+
+        # Fold the result into the owning target's live run state, and publish a
+        # plain-data snapshot so observers (CLI tree / GUI tree) can update live.
+        pt = (result.task.meta or {}).get("processed_target") if result.task.meta else None
+        run_plain: dict[str, Any] | None = None
+        if pt is not None:
+            try:
+                pt.record_result(result)
+                tree = pt.run_tree()
+                run_plain = tree.to_plain() if tree is not None else None
+            except Exception as e:  # noqa: BLE001 - bookkeeping must not break a run
+                logging.debug(f"run-state record_result failed: {e}")
+
+        events.publish(events.EVENT_STAGE_RESULT, {"result": result, "run": run_plain})
+
+    def set_active_target(self, pt: ProcessedTarget | None) -> None:
+        """Note which target's tasks are executing (used for log attribution)."""
+        self._active_target = pt
+
+    def _on_log_event(self, event: events.Event) -> None:
+        """Forward streamed tool/log lines to the running target's log tail."""
+        pt = self._active_target
+        if pt is None:
+            return
+        data = event.data
+        if not isinstance(data, dict):
+            return
+        line = data.get("line") or data.get("message")
+        if line:
+            pt.record_log(str(line))
+
+    @staticmethod
+    def _targets_in_results(results: list[ProcessingResult]) -> list[ProcessedTarget]:
+        """Distinct processed targets referenced by a batch of results (in order)."""
+        targets: list[ProcessedTarget] = []
+        seen: set[int] = set()
+        for result in results:
+            meta = result.task.meta or {}
+            pt = meta.get("processed_target")
+            if pt is not None and id(pt) not in seen:
+                seen.add(id(pt))
+                targets.append(pt)
+        return targets
+
+    def _finish_runs(self, results: list[ProcessingResult]) -> None:
+        """Persist and announce the run(s) for a batch of just-finished results."""
+        for pt in self._targets_in_results(results):
+            pt.save_run_log()
+            tree = pt.run_tree()
+            events.publish(
+                events.EVENT_RUN_FINISHED,
+                {
+                    "target": tree.target if tree is not None else pt.run_label(),
+                    "run": tree.to_plain() if tree is not None else None,
+                },
+            )
 
     def _run_all_tasks(self, tasks: list[TaskDict]) -> list[ProcessingResult]:
         self.doit.set_tasks(tasks)
@@ -340,8 +405,14 @@ class Processing(ProcessingLike):
                     events.EVENT_PROCESS_TARGET,
                     {"target": t, "index": index, "total": len(targets_list)},
                 )
+                events.publish(
+                    events.EVENT_RUN_STARTED,
+                    {"target": t or "masters", "total": len(targets_list)},
+                )
                 tasks = self._create_tasks(sessions, [t])
-                results.extend(self._run_all_tasks(tasks))
+                target_results = self._run_all_tasks(tasks)
+                results.extend(target_results)
+                self._finish_runs(target_results)
         finally:
             # we manually created this task, so we manually need to remove it
             self.progress.remove_task(progress_task)
@@ -515,7 +586,9 @@ class Processing(ProcessingLike):
         results: list[ProcessingResult] = []
         for t in types:
             # run each of the master gens sepearately - because flats might need bias/dark to be present
-            results.extend(self._run_all_tasks(self._create_masters_by_type(t)))
+            batch = self._run_all_tasks(self._create_masters_by_type(t))
+            results.extend(batch)
+            self._finish_runs(batch)
         return results
 
     @property
@@ -566,7 +639,14 @@ class Processing(ProcessingLike):
             stages = self.stages
             self._stages_to_tasks(stages)
 
-            self.doit.set_tasks(self.preflight_tasks(pt, self.tasks))
+            # Every stage in the merged recipe catalog gets a candidate task, but
+            # only the ones whose inputs resolved do (see _create_task_dicts, which
+            # skips stages with insufficient inputs).  Record the relevant ones so
+            # the live run tree lists only what applies to *this* target.
+            candidate_tasks = self.tasks
+            pt.set_run_stages(tasks_to_stages(candidate_tasks))
+
+            self.doit.set_tasks(self.preflight_tasks(pt, candidate_tasks))
             # self.doit.run(
             #     [
             #         "info",

@@ -1,23 +1,24 @@
 """Processing commands for automated image processing workflows."""
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Annotated
 
 import rich
 import typer
+from rich.console import Group
+from rich.live import Live
+from rich.progress import Progress
+from rich.text import Text
 
+from starbash import events
 from starbash.app import Starbash, copy_images_to_dir
-from starbash.commands.__init__ import (
-    TABLE_COLUMN_STYLE,
-    TABLE_HEADER_STYLE,
-)
 from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
-from starbash.doit import FileInfo
 from starbash.paths import get_user_config_path
-from starbash.processed_target import ProcessedTarget
-from starbash.processing import Processing, ProcessingResult
-from starbash.rich import to_rich_link
+from starbash.processing import Processing
+from starbash.rich import run_tree_to_rich
 
 app = typer.Typer()
 
@@ -95,90 +96,71 @@ def siril(
         # Also FIXME, check for the existence of such a file
 
 
-def print_results(
-    title: str,
-    results: list[ProcessingResult],
-    console: rich.console.Console,
-    skip_boring: bool = True,
-) -> None:
-    """Print processing results in a formatted table.
+class ProcessingView:
+    """A live Rich tree of a processing run, driven by the event bus.
 
-    Args:
-        title: Title to display above the table
-        results: List of ProcessingResult objects to display
-        console: Rich console instance for output
+    Owns the single :class:`~rich.live.Live` used during a CLI run (so the tree
+    and the progress bar share one render loop) and renders each target's run as
+    ``target -> stage -> task`` with status glyphs, clickable links and a log
+    tail.  It is the CLI counterpart of the GUI's processing tree.
     """
-    from rich.table import Table
 
-    if not results:
-        console.print(
-            f"[yellow]{title}: No results, do you have a target selected?  If this is your first time here run 'sb user setup'[/yellow]"
-        )
-        return
+    def __init__(self, title: str, console: rich.console.Console) -> None:
+        self.title = title
+        self.console = console
+        self.progress = Progress(console=console, refresh_per_second=4)
+        self._runs: dict[str, dict] = {}
+        self._order: list[str] = []
+        self._subscriber = self._on_event
+        self._live = Live(self._render(), console=console, refresh_per_second=4)
 
-    table = Table(title=title, show_header=True, header_style=TABLE_HEADER_STYLE)
-    table.add_column("Target", style=TABLE_COLUMN_STYLE, no_wrap=True)
-    table.add_column("Session", justify="right", style=TABLE_COLUMN_STYLE)
-    table.add_column("Status", justify="center", style=TABLE_COLUMN_STYLE)
-    table.add_column("Notes (links are clickable!)", style=TABLE_COLUMN_STYLE)
+    def __enter__(self) -> ProcessingView:
+        events.subscribe(self._subscriber)
+        self._live.start()
+        return self
 
-    for result in results:
-        if skip_boring and result.success is None and result.is_master:
-            # Skip uninteresting master processing results
-            continue
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: object | None,
+    ) -> bool:
+        events.unsubscribe(self._subscriber)
+        self._live.stop()
+        return False
 
-        # Format status with color
-        if result.success is True:
-            status = f"[green]✓ {result.reason or 'Success'}[/green]"
-        elif result.success is False:
-            status = f"[red]✗ {result.reason or 'Failed'}[/red]"
-        else:
-            status = f"[yellow]Ø {result.reason or 'Skipped'}[/yellow]"
+    def _on_event(self, event: events.Event) -> None:
+        """Fold a core event into the rendered tree."""
+        data = event.data if isinstance(event.data, dict) else {}
+        if event.kind in (events.EVENT_RUN_STARTED, events.EVENT_PROCESS_TARGET):
+            target = data.get("target") or "masters"
+            if target not in self._order:
+                self._order.append(target)
+                self._refresh()
+        elif event.kind == events.EVENT_STAGE_RESULT:
+            run = data.get("run")
+            if isinstance(run, dict):
+                target = run.get("target") or "masters"
+                if target not in self._order:
+                    self._order.append(target)
+                self._runs[target] = run
+                self._refresh()
 
-        # Format notes (truncate if too long)
-        notes = ""
-        meta: dict | None = result.task.meta
-        if result.notes:
-            notes = result.notes
-            stage = meta and meta.get("stage")
-            if stage:
-                notes = to_rich_link(stage.source.url, notes)
+    def _render(self) -> Group:
+        header = Text(self.title, style="bold")
+        trees = [run_tree_to_rich(self._runs[t]) for t in self._order if t in self._runs]
+        return Group(header, *trees, self.progress)
 
-        # if success or skipped, show outputs generated
-        fi: FileInfo | None = result.context.get("output")
-        if fi and result.success is not False:
-            is_tmp_dir = fi.repo is None
-            output_files_str = ", ".join(fi.rich_links)
-            if is_tmp_dir:
-                output_files_str = f"[dim]{output_files_str}[/dim]"
+    def _refresh(self) -> None:
+        try:
+            self._live.update(self._render(), refresh=True)
+        except Exception:  # noqa: BLE001 - rendering must never break a run
+            pass
 
-            toml_url: str | None = None
-            # Try to find a toml url
-            if meta:
-                pt: ProcessedTarget | None = meta.get("processed_target")
-                if pt and pt.repo:
-                    toml_url = pt.repo.config_url
+    def finish(self) -> None:
+        """Render the final state once more before the view is closed."""
+        self._refresh()
 
-            link_arrow = to_rich_link(toml_url, "→") if toml_url else "→"
-
-            notes += f" {link_arrow} {output_files_str}"
-
-        output_fi: FileInfo | None = result.context.get("final_output")
-        result_str = result.target  # assume we won't be able to add a link
-        if output_fi and output_fi.base and result.success is not False:
-            output_dir = Path(output_fi.base)
-            result_str = to_rich_link(output_dir, result.target)
-
-        # Try to link to source files if we can
-        session_link = result.session_desc
-        input_files: list[Path] | None = result.context.get("input_files")
-        if input_files:
-            first_input = input_files[0]
-            session_link = to_rich_link(first_input.parent, result.session_desc)
-
-        table.add_row(result_str, session_link, status, notes)
-
-    console.print(table)
 
 
 @app.command()
@@ -224,28 +206,17 @@ def auto(
         raise typer.Exit(1)
 
     with Starbash("process.auto") as sb:
-        with Processing(sb) as proc:
-            from starbash import console
+        from starbash import console
 
+        view = ProcessingView("Auto-processing", console)
+        with view, Processing(sb, progress=view.progress) as proc:
             if session_num is not None:
                 console.print(
                     f"[red]Session number base filtering not yet implemented: {session_num}...[/red]"
                 )
             else:
-                console.print("[yellow]Auto-processing all selected sessions...[/yellow]")
-
-                results = proc.run_all_stages()
-
-                title = "Autoprocessed"
-
-                # Try to show a likely output directory (not perfect but better than nothing)
-                if len(results) > 0:
-                    last = results[-1]
-                    fi: FileInfo = last.context["output"]
-                    if fi.repo:
-                        title += f" to {fi.repo.resolve_path()}"
-
-                print_results(title, results, console)
+                proc.run_all_stages()
+                view.finish()
 
 
 @app.command(
@@ -281,13 +252,12 @@ def masters() -> None:
     and will be automatically used for future processing operations.
     """
     with Starbash("process.masters") as sb:
-        with Processing(sb) as proc:
-            from starbash import console
+        from starbash import console
 
-            console.print("[yellow]Generating master frames...[/yellow]")
-            results = proc.run_master_stages()
-
-            print_results("Generated masters", results, console, skip_boring=False)
+        view = ProcessingView("Generating master frames", console)
+        with view, Processing(sb, progress=view.progress) as proc:
+            proc.run_master_stages()
+            view.finish()
 
 
 @app.callback(invoke_without_command=True)
