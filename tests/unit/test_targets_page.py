@@ -7,6 +7,7 @@ and navigation guard, so that is what these cover.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -467,6 +468,53 @@ def test_columns_are_separated_by_a_horizontal_gap(qtbot, app_context, processed
     table_right = page._table.mapTo(splitter, QPoint(page._table.width(), 0)).x()
     tree_left = page._tree.mapTo(splitter, QPoint(0, 0)).x()
     assert tree_left - table_right >= _COLUMN_GAP
+
+
+def _indicator_size() -> int:
+    """Pixel height of the checkbox indicator, read from the theme stylesheet.
+
+    Read rather than hard-coded so the assertion below tracks the theme instead of
+    duplicating a number that a later theme tweak would silently invalidate.
+    """
+    from starbash.ui.qt import theme
+
+    match = re.search(r"QCheckBox::indicator[^{]*\{[^}]*height:\s*(\d+)px", theme.STYLESHEET)
+    assert match is not None, "the theme no longer pins the checkbox indicator size"
+    return int(match.group(1))
+
+
+def test_stage_rows_are_tall_enough_to_separate_their_checkboxes(
+    qtbot, qapp, app_context, processed_repo
+):
+    """Regression: stage checkboxes used to touch - a row was only a font tall.
+
+    The indicator is 16px, but an unpadded tree row inherited roughly the font
+    height, so the boxes of consecutive stages abutted.  The fix is vertical padding
+    on tree items; assert the *rendered* rows are taller than a box (i.e. the padding
+    really took effect rather than merely being text in the stylesheet).
+    """
+    from starbash.ui.qt import theme
+
+    theme.apply_theme(qapp)
+    _make_target(processed_repo)
+    app_context.selection.set_targets(["sh2126"])
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    page.resize(1000, 800)
+    page.show()
+    page.refresh()
+    qtbot.waitExposed(page)
+    qtbot.wait(20)
+
+    indicator = _indicator_size()
+    crop = page._tree.visualItemRect(page._stage_items["crop"])
+    denoise = page._tree.visualItemRect(page._stage_items["denoise"])
+
+    # A row taller than the box leaves daylight above and below it...
+    assert crop.height() >= indicator + 8
+    # ...and tree rows are laid out back-to-back, so that daylight is all that
+    # separates one stage's checkbox from the next one's.
+    assert denoise.top() == crop.bottom() + 1
 
 
 def test_path_label_has_its_own_padded_style(qtbot, app_context, processed_repo):

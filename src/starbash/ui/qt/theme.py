@@ -192,6 +192,12 @@ QHeaderView::section {{
     border-bottom: 1px solid #2c353d;
 }}
 QTableView::item {{ padding: 3px 6px; }}
+/* Tree rows need their own vertical padding.  The stage checkbox indicator is
+   16px tall (see *Checkboxes* below) while an unpadded tree row is only about
+   that tall, so in the Targets page's stage list the boxes of consecutive
+   stages ended up visually touching.  Horizontal padding stays 0 so the
+   indentation and the checkbox inset are exactly as before. */
+QTreeView::item {{ padding: 4px 0; }}
 
 /* The per-parameter option editor on the Targets page --------------------- */
 QGroupBox#OptionEditor {{

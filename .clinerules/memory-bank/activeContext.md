@@ -63,6 +63,14 @@ Targets page specifics (recent tweak round):
   `importlib.resources`; if it cannot be found the tick is simply omitted (solid
   accent box), so a packaging slip degrades rather than breaks. The same rules cover
   the Targets/Processing tree indicators.
+- **Tree rows carry their own vertical padding** (`QTreeView::item { padding: 4px 0; }`).
+  The indicator is 16px but an unpadded tree row was only ~16px tall, so the stage
+  checkboxes in the Targets list touched each other. A test measures the *rendered*
+  row height against the indicator size read out of `theme.STYLESHEET`
+  (`test_stage_rows_are_tall_enough_to_separate_their_checkboxes`) — it fails if the
+  rule is removed, and applies the theme itself (`theme.apply_theme(qapp)`), since
+  `test_targets_page.py` otherwise runs unstyled. Horizontal padding stays 0 so the
+  indentation and checkbox inset are unchanged.
 - **Qt needs OS libraries the wheel does not ship.** CI failed with
   `INTERNALERROR> ImportError: libEGL.so.1: cannot open shared object file` because
   `pytest-qt` imports `QtGui` while pytest is still configuring, so a missing system
