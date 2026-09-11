@@ -227,6 +227,41 @@ class TestRunLabels:
         assert tree.target == "Master flat_Ha · 2024-01-01"
 
 
+class TestLazyMetadata:
+    def test_open_does_not_parse_metadata_files(self, tmp_path, monkeypatch):
+        """Listing/opening a target must not read about.toml or sessions.toml.
+
+        A sessions.toml carries per-frame metadata and can be large; parsing every
+        one while enumerating targets stalled the GUI.  They load on demand.
+        """
+        target = _write_target(tmp_path, "M31", [("stack", False)])
+        calls: list[str] = []
+        original = ProcessedTarget._read_or_template
+
+        def spy(path, template_name):
+            calls.append(str(path))
+            return original(path, template_name)
+
+        monkeypatch.setattr(ProcessedTarget, "_read_or_template", staticmethod(spy))
+
+        target_obj = ProcessedTarget.open(target)
+        assert calls == []
+
+        _ = target_obj.sessions
+        assert len(calls) == 1 and calls[0].endswith("sessions.toml")
+
+        _ = target_obj.about
+        assert len(calls) == 2 and calls[1].endswith("about.toml")
+
+    def test_parameter_store_is_built_lazily(self, tmp_path):
+        target = _write_target(tmp_path, "M31", [("stack", False)])
+        pt = ProcessedTarget.open(target)
+
+        assert getattr(pt, "_parameter_store", None) is None
+        _ = pt.parameter_store
+        assert pt._parameter_store is not None
+
+
 class TestRunStageSelection:
     def test_only_stages_that_produced_tasks_are_listed(self, tmp_path):
         # main.toml lists the whole catalog, but doit only kept two stages.

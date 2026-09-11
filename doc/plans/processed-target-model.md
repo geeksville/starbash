@@ -188,4 +188,11 @@ output = "file:///.../stacked/....fits"
   only as a fallback when no task list was supplied.
 - **`RunStatus.PENDING` displays as `unused`** in the tree (`RunStatus.label`); the
   serialized value stays `"pending"` for `run-log.toml` compatibility.
+- **`open()` is cheap (lazy metadata).**  It used to parse `about.toml` *and*
+  `sessions.toml` (which carries per-frame metadata and can be ~1 MB per target)
+  plus build a `ParameterStore` for **every** target — so `discover()` on the GUI
+  thread (the Targets page) stalled on tens of MB of TOML.  `about`/`sessions` are
+  now lazy properties and `parameter_store` is a lazy cached property, so
+  enumerating targets only parses each small `main.toml`.  (Measured: 40 targets ×
+  ~850 KB sessions.toml ⇒ `discover()` 0.04 s.)
 

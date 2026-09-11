@@ -136,13 +136,10 @@ def load_targets(sb: Starbash) -> list[dict[str, Any]]:
         return rows
 
     for target in ProcessedTarget.discover(path):
-        used, excluded = target.stage_counts()
         rows.append(
             {
                 "target": target.name.name,
                 "path": str(target.name),
-                "used": used,
-                "excluded": excluded,
             }
         )
     return rows

@@ -456,7 +456,6 @@ class TargetsPage(Page):
             return False
 
         self._original = copy.deepcopy(self._current)
-        self._update_row_counts()
         self._mark_dirty()
         self.status.emit(f"Saved options for {self._loaded_target}.")
         return True
@@ -467,22 +466,6 @@ class TargetsPage(Page):
         self._rebuild_tree()
         self._mark_dirty()
         self.status.emit("Discarded option changes.")
-
-    def _update_row_counts(self) -> None:
-        """Refresh the table row for the loaded target (keeps the selection)."""
-        if self._loaded_target is None:
-            return
-        for index, row in enumerate(self._model.rows()):
-            if row.get("target") != self._loaded_target:
-                continue
-            self._model.update_cells(
-                index,
-                {
-                    "used": sum(1 for stage in self._current if not stage.excluded),
-                    "excluded": sum(1 for stage in self._current if stage.excluded),
-                },
-            )
-            return
 
     # --- unsaved-change prompts ----------------------------------------------
     def can_leave(self) -> bool:

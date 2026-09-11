@@ -318,9 +318,23 @@ class ProcessedTarget:
 
         p.processed_target = self  # a backpointer to our ProcessedTarget
 
-        self.parameter_store = ParameterStore()
-        # Load any user-activated per-stage overrides from this target's main.toml.
-        self.parameter_store.add_overrides_from_repo(self.repo)
+    @property
+    def parameter_store(self) -> ParameterStore:
+        """The target's stage-parameter store, built lazily on first use.
+
+        Building it reads the target's overrides, which is unnecessary (and slow)
+        when just listing or inspecting targets, so it is deferred.
+        """
+        store = getattr(self, "_parameter_store", None)
+        if store is None:
+            store = ParameterStore()
+            try:
+                # Load any user-activated per-stage overrides from main.toml.
+                store.add_overrides_from_repo(self.repo)
+            except Exception as e:  # noqa: BLE001 - a partial config must not break us
+                logging.debug(f"Could not load stage overrides for {self.name}: {e}")
+            self._parameter_store = store
+        return store
 
     @staticmethod
     def _as_toml_document(document: Any) -> TOMLDocument:
@@ -404,7 +418,9 @@ class ProcessedTarget:
     def _init_from_toml(self) -> None:
         """Read customized settings (masters, stages etc...) from the toml into our sessions/defaults."""
 
-        proc_sessions = self.sessions_config.get("sessions", [])
+        proc_sessions = (
+            self.sessions_config.get("sessions", []) if self.sessions_config is not None else []
+        )
         # Match persisted session state using public session attributes rather than
         # database identifiers, which are intentionally not written to sessions.toml.
         for sess in self.p.sessions if self.p is not None else []:
@@ -661,19 +677,16 @@ class ProcessedTarget:
 
         default_toml = cls._as_toml_document(toml_from_template(self.template_name, overrides=None))
         self.repo = Repo(self.config_path, default_toml=default_toml)
-        self.about_config = cls._read_or_template(self.about_path, "target/processed/about")
-        self.sessions_config = cls._read_or_template(
-            self.sessions_path, "target/processed/sessions"
-        )
+        # ``about``/``sessions`` (and the parameter store) are loaded lazily: a
+        # ``sessions.toml`` carries per-frame metadata and can be large, and we
+        # open every target when listing them, so parsing them here would stall
+        # the GUI thread.  See the ``about``/``sessions`` properties.
+        self.about_config: TOMLDocument | None = None
+        self.sessions_config: TOMLDocument | None = None
 
         self.default_stages = {}
         self._init_from_toml()
         self.config_valid = False
-        self.parameter_store = ParameterStore()
-        try:
-            self.parameter_store.add_overrides_from_repo(self.repo)
-        except Exception as e:  # noqa: BLE001 - a partial config must not break listing
-            logging.debug(f"Could not load stage overrides for {self.name}: {e}")
         self.run = None
         self._run_stages = None
         return self
@@ -717,13 +730,21 @@ class ProcessedTarget:
 
     @property
     def about(self) -> TOMLDocument:
-        """The parsed ``about.toml`` document."""
-        return self.about_config
+        """The parsed ``about.toml`` document (loaded lazily)."""
+        document = self.about_config
+        if document is None:
+            document = self._read_or_template(self.about_path, "target/processed/about")
+            self.about_config = document
+        return document
 
     @property
     def sessions(self) -> TOMLDocument:
-        """The parsed ``sessions.toml`` document."""
-        return self.sessions_config
+        """The parsed ``sessions.toml`` document (loaded lazily)."""
+        document = self.sessions_config
+        if document is None:
+            document = self._read_or_template(self.sessions_path, "target/processed/sessions")
+            self.sessions_config = document
+        return document
 
 
     # --- stage / option accessors (shared by GUI + publishing) ------------

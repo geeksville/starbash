@@ -43,7 +43,10 @@ Landed (all phases):
   so only stages that actually produced a doit task appear.
 - **Consumers migrated** — `ui/qt/services.py` (`load_targets`,
   `load_stage_options`, `save_stage_options`) and `publish/github.py` (`_targets`)
-  now go through the model.
+  now go through the model.  `ProcessedTarget.open()` is **lazy**: `about`/
+  `sessions` are properties and `parameter_store` is a cached property, so
+  `discover()` (the GUI Targets page) only parses each target's small `main.toml`
+  — parsing every `sessions.toml` there hung the GUI thread.
 - Tests: `tests/unit/test_run_state.py`, `tests/unit/test_processed_target_model.py`,
   `tests/unit/test_run_tree_rich.py`; `test_emit_hooks.py`/`test_gui.py` updated.
 
