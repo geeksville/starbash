@@ -470,6 +470,36 @@ def test_columns_are_separated_by_a_horizontal_gap(qtbot, app_context, processed
     assert tree_left - table_right >= _COLUMN_GAP
 
 
+def test_target_list_defaults_to_two_thirds_of_the_width(qtbot, app_context, processed_repo):
+    """The target list should start out wider than the stages column.
+
+    Stretch factors alone don't set the initial proportion (they only divide extra
+    space), so the page also calls ``setSizes``; without it the table got the
+    smaller share and long output paths were truncated.
+    """
+    from starbash.ui.qt.pages.targets import _TARGET_LIST_SHARE
+
+    _make_target(processed_repo)
+    app_context.selection.set_targets(["sh2126"])
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    page.resize(1000, 800)
+    page.show()
+    page.refresh()
+    qtbot.waitExposed(page)
+    qtbot.wait(20)
+
+    splitter = page._table.parentWidget()
+    total = splitter.width()
+    assert total > 0
+    share = page._table.width() / total
+
+    # The splitter handle eats a few pixels, so allow a small tolerance.
+    assert abs(share - _TARGET_LIST_SHARE) < 0.05
+    # ...and the stages column is still usable rather than collapsed.
+    assert page._right.width() > 200
+
+
 def _indicator_size() -> int:
     """Pixel height of the checkbox indicator, read from the theme stylesheet.
 

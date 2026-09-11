@@ -60,6 +60,9 @@ _EDITOR_MIN_HEIGHT = 200
 #: does not sit flush against the left table's scrollbar (the splitter handle alone
 #: is only a few pixels wide).
 _COLUMN_GAP = 12
+#: Default share of the page width given to the target list; the stages column
+#: (tree + option editor) takes the rest.
+_TARGET_LIST_SHARE = 0.66
 
 
 class UnsavedChoice(StrEnum):
@@ -141,8 +144,17 @@ class TargetsPage(Page):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self._table)
         splitter.addWidget(right)
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 4)
+        # Stretch factors only govern how *extra* space is divided once the panes
+        # have their initial sizes, so the default proportion is set explicitly:
+        # the target list gets the lion's share, the stages column the rest.
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 1)
+        splitter.setSizes(
+            [
+                int(_TARGET_LIST_SHARE * 1000),
+                int((1.0 - _TARGET_LIST_SHARE) * 1000),
+            ]
+        )
         layout.addWidget(splitter, 1)
 
         self._mark_dirty()
