@@ -14,6 +14,15 @@ from starbash.check_version import is_connected
 # Default to no analytics/auto crash reports
 analytics_allowed = False
 
+# Canonical defaults for the user's analytics preferences.  These mirror the
+# comments in ``templates/userconfig.toml`` and are the source of truth for every
+# front end: the core (``app.py``), the CLI setup (``commands/user.py``) and the
+# GUI settings page / first-run wizard all read the preference through
+# ``analytics_enabled`` / ``analytics_include_user`` below, so an unset
+# preference is treated identically everywhere.
+DEFAULT_ANALYTICS_ENABLED = True
+DEFAULT_ANALYTICS_INCLUDE_USER = False
+
 __all__ = [
     "analytics_setup",
     "analytics_shutdown",
@@ -22,7 +31,29 @@ __all__ = [
     "analytics_exception",
     "is_development_environment",
     "NopAnalytics",
+    "DEFAULT_ANALYTICS_ENABLED",
+    "DEFAULT_ANALYTICS_INCLUDE_USER",
+    "analytics_enabled",
+    "analytics_include_user",
 ]
+
+
+def analytics_enabled(repo: Any) -> bool:
+    """Return whether the user has opted into analytics/crash reports.
+
+    Args:
+        repo: the user preferences repo (or any object with a ``get(key, default)``).
+    """
+    return bool(repo.get("analytics.enabled", DEFAULT_ANALYTICS_ENABLED))
+
+
+def analytics_include_user(repo: Any) -> bool:
+    """Return whether the user's email may be attached to reports.
+
+    Args:
+        repo: the user preferences repo (or any object with a ``get(key, default)``).
+    """
+    return bool(repo.get("analytics.include_user", DEFAULT_ANALYTICS_INCLUDE_USER))
 
 
 def analytics_setup(allowed: bool = False, user_email: str | None = None) -> None:

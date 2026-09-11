@@ -4,6 +4,7 @@ from typing import Annotated
 import typer
 from rich.panel import Panel
 
+from starbash.analytics import DEFAULT_ANALYTICS_INCLUDE_USER
 from starbash.app import Starbash
 from starbash.paths import get_user_documents_dir
 
@@ -137,7 +138,7 @@ def _ask_user_config(sb: Starbash) -> None:
     include_in_reports = interaction.confirm(
         "Would you like to include your email address with crash reports/analytics?\n"
         "(This helps us follow up if we need more information about issues.)",
-        default=sb.user_repo.get("analytics.include_user", False),
+        default=sb.user_repo.get("analytics.include_user", DEFAULT_ANALYTICS_INCLUDE_USER),
     )
     sb.analytics.set_data("analytics.use_email_report", include_in_reports)
     sb.user_repo.set("analytics.include_user", include_in_reports)

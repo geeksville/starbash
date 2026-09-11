@@ -295,6 +295,12 @@ class TestStarbashInit:
             # Analytics setup should be called
             mock_analytics["setup"].assert_called_once()
 
+    def test_init_analytics_enabled_by_default(self, setup_test_environment, mock_analytics):
+        """Analytics defaults to enabled when the user has not chosen either way."""
+        # The freshly-created user config leaves analytics unset (commented out).
+        with Starbash() as app:
+            mock_analytics["setup"].assert_called_once()
+
     @patch("starbash.windows.platform.system")
     @patch("starbash.windows.is_under_powershell")
     def test_init_warns_on_windows_without_powershell(

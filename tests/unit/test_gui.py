@@ -726,3 +726,27 @@ def test_setup_wizard_persists_preferences(qtbot, app_context):
     assert repo.get("user.name") == "Ada Lovelace"
     assert repo.get("user.email") == "ada@example.com"
     assert repo.get("analytics.enabled") is True
+
+
+def test_setup_wizard_shows_analytics_defaults(qtbot, app_context):
+    """An unset preference shows the documented defaults, not an unchecked box."""
+    from starbash.ui.qt.pages.wizard import SetupWizard
+
+    wizard = SetupWizard(app_context)
+    qtbot.addWidget(wizard)
+
+    # Analytics defaults to enabled; including the email defaults to off.
+    assert wizard._analytics.isChecked() is True
+    assert wizard._include_email.isChecked() is False
+
+
+def test_settings_page_shows_analytics_defaults(qtbot, app_context):
+    """The Settings page agrees with the core about the analytics defaults."""
+    from starbash.ui.qt.pages.settings import SettingsPage
+
+    page = SettingsPage(app_context)
+    qtbot.addWidget(page)
+    page.refresh()
+
+    assert page._analytics.isChecked() is True
+    assert page._include_email.isChecked() is False

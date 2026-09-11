@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from starbash.analytics import analytics_enabled, analytics_include_user
 from starbash.app import Starbash
 from starbash.paths import get_user_documents_dir
 
@@ -44,9 +45,9 @@ class SetupWizard(QDialog):
         self._name = QLineEdit(str(repo.get("user.name", "") or ""))
         self._email = QLineEdit(str(repo.get("user.email", "") or ""))
         self._analytics = QCheckBox("Send anonymous crash reports and usage data")
-        self._analytics.setChecked(bool(repo.get("analytics.enabled", False)))
+        self._analytics.setChecked(analytics_enabled(repo))
         self._include_email = QCheckBox("Include my email with crash reports")
-        self._include_email.setChecked(bool(repo.get("analytics.include_user", False)))
+        self._include_email.setChecked(analytics_include_user(repo))
 
         form = QFormLayout()
         form.addRow("Name", self._name)

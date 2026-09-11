@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from starbash.analytics import analytics_enabled, analytics_include_user
 from starbash.paths import get_user_config_path, get_user_data_dir, get_user_documents_dir
 from starbash.ui.qt.pages.base import Page
 
@@ -66,8 +67,8 @@ class SettingsPage(Page):
         repo = self.sb.user_repo
         self._name.setText(str(repo.get("user.name", "") or ""))
         self._email.setText(str(repo.get("user.email", "") or ""))
-        self._analytics.setChecked(bool(repo.get("analytics.enabled", False)))
-        self._include_email.setChecked(bool(repo.get("analytics.include_user", False)))
+        self._analytics.setChecked(analytics_enabled(repo))
+        self._include_email.setChecked(analytics_include_user(repo))
 
     def _on_save(self) -> None:
         repo = self.sb.user_repo

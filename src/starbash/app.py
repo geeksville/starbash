@@ -24,7 +24,9 @@ from starbash.aliases import (
 )
 from starbash.analytics import (
     NopAnalytics,
+    analytics_enabled,
     analytics_exception,
+    analytics_include_user,
     analytics_setup,
     analytics_shutdown,
     analytics_start_transaction,
@@ -251,8 +253,8 @@ class Starbash:
 
     def _init_analytics(self, cmd: str) -> None:
         self.analytics = NopAnalytics()
-        if self.user_repo.get("analytics.enabled", True):
-            include_user = self.user_repo.get("analytics.include_user", False)
+        if analytics_enabled(self.user_repo):
+            include_user = analytics_include_user(self.user_repo)
             user_email = self.user_repo.get("user.email", None) if include_user else None
             if user_email is not None:
                 user_email = str(user_email)

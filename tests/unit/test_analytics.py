@@ -6,9 +6,13 @@ from unittest.mock import MagicMock, Mock, call, patch
 import pytest
 
 from starbash.analytics import (
+    DEFAULT_ANALYTICS_ENABLED,
+    DEFAULT_ANALYTICS_INCLUDE_USER,
     NopAnalytics,
     analytics_allowed,
+    analytics_enabled,
     analytics_exception,
+    analytics_include_user,
     analytics_setup,
     analytics_shutdown,
     analytics_start_span,
@@ -398,3 +402,40 @@ class TestAnalyticsIntegration:
 
         # Shutdown shouldn't raise
         analytics_shutdown()
+
+
+class _FakeRepo:
+    """Minimal stand-in for the user preferences repo."""
+
+    def __init__(self, values: dict[str, object] | None = None) -> None:
+        self.values = values or {}
+
+    def get(self, key: str, default: object = None) -> object:
+        return self.values.get(key, default)
+
+
+class TestAnalyticsPreferenceDefaults:
+    """The canonical analytics defaults are shared by every front end.
+
+    These mirror the comments in ``templates/userconfig.toml``: analytics is on
+    by default and the user's email is *not* attached unless they opt in.
+    """
+
+    def test_documented_default_values(self):
+        assert DEFAULT_ANALYTICS_ENABLED is True
+        assert DEFAULT_ANALYTICS_INCLUDE_USER is False
+
+    def test_unset_preference_uses_defaults(self):
+        repo = _FakeRepo()
+        assert analytics_enabled(repo) is True
+        assert analytics_include_user(repo) is False
+
+    def test_explicit_preferences_win(self):
+        repo = _FakeRepo({"analytics.enabled": False, "analytics.include_user": True})
+        assert analytics_enabled(repo) is False
+        assert analytics_include_user(repo) is True
+
+    def test_helpers_coerce_to_bool(self):
+        repo = _FakeRepo({"analytics.enabled": 0, "analytics.include_user": 1})
+        assert analytics_enabled(repo) is False
+        assert analytics_include_user(repo) is True
