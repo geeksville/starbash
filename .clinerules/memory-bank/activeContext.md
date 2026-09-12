@@ -183,6 +183,29 @@ Open tabs / files being touched suggest active work in:
 - `doc/design/report.md` — the end-to-end design covering target report metadata (R1), Jekyll publishing (R2), and per-frame registration TOML stages (R3).
 
 ## Recent changes
+- **Fixed the `sessions.telescop` collation typo** (`src/starbash/database.py`): the
+  column was declared `telescop TEXT COLLATENOCASE NOT NULL` — the missing space made
+  SQLite treat `COLLATENOCASE` as part of the *type name*, so no `NOCASE` collation was
+  applied and telescope matching was case-*sensitive* (unlike its `filter`/`imagetyp`
+  neighbours, which are `COLLATE NOCASE`).  Now `telescop TEXT COLLATE NOCASE NOT NULL`.
+  This only affects **newly created** databases: `CREATE TABLE IF NOT EXISTS` never
+  alters an existing table and the project has no migration framework (`just reinit`
+  rebuilds the DB).  Regression test:
+  `tests/unit/test_database.py::test_session_telescop_matches_case_insensitively`
+  (fails with the typo, passes with `COLLATE NOCASE`).
+- **Fixed the latent `sessions.telescop` crash** (`src/starbash/app.py`): the
+  `sessions` table declares `telescop TEXT COLLATENOCASE NOT NULL`, but
+  `_add_session` only set the key when the FITS header carried `TELESCOP`.  A frame
+  without it (legitimate - `_extend_image_header` even falls back to `CREATOR`) made
+  `upsert_session` insert NULL and abort the **entire repo scan** with
+  `sqlite3.IntegrityError`.  `_add_session` now always supplies a telescope, using
+  `""` ("unknown") as the default; `get_session` already treats an empty telescope as
+  "match any", so such frames still join the same rig's existing session when one
+  exists and only create an empty-telescope session on their own.  This removed the
+  `TELESCOP = "Test"` workarounds the earlier test-repair pass had added to the
+  `test_app.py` fixtures, and a new regression test
+  (`test_reindex_repo_handles_frames_without_telescop`) fails without the fix.  A
+  follow-up then repaired the column's misspelled collation (see the entry above).
 - **Type checking now covers the tests — and it immediately paid off**
   (`pyproject.toml`, `justfile`): `[tool.basedpyright] include` is now
   `["src", "tests"]` and `_typecheck` runs bare `basedpyright`.  Fixing the ~390
@@ -299,3 +322,4 @@ Open tabs / files being touched suggest active work in:
 - `toml_repo` is an external/git-submodule package (`toml-repo/`); repo config suffix is `starbash.toml` (set in `starbash/__init__.py`).
 - Recipes are versioned remote repos fetched from `https://raw.githubusercontent.com/geeksville/starbash-recipes/v${version}` with a local `starbash-recipes/` git submodule fallback during development.
 - Session ↔ frame relation is NOT stored explicitly in the DB; frame lookup reconstructs from session criteria (date range, target, filter, telescope, imagetyp).
+- **`sessions.telescop` is `NOT NULL`** while `filter`/`object` are nullable, so `_add_session` must always write a value (it uses `""` for "unknown").  `get_session()` only filters on a column when the candidate value is *truthy*, so an empty telescope means "match any" — that is what makes TELESCOP-less frames merge into the same rig's session instead of being split off.

@@ -492,8 +492,7 @@ class TestAddSession:
                 Database.ID_KEY: 1,
                 Database.DATE_OBS_KEY: "2023-10-15T20:30:00",
                 Database.IMAGETYP_KEY: "Light",
-                # TELESCOP is NOT NULL in the schema; the rest are optional
-                Database.TELESCOP_KEY: "Test",
+                # Missing FILTER, OBJECT, TELESCOP, EXPTIME - all optional here
             }
             app._add_session(header)
 
@@ -501,6 +500,9 @@ class TestAddSession:
             assert sessions
             assert len(sessions) == 1
             assert sessions[0][get_column_name(Database.EXPTIME_TOTAL_KEY)] == 0
+            # A frame with no TELESCOP header is stored with an unknown (empty)
+            # telescope rather than failing the NOT NULL constraint.
+            assert sessions[0][get_column_name(Database.TELESCOP_KEY)] == ""
 
 
 class TestSearchSession:
@@ -726,7 +728,6 @@ class TestReindexRepo:
             hdu.header["IMAGETYP"] = "Light"
             hdu.header["FILTER"] = "Ha"
             hdu.header["OBJECT"] = "M31"
-            hdu.header["TELESCOP"] = "Test"
             astropy_fits.HDUList([hdu]).writeto(fits_file, overwrite=True)
 
             repo = app.repo_manager.add_repo(f"file://{test_repo}")
@@ -738,6 +739,38 @@ class TestReindexRepo:
             image = app.db.get_image(f"file://{test_repo}", "test.fit")
             assert image is not None
             assert image["FILTER"] == "Ha"
+
+    def test_reindex_repo_handles_frames_without_telescop(
+        self, setup_test_environment, mock_analytics
+    ):
+        """A frame with no TELESCOP header is indexed, not fatal (regression).
+
+        The sessions table declares ``telescop`` NOT NULL, so a header lacking
+        TELESCOP used to abort the whole repo scan with ``sqlite3.IntegrityError``.
+        """
+        with Starbash() as app:
+            test_repo = setup_test_environment["tmp_path"] / "test_repo"
+            test_repo.mkdir()
+            (test_repo / "starbash.toml").write_text("[repo]\nkind = 'images'\n")
+
+            fits_file = test_repo / "notelescope.fit"
+            from astropy.io import fits as astropy_fits
+
+            hdu = astropy_fits.PrimaryHDU()
+            hdu.header["DATE-OBS"] = "2023-10-15T20:30:00"
+            hdu.header["IMAGETYP"] = "Light"
+            hdu.header["FILTER"] = "Ha"
+            astropy_fits.HDUList([hdu]).writeto(fits_file, overwrite=True)
+
+            repo = app.repo_manager.add_repo(f"file://{test_repo}")
+
+            app.reindex_repo(repo)  # used to raise sqlite3.IntegrityError
+
+            assert app.db.get_image(f"file://{test_repo}", "notelescope.fit") is not None
+            sessions = app.db.search_session()
+            assert len(sessions) == 1
+            # An unknown telescope is recorded as "" rather than aborting the scan.
+            assert sessions[0][get_column_name(Database.TELESCOP_KEY)] == ""
 
     def test_reindex_repo_skips_sbignore_paths(
         self, setup_test_environment, mock_analytics, caplog
@@ -754,7 +787,6 @@ class TestReindexRepo:
                 hdu = astropy_fits.PrimaryHDU()
                 hdu.header["DATE-OBS"] = "2023-10-15T20:30:00"
                 hdu.header["IMAGETYP"] = "Light"
-                hdu.header["TELESCOP"] = "Test"
                 astropy_fits.HDUList([hdu]).writeto(path)
 
             included_file = test_repo / "included.fit"
@@ -787,7 +819,6 @@ class TestReindexRepo:
             hdu.header["DATE-OBS"] = "2023-10-15T20:30:00"
             hdu.header["IMAGETYP"] = "Light"
             hdu.header["FILTER"] = "Ha"
-            hdu.header["TELESCOP"] = "Test"
             astropy_fits.HDUList([hdu]).writeto(fits_file, overwrite=True)
 
             repo = app.repo_manager.add_repo(f"file://{test_repo}")

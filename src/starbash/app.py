@@ -379,9 +379,14 @@ class Starbash:
             if filter:
                 new[get_column_name(Database.FILTER_KEY)] = filter
 
-            telescop = header.get(Database.TELESCOP_KEY)
-            if telescop:
-                new[get_column_name(Database.TELESCOP_KEY)] = telescop
+            # The sessions table declares `telescop` NOT NULL, but a frame without a
+            # TELESCOP header is legitimate - `_extend_image_header` even falls back
+            # to CREATOR for such files.  Store "" ("unknown") rather than omitting
+            # the key: omitting it made upsert_session insert NULL and abort the whole
+            # repo scan with an IntegrityError.  `get_session` treats an empty
+            # telescope as "match any", so these frames still join the same rig's
+            # existing session when there is one.
+            new[get_column_name(Database.TELESCOP_KEY)] = header.get(Database.TELESCOP_KEY) or ""
 
             obj = header.get(Database.OBJECT_KEY)
             if obj:

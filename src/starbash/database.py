@@ -223,7 +223,7 @@ class Database:
                 filter TEXT COLLATE NOCASE,
                 imagetyp TEXT COLLATE NOCASE NOT NULL,
                 object TEXT,
-                telescop TEXT COLLATENOCASE NOT NULL,
+                telescop TEXT COLLATE NOCASE NOT NULL,
                 num_images INTEGER NOT NULL,
                 exptime_total REAL NOT NULL,
                 exptime REAL NOT NULL,

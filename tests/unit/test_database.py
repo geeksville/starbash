@@ -256,3 +256,38 @@ def test_remove_repo_with_multiple_sessions(tmp_path: Path):
         assert db.len_table(Database.REPOS_TABLE) == 0
         assert db.len_table(Database.IMAGES_TABLE) == 0
         assert db.len_table(Database.SESSIONS_TABLE) == 0
+
+
+def test_session_telescop_matches_case_insensitively(tmp_path: Path):
+    """``telescop`` uses a NOCASE collation.
+
+    Regression: the column was declared ``COLLATENOCASE`` (no space), which SQLite
+    silently accepts as part of the type name - so telescope matching was
+    case-sensitive while its ``filter``/``imagetyp`` neighbours were not.
+    """
+    with Database(base_dir=tmp_path) as db:
+        db.upsert_session(
+            {
+                get_column_name(Database.START_KEY): "2025-01-01T20:00:00",
+                get_column_name(Database.END_KEY): "2025-01-01T21:00:00",
+                get_column_name(Database.FILTER_KEY): "Ha",
+                get_column_name(Database.IMAGETYP_KEY): "Light Frame",
+                get_column_name(Database.OBJECT_KEY): "M42",
+                get_column_name(Database.TELESCOP_KEY): "RigOne",
+                get_column_name(Database.NUM_IMAGES_KEY): 1,
+                get_column_name(Database.EXPTIME_TOTAL_KEY): 120.0,
+                get_column_name(Database.EXPTIME_KEY): 120.0,
+                get_column_name(Database.IMAGE_DOC_KEY): None,
+            }
+        )
+
+        # The same telescope in a different case must still match.
+        found = db.get_session(
+            {
+                get_column_name(Database.START_KEY): "2025-01-01T20:00:00",
+                get_column_name(Database.IMAGETYP_KEY): "Light Frame",
+                get_column_name(Database.TELESCOP_KEY): "rigone",
+            }
+        )
+        assert found is not None
+        assert found[get_column_name(Database.TELESCOP_KEY)] == "RigOne"
