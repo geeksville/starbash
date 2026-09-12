@@ -845,17 +845,12 @@ def test_run_tree_starts_with_an_even_column_split(qtbot):
 
 def test_processing_page_marks_links_and_opens_them(qtbot, app_context, bus, monkeypatch):
     """Stage/output cells are underlined links that open with the OS handler."""
-    from types import SimpleNamespace
-
-    from starbash.ui.qt.pages import processing as processing_module
+    from starbash.ui.qt.models import LINK_ROLE
     from starbash.ui.qt.pages.processing import ProcessingPage
+    from starbash.ui.qt.widgets import file_links
 
     opened: list[str] = []
-    monkeypatch.setattr(
-        processing_module,
-        "QDesktopServices",
-        SimpleNamespace(openUrl=lambda url: opened.append(url.toString()) or True),
-    )
+    monkeypatch.setattr(file_links, "open_link", lambda url: opened.append(url) or True)
 
     page = ProcessingPage(app_context, bus)
     qtbot.addWidget(page)
@@ -888,12 +883,11 @@ def test_processing_page_marks_links_and_opens_them(qtbot, app_context, bus, mon
     }
     events.publish(events.EVENT_STAGE_RESULT, {"result": None, "run": run})
 
-    role = processing_module._ROLE_URL
     root = page._tasks.topLevelItem(0)
-    assert root.data(1, role) == "file:///out"
+    assert root.data(1, LINK_ROLE) == "file:///out"
 
     stage_item = root.child(0)
-    assert stage_item.data(0, role) == "https://example.com/stack.toml"
+    assert stage_item.data(0, LINK_ROLE) == "https://example.com/stack.toml"
     assert stage_item.font(0).underline() is True
     # A remote recipe cannot be previewed, so its URL stays discoverable.
     assert stage_item.toolTip(0) == "https://example.com/stack.toml"
@@ -905,12 +899,13 @@ def test_processing_page_marks_links_and_opens_them(qtbot, app_context, bus, mon
         if task_item.child(i).text(0).strip() == "Out"
     )
     file_row = out_node.child(0)
-    assert file_row.data(0, role) == "file:///out/stack.fits"
-    assert file_row.data(1, role) == "file:///out/stack.fits"
+    assert file_row.data(0, LINK_ROLE) == "file:///out/stack.fits"
+    assert file_row.data(1, LINK_ROLE) == "file:///out/stack.fits"
     assert file_row.font(0).underline() is True
     assert file_row.font(1).underline() is True
 
-    page._on_item_clicked(file_row, 1)
+    # Clicking the link cell opens it (the decorator listens on view.clicked).
+    page._tasks.clicked.emit(page._tasks.indexFromItem(file_row, 1))
     assert opened == ["file:///out/stack.fits"]
 
 

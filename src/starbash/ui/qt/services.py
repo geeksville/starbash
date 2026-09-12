@@ -30,6 +30,7 @@ from starbash.processed_target import (
     coerce_override,
     stage_declarations,
 )
+from starbash.url import make_file_url
 
 __all__ = [
     "TARGET_CONFIG_NAME",
@@ -140,6 +141,8 @@ def load_targets(sb: Starbash) -> list[dict[str, Any]]:
             {
                 "target": target.name.name,
                 "path": str(target.name),
+                # Lets the target table's Output cell be a clickable link.
+                "path_url": make_file_url(target.name),
             }
         )
     return rows

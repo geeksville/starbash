@@ -23,17 +23,20 @@ links and marks them with that role; :class:`HoverPreview` does the rest.
 from __future__ import annotations
 
 import logging
+import weakref
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QSize, Qt, QTimer, QUrl
+from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QGuiApplication, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
+    QHBoxLayout,
     QLabel,
     QPlainTextEdit,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -45,6 +48,17 @@ from starbash.ui.qt.workers import run_async
 logger = logging.getLogger(__name__)
 
 __all__ = ["PreviewKind", "local_path", "preview_kind", "HoverPreview"]
+
+#: Every live popup, so showing one can close any other (at most one preview).
+_open_popups: weakref.WeakSet[_PreviewPopup] = weakref.WeakSet()
+
+
+def _safe_hide(popup: _PreviewPopup) -> None:
+    """Hide a popup, tolerating one whose underlying Qt object is already gone."""
+    try:
+        popup.hide()
+    except RuntimeError:  # pragma: no cover - the C++ object was destroyed first
+        pass
 
 #: Suffixes we decode as an image (FITS via astropy, the rest via Qt).
 FITS_SUFFIXES = {".fit", ".fits", ".fts"}
@@ -100,6 +114,19 @@ QFrame#PreviewCard {
 QLabel#PreviewTitle {
     color: #cfd8e0;
     font-weight: 600;
+}
+QPushButton#PreviewClose {
+    background: transparent;
+    border: none;
+    color: #8b98a5;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 0px;
+}
+QPushButton#PreviewClose:hover {
+    color: #e6edf3;
+    background-color: #2c353d;
+    border-radius: 4px;
 }
 QLabel#PreviewMessage {
     color: #8b98a5;
@@ -157,19 +184,23 @@ def preview_kind(url: str | None) -> PreviewKind:
 class _PreviewPopup(QFrame):
     """A frameless, shadowed window that renders one file preview.
 
-    It is a top-level ``Qt.ToolTip`` window: it never activates, and it is
-    transparent to mouse events so it can never steal the hover it was shown for.
-    Content is loaded on a worker thread (a FITS frame is far too slow to read on
-    the GUI thread), guarded by a request counter so a stale load is dropped.
+    It is a top-level ``Qt.Tool`` window: interactive (so its scrollbars and its
+    close adornment work) yet non-activating, so hovering a link never steals
+    focus.  It stays open until the user closes it or another preview replaces it
+    (there is at most one).  Content is loaded on a worker thread (a FITS frame is
+    far too slow to read on the GUI thread), guarded by a request counter so a
+    stale load is dropped.
     """
 
+    #: Emitted when the user closes the popup (its close adornment or Escape).
+    closed = Signal()
+
     def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent, Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
+        super().__init__(parent, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setStyleSheet(_POPUP_QSS)
+        _open_popups.add(self)
 
         self._request = 0
         self._target = QSize(MIN_WIDTH, MIN_HEIGHT)
@@ -191,9 +222,21 @@ class _PreviewPopup(QFrame):
         card_layout.setContentsMargins(10, 8, 10, 10)
         card_layout.setSpacing(6)
 
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(4)
         self._title = QLabel()
         self._title.setObjectName("PreviewTitle")
-        card_layout.addWidget(self._title)
+        header.addWidget(self._title, 1)
+
+        self._close = QPushButton("\u2715")  # ✕ - a conventional close adornment
+        self._close.setObjectName("PreviewClose")
+        self._close.setFixedSize(18, 18)
+        self._close.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._close.setToolTip("Close preview")
+        self._close.clicked.connect(self._request_close)
+        header.addWidget(self._close, 0)
+        card_layout.addLayout(header)
 
         self._body = QWidget()
         self._body_layout = QVBoxLayout(self._body)
@@ -204,13 +247,18 @@ class _PreviewPopup(QFrame):
         self._busy = BusyIndicator(self._body, caption="")
 
     # --- public API -------------------------------------------------------
-    def preview(self, url: str, anchor: QRect, parent: QWidget) -> None:
-        """Show a preview of ``url`` beside ``anchor`` (a global rect)."""
+    def preview(self, url: str, anchor: QRect, parent: QWidget) -> bool:
+        """Show a preview of ``url`` beside ``anchor``; return whether it opened."""
         kind = preview_kind(url)
         path = local_path(url)
         if kind is PreviewKind.NONE or path is None:
             self.hide()
-            return
+            return False
+
+        # At most one preview window: close any other before opening this one.
+        for other in list(_open_popups):
+            if other is not self:
+                _safe_hide(other)
 
         self._request += 1
         request = self._request
@@ -228,12 +276,35 @@ class _PreviewPopup(QFrame):
             self._load_text(path, request)
         else:
             self._load_image(path, request)
+        return True
 
     def hide(self) -> None:  # noqa: D401 - Qt API
         """Hide the popup and abandon any load still in flight."""
         self._request += 1
         self._busy.stop()
         super().hide()
+
+    def close_for_user(self) -> None:
+        """Close the popup exactly as its close adornment does."""
+        self._request_close()
+
+    def _request_close(self) -> None:
+        """User-initiated close: hide and tell the engine it was dismissed."""
+        self.hide()
+        self.closed.emit()
+
+    # --- events -----------------------------------------------------------
+    def keyPressEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        """Escape closes the preview."""
+        if getattr(event, "key", None) == Qt.Key.Key_Escape:
+            self._request_close()
+            return
+        super().keyPressEvent(event)  # type: ignore[arg-type]
+
+    def closeEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        """A window-manager close counts as a user close."""
+        self.closed.emit()
+        super().closeEvent(event)  # type: ignore[arg-type]
 
     # --- loading ----------------------------------------------------------
     def _load_text(self, path: Path, request: int) -> None:
@@ -367,8 +438,11 @@ class HoverPreview(QObject):
     """Show a preview popup when the cursor rests on a link in ``view``.
 
     The view marks link cells by storing the target URL under ``url_role``.
-    Hovering such a cell for ``delay_ms`` shows the preview; any other movement,
-    scroll, click or key press dismisses it.
+    Resting on such a cell for ``delay_ms`` shows the preview, which then **stays
+    open** until the user closes it or hovers a *different* link (there is only
+    ever one preview).  Moving the cursor away - or onto the preview's own
+    scrollbars - leaves it alone; clicking or scrolling the view, or the view
+    going away, closes it.
     """
 
     def __init__(
@@ -383,11 +457,17 @@ class HoverPreview(QObject):
         super().__init__(parent or view)
         self._view = view
         self._url_role = url_role
-        self._url: str | None = None
-        self._index: Any = None
+        #: Link under the cursor, awaiting the delay (and the index it is on).
+        self._pending_url: str | None = None
+        self._pending_index: Any = None
+        #: Link currently shown in the popup, if any.
+        self._shown_url: str | None = None
+        #: A link the user closed, which must not reopen until they leave it.
+        self._suppressed_url: str | None = None
 
         window = view.window()
         self._popup = _PreviewPopup(window)
+        self._popup.closed.connect(self._on_user_closed)
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(delay_ms)
@@ -398,43 +478,67 @@ class HoverPreview(QObject):
         view.viewport().installEventFilter(self)
 
     def dismiss(self) -> None:
-        """Hide any preview and forget the current hover (idempotent)."""
+        """Close any preview and forget all hover state (idempotent).
+
+        Used programmatically - e.g. right before the view's items are rebuilt -
+        rather than for cursor movement, which deliberately leaves the popup open.
+        """
         self._timer.stop()
-        self._url = None
-        self._index = None
-        self._popup.hide()
+        self._pending_url = None
+        self._pending_index = None
+        self._shown_url = None
+        self._suppressed_url = None
+        _safe_hide(self._popup)
 
     # --- events -----------------------------------------------------------
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt API
-        """Track hover movement and dismiss on anything else."""
+        """Track hover movement; close on a click/scroll or when the view goes away.
+
+        Deliberately *not* on leaving the viewport or on focus changes: the popup is
+        interactive, so the user may move onto its scrollbars (which focuses it)
+        without losing it.
+        """
         kind = event.type()
         if kind == QEvent.Type.MouseMove:
             self._on_mouse_move(event.position().toPoint())  # type: ignore[attr-defined]
         elif kind in (
-            QEvent.Type.Leave,
+            QEvent.Type.MouseButtonPress,
             QEvent.Type.Wheel,
             QEvent.Type.Scroll,
-            QEvent.Type.MouseButtonPress,
             QEvent.Type.KeyPress,
             QEvent.Type.Hide,
-            QEvent.Type.FocusOut,
+            QEvent.Type.HideToParent,
         ):
             self.dismiss()
         return False
 
     def _on_mouse_move(self, pos: QPoint) -> None:
-        """Start (or restart) the delay once the cursor rests on a link."""
+        """Start (or restart) the delay once the cursor rests on a new link."""
         index = self._view.indexAt(pos)
         url = self._url_at(index)
-        if url == self._url and self._popup.isVisible():
-            return  # already previewing this link
+        self._set_link_cursor(bool(url))
+
         if url is None:
-            self.dismiss()
+            # Moved off any link: cancel a pending preview but keep an open one -
+            # the user may be on their way to its scrollbars.
+            self._suppressed_url = None
+            self._pending_url = None
+            self._pending_index = None
+            self._timer.stop()
             return
+
+        if url == self._shown_url and self._popup.isVisible():
+            return  # already previewing this link; leave it alone
+
+        if url == self._suppressed_url:
+            return  # the user closed this one; don't reopen until they leave it
+
+        if url == self._pending_url:
+            return  # already waiting on this link
+
         self._timer.stop()
-        self._popup.hide()
-        self._url = url
-        self._index = index
+        self._pending_url = url
+        self._pending_index = index
         self._timer.start()
 
     def _url_at(self, index: Any) -> str | None:
@@ -444,14 +548,37 @@ class HoverPreview(QObject):
         value = index.data(self._url_role)
         return str(value) if value else None
 
+    def _set_link_cursor(self, on_link: bool) -> None:
+        """Show the pointing-hand cursor while over a link."""
+        shape = Qt.CursorShape.PointingHandCursor if on_link else Qt.CursorShape.ArrowCursor
+        viewport = self._view.viewport()
+        if viewport.cursor().shape() != shape:
+            viewport.setCursor(shape)
+
+    def _on_user_closed(self) -> None:
+        """The user closed the popup: don't reopen while still on that link."""
+        self._timer.stop()
+        self._suppressed_url = self._shown_url
+        self._shown_url = None
+        self._pending_url = None
+        self._pending_index = None
+
     def _show_preview(self) -> None:
         """Pop the preview beside the hovered cell (delayed)."""
-        if self._url is None or self._index is None:
+        if self._pending_url is None or self._pending_index is None:
             return
-        rect = self._view.visualRect(self._index)
+        url = self._pending_url
+        index = self._pending_index
+        self._pending_url = None
+        self._pending_index = None
+
+        rect = self._view.visualRect(index)
         if not rect.isValid() or rect.isEmpty():
-            self.dismiss()
             return
         anchor = QRect(self._view.viewport().mapToGlobal(rect.topLeft()), rect.size())
-        self._popup.preview(self._url, anchor, self._view)
+        if self._popup.preview(url, anchor, self._view):
+            self._suppressed_url = None
+            self._shown_url = url
+        else:
+            self._shown_url = None
 

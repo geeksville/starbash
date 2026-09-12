@@ -183,17 +183,40 @@ Open tabs / files being touched suggest active work in:
 - `doc/design/report.md` — the end-to-end design covering target report metadata (R1), Jekyll publishing (R2), and per-frame registration TOML stages (R3).
 
 ## Recent changes
+- **Hover previews stay open + Targets links** (`ui/qt/widgets/hover_preview.py`,
+  new `ui/qt/widgets/file_links.py`, `ui/qt/pages/targets.py`, `ui/qt/models.py`,
+  `ui/qt/services.py`, `processed_target.py`): the preview is now an interactive
+  `Qt.Tool` window with its own **close adornment** (✕, plus Escape).  It **stays
+  open** when the cursor leaves the link (so the popup's scrollbars are usable) -
+  moving away only cancels a *pending* preview; a click/scroll in the view closes
+  it, and it never reopens for a link the user just closed until the cursor leaves
+  it.  **At most one** preview exists (a module-level `WeakSet` hides others, and
+  `_safe_hide` tolerates already-destroyed windows).  Opening a file with no
+  handler (`No applications found for mimetype`) now **falls back to the
+  containing folder** in the file manager.
+  Link handling moved into the shared `file_links.py` (`LINK_ROLE`, `set_link`,
+  `open_link`, `LinkDecorator`), backed by `models.LINK_ROLE`/`Column.link_key`.
+  `LinkDecorator(open_on=...)` picks the signal that opens a link: `"clicked"`
+  (Processing) or `"activated"` (double-click/Enter).  The **Targets page** uses
+  it: each `Stage / option` cell links to the recipe that declares it (via the new
+  `StageOption.recipe_url`), so hovering previews the recipe and activating the row
+  opens it - a plain click still just selects/toggles, so it never fights the stage
+  checkbox or the option editor.  The target list's `Output` cell links to the
+  folder and the path label is a clickable anchor.  Tests:
+  `tests/unit/test_file_links.py` (8) + expanded
+  `test_hover_preview.py`/`test_targets_page.py`.
+
 - **Processing page: clickable links + hover previews** (`ui/qt/pages/processing.py`,
   new `ui/qt/widgets/hover_preview.py`): link cells (a stage's recipe, a task's
   output files, the target output) are underlined; clicking one opens it with the
   desktop default app (`QDesktopServices.openUrl`, external process) and resting
-  the cursor on a *local* file pops up a frameless, shadowed, mouse-transparent
-  `Qt.ToolTip`-style preview (~25% of the owning window, placed beside — never
-  over — the hovered cell). Text, FITS and raster are rendered; decoding runs off
-  the GUI thread (`run_async` + `BusyIndicator`) and reuses
-  `image_viewer.load_image_file`. HTTP(S) links keep a native tooltip instead.
-  The run tree also splits its columns ~50/50 on first show (`_RunTree`).
-  Tests: `tests/unit/test_hover_preview.py` (9) + 2 new `test_gui.py` cases.
+  the cursor on a *local* file pops up a frameless, shadowed preview (~25% of the
+  owning window, placed beside — never over — the hovered cell). Text, FITS and
+  raster are rendered; decoding runs off the GUI thread (`run_async` +
+  `BusyIndicator`) and reuses `image_viewer.load_image_file`. HTTP(S) links keep a
+  native tooltip instead. The run tree also splits its columns ~50/50 on first show
+  (`_RunTree`). *Superseded details (mouse-transparent, auto-dismiss) replaced by
+  the entry above.* Tests: `tests/unit/test_hover_preview.py` + `test_gui.py`.
 
 - **Per-task log grouping in the Processing page** (`ui/qt/pages/processing.py`,
   `run_state.py`, `processed_target.py`): tool output is now attributed to the

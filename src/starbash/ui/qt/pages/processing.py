@@ -13,8 +13,8 @@ the cursor on it pops up an in-process preview (see
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer, QUrl
-from PySide6.QtGui import QBrush, QColor, QDesktopServices
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
@@ -30,7 +30,7 @@ from starbash import events
 from starbash.run_state import LOG_TAIL_LINES, RunStatus
 from starbash.ui.qt.jobs import process_job
 from starbash.ui.qt.pages.base import Page
-from starbash.ui.qt.widgets.hover_preview import HoverPreview
+from starbash.ui.qt.widgets.file_links import LinkDecorator, set_link
 
 __all__ = ["ProcessingPage"]
 
@@ -58,9 +58,6 @@ _KIND_STAGE = "stage"
 _KIND_TASK = "task"
 _KIND_LOG = "log"
 _KIND_OUT = "out"
-
-#: Item-data role holding the URL a link cell opens / previews.
-_ROLE_URL = Qt.ItemDataRole.UserRole + 2
 
 
 class _RunTree(QTreeWidget):
@@ -142,11 +139,10 @@ class ProcessingPage(Page):
         self._tasks = _RunTree()
         self._tasks.setHeaderLabels(["Target / stage / task", "Status / details"])
         self._tasks.setAlternatingRowColors(True)
-        self._tasks.itemClicked.connect(self._on_item_clicked)
         layout.addWidget(self._tasks, 1)
 
-        #: Resting the cursor on a link cell shows a small in-process preview.
-        self._preview = HoverPreview(self._tasks, url_role=_ROLE_URL, parent=self)
+        #: Link cells open with the OS handler and preview in-process on hover.
+        self._links = LinkDecorator(self._tasks, parent=self, on_status=self.status.emit)
 
         if self.bus is not None:
             self.bus.received.connect(self._on_event)  # type: ignore[attr-defined]
@@ -156,7 +152,7 @@ class ProcessingPage(Page):
         self._tasks.clear()
         self._targets.clear()
         self._running = None
-        self._preview.dismiss()
+        self._links.dismiss()
         self._progress.setRange(0, 0)  # indeterminate until a tool reports a percentage
         self._caption.setText("Starting…")
 
@@ -241,14 +237,14 @@ class ProcessingPage(Page):
         if not isinstance(run, dict):
             return
         # The items are about to be replaced, so any preview is now stale.
-        self._preview.dismiss()
+        self._links.dismiss()
         target = str(run.get("target") or "masters")
         root = self._ensure_target(target)
         root.takeChildren()
 
         if run.get("output_url"):
             root.setText(1, "output →")
-            self._make_link(root, 1, run.get("output_url"))
+            set_link(root, 1, run.get("output_url"))
 
         for stage in run.get("stages", []):
             if not isinstance(stage, dict):
@@ -259,9 +255,7 @@ class ProcessingPage(Page):
             stage_item.setData(0, _ROLE_NAME, str(stage.get("name") or ""))
             self._apply_status(stage_item, status)
             # A stage links to the recipe (or target config) that defines it.
-            self._make_link(
-                stage_item, 0, stage.get("recipe_url") or stage.get("config_url")
-            )
+            set_link(stage_item, 0, stage.get("recipe_url") or stage.get("config_url"))
             root.addChild(stage_item)
             # Keep stages open so their tasks (and each task's Log/Out) are visible.
             stage_item.setExpanded(True)
@@ -334,40 +328,13 @@ class ProcessingPage(Page):
 
     # --- links ------------------------------------------------------------
     @staticmethod
-    def _make_link(item: QTreeWidgetItem, column: int, url: object) -> None:
-        """Mark a cell as a link: underlined, clickable and hover-previewable.
-
-        A URL we cannot preview locally (e.g. an ``https://`` recipe) also gets a
-        native tooltip, so its destination is discoverable without clicking.
-        """
-        if not url:
-            return
-        text = str(url)
-        item.setData(column, _ROLE_URL, text)
-        font = item.font(column)
-        font.setUnderline(True)
-        item.setFont(column, font)
-        if QUrl(text).scheme() in ("http", "https"):
-            item.setToolTip(column, text)
-
-    @classmethod
-    def _file_row(cls, ref: dict) -> QTreeWidgetItem:
+    def _file_row(ref: dict) -> QTreeWidgetItem:
         """A linkable row (label + URL) for one output file ref."""
         url = ref.get("url")
         item = QTreeWidgetItem([f"        {ref.get('label', '')}", str(url or "")])
-        cls._make_link(item, 0, url)
-        cls._make_link(item, 1, url)
+        set_link(item, 0, url)
+        set_link(item, 1, url)
         return item
-
-    def _on_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
-        """Open a linked cell with the desktop's default application."""
-        url = item.data(column, _ROLE_URL)
-        if not url:
-            return
-        if QDesktopServices.openUrl(QUrl(str(url))):
-            self.status.emit(f"Opened {url}")
-        else:
-            self.status.emit(f"Could not open {url}")
 
     def _stage_item(self, target: str, stage: str) -> QTreeWidgetItem | None:
         """Find a stage row under a target (used for live log attribution)."""

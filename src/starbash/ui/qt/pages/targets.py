@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import copy
 from enum import StrEnum
+from html import escape
+from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt
@@ -47,6 +49,9 @@ from starbash.ui.qt.services import (
     preferred_target,
     save_stage_options,
 )
+from starbash.ui.qt.theme import ACCENT
+from starbash.ui.qt.widgets.file_links import LinkDecorator, open_with_status, set_link
+from starbash.url import make_file_url
 
 __all__ = ["TargetsPage", "UnsavedChoice"]
 
@@ -101,6 +106,8 @@ class TargetsPage(Page):
         self._model = DictTableModel(TARGET_COLUMNS)
         self._table = self.make_table(self._model)
         self._table.selectionModel().selectionChanged.connect(self._on_target_selected)
+        #: The Output column is a link to the target's output folder.
+        self._table_links = LinkDecorator(self._table, parent=self, on_status=self.status.emit)
 
         right = QWidget()
         self._right = right
@@ -111,6 +118,9 @@ class TargetsPage(Page):
 
         hint = QLabel("Stages — ticked = active. Expand a stage to edit its options.")
         hint.setObjectName("PageSubtitle")
+        # Wrap so a long hint can't dictate a wide minimum for this column (which
+        # would push the splitter off the target list's 66/34 default).
+        hint.setWordWrap(True)
         right_layout.addWidget(hint)
 
         self._tree = QTreeWidget()
@@ -120,6 +130,13 @@ class TargetsPage(Page):
         self._tree.itemChanged.connect(self._on_item_changed)
         self._tree.itemSelectionChanged.connect(self._on_tree_selection_changed)
         right_layout.addWidget(self._tree, 1)
+
+        #: A Stage/option cell previews its recipe on hover and opens it when the row
+        #: is *activated* (double-click / Enter) - a plain click still selects, so it
+        #: never fights the stage checkbox or the option editor.
+        self._links = LinkDecorator(
+            self._tree, parent=self, on_status=self.status.emit, open_on="activated"
+        )
 
         right_layout.addWidget(self._build_editor())
 
@@ -138,7 +155,15 @@ class TargetsPage(Page):
         self._path = QLabel("")
         self._path.setObjectName("PathLabel")
         self._path.setWordWrap(True)
-        self._path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        # A long output path must never dictate the stages column's minimum width:
+        # otherwise the splitter is pushed off its 66/34 default (and the target
+        # list's share shrinks).  Ignored lets the label wrap into whatever width
+        # the layout has, however long the path is.
+        self._path.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self._path.setTextFormat(Qt.TextFormat.RichText)
+        self._path.setOpenExternalLinks(False)
+        self._path.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        self._path.linkActivated.connect(self._on_path_link)
         right_layout.addWidget(self._path)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -210,6 +235,7 @@ class TargetsPage(Page):
     # --- tree -----------------------------------------------------------------
     def _rebuild_tree(self) -> None:
         """Rebuild the whole tree from the working model."""
+        self._links.dismiss()
         self._guard = True
         try:
             self._tree.clear()
@@ -223,6 +249,10 @@ class TargetsPage(Page):
                 item.setCheckState(
                     0, Qt.CheckState.Unchecked if stage.excluded else Qt.CheckState.Checked
                 )
+                # The Stage/option cell links to the recipe that declares the stage:
+                # hovering previews it, activating opens it.  Set the link first so
+                # the stage's description keeps the tooltip slot.
+                set_link(item, 0, stage.recipe_url)
                 if stage.description:
                     item.setToolTip(0, stage.description)
                 self._tree.addTopLevelItem(item)
@@ -230,6 +260,8 @@ class TargetsPage(Page):
 
                 for parameter in stage.parameters:
                     child = QTreeWidgetItem([parameter.name, self._value_text(parameter)])
+                    # An option is declared by the same recipe as its stage.
+                    set_link(child, 0, stage.recipe_url)
                     if parameter.description:
                         child.setToolTip(0, parameter.description)
                         child.setToolTip(1, parameter.description)
@@ -591,5 +623,18 @@ class TargetsPage(Page):
         self._current = copy.deepcopy(stages)
         self._rebuild_tree()
         self._mark_dirty()
-        self._path.setText(path)
+        self._path.setText(self._path_link(path))
         self.status.emit(f"{len(stages)} stage(s) for {target}.")
+
+    @staticmethod
+    def _path_link(path: str) -> str:
+        """Rich text for a target's output directory, as a clickable link."""
+        url = make_file_url(Path(str(path)))
+        return (
+            f'<a href="{escape(url)}" style="color:{ACCENT}; '
+            f'text-decoration:none;">{escape(str(path))}</a>'
+        )
+
+    def _on_path_link(self, url: str) -> None:
+        """Open the target's output directory with the file manager."""
+        open_with_status(url, self.status.emit)

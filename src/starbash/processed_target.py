@@ -78,6 +78,8 @@ class StageOption:
     description: str | None
     excluded: bool
     parameters: list[ParameterOption]
+    #: URL (``https://`` or ``file://``) of the recipe that declares this stage.
+    recipe_url: str | None = None
 
 
 def _comment_of(table: Any, key: str) -> str | None:
@@ -152,9 +154,15 @@ def stage_declarations(recipes: Any) -> dict[str, dict[str, Any]]:
             name = stage.get("name")
             if not name:
                 continue
-            entry = declarations.setdefault(str(name), {"description": None, "parameters": {}})
+            entry = declarations.setdefault(
+                str(name), {"description": None, "parameters": {}, "recipe_url": None}
+            )
             if stage.get("description"):
                 entry["description"] = stage.get("description")
+            source = getattr(stage, "source", None)
+            recipe_url = getattr(source, "url", None) if source is not None else None
+            if recipe_url:
+                entry["recipe_url"] = str(recipe_url)
             for param in stage.get("parameters") or []:
                 param_name = param.get("name")
                 if not param_name:
@@ -823,6 +831,7 @@ class ProcessedTarget:
                     description=declared.get("description") or _comment_of(entry, "name"),
                     excluded=bool(entry.get("excluded", False)),
                     parameters=parameters,
+                    recipe_url=declared.get("recipe_url"),
                 )
             )
         return stages

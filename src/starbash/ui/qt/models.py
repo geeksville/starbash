@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, QPersistentModelIndex, Qt
+from PySide6.QtGui import QFont
 
 from starbash.database import Database
 
@@ -22,10 +23,17 @@ __all__ = [
     "format_minutes",
     "plain_row",
     "plain_rows",
+    "LINK_ROLE",
 ]
 
 #: Qt passes either type to model methods, so overrides must accept both.
 ModelIndex = QModelIndex | QPersistentModelIndex
+
+#: Item-data role under which a link cell exposes its target URL.
+#:
+#: Shared by table models, tree pages and the hover-preview / click handlers in
+#: :mod:`starbash.ui.qt.widgets.file_links` so every part agrees on one role.
+LINK_ROLE = Qt.ItemDataRole.UserRole + 100
 
 
 def plain_row(row: Any) -> dict[str, Any]:
@@ -71,6 +79,9 @@ class Column:
     width: int = 120
     align_right: bool = False
     fmt: Callable[[Any], str] | None = None
+    #: When set, the row value under this key is a URL that makes the cell a link
+    #: (underlined, clickable and hover-previewable) - see ``LINK_ROLE``.
+    link_key: str | None = None
 
     def render(self, row: Mapping[str, Any]) -> str:
         """Format ``row``'s value for this column as display text."""
@@ -130,6 +141,15 @@ class DictTableModel(QAbstractTableModel):
 
         if role == Qt.ItemDataRole.DisplayRole:
             return column.render(row)
+
+        if role == LINK_ROLE:
+            return row.get(column.link_key) if column.link_key else None
+
+        if role == Qt.ItemDataRole.FontRole and column.link_key and row.get(column.link_key):
+            # A link cell is underlined, so it looks clickable.
+            font = QFont()
+            font.setUnderline(True)
+            return font
 
         if role == Qt.ItemDataRole.TextAlignmentRole and column.align_right:
             return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -197,7 +217,8 @@ REPO_COLUMNS = [
 
 TARGET_COLUMNS = [
     Column("Target", "target", 160),
-    Column("Output", "path", 460),
+    # The output directory is a link: click it to open it in the file manager.
+    Column("Output", "path", 460, link_key="path_url"),
 ]
 
 MASTER_COLUMNS = [

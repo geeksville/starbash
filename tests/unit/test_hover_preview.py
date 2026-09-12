@@ -204,31 +204,147 @@ def test_popup_reports_an_unreadable_file(qtbot, tmp_path, monkeypatch):
     )
 
 
+# --- popup close / single window -------------------------------------------
+
+
+def test_popup_close_adornment_hides_and_signals(qtbot, tmp_path):
+    """The close button hides the popup and reports a user close."""
+    path = _text_file(tmp_path)
+    parent = _parent(qtbot)
+    popup = hp._PreviewPopup()  # unparented so qtbot can own its teardown
+    qtbot.addWidget(popup)
+    closed: list[int] = []
+    popup.closed.connect(lambda: closed.append(1))
+
+    popup.preview(path.as_uri(), QRect(100, 100, 200, 20), parent)
+    qtbot.waitUntil(lambda: isinstance(popup._content, QPlainTextEdit), timeout=5000)
+    assert popup.isVisible()
+
+    popup._close.click()
+
+    assert not popup.isVisible()
+    assert closed == [1]
+
+
+def test_opening_a_preview_closes_any_other(qtbot, tmp_path):
+    """At most one preview window is ever visible."""
+    path = _text_file(tmp_path)
+    parent = _parent(qtbot)
+    first = hp._PreviewPopup()
+    qtbot.addWidget(first)
+    second = hp._PreviewPopup()
+    qtbot.addWidget(second)
+
+    first.preview(path.as_uri(), QRect(100, 100, 200, 20), parent)
+    assert first.isVisible()
+
+    second.preview(path.as_uri(), QRect(100, 100, 200, 20), parent)
+
+    assert second.isVisible()
+    assert not first.isVisible()
+
+
 # --- engine ----------------------------------------------------------------
 
 
-def test_engine_waits_on_a_link_and_dismisses_elsewhere(qtbot):
-    """Hovering a link starts the delay; leaving it dismisses immediately."""
+def _link_tree(qtbot, urls: list[str]) -> QTreeWidget:
+    """A shown two-column tree with one link (column 0) per row."""
     tree = QTreeWidget()
     qtbot.addWidget(tree)
     tree.setColumnCount(2)
-    item = QTreeWidgetItem(["a", "b"])
-    item.setData(0, URL_ROLE, "file:///tmp/whatever.txt")
-    tree.addTopLevelItem(item)
+    for index, url in enumerate(urls):
+        item = QTreeWidgetItem([f"item {index}", "detail"])
+        item.setData(0, URL_ROLE, url)
+        tree.addTopLevelItem(item)
     tree.resize(400, 200)
     tree.show()
     qtbot.waitExposed(tree)
+    return tree
 
+
+def test_engine_waits_on_a_link_but_keeps_an_open_popup(qtbot, tmp_path):
+    """Moving off a link cancels a *pending* preview but never closes an open one."""
+    first = _text_file(tmp_path, "a.txt")
+    second = _text_file(tmp_path, "b.txt")
+    tree = _link_tree(qtbot, [first.as_uri(), second.as_uri()])
     engine = hp.HoverPreview(tree, url_role=URL_ROLE, parent=tree)
 
+    item = tree.topLevelItem(0)
     on_link = tree.visualRect(tree.indexFromItem(item, 0)).center()
     engine._on_mouse_move(on_link)
-    assert engine._url == "file:///tmp/whatever.txt"
+    assert engine._pending_url == first.as_uri()
     assert engine._timer.isActive()
 
-    # Column 1 carries no URL, so hovering it dismisses the pending preview.
+    # Leaning off the link (before the delay) cancels the pending preview.
     off_link = tree.visualRect(tree.indexFromItem(item, 1)).center()
     engine._on_mouse_move(off_link)
-    assert engine._url is None
+    assert engine._pending_url is None
     assert not engine._timer.isActive()
+
+    # Now open it for real, then move off: it must stay open for the scrollbars.
+    engine._on_mouse_move(on_link)
+    engine._show_preview()
+    assert engine._popup.isVisible()
+    engine._on_mouse_move(off_link)
+    assert engine._popup.isVisible()
+    assert engine._shown_url == first.as_uri()
+
+
+def test_engine_replaces_the_preview_for_a_new_link(qtbot, tmp_path):
+    """Hovering a different link closes the old preview and opens the new one."""
+    first = _text_file(tmp_path, "a.txt")
+    second = _text_file(tmp_path, "b.txt")
+    tree = _link_tree(qtbot, [first.as_uri(), second.as_uri()])
+    engine = hp.HoverPreview(tree, url_role=URL_ROLE, parent=tree)
+
+    engine._on_mouse_move(
+        tree.visualRect(tree.indexFromItem(tree.topLevelItem(0), 0)).center()
+    )
+    engine._show_preview()
+    assert engine._shown_url == first.as_uri()
+
+    engine._on_mouse_move(
+        tree.visualRect(tree.indexFromItem(tree.topLevelItem(1), 0)).center()
+    )
+    assert engine._pending_url == second.as_uri()
+    engine._show_preview()
+
+    assert engine._shown_url == second.as_uri()
+    assert engine._popup.isVisible()
+
+
+def test_engine_does_not_reopen_a_closed_link_until_the_cursor_leaves(qtbot, tmp_path):
+    """After the user closes a preview, jitter on the same link won't reopen it."""
+    path = _text_file(tmp_path)
+    tree = _link_tree(qtbot, [path.as_uri()])
+    engine = hp.HoverPreview(tree, url_role=URL_ROLE, parent=tree)
+    item = tree.topLevelItem(0)
+    on_link = tree.visualRect(tree.indexFromItem(item, 0)).center()
+    off_link = tree.visualRect(tree.indexFromItem(item, 1)).center()
+
+    engine._on_mouse_move(on_link)
+    engine._show_preview()
+    engine._popup.close_for_user()
+
+    engine._on_mouse_move(on_link)  # still on the same link
+    assert not engine._timer.isActive()
+
+    engine._on_mouse_move(off_link)  # leave the link...
+    engine._on_mouse_move(on_link)  # ...and come back
+    assert engine._pending_url == path.as_uri()
+
+
+def test_engine_shows_a_hand_cursor_over_links(qtbot, tmp_path):
+    """The cursor becomes a pointing hand only over link cells."""
+    path = _text_file(tmp_path)
+    tree = _link_tree(qtbot, [path.as_uri()])
+    engine = hp.HoverPreview(tree, url_role=URL_ROLE, parent=tree)
+    item = tree.topLevelItem(0)
+
+    engine._on_mouse_move(tree.visualRect(tree.indexFromItem(item, 0)).center())
+    assert tree.viewport().cursor().shape() == Qt.CursorShape.PointingHandCursor
+
+    engine._on_mouse_move(tree.visualRect(tree.indexFromItem(item, 1)).center())
+    assert tree.viewport().cursor().shape() == Qt.CursorShape.ArrowCursor
+
 

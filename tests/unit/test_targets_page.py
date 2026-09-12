@@ -487,12 +487,25 @@ def test_target_list_defaults_to_two_thirds_of_the_width(qtbot, app_context, pro
     page.show()
     page.refresh()
     qtbot.waitExposed(page)
-    qtbot.wait(20)
 
     splitter = page._table.parentWidget()
+
+    def _share() -> float:
+        return page._table.width() / max(1, splitter.width())
+
+    # The initial `setSizes` lands during the first layout pass, so wait for the
+    # splitter to settle rather than racing a fixed sleep.
+    # `setSizes` lands during the first layout pass, so wait for the splitter to
+    # settle instead of racing a fixed sleep.
+    qtbot.waitUntil(lambda: abs(_share() - _TARGET_LIST_SHARE) < 0.05, timeout=2000)
+
     total = splitter.width()
     assert total > 0
-    share = page._table.width() / total
+    share = _share()
+
+    total = splitter.width()
+    assert total > 0
+    share = _share()
 
     # The splitter handle eats a few pixels, so allow a small tolerance.
     assert abs(share - _TARGET_LIST_SHARE) < 0.05
@@ -560,3 +573,73 @@ def test_path_label_has_its_own_padded_style(qtbot, app_context, processed_repo)
     assert page._path.objectName() == "PathLabel"
     assert "QLabel#PathLabel" in theme.STYLESHEET
     assert "padding: 6px 10px;" in theme.STYLESHEET
+
+
+def test_target_rows_expose_recipe_and_folder_links(qtbot, app_context, processed_repo):
+    """A Stage/option cell links to its recipe; the path label is a folder link."""
+    from starbash.ui.qt.models import LINK_ROLE
+
+    _make_target(processed_repo)
+    app_context.selection.set_targets(["sh2126"])
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    page.refresh()
+
+    # There is no separate recipe column; the Stage/option cell itself is the link.
+    assert page._tree.columnCount() == 2
+
+    crop = page._stage_items["crop"]
+    # The default recipe repo supplies a source URL for each declared stage.
+    assert crop.data(0, LINK_ROLE)
+    assert crop.font(0).underline() is True
+    # The stage description still owns the tooltip (the link doesn't clobber it).
+    assert crop.toolTip(0) and crop.toolTip(0) != crop.data(0, LINK_ROLE)
+
+    # An option row links to the same recipe as the stage that declares it.
+    option = page._param_items[("crop", "crop_width")]
+    assert option.data(0, LINK_ROLE) == crop.data(0, LINK_ROLE)
+
+    # The output-directory label is a clickable anchor to the target's folder.
+    text = page._path.text()
+    assert "<a href=" in text
+    assert "file://" in text
+
+
+def test_target_link_opens_on_activate_not_on_click(qtbot, app_context, processed_repo, monkeypatch):
+    """A plain click selects; only activating the row opens the recipe."""
+    from starbash.ui.qt.models import LINK_ROLE
+    from starbash.ui.qt.widgets import file_links
+
+    opened: list[str] = []
+    monkeypatch.setattr(file_links, "open_link", lambda url: opened.append(url) or True)
+
+    _make_target(processed_repo)
+    app_context.selection.set_targets(["sh2126"])
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    page.refresh()
+
+    crop = page._stage_items["crop"]
+    index = page._tree.indexFromItem(crop, 0)
+
+    # Clicking a stage row (even its checkbox) must only select it.
+    page._tree.clicked.emit(index)
+    assert opened == []
+
+    # Activating it (double-click / Enter) opens the recipe.
+    page._tree.activated.emit(index)
+    assert opened == [crop.data(0, LINK_ROLE)]
+
+
+def test_target_table_output_column_is_a_link(qtbot, app_context, processed_repo):
+    """The target list's Output cell carries the folder URL for a link."""
+    from starbash.ui.qt.models import LINK_ROLE
+
+    _make_target(processed_repo)
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    page.refresh()
+
+    index = page._model.index(0, 1)
+    assert str(index.data(LINK_ROLE)).startswith("file://")
+
