@@ -31,7 +31,7 @@ from PySide6.QtGui import QImage  # noqa: E402
 from PySide6.QtWidgets import QWidget  # noqa: E402
 
 from starbash.ui.qt.widgets import image_viewer as viewer_module  # noqa: E402
-from starbash.ui.qt.widgets.busy_indicator import BusyIndicator  # noqa: E402
+from starbash.ui.qt.widgets.busy_indicator import BusyIndicator, Spinner  # noqa: E402
 from starbash.ui.qt.widgets.image_viewer import ImageViewer  # noqa: E402
 
 pytestmark = pytest.mark.gui
@@ -161,6 +161,54 @@ def test_busy_indicator_caption_grows_the_panel(qtbot):
     assert wide.sizeHint().width() > bare.sizeHint().width()
     assert wide.sizeHint().height() > bare.sizeHint().height()
     assert bare.sizeHint().width() < wide.sizeHint().width()
+
+
+# --- Spinner (inline, next to a control) -----------------------------------
+
+
+def test_spinner_only_animates_while_running(qtbot):
+    """start() shows and animates; stop() hides and stops the timer."""
+    spinner = Spinner()
+    qtbot.addWidget(spinner)
+
+    # Idle and hidden until asked, so it costs the button row nothing.
+    assert spinner.is_running() is False
+    assert spinner.isHidden() is True
+    assert spinner._timer.isActive() is False
+
+    spinner.start()
+    assert spinner.is_running() is True
+    assert spinner.isHidden() is False
+    assert spinner._timer.isActive() is True
+
+    spinner.start()  # idempotent: a second start must not double up
+    assert spinner.is_running() is True
+
+    spinner.stop()
+    assert spinner.is_running() is False
+    assert spinner.isHidden() is True
+    assert spinner._timer.isActive() is False
+
+
+def test_spinner_paints_and_ignores_mouse_events(qtbot):
+    """It draws a small arc that moves, without swallowing clicks."""
+    spinner = Spinner()
+    qtbot.addWidget(spinner)
+    spinner.start()
+
+    assert spinner.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+    # It is meant for a button row, so it stays a compact square.
+    assert spinner.width() == spinner.height()
+    assert spinner.width() <= 24
+
+    pixmap = spinner.grab()  # really runs paintEvent
+    assert not pixmap.isNull()
+    assert pixmap.width() == spinner.width()
+
+    # ...and the arc actually moves from frame to frame.
+    before = spinner._angle
+    spinner._advance()
+    assert spinner._angle != before
 
 
 # --- ImageViewer: background loading ---------------------------------------

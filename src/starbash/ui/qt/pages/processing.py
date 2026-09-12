@@ -30,6 +30,7 @@ from starbash import events
 from starbash.run_state import LOG_TAIL_LINES, RunStatus
 from starbash.ui.qt.jobs import process_job
 from starbash.ui.qt.pages.base import Page
+from starbash.ui.qt.widgets.busy_indicator import Spinner
 from starbash.ui.qt.widgets.file_links import LinkDecorator, set_link
 
 __all__ = ["ProcessingPage"]
@@ -112,6 +113,10 @@ class ProcessingPage(Page):
         self._run.setObjectName("Primary")
         self._run.clicked.connect(lambda: self._start(masters_only=False))
 
+        # A compact arc shown only while a run is in flight, so a long (or slow
+        # to start) job is obviously "doing something" without freezing the row.
+        self._spinner = Spinner()
+
         self._masters = QPushButton("Generate masters only")
         self._masters.clicked.connect(lambda: self._start(masters_only=True))
 
@@ -121,6 +126,7 @@ class ProcessingPage(Page):
 
         bar = QHBoxLayout()
         bar.addWidget(self._run)
+        bar.addWidget(self._spinner)
         bar.addWidget(self._masters)
         bar.addWidget(self._cancel)
         bar.addStretch(1)
@@ -158,6 +164,7 @@ class ProcessingPage(Page):
         for button in (self._run, self._masters):
             button.setEnabled(False)
         self._cancel.setEnabled(True)
+        self._spinner.start()
 
         self._worker = self.start_job(
             lambda report, token: process_job(report, token, masters_only=masters_only),
@@ -193,6 +200,7 @@ class ProcessingPage(Page):
         for button in (self._run, self._masters):
             button.setEnabled(True)
         self._cancel.setEnabled(False)
+        self._spinner.stop()
 
     # --- core event rendering --------------------------------------------
     def _on_event(self, kind: str, data: dict) -> None:

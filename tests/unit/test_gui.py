@@ -953,6 +953,50 @@ def test_processing_page_marks_links_and_opens_them(qtbot, app_context, bus, mon
     assert opened == ["file:///out/stack.fits"]
 
 
+def test_processing_page_disables_buttons_and_shows_spinner(qtbot, app_context, bus, monkeypatch):
+    """Starting a run disables both action buttons and shows the inline spinner.
+
+    The job itself runs on a worker and is exercised elsewhere; here we stub
+    ``start_job`` so we can observe the page's immediate feedback - which is the
+    whole point: the user must see *something* is happening right away.
+    """
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    started: list[object] = []
+
+    class FakeWorker:
+        """Stands in for the real Worker; only ``.token`` is ever touched."""
+
+        class token:
+            @staticmethod
+            def cancel() -> None:
+                pass
+
+    def fake_start_job(job, **kwargs):
+        started.append(job)
+        return FakeWorker()
+
+    monkeypatch.setattr(page, "start_job", fake_start_job)
+
+    page._start(masters_only=False)
+
+    assert started  # the job was handed off to the (stubbed) worker pool
+    assert page._run.isEnabled() is False
+    assert page._masters.isEnabled() is False
+    assert page._cancel.isEnabled() is True
+    assert page._spinner.is_running() is True
+
+    page._on_finished({"message": "done"})
+
+    assert page._run.isEnabled() is True
+    assert page._masters.isEnabled() is True
+    assert page._cancel.isEnabled() is False
+    assert page._spinner.is_running() is False
+
+
 def test_repositories_page_reports_indexing_progress(qtbot, app_context, bus):
     """Re-index progress events update the page's progress bar."""
     from starbash.ui.qt.pages.repositories import RepositoriesPage

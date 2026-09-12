@@ -17,7 +17,7 @@ from PySide6.QtCore import QEvent, QObject, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPen, QShowEvent
 from PySide6.QtWidgets import QWidget
 
-__all__ = ["BusyIndicator", "BUSY_ACCENT", "BUSY_TRACK", "BUSY_CAPTION"]
+__all__ = ["BusyIndicator", "Spinner", "BUSY_ACCENT", "BUSY_TRACK", "BUSY_CAPTION"]
 
 #: Colour of the moving arc.
 BUSY_ACCENT = "#4aa3df"
@@ -41,6 +41,16 @@ _INTERVAL_MS = 16
 
 #: Default caption; callers can replace or blank it with :meth:`set_caption`.
 DEFAULT_CAPTION = "Loading…"
+
+# --- inline spinner geometry ----------------------------------------------
+#: Arc diameter and stroke (px) of the compact, button-row spinner.
+SPINNER_DIAMETER = 18.0
+_SPINNER_PEN = 2.0
+#: Degrees of the spinner's visible arc, and how far it turns each frame.
+_SPINNER_SWEEP = 100.0
+_SPINNER_STEP = 6.0
+#: Frame interval for the spinner (~60 fps), matching the overlay arc.
+_SPINNER_INTERVAL_MS = 16
 
 
 class BusyIndicator(QWidget):
@@ -200,4 +210,102 @@ class BusyIndicator(QWidget):
                 int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop),
                 self._caption,
             )
+        painter.end()
+
+
+class Spinner(QWidget):
+    """A small rotating arc for feedback *next to* a control.
+
+    :class:`BusyIndicator` centres a panel (and optional caption) over the widget
+    whose content is loading, which is wrong for a button row: there the spinner
+    has to be a compact, layout-sized companion.  This widget is exactly that -
+    it draws only the arc (no panel, no caption), takes no space while idle, and
+    is transparent to mouse events, so it never steals a click meant for a
+    neighbouring button.
+
+    Typical use::
+
+        self._spinner = Spinner()
+        button_row.addWidget(self._spinner)
+        ...
+        self._spinner.start()   # show + animate
+        ...
+        self._spinner.stop()    # hide + stop the timer
+
+    Like the overlay indicator, it is idempotent: calling :meth:`start` twice
+    does not double the timer, and :meth:`stop` on an idle spinner is a no-op.
+    """
+
+    def __init__(self, parent: QWidget | None = None, diameter: float = SPINNER_DIAMETER) -> None:
+        """Create a hidden spinner whose arc is ``diameter`` pixels across.
+
+        Args:
+            parent: optional parent widget (the spinner is a normal layout child,
+                unlike the overlay :class:`BusyIndicator`).
+            diameter: arc diameter in pixels; the widget is sized to fit the arc
+                plus its stroke.
+        """
+        super().__init__(parent)
+        self._angle = 0.0
+        self._running = False
+        self._diameter = float(diameter)
+
+        # A decoration must never eat clicks meant for the widget beside it.
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        side = int(self._diameter + _SPINNER_PEN) + 1
+        self.setFixedSize(side, side)
+        self.hide()
+
+        self._timer = QTimer(self)
+        self._timer.setInterval(_SPINNER_INTERVAL_MS)
+        self._timer.timeout.connect(self._advance)
+
+    # --- public API -------------------------------------------------------
+    def start(self) -> None:
+        """Show the spinner and begin animating (a second call is a no-op)."""
+        if self._running:
+            return
+        self._running = True
+        self.show()
+        self._timer.start()
+        self.update()
+
+    def stop(self) -> None:
+        """Stop animating and hide the spinner (a second call is a no-op)."""
+        if not self._running:
+            return
+        self._running = False
+        self._timer.stop()
+        self.hide()
+
+    def is_running(self) -> bool:
+        """Return ``True`` while the spinner is visible and animating."""
+        return self._running
+
+    # --- painting ---------------------------------------------------------
+    def _advance(self) -> None:
+        """Rotate the arc by one frame."""
+        self._angle = (self._angle + _SPINNER_STEP) % 360.0
+        self.update()
+
+    def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802 - Qt API
+        """Draw the faint ring and the moving accent arc."""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        # Inset by half the pen so the stroke is not clipped at the widget edge.
+        inset = _SPINNER_PEN / 2
+        box = QRectF(self.rect()).adjusted(inset, inset, -inset, -inset)
+
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(
+            QPen(QColor(BUSY_TRACK), _SPINNER_PEN, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+        )
+        painter.drawArc(box, 0, 360 * 16)
+
+        painter.setPen(
+            QPen(QColor(BUSY_ACCENT), _SPINNER_PEN, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+        )
+        painter.drawArc(box, int(-self._angle * 16), int(-_SPINNER_SWEEP * 16))
         painter.end()
