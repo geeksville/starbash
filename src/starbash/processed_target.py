@@ -246,6 +246,11 @@ class ProcessedTarget:
     The generated master will be something like 'foo_blah_bias_master.fits' and in that same directory there will be a 'foo_blah_bias_master.toml'
     """
 
+    #: The parsed ``about.toml`` / ``sessions.toml`` documents.  ``None`` means "not
+    #: loaded yet"; the :attr:`about` / :attr:`sessions` properties load them lazily.
+    about_config: TOMLDocument | None
+    sessions_config: TOMLDocument | None
+
     def __init__(self, p: ProcessingLike, target: str | None) -> None:
         """Initialize a processed target or generated master configuration."""
         self.p = p
@@ -260,27 +265,28 @@ class ProcessedTarget:
         self.p._set_output_by_kind(output_kind)
 
         dir = Path(self.p.context["output"].base)
+        #: Persisted, human-readable record of the most recent run (processed only).
+        run_log_path: Path | None
         if output_kind != "master":
             metadata_dir = dir / ".starbash"
-            config_path = metadata_dir / "main.toml"
+            self.config_path = metadata_dir / "main.toml"
             metadata_dir.mkdir(parents=True, exist_ok=True)
             log_path = metadata_dir / "starbash.log"
-            repo_path = config_path
+            repo_path = self.config_path
             about_path = metadata_dir / "about.toml"
             sessions_path = metadata_dir / "sessions.toml"
+            run_log_path = metadata_dir / "run-log.toml"
         else:
             # Master file paths are just the base plus .toml
-            config_path = dir.with_suffix(".toml")
+            self.config_path = dir.with_suffix(".toml")
             log_path = dir.with_suffix(".log")
-            repo_path = config_path
+            repo_path = self.config_path
             about_path = None
             sessions_path = None
+            run_log_path = None
 
         self.log_path: Path = log_path  # Let later tools see where to write our logs
-        # Persisted, human-readable record of the most recent run (processed targets only).
-        self.run_log_path: Path | None = (
-            metadata_dir / "run-log.toml" if output_kind != "master" else None
-        )
+        self.run_log_path = run_log_path
         self.run: RunState | None = None
         #: The stages the doit layer kept for this target (set by Processing before
         #: the run).  None means "not yet known" (fall back to the target's config).
@@ -317,8 +323,8 @@ class ProcessedTarget:
         self.default_stages: dict[str, Any] = {}
         self._init_from_toml()
         self._set_default_stages()
-        if output_kind != "master" and not config_path.exists():
-            TOMLFile(config_path).write(default_toml)
+        if output_kind != "master" and not self.config_path.exists():
+            TOMLFile(self.config_path).write(default_toml)
 
         self.config_valid = (
             True  # You can set this to False if you'd like to suppress writing the toml to disk
@@ -470,7 +476,8 @@ class ProcessedTarget:
 
         # Keep a sanitized copy for callers and compatibility with the previous
         # in-memory update behavior. The persisted copy is written by _generate_report().
-        proc_sessions = self.sessions_config.get("sessions", [])
+        # (`self.sessions` loads the document if it has not been parsed yet.)
+        proc_sessions = self.sessions.get("sessions", [])
         if hasattr(proc_sessions, "clear"):
             proc_sessions.clear()
         for sess in self.p.sessions:
@@ -689,8 +696,8 @@ class ProcessedTarget:
         # ``sessions.toml`` carries per-frame metadata and can be large, and we
         # open every target when listing them, so parsing them here would stall
         # the GUI thread.  See the ``about``/``sessions`` properties.
-        self.about_config: TOMLDocument | None = None
-        self.sessions_config: TOMLDocument | None = None
+        self.about_config = None
+        self.sessions_config = None
 
         self.default_stages = {}
         self._init_from_toml()
@@ -716,9 +723,9 @@ class ProcessedTarget:
         return targets
 
     @staticmethod
-    def _read_or_template(path: Path, template_name: str) -> TOMLDocument:
+    def _read_or_template(path: Path | None, template_name: str) -> TOMLDocument:
         """Read an existing metadata file, or return (without writing) its template."""
-        if path.exists():
+        if path is not None and path.exists():
             try:
                 return tomlkit.parse(path.read_text(encoding="utf-8"))
             except Exception as e:  # noqa: BLE001 - corrupt file shouldn't crash a listing
@@ -1013,7 +1020,7 @@ class ProcessedTarget:
         task_name = str(getattr(task, "name", ""))
         node = self._find_running_task(state, stage_name, task_name)
         if node is None:
-            title = task.title() if hasattr(task, "title") else task_name
+            title = task.title() if task is not None and hasattr(task, "title") else task_name
             node = TaskNode(name=task_name, title=title)
             self._describe_task(task, node)
             state.add_task(stage_name, node)
