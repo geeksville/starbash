@@ -22,6 +22,7 @@ try:  # Probe Qt startup once, so an unusable Qt skips rather than erroring.
 except Exception as _qt_error:  # pragma: no cover - environment dependent
     pytest.skip(f"Qt cannot start here: {_qt_error}", allow_module_level=True)
 
+from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtGui import QColor, QPixmap  # noqa: E402
 from PySide6.QtWidgets import QWidget  # noqa: E402
 
@@ -566,8 +567,30 @@ def test_selection_panel_clear_resets_everything(qtbot, app_context):
     assert app_context.selection.is_empty()
 
 
+def _child_of_kind(parent, kind):
+    """First child of ``parent`` whose ``UserRole`` kind matches (or None)."""
+    for index in range(parent.childCount()):
+        child = parent.child(index)
+        if child.data(0, Qt.ItemDataRole.UserRole) == kind:
+            return child
+    return None
+
+
+def _child_named(parent, kind, name):
+    """Child of ``parent`` matching both its kind and its stored name (or None)."""
+    for index in range(parent.childCount()):
+        child = parent.child(index)
+        if (
+            child.data(0, Qt.ItemDataRole.UserRole) == kind
+            and child.data(0, Qt.ItemDataRole.UserRole + 1) == name
+        ):
+            return child
+    return None
+
+
+
 def test_processing_page_renders_core_events(qtbot, app_context, bus):
-    """Core events drive the nested run tree, progress bar and per-stage log."""
+    """Core events drive the nested run tree, progress bar and per-task log."""
     from starbash.ui.qt.pages.processing import ProcessingPage
 
     page = ProcessingPage(app_context, bus)
@@ -606,11 +629,17 @@ def test_processing_page_renders_core_events(qtbot, app_context, bus):
     stage_item = target_item.child(0)
     assert "stack" in stage_item.text(0)
 
-    # The tool log line lands under the running stage node, not in a side pane.
-    log_lines = [
-        stage_item.child(i).text(0) for i in range(stage_item.childCount())
-    ]
-    assert any("working 42%" in line for line in log_lines)
+    # The task row (created by TASK_STARTED) has a collapsible Log node, and the
+    # streamed tool line lands *inside it* - not loose under the stage.
+    task_item = _child_of_kind(stage_item, "task")
+    assert task_item is not None
+    assert "Stack lights" in task_item.text(0)
+    log_node = _child_of_kind(task_item, "log")
+    assert log_node is not None
+    assert log_node.isExpanded()  # open while the task runs
+    lines = [log_node.child(i).text(0) for i in range(log_node.childCount())]
+    assert any("working 42%" in line for line in lines)
+
     assert page._progress.value() == 42
 
 
@@ -650,6 +679,150 @@ def test_processing_page_collapses_master_nodes(qtbot, app_context, bus):
     assert root.text(0) == "Master flat_Ha · 2024-01-01 · canon"
     assert not root.isExpanded()
 
+
+
+
+def test_processing_page_groups_logs_under_each_task(qtbot, app_context, bus):
+    """Each task gets its own Log/Out nodes; finished logs start closed."""
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    run = {
+        "target": "M31",
+        "is_master": False,
+        "stages": [
+            {
+                "name": "lightvbias",
+                "status": "ok",
+                "excluded": False,
+                "dependencies": [],
+                "outputs": [],
+                "logs": ["stage-level noise"],
+                "tasks": [
+                    {
+                        "name": "lightvbias_s123",
+                        "title": "lightvbias_s123",
+                        "status": "ok",
+                        "outputs": [{"label": "bkg_pp_light_s123.fits", "url": "file:///o"}],
+                        "logs": ["line a", "line b"],
+                    },
+                    {
+                        "name": "lightvbias_s555",
+                        "title": "lightvbias_s555",
+                        "status": "ok",
+                        "outputs": [],
+                        "logs": [],
+                    },
+                ],
+            }
+        ],
+    }
+    events.publish(events.EVENT_STAGE_RESULT, {"result": None, "run": run})
+
+    stage_item = page._tasks.topLevelItem(0).child(0)
+    assert "lightvbias" in stage_item.text(0)
+
+    first = _child_named(stage_item, "task", "lightvbias_s123")
+    assert first is not None
+    log_node = _child_of_kind(first, "log")
+    assert log_node is not None
+    assert not log_node.isExpanded()  # finished ok -> closed
+    assert [log_node.child(i).text(0).strip() for i in range(log_node.childCount())] == [
+        "line a",
+        "line b",
+    ]
+    out_node = _child_of_kind(first, "out")
+    assert out_node is not None
+    assert out_node.childCount() == 1
+    assert "bkg_pp_light_s123.fits" in out_node.child(0).text(0)
+
+    # With tasks present the stage's flat log tail is *not* rendered: the lines
+    # live under the tasks instead.
+    assert not any(
+        "stage-level noise" in stage_item.child(i).text(0)
+        for i in range(stage_item.childCount())
+    )
+    assert _child_named(stage_item, "task", "lightvbias_s555") is not None
+
+
+def test_processing_page_caps_running_log_at_the_tail(qtbot, app_context, bus):
+    """A running task's Log keeps only the last LOG_TAIL_LINES lines."""
+    from starbash.run_state import LOG_TAIL_LINES
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    events.publish(events.EVENT_RUN_STARTED, {"target": "M31"})
+    events.publish(
+        events.EVENT_TASK_STARTED,
+        {"task": "stack", "title": "Stack", "target": "M31", "stage": "stack"},
+    )
+    for i in range(LOG_TAIL_LINES + 4):
+        events.publish(events.EVENT_TOOL_OUTPUT, {"stream": "stdout", "line": f"line {i}"})
+
+    stage_item = page._tasks.topLevelItem(0).child(0)
+    log_node = _child_of_kind(_child_of_kind(stage_item, "task"), "log")
+    assert log_node is not None
+    assert log_node.childCount() == LOG_TAIL_LINES
+    assert log_node.isExpanded()
+    assert "line 0" not in log_node.child(0).text(0)
+    assert f"line {LOG_TAIL_LINES + 3}" in log_node.child(log_node.childCount() - 1).text(0)
+
+
+def test_processing_page_closes_log_on_finish_keeps_failure_open(qtbot, app_context, bus):
+    """A Log closes when its task finishes ok, but stays open on failure."""
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    def running_log(task_name):
+        stage_item = page._tasks.topLevelItem(0).child(0)
+        task_item = _child_named(stage_item, "task", task_name)
+        return _child_of_kind(task_item, "log")
+
+    events.publish(events.EVENT_RUN_STARTED, {"target": "M31"})
+    events.publish(
+        events.EVENT_TASK_STARTED,
+        {"task": "ok_task", "title": "Ok task", "target": "M31", "stage": "stack"},
+    )
+    events.publish(events.EVENT_TOOL_OUTPUT, {"stream": "stdout", "line": "fine"})
+    log_node = running_log("ok_task")
+    assert log_node is not None and log_node.isExpanded()
+
+    events.publish(
+        events.EVENT_TASK_FINISHED,
+        {
+            "task": "ok_task",
+            "title": "Ok task",
+            "target": "M31",
+            "stage": "stack",
+            "success": True,
+        },
+    )
+    assert not log_node.isExpanded()
+
+    events.publish(
+        events.EVENT_TASK_STARTED,
+        {"task": "bad_task", "title": "Bad task", "target": "M31", "stage": "stack"},
+    )
+    events.publish(events.EVENT_TOOL_OUTPUT, {"stream": "stderr", "line": "kaboom"})
+    failed_log = running_log("bad_task")
+    assert failed_log is not None
+    events.publish(
+        events.EVENT_TASK_FINISHED,
+        {
+            "task": "bad_task",
+            "title": "Bad task",
+            "target": "M31",
+            "stage": "stack",
+            "success": False,
+        },
+    )
+    assert failed_log.isExpanded()
 
 
 

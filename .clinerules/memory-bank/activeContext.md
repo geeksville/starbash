@@ -34,8 +34,14 @@ Landed (all phases):
   now accepts an external `Progress` so there is only one render loop.
 - **GUI** — `ui/qt/pages/processing.py` builds the same nested tree from the
   plain `run` snapshots (`_render_run`), coloured by status.  There is **no
-  separate log pane**: tool/log lines are appended live under the running stage
-  node.  Master (calibration) runs get a descriptive label
+  separate log pane**: the tree is `target → stage → task`, and each task carries
+  two collapsible children — a `Log` node (its own bounded `TaskNode.logs` tail)
+  and an `Out` node (its files).  Live tool lines attach to the *running task's*
+  `Log` via `_on_task_started`/`_append_log_line`; the `Log` is auto-opened while
+  the task runs and auto-closed when it finishes, except on failure (kept open so
+  the error is visible).  `RunState` attributes each line to the current
+  `_current_task` (and still keeps the stage's flat tail for the CLI).  Master
+  (calibration) runs get a descriptive label
   (`ProcessedTarget.run_label`, e.g. `Master flat_Ha · 2024-01-01 · canon`) and
   their root is **collapsed by default** (`RunTree.is_master`).  Stage rows come
   from the doit task list, **not** the target's `[[stages]]` config:
@@ -77,8 +83,8 @@ Status (all phases 0–7 landed except GitHub upload from the GUI):
   models, widgets (stat card, log view, FITS/raster image viewer, selection panel)
   and pages (dashboard, sessions+browse+export, masters, targets options tree,
   live processing, repositories w/ progress, publish, settings, setup wizard).
-- **Phase 7 (polish/docs)** — `tests/unit/test_gui.py` (27 tests, `gui` marker,
-  offscreen), `tests/unit/test_targets_page.py` (11 tests) and
+- **Phase 7 (polish/docs)** — `tests/unit/test_gui.py` (37 tests, `gui` marker,
+  offscreen), `tests/unit/test_targets_page.py` (20 tests) and
   `tests/unit/test_gui_command.py` (graceful no-PySide6 path, runs in the default
   suite).
 
@@ -97,6 +103,13 @@ Targets page specifics (recent tweak round):
   `PathLabel` style. The stages column keeps a `_COLUMN_GAP` (12px) left margin so
   it is not flush against the target list's vertical scrollbar, and the option
   editor pane is hidden (not just disabled) until a row is selected.
+- The targets/stages `QSplitter` defaults to **`_TARGET_LIST_SHARE` = 0.66**, i.e.
+  the target list gets ~2/3 of the width (long output paths were truncated
+  otherwise). Note the subtlety: `setStretchFactor` only divides *extra* space, so
+  the proportion is set with an explicit `splitter.setSizes([660, 340])` (stretch
+  factors 2:1 then keep that ratio on resize). `test_targets_page.py`
+  ::`test_target_list_defaults_to_two_thirds_of_the_width` locks this in — without
+  the `setSizes` call the measured share was 0.57.
 - **Image previews are asynchronous.** `widgets/image_viewer.py` decodes on a worker
   thread via `workers.run_async` and shows `widgets/busy_indicator.py`
   (`BusyIndicator` — a self-centring rotating arc + caption) over the image pane
@@ -170,7 +183,21 @@ Open tabs / files being touched suggest active work in:
 - `doc/design/report.md` — the end-to-end design covering target report metadata (R1), Jekyll publishing (R2), and per-frame registration TOML stages (R3).
 
 ## Recent changes
+- **Per-task log grouping in the Processing page** (`ui/qt/pages/processing.py`,
+  `run_state.py`, `processed_target.py`): tool output is now attributed to the
+  running *task* (`RunState.set_current_task`/`TaskNode.add_log`) and rendered
+  under a per-task collapsible `Log` node (plus an `Out` node for its files) —
+  instead of a flat list under the stage. Live lines are capped at
+  `LOG_TAIL_LINES` (8), the running task's `Log` auto-opens and auto-closes on a
+  clean finish (kept open on failure). Covered by four new
+  `test_gui.py::test_processing_page_*` tests plus `test_run_state.py`/
+  `test_processed_target_model.py` log-attribution tests.
 
+
+- **Targets page split defaults to a 66/34 layout** (`ui/qt/pages/targets.py`): the
+  target list now starts at ~2/3 of the page width via `_TARGET_LIST_SHARE = 0.66`
+  plus an explicit `QSplitter.setSizes(...)` (stretch factors 2:1). Regression
+  covered by `tests/unit/test_targets_page.py`.
 - **Analytics preference defaults centralized** (`src/starbash/analytics.py`): `DEFAULT_ANALYTICS_ENABLED = True` / `DEFAULT_ANALYTICS_INCLUDE_USER = False` plus `analytics_enabled(repo)` / `analytics_include_user(repo)` helpers. The core (`app.py`), GUI Settings page, first-run wizard and `sb user setup` all read through these now, so an unset preference is consistent. Fixes the GUI showing analytics *off* while the backend treated it as *on*.
 - Split processed-target metadata into three files under `.starbash/`: `main.toml` (config/stages/masters/overrides), `about.toml` (generated report), `sessions.toml` (per-session processing state). See `src/starbash/processed_target.py`.
 - Added `about.generated_at` / `schema_version` report metadata and `DATE-OBS` to persisted frame metadata (for publishing charts).

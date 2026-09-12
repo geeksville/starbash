@@ -125,6 +125,18 @@ class TaskNode:
     #: doit ``targets`` paths (outputs) - used to derive stage dependencies.
     targets: list[str] = field(default_factory=list, repr=False)
 
+    def add_log(self, line: str, limit: int = LOG_TAIL_LINES) -> None:
+        """Append a log line, keeping only the trailing ``limit`` lines.
+
+        Log lines belong to the task that produced them, so both the CLI and the
+        GUI can group them under their own subtask.
+        """
+        if not line:
+            return
+        self.logs.append(line)
+        if limit > 0 and len(self.logs) > limit:
+            del self.logs[: len(self.logs) - limit]
+
     def to_plain(self) -> dict[str, Any]:
         return {
             "name": self.name,
@@ -305,6 +317,7 @@ class RunState:
         self.success: bool | None = None
         self._stages: dict[str, StageNode] = {}  # insertion order == run order
         self._current_stage: str | None = None
+        self._current_task: TaskNode | None = None
 
     # --- stage registration / lookup -------------------------------------
 
@@ -353,6 +366,10 @@ class RunState:
         """Point the log tail at the stage that is currently executing."""
         self._current_stage = name
 
+    def set_current_task(self, node: TaskNode | None) -> None:
+        """Point the log tail at the task that is currently executing."""
+        self._current_task = node
+
     def add_task(self, stage_name: str, task: TaskNode) -> TaskNode:
         """Attach a task to its stage, marking the stage as running."""
         node = self.register_stage(stage_name)
@@ -363,7 +380,16 @@ class RunState:
         return task
 
     def add_log(self, line: str) -> None:
-        """Append a log line to the currently running stage (if any)."""
+        """Append a log line to the currently running task *and* stage.
+
+        Tool output belongs to the *task* that produced it, so the GUI can group
+        each subtask's logs under its own ``Log`` node; the stage keeps a flat
+        trailing tail for the CLI's compact run tree.
+        """
+        if not line:
+            return
+        if self._current_task is not None:
+            self._current_task.add_log(line, self.log_tail_lines)
         if self._current_stage is None:
             return
         node = self._stages.get(self._current_stage)

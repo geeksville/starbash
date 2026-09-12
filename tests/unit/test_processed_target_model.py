@@ -152,6 +152,10 @@ class TestRunRecording:
         assert stages["stack"].status == RunStatus.OK
         assert [f.label for f in stages["stack"].outputs] == ["s.fits"]
         assert stages["stack"].logs == ["working"]
+        # The line is attributed to the task that produced it, too (the GUI groups
+        # logs under each subtask).
+        tasks = {t.name: t for t in stages["stack"].tasks}
+        assert tasks["stack"].logs == ["working"]
         assert tree.output_url is not None
 
     def test_failed_result_marks_stage_failed(self, tmp_path):

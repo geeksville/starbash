@@ -2,7 +2,8 @@
 
 Nothing here polls: the core publishes tool output, task transitions and stage
 results on the event bus, and this page renders them as they arrive.  Tool output
-lands under the stage node it belongs to, so the tree *is* the log.
+lands under the *task* node it belongs to, inside a collapsible ``Log`` node, so
+the tree *is* the log.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from starbash import events
-from starbash.run_state import RunStatus
+from starbash.run_state import LOG_TAIL_LINES, RunStatus
 from starbash.ui.qt.jobs import process_job
 from starbash.ui.qt.pages.base import Page
 
@@ -36,10 +37,20 @@ _STATUS_COLORS: dict[RunStatus, str] = {
     RunStatus.EXCLUDED: "#6e7681",
 }
 
-#: How many live tool-log lines to keep visible under one stage node.
-_LIVE_LOG_LIMIT = 12
+#: How many live tool-log lines to keep under one task's ``Log`` node.
+_LOG_LIMIT = LOG_TAIL_LINES
 
 _DIM = "#8b949e"
+
+#: Item-data roles, so nodes can be found again after a tree rebuild.
+_ROLE_KIND = Qt.ItemDataRole.UserRole
+_ROLE_NAME = Qt.ItemDataRole.UserRole + 1
+
+#: Node kinds stored in ``_ROLE_KIND``.
+_KIND_STAGE = "stage"
+_KIND_TASK = "task"
+_KIND_LOG = "log"
+_KIND_OUT = "out"
 
 
 class ProcessingPage(Page):
@@ -51,8 +62,8 @@ class ProcessingPage(Page):
     def _build(self) -> None:
         self._worker = None
         self._targets: dict[str, QTreeWidgetItem] = {}
-        self._current: tuple[str, str] | None = None  # (target, stage) running now
-        self._live_logs: dict[tuple[str, str], list[QTreeWidgetItem]] = {}
+        #: (target, stage, task) of the doit task running right now.
+        self._running: tuple[str, str, str] | None = None
 
         layout = QVBoxLayout(self)
         layout.addLayout(self.heading())
@@ -96,8 +107,7 @@ class ProcessingPage(Page):
     def _start(self, masters_only: bool) -> None:
         self._tasks.clear()
         self._targets.clear()
-        self._current = None
-        self._live_logs.clear()
+        self._running = None
         self._progress.setRange(0, 0)  # indeterminate until a tool reports a percentage
         self._caption.setText("Starting…")
 
@@ -149,12 +159,9 @@ class ProcessingPage(Page):
         elif kind == events.EVENT_RUN_STARTED:
             self._ensure_target(str(data.get("target") or "masters")).setExpanded(True)
         elif kind == events.EVENT_TASK_STARTED:
-            title = str(data.get("title") or data.get("task") or "task")
-            self._caption.setText(f"Running: {title}")
-            stage = str(data.get("stage") or "")
-            self._current = (str(data.get("target") or "masters"), stage) if stage else None
+            self._on_task_started(data)
         elif kind == events.EVENT_TASK_FINISHED:
-            self._current = None
+            self._on_task_finished(data)
         elif kind == events.EVENT_TOOL_OUTPUT:
             self._append_log_line(
                 str(data.get("line", "")), error=data.get("stream") == "stderr"
@@ -164,7 +171,6 @@ class ProcessingPage(Page):
             self._progress.setValue(int(data.get("percent") or 0))
         elif kind in (events.EVENT_STAGE_RESULT, events.EVENT_RUN_FINISHED):
             self._render_run(data.get("run"))
-            self._current = None
             notes = getattr(data.get("result"), "notes", None)
             if notes:
                 self._caption.setText(str(notes))
@@ -188,9 +194,6 @@ class ProcessingPage(Page):
         target = str(run.get("target") or "masters")
         root = self._ensure_target(target)
         root.takeChildren()
-        # The rebuilt children invalidate any live log rows we appended.
-        for key in [k for k in self._live_logs if k[0] == target]:
-            del self._live_logs[key]
 
         if run.get("output_url"):
             root.setText(1, "output →")
@@ -200,35 +203,78 @@ class ProcessingPage(Page):
                 continue
             status = RunStatus(stage.get("status", RunStatus.PENDING))
             stage_item = QTreeWidgetItem([self._stage_label(stage, status), status.label])
-            stage_item.setData(0, Qt.ItemDataRole.UserRole, str(stage.get("name") or ""))
+            stage_item.setData(0, _ROLE_KIND, _KIND_STAGE)
+            stage_item.setData(0, _ROLE_NAME, str(stage.get("name") or ""))
             self._apply_status(stage_item, status)
             root.addChild(stage_item)
+            # Keep stages open so their tasks (and each task's Log/Out) are visible.
+            stage_item.setExpanded(True)
 
-            for line in stage.get("logs", []):
-                log_item = QTreeWidgetItem([f"    {line}", ""])
-                log_item.setForeground(0, QBrush(QColor(_DIM)))
-                stage_item.addChild(log_item)
+            tasks = [task for task in stage.get("tasks", []) if isinstance(task, dict)]
+            for task in tasks:
+                self._add_task_rows(task, stage_item)
 
-            outputs = self._file_labels(stage.get("outputs", []))
-            if outputs:
-                stage_item.addChild(QTreeWidgetItem(["    out", outputs]))
-
-            for task in stage.get("tasks", []):
-                if not isinstance(task, dict):
-                    continue
-                tstatus = RunStatus(task.get("status", RunStatus.PENDING))
-                label = str(task.get("title") or task.get("name") or "task")
-                details = tstatus.label
-                if task.get("session"):
-                    details = f"{task['session']} — {details}"
-                task_item = QTreeWidgetItem([f"    {label}", details])
-                self._apply_status(task_item, tstatus)
-                stage_item.addChild(task_item)
+            # A stage with no tasks (rare) still shows its own flat logs/outputs.
+            if not tasks:
+                for line in stage.get("logs", []):
+                    log_item = QTreeWidgetItem([f"    {line}", ""])
+                    log_item.setForeground(0, QBrush(QColor(_DIM)))
+                    stage_item.addChild(log_item)
+                outputs = self._file_labels(stage.get("outputs", []))
+                if outputs:
+                    stage_item.addChild(QTreeWidgetItem(["    out", outputs]))
 
         # Real targets open; master (calibration) runs stay collapsed — there are
         # usually many of them and they are rarely what the user is looking at.
         root.setExpanded(not run.get("is_master", False))
         self._tasks.scrollToItem(root)
+
+    def _add_task_rows(self, task: dict, stage_item: QTreeWidgetItem) -> None:
+        """Add one task row, plus its collapsible ``Log`` and ``Out`` children."""
+        tstatus = RunStatus(task.get("status", RunStatus.PENDING))
+        label = str(task.get("title") or task.get("name") or "task")
+        details = tstatus.label
+        if task.get("session"):
+            details = f"{task['session']} — {details}"
+        task_item = QTreeWidgetItem([f"    {label}", details])
+        task_item.setData(0, _ROLE_KIND, _KIND_TASK)
+        task_item.setData(0, _ROLE_NAME, str(task.get("name") or label))
+        self._apply_status(task_item, tstatus)
+        stage_item.addChild(task_item)
+
+        logs = [str(line) for line in task.get("logs", [])]
+        if logs or tstatus in (RunStatus.RUNNING, RunStatus.FAILED):
+            log_node = QTreeWidgetItem(["      Log", ""])
+            log_node.setData(0, _ROLE_KIND, _KIND_LOG)
+            log_node.setForeground(0, QBrush(QColor(_DIM)))
+            for line in logs:
+                row = QTreeWidgetItem([f"        {line}", ""])
+                row.setForeground(0, QBrush(QColor(_DIM)))
+                log_node.addChild(row)
+            # The running task's log is open; a finished one is closed (unless it
+            # failed, where the error should stay visible).  Set this *after*
+            # attaching - an unattached item cannot hold expansion state.
+            task_item.addChild(log_node)
+            log_node.setExpanded(tstatus in (RunStatus.RUNNING, RunStatus.FAILED))
+
+        outputs = task.get("outputs", [])
+        if isinstance(outputs, list) and outputs:
+            out_node = QTreeWidgetItem(["      Out", self._file_labels(outputs)])
+            out_node.setData(0, _ROLE_KIND, _KIND_OUT)
+            out_node.setForeground(0, QBrush(QColor(_DIM)))
+            for ref in outputs:
+                if not isinstance(ref, dict):
+                    continue
+                out_node.addChild(
+                    QTreeWidgetItem(
+                        [f"        {ref.get('label', '')}", str(ref.get("url") or "")]
+                    )
+                )
+            task_item.addChild(out_node)
+
+        task_item.setExpanded(
+            bool(logs or outputs or tstatus in (RunStatus.RUNNING, RunStatus.FAILED))
+        )
 
     def _stage_item(self, target: str, stage: str) -> QTreeWidgetItem | None:
         """Find a stage row under a target (used for live log attribution)."""
@@ -237,37 +283,106 @@ class ProcessingPage(Page):
             return None
         for index in range(root.childCount()):
             child = root.child(index)
-            if child.data(0, Qt.ItemDataRole.UserRole) == stage:
+            if child.data(0, _ROLE_KIND) == _KIND_STAGE and child.data(0, _ROLE_NAME) == stage:
                 return child
         return None
 
-    def _append_log_line(self, line: str, *, error: bool = False) -> None:
-        """Append a streamed tool/log line under the currently running stage."""
-        if not line or self._current is None:
-            return
-        target, stage = self._current
+    def _ensure_stage_item(self, target: str, stage: str) -> QTreeWidgetItem:
+        """Return (creating if needed) a stage row, so live logs have a home."""
+        root = self._ensure_target(target)
+        item = self._stage_item(target, stage)
+        if item is None:
+            item = QTreeWidgetItem([f"{RunStatus.RUNNING.glyph} {stage}", ""])
+            item.setData(0, _ROLE_KIND, _KIND_STAGE)
+            item.setData(0, _ROLE_NAME, stage)
+            self._apply_status(item, RunStatus.RUNNING)
+            root.addChild(item)
+            item.setExpanded(True)
+        return item
+
+    def _task_item(self, target: str, stage: str, task: str) -> QTreeWidgetItem | None:
+        """Find a task row under a stage (used for live log attribution)."""
         stage_item = self._stage_item(target, stage)
         if stage_item is None:
+            return None
+        for index in range(stage_item.childCount()):
+            child = stage_item.child(index)
+            if child.data(0, _ROLE_KIND) == _KIND_TASK and child.data(0, _ROLE_NAME) == task:
+                return child
+        return None
+
+    def _log_item(self, target: str, stage: str, task: str) -> QTreeWidgetItem | None:
+        """Find the ``Log`` node of a task (used for live log attribution)."""
+        task_item = self._task_item(target, stage, task)
+        if task_item is None:
+            return None
+        for index in range(task_item.childCount()):
+            child = task_item.child(index)
+            if child.data(0, _ROLE_KIND) == _KIND_LOG:
+                return child
+        return None
+
+    def _on_task_started(self, data: dict) -> None:
+        """Create the running task's row (with an open ``Log``) so lines can land."""
+        target = str(data.get("target") or "masters")
+        stage = str(data.get("stage") or "")
+        task = str(data.get("task") or "")
+        title = str(data.get("title") or task or "task")
+        self._caption.setText(f"Running: {title}")
+
+        if not stage or not task:
+            self._running = None
+            return
+        self._running = (target, stage, task)
+
+        stage_item = self._ensure_stage_item(target, stage)
+        task_item = self._task_item(target, stage, task)
+        if task_item is None:
+            task_item = QTreeWidgetItem([f"    {title}", RunStatus.RUNNING.label])
+            task_item.setData(0, _ROLE_KIND, _KIND_TASK)
+            task_item.setData(0, _ROLE_NAME, task)
+            self._apply_status(task_item, RunStatus.RUNNING)
+            stage_item.addChild(task_item)
+        task_item.setExpanded(True)
+
+        log_item = self._log_item(target, stage, task)
+        if log_item is None:
+            log_item = QTreeWidgetItem(["      Log", ""])
+            log_item.setData(0, _ROLE_KIND, _KIND_LOG)
+            log_item.setForeground(0, QBrush(QColor(_DIM)))
+            task_item.insertChild(0, log_item)
+        log_item.setExpanded(True)
+        self._tasks.scrollToItem(task_item)
+
+    def _on_task_finished(self, data: dict) -> None:
+        """Close the finished task's ``Log`` node (a failure keeps it open)."""
+        running = self._running
+        self._running = None
+        if running is None:
+            return
+        log_item = self._log_item(*running)
+        if log_item is None:
+            return
+        log_item.setExpanded(data.get("success") is False)
+
+    def _append_log_line(self, line: str, *, error: bool = False) -> None:
+        """Append a streamed tool/log line under the running task's ``Log`` node."""
+        if not line or self._running is None:
+            return
+        log_item = self._log_item(*self._running)
+        if log_item is None:
             return
 
-        item = QTreeWidgetItem([f"      {line}", ""])
+        item = QTreeWidgetItem([f"        {line}", ""])
         item.setForeground(0, QBrush(QColor("#f85149" if error else _DIM)))
-        stage_item.addChild(item)
-        stage_item.setExpanded(True)
+        log_item.addChild(item)
+        log_item.setExpanded(True)
 
         # Keep only the trailing lines so a chatty tool can't flood the tree.
-        rows = self._live_logs.setdefault((target, stage), [])
-        rows.append(item)
-        while len(rows) > _LIVE_LOG_LIMIT:
-            stale = rows.pop(0)
-            parent = stale.parent()
-            if parent is not None:
-                parent.removeChild(stale)
+        while log_item.childCount() > _LOG_LIMIT:
+            log_item.removeChild(log_item.child(0))
 
         self._tasks.scrollToItem(item)
-
-
-
 
     @staticmethod
     def _stage_label(stage: dict, status: RunStatus) -> str:

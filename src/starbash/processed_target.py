@@ -978,6 +978,7 @@ class ProcessedTarget:
         self._describe_task(task, node)
         state.add_task(stage_name, node)
         state.set_current_stage(stage_name)
+        state.set_current_task(node)
 
     def record_log(self, line: str) -> None:
         """Append a log line to the currently-running stage (live tail)."""
@@ -1028,6 +1029,7 @@ class ProcessedTarget:
             state.output_url = _file_url(base)
 
         state.set_current_stage(None)
+        state.set_current_task(None)
 
     def run_tree(self) -> RunTree | None:
         """The live run tree for this target (or None if nothing ran yet)."""

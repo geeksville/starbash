@@ -87,6 +87,41 @@ class TestLogTail:
             state.add_log(f"line {i}")
         assert state.stage("stack").logs == ["line 7", "line 8", "line 9"]
 
+    def test_lines_go_to_the_running_task_and_the_stage(self):
+        state = RunState("M31", log_tail_lines=3)
+        state.register_stage("stack")
+        task = state.add_task("stack", _task("stack_a", RunStatus.RUNNING))
+        state.set_current_stage("stack")
+        state.set_current_task(task)
+        for i in range(10):
+            state.add_log(f"line {i}")
+        assert task.logs == ["line 7", "line 8", "line 9"]
+        assert state.stage("stack").logs == ["line 7", "line 8", "line 9"]
+
+    def test_lines_fall_back_to_the_stage_once_the_task_ends(self):
+        state = RunState("M31", log_tail_lines=3)
+        state.register_stage("stack")
+        task = state.add_task("stack", _task("stack_a", RunStatus.RUNNING))
+        state.set_current_stage("stack")
+        state.set_current_task(task)
+        state.add_log("during the task")
+        state.set_current_task(None)
+        state.add_log("after the task")
+        assert task.logs == ["during the task"]
+        assert state.stage("stack").logs == ["during the task", "after the task"]
+
+    def test_task_logs_round_trip_through_toml(self):
+        state = RunState("M31")
+        task = state.add_task("calibrate", _task("calibrate", RunStatus.OK))
+        task.add_log("hello task")
+
+        assert state.tree().stages[0].tasks[0].logs == ["hello task"]
+
+        reparsed = tomlkit.parse(tomlkit.dumps(state.to_document()))
+        tree = document_to_tree(reparsed)
+        assert tree is not None
+        assert tree.stages[0].tasks[0].logs == ["hello task"]
+
     def test_log_without_current_stage_is_ignored(self):
         state = RunState("M31")
         state.register_stage("stack")
