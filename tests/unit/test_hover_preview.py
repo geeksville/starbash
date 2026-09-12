@@ -18,7 +18,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 try:  # Probe Qt startup once, so an unusable Qt skips rather than erroring.
     from PySide6.QtWidgets import QApplication as _QApplication
 
-    _QApplication.instance() or _QApplication([])
+    if _QApplication.instance() is None:
+        _QApplication([])
 except Exception as _qt_error:  # pragma: no cover - environment dependent
     pytest.skip(f"Qt cannot start here: {_qt_error}", allow_module_level=True)
 
@@ -38,6 +39,13 @@ pytestmark = pytest.mark.gui
 
 #: An arbitrary item-data role, as a page would use.
 URL_ROLE = Qt.ItemDataRole.UserRole + 9
+
+
+def _top(tree: QTreeWidget, index: int = 0) -> QTreeWidgetItem:
+    """Return a tree's top-level item (Qt types it Optional)."""
+    item = tree.topLevelItem(index)
+    assert item is not None
+    return item
 
 
 def _text_file(tmp_path: Path, name: str = "notes.txt", lines: int = 2) -> Path:
@@ -128,6 +136,7 @@ def test_popup_renders_text_and_caps_the_tail(qtbot, tmp_path):
     qtbot.waitUntil(lambda: isinstance(popup._content, QPlainTextEdit), timeout=5000)
 
     view = popup._content
+    assert isinstance(view, QPlainTextEdit)
     assert view.isReadOnly()
     text = view.toPlainText()
     assert "line 0" in text
@@ -145,7 +154,9 @@ def test_popup_renders_a_raster_image_and_hugs_it(qtbot, tmp_path):
     popup.preview(path.as_uri(), QRect(100, 100, 200, 20), parent)
     qtbot.waitUntil(lambda: isinstance(popup._content, QLabel), timeout=5000)
 
-    pixmap = popup._content.pixmap()
+    content = popup._content
+    assert isinstance(content, QLabel)
+    pixmap = content.pixmap()
     assert pixmap is not None and not pixmap.isNull()
     target = hp._PreviewPopup._target_size(parent)
     assert popup.width() <= target.width()
@@ -162,7 +173,9 @@ def test_popup_renders_a_fits_frame(qtbot, tmp_path):
     popup.preview(path.as_uri(), QRect(100, 100, 200, 20), parent)
     qtbot.waitUntil(lambda: isinstance(popup._content, QLabel), timeout=5000)
 
-    pixmap = popup._content.pixmap()
+    content = popup._content
+    assert isinstance(content, QLabel)
+    pixmap = content.pixmap()
     assert pixmap is not None and not pixmap.isNull()
 
 
@@ -271,7 +284,7 @@ def test_engine_waits_on_a_link_but_keeps_an_open_popup(qtbot, tmp_path):
     tree = _link_tree(qtbot, [first.as_uri(), second.as_uri()])
     engine = hp.HoverPreview(tree, url_role=URL_ROLE, parent=tree)
 
-    item = tree.topLevelItem(0)
+    item = _top(tree, 0)
     on_link = tree.visualRect(tree.indexFromItem(item, 0)).center()
     engine._on_mouse_move(on_link)
     assert engine._pending_url == first.as_uri()
@@ -299,11 +312,11 @@ def test_engine_replaces_the_preview_for_a_new_link(qtbot, tmp_path):
     tree = _link_tree(qtbot, [first.as_uri(), second.as_uri()])
     engine = hp.HoverPreview(tree, url_role=URL_ROLE, parent=tree)
 
-    engine._on_mouse_move(tree.visualRect(tree.indexFromItem(tree.topLevelItem(0), 0)).center())
+    engine._on_mouse_move(tree.visualRect(tree.indexFromItem(_top(tree, 0), 0)).center())
     engine._show_preview()
     assert engine._shown_url == first.as_uri()
 
-    engine._on_mouse_move(tree.visualRect(tree.indexFromItem(tree.topLevelItem(1), 0)).center())
+    engine._on_mouse_move(tree.visualRect(tree.indexFromItem(_top(tree, 1), 0)).center())
     assert engine._pending_url == second.as_uri()
     engine._show_preview()
 
@@ -316,7 +329,7 @@ def test_engine_does_not_reopen_a_closed_link_until_the_cursor_leaves(qtbot, tmp
     path = _text_file(tmp_path)
     tree = _link_tree(qtbot, [path.as_uri()])
     engine = hp.HoverPreview(tree, url_role=URL_ROLE, parent=tree)
-    item = tree.topLevelItem(0)
+    item = _top(tree, 0)
     on_link = tree.visualRect(tree.indexFromItem(item, 0)).center()
     off_link = tree.visualRect(tree.indexFromItem(item, 1)).center()
 
@@ -337,7 +350,7 @@ def test_engine_shows_a_hand_cursor_over_links(qtbot, tmp_path):
     path = _text_file(tmp_path)
     tree = _link_tree(qtbot, [path.as_uri()])
     engine = hp.HoverPreview(tree, url_role=URL_ROLE, parent=tree)
-    item = tree.topLevelItem(0)
+    item = _top(tree, 0)
 
     engine._on_mouse_move(tree.visualRect(tree.indexFromItem(item, 0)).center())
     assert tree.viewport().cursor().shape() == Qt.CursorShape.PointingHandCursor

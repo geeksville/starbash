@@ -18,6 +18,10 @@
 - Image previews decode on a worker thread and show a rotating-arc `BusyIndicator`
   (`ui/qt/widgets/busy_indicator.py`) over the pane while loading, so selecting a big
   FITS frame no longer freezes the window.
+- **Type checking covers `src/` *and* `tests/`**: `just lint` runs `ruff check --fix`,
+  `ruff format` and `basedpyright` over both trees (0 errors).  `Starbash.__exit__`
+  propagates exceptions under pytest (a mocked `analytics_exception` used to suppress
+  them), so tests can no longer pass vacuously.
 
 
 ## What's Left to Build

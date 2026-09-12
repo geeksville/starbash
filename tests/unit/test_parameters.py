@@ -1,10 +1,21 @@
 """Tests for parameter management in starbash."""
 
 from pathlib import Path
+from typing import Any
 
 from toml_repo.repo import Repo
 
 from starbash.parameters import Parameter, ParameterStore
+
+
+def _config(repo: Repo) -> Any:
+    """Return a repo's parsed TOML.
+
+    ``Repo.config`` is a ``TOMLDocument``, whose runtime dict/array behaviour is
+    not expressible in tomlkit's stubs; treating it as ``Any`` keeps the tests
+    focused on behaviour rather than on cast gymnastics.
+    """
+    return repo.config
 
 
 def test_parameter_is_override():
@@ -54,7 +65,7 @@ def test_add_parameters_from_stage(tmp_path: Path):
     """Parameters are loaded and tagged with their owning stage."""
     repo = _recipe_repo(tmp_path)
     store = ParameterStore()
-    for stage in repo.config["stages"]:
+    for stage in _config(repo)["stages"]:
         store.add_parameters_from_stage(repo, stage)
 
     bg = [p for p in store._parameters if p.stage_name == "background"]
@@ -71,7 +82,7 @@ def test_add_parameters_is_deduped(tmp_path: Path):
     """Adding the same stage twice does not duplicate its parameters."""
     repo = _recipe_repo(tmp_path)
     store = ParameterStore()
-    stage = repo.config["stages"][0]
+    stage = _config(repo)["stages"][0]
     store.add_parameters_from_stage(repo, stage)
     store.add_parameters_from_stage(repo, stage)
 
@@ -87,15 +98,15 @@ def test_as_obj_for_stage_uses_defaults(tmp_path: Path):
     """as_obj_for_stage returns each stage's own defaults."""
     repo = _recipe_repo(tmp_path)
     store = ParameterStore()
-    for stage in repo.config["stages"]:
+    for stage in _config(repo)["stages"]:
         store.add_parameters_from_stage(repo, stage)
 
-    bg = store.as_obj_for_stage("background")
+    bg: Any = store.as_obj_for_stage("background")
     assert bg.smoothing_option == 0.5
     assert bg.ai_version == "1.0.1"
 
     # Same param name in a different stage resolves independently.
-    stack = store.as_obj_for_stage("stack_osc")
+    stack: Any = store.as_obj_for_stage("stack_osc")
     assert stack.smoothing_option == 0.9
 
 
@@ -138,16 +149,16 @@ def test_override_wins_over_default(tmp_path: Path):
     target = _target_repo(tmp_path)
 
     store = ParameterStore()
-    for stage in recipe.config["stages"]:
+    for stage in _config(recipe)["stages"]:
         store.add_parameters_from_stage(recipe, stage)
     store.add_overrides_from_repo(target)
 
-    bg = store.as_obj_for_stage("background")
+    bg: Any = store.as_obj_for_stage("background")
     assert bg.smoothing_option == 0.8  # overridden
     assert bg.ai_version == "1.0.1"  # still default
 
     # stack_osc's same-named param is unaffected by the background override.
-    stack = store.as_obj_for_stage("stack_osc")
+    stack: Any = store.as_obj_for_stage("stack_osc")
     assert stack.smoothing_option == 0.9
 
 
@@ -233,7 +244,7 @@ def test_write_stage_overrides_preserves_activated(tmp_path: Path):
 
     store.write_stage_overrides(repo)
 
-    stages = repo.config["stages"]
+    stages = _config(repo)["stages"]
     bg = next(s for s in stages if s["name"] == "background")
     overrides = [o for o in bg["overrides"] if o.get("name") == "smoothing"]
     # Only one entry, and the user's activated value is retained.

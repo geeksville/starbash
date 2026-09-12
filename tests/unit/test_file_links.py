@@ -12,7 +12,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 try:  # Probe Qt startup once, so an unusable Qt skips rather than erroring.
     from PySide6.QtWidgets import QApplication as _QApplication
 
-    _QApplication.instance() or _QApplication([])
+    if _QApplication.instance() is None:
+        _QApplication([])
 except Exception as _qt_error:  # pragma: no cover - environment dependent
     pytest.skip(f"Qt cannot start here: {_qt_error}", allow_module_level=True)
 

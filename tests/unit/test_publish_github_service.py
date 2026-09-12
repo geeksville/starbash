@@ -3,6 +3,7 @@
 import json
 import urllib.error
 import urllib.parse
+from email.message import Message
 
 import pytest
 
@@ -44,7 +45,7 @@ def http_error(code: int, body: dict) -> urllib.error.HTTPError:
         "https://api.github.com/user",
         code,
         "error",
-        hdrs=None,
+        hdrs=Message(),
         fp=None,
     )
     error.read = lambda: json.dumps(body).encode()  # type: ignore[method-assign]
@@ -94,7 +95,7 @@ def test_poll_device_token_returns_refresh_metadata():
     )
 
     result = service.poll_device_token(
-        type("Device", (), {"device_code": "device", "expires_in": 1, "interval": 0})(),
+        type("Device", (), {"device_code": "device", "expires_in": 1, "interval": 0})(),  # pyright: ignore[reportArgumentType]
         "client",
         sleeper=lambda interval: None,
     )

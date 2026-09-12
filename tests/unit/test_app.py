@@ -440,12 +440,13 @@ class TestAddSession:
         """Test adding a session with valid FITS header."""
         with Starbash() as app:
             header = {
+                Database.ID_KEY: 1,
                 Database.DATE_OBS_KEY: "2023-10-15T20:30:00",
-                get_column_name(Database.IMAGETYP_KEY): "Light",
-                get_column_name(Database.FILTER_KEY): "Ha",
+                Database.IMAGETYP_KEY: "Light",
+                Database.FILTER_KEY: "Ha",
                 Database.EXPTIME_KEY: 60.0,
-                get_column_name(Database.OBJECT_KEY): "M31",
-                get_column_name(Database.TELESCOP_KEY): "Test Telescope",
+                Database.OBJECT_KEY: "M31",
+                Database.TELESCOP_KEY: "Test Telescope",
             }
             app._add_session(header)
 
@@ -453,29 +454,31 @@ class TestAddSession:
             sessions = app.db.search_session()
             assert sessions
             assert len(sessions) == 1
-            assert sessions[0][Database.OBJECT_KEY] == "M31"
+            # Target names are normalized to lowercase when stored
+            assert sessions[0][get_column_name(Database.OBJECT_KEY)] == "m31"
 
     def test_add_session_missing_date(self, setup_test_environment, mock_analytics, caplog):
         """Test adding a session with missing DATE-OBS logs warning."""
         with Starbash() as app:
             header = {
-                get_column_name(Database.IMAGETYP_KEY): "Light",
-                get_column_name(Database.FILTER_KEY): "Ha",
+                Database.ID_KEY: 1,
+                Database.IMAGETYP_KEY: "Light",
+                Database.FILTER_KEY: "Ha",
             }
             app._add_session(header)
 
             # Should log warning and not add session
             assert "missing either DATE-OBS or IMAGETYP" in caplog.text
             sessions = app.db.search_session()
-            assert sessions
-            assert len(sessions) == 0
+            assert sessions == []
 
     def test_add_session_missing_imagetyp(self, setup_test_environment, mock_analytics, caplog):
         """Test adding a session with missing IMAGETYP logs warning."""
         with Starbash() as app:
             header = {
+                Database.ID_KEY: 1,
                 Database.DATE_OBS_KEY: "2023-10-15T20:30:00",
-                get_column_name(Database.FILTER_KEY): "Ha",
+                Database.FILTER_KEY: "Ha",
             }
             app._add_session(header)
 
@@ -486,16 +489,18 @@ class TestAddSession:
         """Test that missing optional fields get default values."""
         with Starbash() as app:
             header = {
+                Database.ID_KEY: 1,
                 Database.DATE_OBS_KEY: "2023-10-15T20:30:00",
-                get_column_name(Database.IMAGETYP_KEY): "Light",
-                # Missing FILTER, OBJECT, TELESCOP, EXPTIME
+                Database.IMAGETYP_KEY: "Light",
+                # TELESCOP is NOT NULL in the schema; the rest are optional
+                Database.TELESCOP_KEY: "Test",
             }
             app._add_session(header)
 
             sessions = app.db.search_session()
             assert sessions
             assert len(sessions) == 1
-            assert sessions[0][Database.EXPTIME_TOTAL_KEY] == 0
+            assert sessions[0][get_column_name(Database.EXPTIME_TOTAL_KEY)] == 0
 
 
 class TestSearchSession:
@@ -560,7 +565,8 @@ class TestSearchSession:
             results = app.search_session()
             assert results is not None
             assert len(results) == 1
-            assert results[0][Database.OBJECT_KEY] == "M31"
+            # Target names are normalized to lowercase when stored
+            assert results[0][get_column_name(Database.OBJECT_KEY)] == "m31"
 
 
 class TestGetSessionImages:
@@ -569,16 +575,22 @@ class TestGetSessionImages:
     def test_get_session_images_valid_session(self, setup_test_environment, mock_analytics):
         """Test retrieving images for a valid session."""
         with Starbash() as app:
+            # Register a real repo so _add_image_abspath can resolve the path
+            repo_dir = setup_test_environment["tmp_path"] / "image_repo"
+            repo_dir.mkdir()
+            (repo_dir / "starbash.toml").write_text("[repo]\nkind = 'images'\n")
+            repo = app.repo_manager.add_repo(f"file://{repo_dir}")
+
             # Add an image
             image = {
                 "path": "image.fit",  # Relative path
                 Database.DATE_OBS_KEY: "2023-10-15T20:30:00",
-                get_column_name(Database.FILTER_KEY): "Ha",
-                get_column_name(Database.IMAGETYP_KEY): "Light",
-                get_column_name(Database.OBJECT_KEY): "M31",
-                get_column_name(Database.TELESCOP_KEY): "Test",
+                Database.FILTER_KEY: "Ha",
+                Database.IMAGETYP_KEY: "Light",
+                Database.OBJECT_KEY: "M31",
+                Database.TELESCOP_KEY: "Test",
             }
-            app.db.upsert_image(image, "file:///path/to")
+            app.db.upsert_image(image, repo.url)
 
             # Add a session
             session = {
@@ -595,22 +607,13 @@ class TestGetSessionImages:
             }
             app.db.upsert_session(session)
 
-            # Get the session ID
             sessions = app.db.search_session()
-            assert sessions is not None
             assert len(sessions) > 0
-            session_id = sessions[0]["id"]
 
             # Get images for this session
-            images = app.get_session_images(session_id)
+            images = app.get_session_images(sessions[0])
             assert len(images) == 1
-            assert images[0]["abspath"] == "/path/to/image.fit"
-
-    def test_get_session_images_invalid_session(self, setup_test_environment, mock_analytics):
-        """Test that invalid session ID raises ValueError."""
-        with Starbash() as app:
-            with pytest.raises(ValueError, match="Session with id 999 not found"):
-                app.get_session_images(999)
+            assert images[0]["abspath"] == str(repo_dir / "image.fit")
 
     def test_get_session_images_no_images(self, setup_test_environment, mock_analytics):
         """Test session with no matching images returns empty list."""
@@ -631,11 +634,9 @@ class TestGetSessionImages:
             app.db.upsert_session(session)
 
             sessions = app.db.search_session()
-            assert sessions is not None
             assert len(sessions) > 0
-            session_id = sessions[0]["id"]
 
-            images = app.get_session_images(session_id)
+            images = app.get_session_images(sessions[0])
             assert images == []
 
 
@@ -650,7 +651,7 @@ class TestRemoveRepoRef:
             test_repo.mkdir()
             (test_repo / "starbash.toml").write_text("[repo]\nkind = 'test'\n")
 
-            app.user_repo.add_repo_ref(Path(test_repo))
+            app.user_repo.add_repo_ref(app.repo_manager, test_repo)
 
             # Remove it
             app.remove_repo_ref(f"file://{test_repo}")
@@ -725,6 +726,7 @@ class TestReindexRepo:
             hdu.header["IMAGETYP"] = "Light"
             hdu.header["FILTER"] = "Ha"
             hdu.header["OBJECT"] = "M31"
+            hdu.header["TELESCOP"] = "Test"
             astropy_fits.HDUList([hdu]).writeto(fits_file, overwrite=True)
 
             repo = app.repo_manager.add_repo(f"file://{test_repo}")
@@ -733,7 +735,7 @@ class TestReindexRepo:
             app.reindex_repo(repo)
 
             # Verify image was added to database
-            image = app.db.get_image(str(fits_file))
+            image = app.db.get_image(f"file://{test_repo}", "test.fit")
             assert image is not None
             assert image["FILTER"] == "Ha"
 
@@ -752,6 +754,7 @@ class TestReindexRepo:
                 hdu = astropy_fits.PrimaryHDU()
                 hdu.header["DATE-OBS"] = "2023-10-15T20:30:00"
                 hdu.header["IMAGETYP"] = "Light"
+                hdu.header["TELESCOP"] = "Test"
                 astropy_fits.HDUList([hdu]).writeto(path)
 
             included_file = test_repo / "included.fit"
@@ -765,12 +768,12 @@ class TestReindexRepo:
             with caplog.at_level("WARNING"):
                 app.reindex_repo(repo)
 
-            assert app.db.get_image(str(included_file)) is not None
-            assert app.db.get_image(str(ignored_file)) is None
+            assert app.db.get_image(f"file://{test_repo}", "included.fit") is not None
+            assert app.db.get_image(f"file://{test_repo}", ".sbignore/ignored.fit") is None
             assert f'Skipping "{ignored_file}"' in caplog.text
 
-    def test_reindex_repo_with_force(self, setup_test_environment, mock_analytics):
-        """Test reindexing with force=True re-reads existing files."""
+    def test_reindex_repo_with_force(self, setup_test_environment, mock_analytics, monkeypatch):
+        """Test reindexing with force_regen re-reads existing files."""
         with Starbash() as app:
             # Create a test repo with a FITS file
             test_repo = setup_test_environment["tmp_path"] / "test_repo"
@@ -784,27 +787,31 @@ class TestReindexRepo:
             hdu.header["DATE-OBS"] = "2023-10-15T20:30:00"
             hdu.header["IMAGETYP"] = "Light"
             hdu.header["FILTER"] = "Ha"
+            hdu.header["TELESCOP"] = "Test"
             astropy_fits.HDUList([hdu]).writeto(fits_file, overwrite=True)
 
             repo = app.repo_manager.add_repo(f"file://{test_repo}")
 
             # Index once
-            app.reindex_repo(repo, force=False)
+            app.reindex_repo(repo)
 
             # Modify the file
             hdu.header["FILTER"] = "OIII"
             astropy_fits.HDUList([hdu]).writeto(fits_file, overwrite=True)
 
-            # Reindex with force
-            app.reindex_repo(repo, force=True)
+            # Reindex with force_regen enabled: existing files are re-read
+            import starbash
+
+            monkeypatch.setattr(starbash, "force_regen", True)
+            app.reindex_repo(repo)
 
             # Verify the change was picked up
-            image = app.db.get_image(str(fits_file))
+            image = app.db.get_image(f"file://{test_repo}", "test.fit")
             assert image is not None
             assert image["FILTER"] == "OIII"
 
-    def test_reindex_repo_handles_bad_fits(self, setup_test_environment, mock_analytics, caplog):
-        """Test that reindex_repo raises OSError for corrupt FITS files."""
+    def test_reindex_repo_skips_bad_fits(self, setup_test_environment, mock_analytics, caplog):
+        """A corrupt FITS file is logged and skipped instead of aborting the scan."""
         with Starbash() as app:
             # Create a test repo with a bad FITS file
             test_repo = setup_test_environment["tmp_path"] / "test_repo"
@@ -817,9 +824,10 @@ class TestReindexRepo:
 
             repo = app.repo_manager.add_repo(f"file://{test_repo}")
 
-            # Should raise OSError for corrupt FITS file
-            with pytest.raises(OSError):
+            # The corrupt file is skipped (and logged) rather than aborting the scan
+            with caplog.at_level("ERROR"):
                 app.reindex_repo(repo)
+            assert "bad.fit" in caplog.text
 
 
 class TestReindexRepos:
@@ -833,426 +841,3 @@ class TestReindexRepos:
 
                 # Should call reindex_repo for each repo
                 assert mock_reindex.call_count == len(app.repo_manager.repos)
-
-    def test_reindex_repos_with_force(self, setup_test_environment, mock_analytics):
-        """Test that reindex_repos passes force parameter."""
-        with Starbash() as app:
-            with patch.object(app, "reindex_repo") as mock_reindex:
-                app.reindex_repos(force=True)
-
-                # All calls should have force=True
-                for call_args in mock_reindex.call_args_list:
-                    assert call_args[1]["force"] is True
-
-
-class TestProcessing:
-    """Tests for processing-related methods."""
-
-    def test_start_session_initializes_context(self, setup_test_environment, mock_analytics):
-        """Test that start_session initializes the context dict."""
-        with Starbash() as app:
-            app.start_session()
-
-            assert hasattr(app, "context")
-            assert isinstance(app.context, dict)
-            assert "process_dir" in app.context
-            assert "masters" in app.context
-
-    def test_run_stage_missing_tool(self, setup_test_environment, mock_analytics):
-        """Test that run_stage raises error for missing tool."""
-        with Starbash() as app:
-            app.start_session()
-            stage = {
-                "description": "Test stage",
-                "when": "test",
-            }
-
-            with pytest.raises(ValueError, match="missing a 'tool' definition"):
-                app.run_stage(stage)
-
-    def test_run_stage_unknown_tool(self, setup_test_environment, mock_analytics):
-        """Test that run_stage raises error for unknown tool."""
-        with Starbash() as app:
-            app.start_session()
-            stage = {
-                "description": "Test stage",
-                "tool": "nonexistent-tool",
-                "when": "test",
-            }
-
-            with pytest.raises(ValueError, match="not found"):
-                app.run_stage(stage)
-
-    def test_run_stage_disabled_skips(self, setup_test_environment, mock_analytics, caplog):
-        """Test that disabled stages are skipped."""
-        with Starbash() as app:
-            app.start_session()
-            stage = {
-                "description": "Test stage",
-                "tool": "python",
-                "disabled": True,
-                "script": "print('hello')",
-            }
-
-            app.run_stage(stage)
-
-            assert "Skipping disabled stage" in caplog.text
-
-    def test_run_stage_missing_script(self, setup_test_environment, mock_analytics):
-        """Test that run_stage raises error when no script provided."""
-        with Starbash() as app:
-            app.start_session()
-            stage = {
-                "description": "Test stage",
-                "tool": "python",
-                "when": "test",
-            }
-
-            with pytest.raises(ValueError, match="missing a 'script' or 'script-file'"):
-                app.run_stage(stage)
-
-    def test_run_stage_with_script(self, setup_test_environment, mock_analytics):
-        """Test running a stage with inline script."""
-        with Starbash() as app:
-            app.start_session()
-            stage = {
-                "description": "Test stage",
-                "tool": "python",
-                "script": "context['test'] = 'value'",
-            }
-
-            app.run_stage(stage)
-
-            # Check that the script ran and modified context
-            assert app.context.get("test") == "value"
-
-    def test_run_stage_with_script_file(self, setup_test_environment, mock_analytics):
-        """Test running a stage with script-file."""
-        with Starbash() as app:
-            app.start_session()
-
-            # Create a test repo with a script file
-            test_repo = setup_test_environment["tmp_path"] / "test_repo"
-            test_repo.mkdir()
-            (test_repo / "starbash.toml").write_text("[repo]\nkind = 'recipe'\n")
-            script_file = test_repo / "test_script.py"
-            script_file.write_text("context['from_file'] = 'loaded'")
-
-            repo = app.repo_manager.add_repo(f"file://{test_repo}")
-
-            stage = {
-                "description": "Test stage",
-                "tool": "python",
-                "script-file": "test_script.py",
-            }
-            # Monkeypatch the source attribute
-            stage["source"] = repo  # type: ignore
-
-            app.run_stage(stage)
-
-            assert app.context.get("from_file") == "loaded"
-
-    def test_run_stage_updates_context(self, setup_test_environment, mock_analytics):
-        """Test that run_stage updates context from stage.context."""
-        with Starbash() as app:
-            app.start_session()
-            stage = {
-                "description": "Test stage",
-                "tool": "python",
-                "script": "pass",
-                "context": {"stage_var": "stage_value"},
-            }
-
-            app.run_stage(stage)
-
-            assert app.context["stage_var"] == "stage_value"
-
-    def test_run_stage_with_input_files(self, setup_test_environment, mock_analytics):
-        """Test run_stage with input file configuration."""
-        with Starbash() as app:
-            app.start_session()
-
-            # Create some test files
-            tmp_path = setup_test_environment["tmp_path"]
-            (tmp_path / "input1.txt").write_text("test")
-            (tmp_path / "input2.txt").write_text("test")
-
-            stage = {
-                "description": "Test stage",
-                "tool": "python",
-                "script": "pass",
-                "input": {
-                    "path": str(tmp_path / "*.txt"),
-                    "required": 1,
-                },
-            }
-
-            app.run_stage(stage)
-
-            # Check that input files were found
-            assert "input_files" in app.context
-            assert len(app.context["input_files"]) == 2
-
-    def test_run_stage_input_required_missing(self, setup_test_environment, mock_analytics):
-        """Test that run_stage raises error when required inputs are missing."""
-        with Starbash() as app:
-            app.start_session()
-
-            stage = {
-                "description": "Test stage",
-                "tool": "python",
-                "script": "pass",
-                "input": {
-                    "path": "/nonexistent/*.fit",
-                    "required": 1,
-                },
-            }
-
-            with pytest.raises(RuntimeError, match="No input files found"):
-                app.run_stage(stage)
-
-    def test_run_stage_input_optional_missing(self, setup_test_environment, mock_analytics):
-        """Test that run_stage succeeds when optional inputs are missing."""
-        with Starbash() as app:
-            app.start_session()
-
-            stage = {
-                "description": "Test stage",
-                "tool": "python",
-                "script": "pass",
-                "input": {
-                    "path": "/nonexistent/*.fit",
-                    "required": 0,
-                },
-            }
-
-            # Should not raise
-            app.run_stage(stage)
-            assert app.context["input_files"] == []
-
-    def test_run_stage_clears_previous_input_files(self, setup_test_environment, mock_analytics):
-        """Test that run_stage clears input_files from previous stages."""
-        with Starbash() as app:
-            app.start_session()
-
-            # Set input_files from previous stage
-            app.context["input_files"] = ["old_file.fit"]
-
-            stage = {
-                "description": "Test stage",
-                "tool": "python",
-                "script": "pass",
-            }
-
-            app.run_stage(stage)
-
-            # input_files should be removed
-            assert "input_files" not in app.context
-
-    def test_run_all_stages_executes_stages(self, setup_test_environment, mock_analytics):
-        """Test that run_all_stages executes stages in priority order."""
-        with Starbash() as app:
-            # Mock the repo manager to return valid stage definitions
-            app.repo_manager.merged = MagicMock()
-            app.repo_manager.merged.getall.side_effect = [
-                # First call for stages definitions
-                [
-                    [
-                        {"name": "stage1", "priority": 1},
-                        {"name": "stage2", "priority": 2},
-                    ]
-                ],
-                # Second call for stage tasks
-                [
-                    [
-                        {
-                            "when": "stage1",
-                            "tool": "python",
-                            "script": "context['s1'] = 1",
-                        },
-                        {
-                            "when": "stage2",
-                            "tool": "python",
-                            "script": "context['s2'] = 2",
-                        },
-                    ]
-                ],
-            ]
-
-            app.run_all_stages()
-
-            # Check that stages were executed
-            assert app.context.get("s1") == 1
-            assert app.context.get("s2") == 2
-
-    def test_run_all_stages_missing_priority(self, setup_test_environment, mock_analytics):
-        """Test that run_all_stages raises error for stages missing priority."""
-        with Starbash() as app:
-            # Mock the repo manager to return invalid stage definitions
-            app.repo_manager.merged = MagicMock()
-            app.repo_manager.merged.getall.return_value = [
-                [{"name": "stage1"}]  # Missing priority
-            ]
-
-            with pytest.raises(ValueError, match="missing the required 'priority' key"):
-                app.run_all_stages()
-
-    def test_run_all_stages_missing_name(self, setup_test_environment, mock_analytics):
-        """Test that run_all_stages raises error for stages missing name."""
-        with Starbash() as app:
-            # Mock the repo manager to return invalid stage definitions
-            app.repo_manager.merged = MagicMock()
-            app.repo_manager.merged.getall.return_value = [
-                [{"priority": 1}]  # Missing name
-            ]
-
-            with pytest.raises(ValueError, match="missing 'name' key"):
-                app.run_all_stages()
-
-
-class TestAddOutputPath:
-    """Tests for the add_output_path method."""
-
-    def test_add_output_path_no_config(self, setup_test_environment, mock_analytics):
-        """Test that add_output_path removes output when no config provided."""
-        with Starbash() as app:
-            app.init_context()
-            app.context["output"] = "should_be_removed"
-
-            stage = {}  # No output config
-            app.add_output_path(stage)
-
-            assert "output" not in app.context
-
-    def test_add_output_path_missing_dest(self, setup_test_environment, mock_analytics):
-        """Test that add_output_path raises error when dest is missing."""
-        with Starbash() as app:
-            app.init_context()
-
-            stage = {"output": {}}  # Missing dest
-
-            with pytest.raises(ValueError, match="missing 'dest'"):
-                app.add_output_path(stage)
-
-    def test_add_output_path_missing_type(self, setup_test_environment, mock_analytics):
-        """Test that add_output_path raises error when type is missing."""
-        with Starbash() as app:
-            app.init_context()
-
-            stage = {"output": {"dest": "repo"}}  # Missing type
-
-            with pytest.raises(ValueError, match="missing 'type'"):
-                app.add_output_path(stage)
-
-    def test_add_output_path_repo_not_found(self, setup_test_environment, mock_analytics):
-        """Test that add_output_path raises error when repo kind not found."""
-        with Starbash() as app:
-            app.init_context()
-
-            stage = {
-                "description": "test stage",
-                "output": {"dest": "repo", "type": "nonexistent"},
-            }
-
-            with pytest.raises(ValueError, match="No repository found with kind"):
-                app.add_output_path(stage)
-
-    def test_add_output_path_success(self, setup_test_environment, mock_analytics, tmp_path):
-        """Test successful output path creation."""
-        with Starbash() as app:
-            app.init_context()
-
-            # Create a mock repo with proper configuration
-            mock_repo = MagicMock()
-            mock_repo.get_path.return_value = tmp_path / "output_repo"
-            mock_repo.get.return_value = "{instrument}/{date}/{imagetyp}/output.fits"
-            mock_repo.url = "file:///test/repo"
-
-            app.repo_manager.get_repo_by_kind = MagicMock(return_value=mock_repo)
-
-            # Set required context variables
-            app.context["instrument"] = "TestScope"
-            app.context["date"] = "2025-01-01"
-            app.context["imagetyp"] = "BIAS"
-
-            stage = {
-                "description": "test stage",
-                "output": {"dest": "repo", "type": "master"},
-            }
-
-            app.add_output_path(stage)
-
-            # Check that output was set
-            assert "output" in app.context
-            assert isinstance(app.context["output"], dict)
-            assert "base_path" in app.context["output"]
-            assert "full_path" in app.context["output"]
-
-    def test_add_output_path_creates_directories(
-        self, setup_test_environment, mock_analytics, tmp_path
-    ):
-        """Test that add_output_path creates output directories."""
-        output_repo = tmp_path / "output_repo"
-
-        with Starbash() as app:
-            app.init_context()
-
-            # Create a mock repo
-            mock_repo = MagicMock()
-            mock_repo.get_path.return_value = output_repo
-            mock_repo.get.return_value = "{instrument}/{date}/{imagetyp}/output.fits"
-            mock_repo.url = "file:///test/repo"
-
-            app.repo_manager.get_repo_by_kind = MagicMock(return_value=mock_repo)
-
-            app.context["instrument"] = "TestScope"
-            app.context["date"] = "2025-01-01"
-            app.context["imagetyp"] = "FLAT"
-
-            stage = {"output": {"dest": "repo", "type": "master"}}
-
-            app.add_output_path(stage)
-
-            # Check that the directory structure was created
-            expected_dir = output_repo / "TestScope" / "2025-01-01" / "FLAT"
-            assert expected_dir.exists()
-
-    def test_add_output_path_unsupported_dest(self, setup_test_environment, mock_analytics):
-        """Test that add_output_path raises error for unsupported dest types."""
-        with Starbash() as app:
-            app.init_context()
-
-            stage = {"output": {"dest": "unsupported_dest", "type": "master"}}
-
-            with pytest.raises(ValueError, match="Unsupported output destination type"):
-                app.add_output_path(stage)
-
-    def test_add_output_path_with_context_expansion(
-        self, setup_test_environment, mock_analytics, tmp_path
-    ):
-        """Test that add_output_path expands context variables in path."""
-        output_repo = tmp_path / "output_repo"
-
-        with Starbash() as app:
-            app.init_context()
-
-            # Create a mock repo with a path containing context variables
-            mock_repo = MagicMock()
-            mock_repo.get_path.return_value = output_repo
-            mock_repo.get.return_value = "{context['instrument']}/{context['date']}/output.fits"
-            mock_repo.url = "file:///test/repo"
-
-            app.repo_manager.get_repo_by_kind = MagicMock(return_value=mock_repo)
-
-            app.context["instrument"] = "MyTelescope"
-            app.context["date"] = "2025-12-25"
-            app.context["imagetyp"] = "LIGHT"
-
-            stage = {"output": {"dest": "repo", "type": "master"}}
-
-            app.add_output_path(stage)
-
-            # Verify output path contains expanded values
-            full_path = Path(app.context["output"]["full_path"])
-            assert "MyTelescope" in str(full_path)
-            assert "2025-12-25" in str(full_path)

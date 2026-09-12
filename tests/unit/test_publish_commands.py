@@ -4,6 +4,7 @@ import threading
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from rich.progress import TaskID
 from typer.testing import CliRunner
 
 from starbash.main import app
@@ -137,7 +138,7 @@ def test_blob_uploads_use_at_most_four_workers_and_preserve_tree_order(tmp_path)
 
     service = MagicMock()
     service.create_blob.side_effect = create_blob
-    entries = publish._upload_blobs(service, "owner", tmp_path, files, MagicMock(), 1)
+    entries = publish._upload_blobs(service, "owner", tmp_path, files, MagicMock(), TaskID(1))
 
     assert maximum_active == 4
     assert {entry["path"] for entry in entries} == {path.name for path in files}

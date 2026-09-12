@@ -6,6 +6,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -325,7 +326,14 @@ class TestToolBaseClass:
                 self.received_cwd = None
                 self.received_context_copy = None
 
-            def _run(self, cwd: str, commands: str, context: dict = {}, **kwargs) -> None:
+            def _run(
+                self,
+                cwd: str,
+                commands: str | list[str],
+                context: dict = {},
+                log_out: Any = None,
+                **kwargs: Any,
+            ) -> None:
                 self.received_cwd = cwd
                 # Make a copy of context to verify temp_dir was present during execution
                 self.received_context_copy = dict(context)
@@ -720,7 +728,8 @@ class TestRCAstroTool:
         """A --flag whose value comes from an unset (None) parameter is omitted."""
 
         class _Params:
-            pass
+            set_val: Any
+            unset_val: Any
 
         params = _Params()
         params.set_val = "0.5"
@@ -817,7 +826,7 @@ class TestToolRunStreaming:
 class TestBlurExterminatorRecipe:
     """Tests that the blur-exterminator recipe is wired correctly."""
 
-    def _load_recipe(self):
+    def _load_recipe(self) -> Any:
         import tomlkit
 
         recipe = (
@@ -866,7 +875,7 @@ class TestNoiseExterminatorRecipe:
         "iterations",
     ]
 
-    def _load_recipe(self):
+    def _load_recipe(self) -> Any:
         import tomlkit
 
         recipe = (
@@ -904,7 +913,7 @@ class TestNoiseExterminatorRecipe:
 class TestStarnetRecipe:
     """Tests that the starnet recipe is wired correctly."""
 
-    def _load_recipe(self):
+    def _load_recipe(self) -> Any:
         import tomlkit
 
         recipe = Path(__file__).parents[2] / "starbash-recipes" / "common" / "starnet.toml"
@@ -949,7 +958,7 @@ class TestStarnetRecipe:
 class TestCropRecipe:
     """Tests that the generalized crop recipe is wired correctly."""
 
-    def _load_recipe(self):
+    def _load_recipe(self) -> Any:
         import tomlkit
 
         recipe = Path(__file__).parents[2] / "starbash-recipes" / "common" / "crop.toml"
@@ -984,7 +993,7 @@ class TestCropRecipe:
     def test_default_manifest_includes_crop_recipe(self):
         import tomlkit
 
-        manifest = tomlkit.parse(
+        manifest: Any = tomlkit.parse(
             (Path(__file__).parents[2] / "starbash-recipes" / "starbash.toml").read_text()
         )
         refs = [ref.get("dir") for ref in manifest["repo-ref"]]
@@ -994,14 +1003,14 @@ class TestCropRecipe:
         import tomlkit
 
         recipe = Path(__file__).parents[2] / "starbash-recipes" / "graxpert" / "background.toml"
-        doc = tomlkit.parse(recipe.read_text())
+        doc: Any = tomlkit.parse(recipe.read_text())
         assert doc["stages"][0]["inputs"][0]["after"] == "crop"
 
 
 class TestMergeStarsRecipe:
     """Tests that the merge_stars recipe is wired correctly."""
 
-    def _load_recipe(self):
+    def _load_recipe(self) -> Any:
         import tomlkit
 
         recipe = Path(__file__).parents[2] / "starbash-recipes" / "post" / "merge_stars.toml"
@@ -1059,7 +1068,7 @@ class TestMergeStarsRecipe:
 class TestBroadbandPaletteRecipe:
     """Tests that the broadband palette recipe is wired correctly."""
 
-    def _load_recipe(self):
+    def _load_recipe(self) -> Any:
         import tomlkit
 
         recipe = Path(__file__).parents[2] / "starbash-recipes" / "palette" / "broadband.toml"
@@ -1090,7 +1099,7 @@ class TestBroadbandPaletteRecipe:
     def test_default_manifest_includes_broadband_recipe(self):
         import tomlkit
 
-        manifest = tomlkit.parse(
+        manifest: Any = tomlkit.parse(
             (Path(__file__).parents[2] / "starbash-recipes" / "starbash.toml").read_text()
         )
         refs = [ref.get("dir") for ref in manifest["repo-ref"]]
@@ -1100,7 +1109,7 @@ class TestBroadbandPaletteRecipe:
 class TestVeraluxFilter:
     """Tests that VeraLux only stretches starless (not starmask) files."""
 
-    def _load_recipe(self):
+    def _load_recipe(self) -> Any:
         import tomlkit
 
         recipe = (

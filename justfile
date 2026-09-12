@@ -250,7 +250,7 @@ _lint:
 
 # Run type checking with basedpyright (same errors as Pylance in VS Code)
 _typecheck:
-    poetry run basedpyright src/
+    poetry run basedpyright
 
 # Run all linting checks (ruff + basedpyright)
 lint: format _lint _typecheck

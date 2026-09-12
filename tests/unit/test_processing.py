@@ -1,6 +1,7 @@
 """Tests for starbash.processing module utility functions."""
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -28,7 +29,7 @@ class TestImportFromPriorStages:
         processing.stage = {"inputs": [{"after": "upstream"}]}
         processing.processed_target = None
         processing.context = {"default_metadata": {}}
-        processing._get_prior_tasks = lambda _stage: prior_tasks
+        processing._get_prior_tasks = lambda stage: prior_tasks
         return processing._import_from_prior_stages(
             {"kind": "job", "requires": requires, "optional": optional}
         )
@@ -74,6 +75,7 @@ class TestImportFromPriorStages:
             [self._task(0), self._task(1)],
         )
 
+        assert result.image_rows is not None
         assert [row["path"] for row in result.image_rows] == [
             "output_0.fits",
             "output_1.fits",
@@ -104,7 +106,7 @@ class TestPaletteRecipes:
     """Tests that palette recipes declare independent channel inputs."""
 
     @staticmethod
-    def _load(name: str):
+    def _load(name: str) -> Any:
         import tomlkit
 
         path = Path(__file__).parents[2] / "starbash-recipes" / "palette" / name

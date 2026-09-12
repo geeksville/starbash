@@ -1,9 +1,19 @@
 """Tests for TOML import resolution in repo.Repo."""
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 from toml_repo.repo import Repo
+
+
+def _config(repo: Repo) -> Any:
+    """Return a repo's parsed TOML.
+
+    ``Repo.config`` is a ``TOMLDocument``; tomlkit's stubs cannot express its
+    runtime dict/array behaviour, so tests treat it as ``Any``.
+    """
+    return repo.config
 
 
 def test_basic_import_same_file(tmp_path: Path):
@@ -29,10 +39,10 @@ def test_basic_import_same_file(tmp_path: Path):
     repo = Repo(toml_file)
 
     # The import should have been resolved
-    assert "import" not in repo.config["my_stage"]
-    assert repo.config["my_stage"]["tool"] == "siril"
-    assert repo.config["my_stage"]["description"] == "Base stage definition"
-    assert repo.config["my_stage"]["context"]["value"] == 42
+    assert "import" not in _config(repo)["my_stage"]
+    assert _config(repo)["my_stage"]["tool"] == "siril"
+    assert _config(repo)["my_stage"]["description"] == "Base stage definition"
+    assert _config(repo)["my_stage"]["context"]["value"] == 42
 
 
 def test_import_from_different_file(tmp_path: Path):
@@ -70,7 +80,7 @@ def test_import_from_different_file(tmp_path: Path):
     repo = Repo(main_file)
 
     # Verify the import was resolved
-    stage_one = repo.config["stage_one"].value
+    stage_one = _config(repo)["stage_one"].value
     assert "import" not in stage_one
     assert stage_one["tool"] == "graxpert"
     assert stage_one["input"]["required"] == 5
@@ -109,7 +119,7 @@ def test_import_with_relative_path(tmp_path: Path):
     repo = Repo(main_file)
 
     # Verify import resolved correctly
-    my_config = repo.config["my_config"].value
+    my_config = _config(repo)["my_config"].value
     assert my_config["description"] == "Template from subdirectory"
     assert my_config["value"] == 123
 
@@ -139,7 +149,7 @@ def test_import_nested_node(tmp_path: Path):
     repo = Repo(toml_file)
 
     # Verify nested import
-    my_stage = repo.config["my_stage"].value
+    my_stage = _config(repo)["my_stage"].value
     assert my_stage["tool"] == "siril"
     assert my_stage["script"] == "calibrate light"
 
@@ -185,7 +195,7 @@ def test_import_from_external_repo(tmp_path: Path):
     repo = Repo(main_toml)
 
     # Verify cross-repo import
-    my_stage = repo.config["my_stage"].value
+    my_stage = _config(repo)["my_stage"].value
     assert my_stage["tool"] == "python"
     assert my_stage["description"] == "Shared across repos"
     assert my_stage["context"]["shared_value"] == "external"
@@ -231,8 +241,8 @@ def test_import_caching(tmp_path: Path):
     repo = Repo(main_file)
 
     # Both imports should be resolved
-    assert repo.config["config_a"].value["value"] == "A"
-    assert repo.config["config_b"].value["value"] == "B"
+    assert _config(repo)["config_a"].value["value"] == "A"
+    assert _config(repo)["config_b"].value["value"] == "B"
 
     # Check that cache was used (both should reference same cache key)
     cache_key = f"{repo.url}::library.toml"
@@ -267,7 +277,7 @@ def test_import_in_array_of_tables(tmp_path: Path):
     repo = Repo(toml_file)
 
     # Verify imports in array of tables
-    stages = repo.config["stages"].value
+    stages = _config(repo)["stages"].value
     assert len(stages) == 2
     assert stages[0].value["name"] == "calibrate"
     assert stages[0].value["tool"] == "siril"
@@ -299,7 +309,7 @@ def test_import_preserves_additional_keys(tmp_path: Path):
 
     # The import replaces the entire table, so custom_key will be lost
     # This is the expected behavior per the design
-    derived = repo.config["derived"].value
+    derived = _config(repo)["derived"].value
     assert "import" not in derived
     assert derived["tool"] == "siril"
     # custom_key is replaced by the import
@@ -449,7 +459,7 @@ def test_nested_imports(tmp_path: Path):
     repo = Repo(main_file)
 
     # Verify nested import chain worked
-    final = repo.config["final"].value
+    final = _config(repo)["final"].value
     assert final["tool"] == "siril"
     assert final["base_value"] == 1
 
@@ -485,7 +495,7 @@ def test_import_preserves_monkey_patch(tmp_path: Path):
     repo = Repo(main_file)
 
     # Verify the imported content has source attribute
-    imported = repo.config["imported"]
+    imported = _config(repo)["imported"]
     assert hasattr(imported, "source")
     assert imported.source == repo
 
@@ -526,8 +536,8 @@ def test_multiple_imports_isolation(tmp_path: Path):
     repo = Repo(main_file)
 
     # Both should have the same initial values
-    copy1 = repo.config["copy1"].value
-    copy2 = repo.config["copy2"].value
+    copy1 = _config(repo)["copy1"].value
+    copy2 = _config(repo)["copy2"].value
     assert copy1["mutable"]["value"] == 10
     assert copy2["mutable"]["value"] == 10
 
@@ -584,7 +594,7 @@ def test_import_complex_structure(tmp_path: Path):
     repo = Repo(main_file)
 
     # Verify complex structure was imported correctly
-    stage = repo.config["my_stage"].value
+    stage = _config(repo)["my_stage"].value
     assert stage["name"] == "complex_stage"
     assert stage["input"]["type"] == "light"
     assert stage["input"]["required"] == 5

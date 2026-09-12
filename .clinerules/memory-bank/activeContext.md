@@ -183,6 +183,27 @@ Open tabs / files being touched suggest active work in:
 - `doc/design/report.md` — the end-to-end design covering target report metadata (R1), Jekyll publishing (R2), and per-frame registration TOML stages (R3).
 
 ## Recent changes
+- **Type checking now covers the tests — and it immediately paid off**
+  (`pyproject.toml`, `justfile`): `[tool.basedpyright] include` is now
+  `["src", "tests"]` and `_typecheck` runs bare `basedpyright`.  Fixing the ~390
+  errors it revealed uncovered a **real bug**: `Starbash.__exit__` returned
+  `analytics_exception(exc)`, and under tests that name is a `MagicMock` (truthy),
+  so *every* `with Starbash():` silently swallowed its exception.  That made
+  `TestProcessing` / `TestAddOutputPath` vacuous — they called methods that no
+  longer exist on `Starbash` (`start_session`, `run_stage`, `run_all_stages`,
+  `init_context`, `add_output_path`) yet "passed".  `__exit__` now returns `False`
+  explicitly in test env (production behaviour unchanged); the two stale classes
+  were deleted (the behaviour lives in `Processing`, covered by
+  `test_processing.py`) and `test_app.py`'s other stale tests were repaired to the
+  current APIs: `_add_session(header)` needs `header["id"]` plus FITS-cased keys,
+  session rows are read with lowercase `get_column_name(...)` keys,
+  `get_session_images` takes a `SessionRow` (not an id) and no longer raises for an
+  unknown id, `reindex_repo` has no `force` argument (force comes from
+  `starbash.force_regen`), `db.get_image(repo_url, path)` takes two args, and
+  `Repo.add_repo_ref(manager, dir)`.  Most of the remaining errors were tomlkit /
+  Qt stub gaps, fixed in the tests with small local helpers (`_config(repo) -> Any`
+  for `Repo.config`, `_top`/`_row` for `QTreeWidget` children, `_loaded`-style
+  `assert isinstance(...)` narrowing) rather than blanket suppressions.
 - **`ruff format` now actually formats the Python sources** (`pyproject.toml`): the
   `[tool.ruff.format]` `exclude` list contained `"*.py"`, which (ruff's globset
   treats `*` as crossing `/`) excluded **every** Python file - so `just lint`'s

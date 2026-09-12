@@ -225,10 +225,10 @@ class TestDwarf3HelperFunctions:
 
     def test_make_monotonic_datetime_increments(self):
         """Test that monotonic datetime increments on each call."""
-        from starbash.dwarf3 import _make_monotonic_datetime
+        from starbash.dwarf3 import _make_monotonic_datetime, _reset_monotonic_datetime
 
         # Reset counter
-        _make_monotonic_datetime.counter = 0
+        _reset_monotonic_datetime()
 
         dt1 = _make_monotonic_datetime()
         dt2 = _make_monotonic_datetime()
@@ -240,9 +240,9 @@ class TestDwarf3HelperFunctions:
 
     def test_make_monotonic_datetime_format(self):
         """Test that monotonic datetime has correct format."""
-        from starbash.dwarf3 import _make_monotonic_datetime
+        from starbash.dwarf3 import _make_monotonic_datetime, _reset_monotonic_datetime
 
-        _make_monotonic_datetime.counter = 0
+        _reset_monotonic_datetime()
         dt = _make_monotonic_datetime()
 
         # Check format: YYYY-MM-DDTHH:MM:SS.mmm

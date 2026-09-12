@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -77,6 +78,34 @@ def _stage(stages, name):
 
 def _param(stage, name):
     return next(parameter for parameter in stage.parameters if parameter.name == name)
+
+
+def _stage_of(page: Any, name: str) -> Any:
+    """Return ``page._stage(name)``, asserting the stage exists."""
+    stage = page._stage(name)
+    assert stage is not None
+    return stage
+
+
+def _param_of(page: Any, stage_name: str, param_name: str) -> Any:
+    """Return ``page._param(stage_name, param_name)``, asserting it exists."""
+    param = page._param(stage_name, param_name)
+    assert param is not None
+    return param
+
+
+def _parent(widget: Any) -> Any:
+    """Return a widget's parent, asserting it exists."""
+    parent = widget.parentWidget()
+    assert parent is not None
+    return parent
+
+
+def _layout(widget: Any) -> Any:
+    """Return a widget's layout, asserting it exists."""
+    layout = widget.layout()
+    assert layout is not None
+    return layout
 
 
 # --- service layer ---------------------------------------------------------
@@ -205,14 +234,14 @@ def test_targets_page_save_button_only_appears_when_dirty(qtbot, app_context, pr
     assert page._save_button.isVisible() is False
     assert page._undo_button.isVisible() is False
 
-    page._stage("crop").excluded = True
+    _stage_of(page, "crop").excluded = True
     page._mark_dirty()
     assert page._is_dirty() is True
     assert page._save_button.isVisible() is True
 
     page._undo()
     assert page._is_dirty() is False
-    assert page._stage("crop").excluded is False
+    assert _stage_of(page, "crop").excluded is False
     assert page._save_button.isVisible() is False
 
 
@@ -224,7 +253,7 @@ def test_targets_page_save_writes_to_disk(qtbot, app_context, processed_repo):
     qtbot.addWidget(page)
     page.refresh()
 
-    page._stage("crop").excluded = True
+    _stage_of(page, "crop").excluded = True
     page._mark_dirty()
     assert page._save() is True
     assert page._is_dirty() is False
@@ -244,7 +273,7 @@ def test_targets_page_asks_before_leaving_when_dirty(
     page.refresh()
 
     def dirty() -> None:
-        page._stage("crop").excluded = True
+        _stage_of(page, "crop").excluded = True
         page._mark_dirty()
 
     # Cancel: stay put, edits intact.
@@ -257,7 +286,7 @@ def test_targets_page_asks_before_leaving_when_dirty(
     monkeypatch.setattr(page, "_ask_unsaved", lambda: UnsavedChoice.DISCARD)
     assert page.can_leave() is True
     assert page._is_dirty() is False
-    assert page._stage("crop").excluded is False
+    assert _stage_of(page, "crop").excluded is False
 
     # Save: persist and allow leaving.
     dirty()
@@ -316,7 +345,7 @@ def test_stage_summary_shows_overridden_values_not_counts(qtbot, app_context, pr
     assert page._stage_items["denoise"].text(1) == ""
 
     # Editing a value updates the summary live.
-    page._param("crop", "crop_height").value = "4150"
+    _param_of(page, "crop", "crop_height").value = "4150"
     page._refresh_param_row("crop", "crop_height")
     assert page._stage_items["crop"].text(1) == "crop_width=85%, crop_height=4150"
 
@@ -338,7 +367,7 @@ def test_overridden_values_are_bright_and_defaults_dim(qtbot, app_context, proce
     assert _OVERRIDE_COLOR != _DEFAULT_COLOR
 
     # Clearing the override re-mutes the row.
-    page._param("crop", "crop_width").value = None
+    _param_of(page, "crop", "crop_width").value = None
     page._refresh_param_row("crop", "crop_width")
     assert overridden.foreground(1).color() == _DEFAULT_COLOR
 
@@ -357,18 +386,18 @@ def test_editor_uses_use_default_and_edit_override_tabs(qtbot, app_context, proc
     assert page._tabs.currentIndex() == 0
     assert page._tabs.tabText(0) == "Use default"
     assert page._tabs.tabText(1) == "Edit override"
-    assert page._param("crop", "crop_height").is_overridden is False
+    assert _param_of(page, "crop", "crop_height").is_overridden is False
 
     # Switching to "Edit override" adopts the default as the starting value.
     page._tabs.setCurrentIndex(1)
-    parameter = page._param("crop", "crop_height")
+    parameter = _param_of(page, "crop", "crop_height")
     assert parameter.is_overridden is True
     assert parameter.value == "80%"
     assert page._stage_items["crop"].text(1) == "crop_width=85%, crop_height=80%"
 
     # ...and switching back drops it.
     page._tabs.setCurrentIndex(0)
-    assert page._param("crop", "crop_height").is_overridden is False
+    assert _param_of(page, "crop", "crop_height").is_overridden is False
     assert page._stage_items["crop"].text(1) == "crop_width=85%"
 
     # An already-overridden option opens straight on "Edit override".
@@ -460,11 +489,11 @@ def test_columns_are_separated_by_a_horizontal_gap(qtbot, app_context, processed
     qtbot.waitExposed(page)
     qtbot.wait(20)
 
-    assert page._right.layout().contentsMargins().left() >= _COLUMN_GAP
+    assert _layout(page._right).contentsMargins().left() >= _COLUMN_GAP
 
     # ...and the gap is real on screen.  The layout margin insets this column's
     # *children*, so measure from the table's right edge to the tree's left edge.
-    splitter = page._table.parentWidget()
+    splitter = _parent(page._table)
     table_right = page._table.mapTo(splitter, QPoint(page._table.width(), 0)).x()
     tree_left = page._tree.mapTo(splitter, QPoint(0, 0)).x()
     assert tree_left - table_right >= _COLUMN_GAP
@@ -488,7 +517,7 @@ def test_target_list_defaults_to_two_thirds_of_the_width(qtbot, app_context, pro
     page.refresh()
     qtbot.waitExposed(page)
 
-    splitter = page._table.parentWidget()
+    splitter = _parent(page._table)
 
     def _share() -> float:
         return page._table.width() / max(1, splitter.width())

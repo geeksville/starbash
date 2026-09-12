@@ -5,6 +5,8 @@ particularly focusing on array-of-tables (AoT) manipulation patterns
 used in starbash's ProcessedTarget._update_from_context() method.
 """
 
+from typing import Any
+
 import tomlkit
 from tomlkit import aot, array, item, table
 from tomlkit.items import AoT
@@ -89,7 +91,7 @@ def test_aot_clear_and_repopulate():
     print()
 
     # Now clear and repopulate - this is what _update_from_context does
-    proc_sessions = doc.get("sessions")
+    proc_sessions: Any = doc.get("sessions")
     proc_sessions.clear()
 
     # Add new data

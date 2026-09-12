@@ -10,7 +10,14 @@ import tomlkit
 
 from starbash.doit import FileInfo
 from starbash.processed_target import ProcessedTarget
-from starbash.run_state import RunStatus
+from starbash.run_state import RunStatus, RunTree
+
+
+def _tree(pt: ProcessedTarget) -> RunTree:
+    """Return the target's run tree, asserting it exists (``run_tree()`` is Optional)."""
+    tree = pt.run_tree()
+    assert tree is not None
+    return tree
 
 
 def _write_target(root: Path, name: str, stages: list[tuple[str, bool]]) -> Path:
@@ -170,7 +177,7 @@ class TestRunRecording:
         task = FakeTask("stack", "stack")
         pt.task_started(task)
         pt.record_result(_result(task, success=False))
-        assert pt.run_tree().stages[0].status == RunStatus.FAILED
+        assert _tree(pt).stages[0].status == RunStatus.FAILED
 
 
 class TestRunLogPersistence:
@@ -285,7 +292,7 @@ class TestRunStageSelection:
         pt.set_run_stages([{"name": "stack"}, {"name": "noise_exterminator"}])
 
         pt.task_started(FakeTask("stack", "stack"))
-        names = [s.name for s in pt.run_tree().stages]
+        names = [s.name for s in _tree(pt).stages]
 
         assert names == ["stack", "noise_exterminator"]
         assert "master_dark" not in names
@@ -298,7 +305,7 @@ class TestRunStageSelection:
         pt.set_run_stages([{"name": "stack"}, {"name": "denoise"}])
 
         pt.task_started(FakeTask("stack", "stack"))
-        stages = {s.name: s for s in pt.run_tree().stages}
+        stages = {s.name: s for s in _tree(pt).stages}
 
         assert stages["denoise"].excluded is True
         assert stages["denoise"].status == RunStatus.EXCLUDED
@@ -310,7 +317,7 @@ class TestRunStageSelection:
 
         pt.task_started(FakeTask("a", "a"))
 
-        assert [(s.name, s.excluded) for s in pt.run_tree().stages] == [("a", False), ("b", True)]
+        assert [(s.name, s.excluded) for s in _tree(pt).stages] == [("a", False), ("b", True)]
 
 
 class TestFinishRuns:
@@ -332,7 +339,7 @@ class TestFinishRuns:
         received: list[events.Event] = []
         unsubscribe = events.subscribe(received.append)
         try:
-            processed._finish_runs([result])
+            processed._finish_runs([result])  # type: ignore[arg-type]  # duck-typed stub
         finally:
             unsubscribe()
 

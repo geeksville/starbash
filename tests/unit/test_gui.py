@@ -8,6 +8,7 @@ all on this machine the whole module skips instead of failing.
 
 import os
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -18,13 +19,14 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 try:  # Probe Qt startup once, so an unusable Qt skips rather than erroring.
     from PySide6.QtWidgets import QApplication as _QApplication
 
-    _QApplication.instance() or _QApplication([])
+    if _QApplication.instance() is None:
+        _QApplication([])
 except Exception as _qt_error:  # pragma: no cover - environment dependent
     pytest.skip(f"Qt cannot start here: {_qt_error}", allow_module_level=True)
 
 from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtGui import QColor, QPixmap  # noqa: E402
-from PySide6.QtWidgets import QWidget  # noqa: E402
+from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem, QWidget  # noqa: E402
 
 from starbash import events  # noqa: E402
 from starbash.ui.qt import QTSIDE6_IMPORT_HINT, GuiUnavailableError, qt_available  # noqa: E402
@@ -512,7 +514,8 @@ def test_main_window_builds_every_page(qtbot, app_context):
     window = MainWindow(app_context)
     qtbot.addWidget(window)
 
-    assert [page.nav_title for page in window.pages()] == [c.nav_title for c in PAGE_CLASSES]
+    pages: list[Any] = window.pages()
+    assert [page.nav_title for page in pages] == [c.nav_title for c in PAGE_CLASSES]
     assert isinstance(window.current_page(), DashboardPage)
 
 
@@ -590,6 +593,21 @@ def _child_named(parent, kind, name):
     return None
 
 
+def _top(tree: QTreeWidget, index: int = 0) -> QTreeWidgetItem:
+    """Return a tree's top-level item (Qt types it Optional)."""
+    item = tree.topLevelItem(index)
+    assert item is not None
+    return item
+
+
+def _row(item: QTreeWidgetItem | None, index: int = 0) -> QTreeWidgetItem:
+    """Return a child item, asserting both the parent and the child exist."""
+    assert item is not None
+    child = item.child(index)
+    assert child is not None
+    return child
+
+
 def test_processing_page_renders_core_events(qtbot, app_context, bus):
     """Core events drive the nested run tree, progress bar and per-task log."""
     from starbash.ui.qt.pages.processing import ProcessingPage
@@ -623,11 +641,11 @@ def test_processing_page_renders_core_events(qtbot, app_context, bus):
     events.publish(events.EVENT_TOOL_PROGRESS, {"percent": 42})
 
     assert page._tasks.topLevelItemCount() == 1
-    target_item = page._tasks.topLevelItem(0)
+    target_item = _top(page._tasks, 0)
     assert target_item.text(0) == "M31"
     assert target_item.isExpanded()
     assert target_item.childCount() == 1
-    stage_item = target_item.child(0)
+    stage_item = _row(target_item, 0)
     assert "stack" in stage_item.text(0)
 
     # The task row (created by TASK_STARTED) has a collapsible Log node, and the
@@ -638,7 +656,7 @@ def test_processing_page_renders_core_events(qtbot, app_context, bus):
     log_node = _child_of_kind(task_item, "log")
     assert log_node is not None
     assert log_node.isExpanded()  # open while the task runs
-    lines = [log_node.child(i).text(0) for i in range(log_node.childCount())]
+    lines = [_row(log_node, i).text(0) for i in range(log_node.childCount())]
     assert any("working 42%" in line for line in lines)
 
     assert page._progress.value() == 42
@@ -658,7 +676,7 @@ def test_processing_page_labels_unused_stages(qtbot, app_context, bus):
     }
     events.publish(events.EVENT_STAGE_RESULT, {"result": None, "run": run})
 
-    stage_item = page._tasks.topLevelItem(0).child(0)
+    stage_item = _row(_top(page._tasks, 0), 0)
     assert stage_item.text(1) == "unused"
 
 
@@ -676,7 +694,7 @@ def test_processing_page_collapses_master_nodes(qtbot, app_context, bus):
     }
     events.publish(events.EVENT_STAGE_RESULT, {"result": None, "run": run})
 
-    root = page._tasks.topLevelItem(0)
+    root = _top(page._tasks, 0)
     assert root.text(0) == "Master flat_Ha · 2024-01-01 · canon"
     assert not root.isExpanded()
 
@@ -720,7 +738,7 @@ def test_processing_page_groups_logs_under_each_task(qtbot, app_context, bus):
     }
     events.publish(events.EVENT_STAGE_RESULT, {"result": None, "run": run})
 
-    stage_item = page._tasks.topLevelItem(0).child(0)
+    stage_item = _row(_top(page._tasks, 0), 0)
     assert "lightvbias" in stage_item.text(0)
 
     first = _child_named(stage_item, "task", "lightvbias_s123")
@@ -728,19 +746,19 @@ def test_processing_page_groups_logs_under_each_task(qtbot, app_context, bus):
     log_node = _child_of_kind(first, "log")
     assert log_node is not None
     assert not log_node.isExpanded()  # finished ok -> closed
-    assert [log_node.child(i).text(0).strip() for i in range(log_node.childCount())] == [
+    assert [_row(log_node, i).text(0).strip() for i in range(log_node.childCount())] == [
         "line a",
         "line b",
     ]
     out_node = _child_of_kind(first, "out")
     assert out_node is not None
     assert out_node.childCount() == 1
-    assert "bkg_pp_light_s123.fits" in out_node.child(0).text(0)
+    assert "bkg_pp_light_s123.fits" in _row(out_node, 0).text(0)
 
     # With tasks present the stage's flat log tail is *not* rendered: the lines
     # live under the tasks instead.
     assert not any(
-        "stage-level noise" in stage_item.child(i).text(0) for i in range(stage_item.childCount())
+        "stage-level noise" in _row(stage_item, i).text(0) for i in range(stage_item.childCount())
     )
     assert _child_named(stage_item, "task", "lightvbias_s555") is not None
 
@@ -761,13 +779,13 @@ def test_processing_page_caps_running_log_at_the_tail(qtbot, app_context, bus):
     for i in range(LOG_TAIL_LINES + 4):
         events.publish(events.EVENT_TOOL_OUTPUT, {"stream": "stdout", "line": f"line {i}"})
 
-    stage_item = page._tasks.topLevelItem(0).child(0)
+    stage_item = _row(_top(page._tasks, 0), 0)
     log_node = _child_of_kind(_child_of_kind(stage_item, "task"), "log")
     assert log_node is not None
     assert log_node.childCount() == LOG_TAIL_LINES
     assert log_node.isExpanded()
-    assert "line 0" not in log_node.child(0).text(0)
-    assert f"line {LOG_TAIL_LINES + 3}" in log_node.child(log_node.childCount() - 1).text(0)
+    assert "line 0" not in _row(log_node, 0).text(0)
+    assert f"line {LOG_TAIL_LINES + 3}" in _row(log_node, log_node.childCount() - 1).text(0)
 
 
 def test_processing_page_closes_log_on_finish_keeps_failure_open(qtbot, app_context, bus):
@@ -778,7 +796,7 @@ def test_processing_page_closes_log_on_finish_keeps_failure_open(qtbot, app_cont
     qtbot.addWidget(page)
 
     def running_log(task_name):
-        stage_item = page._tasks.topLevelItem(0).child(0)
+        stage_item = _row(_top(page._tasks, 0), 0)
         task_item = _child_named(stage_item, "task", task_name)
         return _child_of_kind(task_item, "log")
 
@@ -878,22 +896,22 @@ def test_processing_page_marks_links_and_opens_them(qtbot, app_context, bus, mon
     }
     events.publish(events.EVENT_STAGE_RESULT, {"result": None, "run": run})
 
-    root = page._tasks.topLevelItem(0)
+    root = _top(page._tasks, 0)
     assert root.data(1, LINK_ROLE) == "file:///out"
 
-    stage_item = root.child(0)
+    stage_item = _row(root, 0)
     assert stage_item.data(0, LINK_ROLE) == "https://example.com/stack.toml"
     assert stage_item.font(0).underline() is True
     # A remote recipe cannot be previewed, so its URL stays discoverable.
     assert stage_item.toolTip(0) == "https://example.com/stack.toml"
 
-    task_item = stage_item.child(0)
+    task_item = _row(stage_item, 0)
     out_node = next(
-        task_item.child(i)
+        _row(task_item, i)
         for i in range(task_item.childCount())
-        if task_item.child(i).text(0).strip() == "Out"
+        if _row(task_item, i).text(0).strip() == "Out"
     )
-    file_row = out_node.child(0)
+    file_row = _row(out_node, 0)
     assert file_row.data(0, LINK_ROLE) == "file:///out/stack.fits"
     assert file_row.data(1, LINK_ROLE) == "file:///out/stack.fits"
     assert file_row.font(0).underline() is True

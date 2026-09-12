@@ -8,9 +8,17 @@ from starbash.run_state import (
     FileRef,
     RunState,
     RunStatus,
+    StageNode,
     TaskNode,
     document_to_tree,
 )
+
+
+def _stage(state: RunState, name: str) -> StageNode:
+    """Return a registered stage, asserting it exists (``stage()`` is Optional)."""
+    node = state.stage(name)
+    assert node is not None
+    return node
 
 
 def _task(name: str, status: RunStatus, deps=(), targets=()) -> TaskNode:
@@ -58,7 +66,7 @@ class TestRunStateStatus:
         state.register_stage("stack")
         task = state.add_task("stack", _task("stack_a", RunStatus.RUNNING))
         assert task.status == RunStatus.RUNNING
-        assert state.stage("stack").status == RunStatus.RUNNING
+        assert _stage(state, "stack").status == RunStatus.RUNNING
 
 
 class TestDependencies:
@@ -87,7 +95,7 @@ class TestLogTail:
         state.set_current_stage("stack")
         for i in range(10):
             state.add_log(f"line {i}")
-        assert state.stage("stack").logs == ["line 7", "line 8", "line 9"]
+        assert _stage(state, "stack").logs == ["line 7", "line 8", "line 9"]
 
     def test_lines_go_to_the_running_task_and_the_stage(self):
         state = RunState("M31", log_tail_lines=3)
@@ -98,7 +106,7 @@ class TestLogTail:
         for i in range(10):
             state.add_log(f"line {i}")
         assert task.logs == ["line 7", "line 8", "line 9"]
-        assert state.stage("stack").logs == ["line 7", "line 8", "line 9"]
+        assert _stage(state, "stack").logs == ["line 7", "line 8", "line 9"]
 
     def test_lines_fall_back_to_the_stage_once_the_task_ends(self):
         state = RunState("M31", log_tail_lines=3)
@@ -110,7 +118,7 @@ class TestLogTail:
         state.set_current_task(None)
         state.add_log("after the task")
         assert task.logs == ["during the task"]
-        assert state.stage("stack").logs == ["during the task", "after the task"]
+        assert _stage(state, "stack").logs == ["during the task", "after the task"]
 
     def test_task_logs_round_trip_through_toml(self):
         state = RunState("M31")
@@ -128,7 +136,7 @@ class TestLogTail:
         state = RunState("M31")
         state.register_stage("stack")
         state.add_log("orphan")
-        assert state.stage("stack").logs == []
+        assert _stage(state, "stack").logs == []
 
 
 class TestSerialisation:

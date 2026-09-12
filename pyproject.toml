@@ -164,7 +164,8 @@ ignore = [
 
 [tool.basedpyright]
 # Enable import validation to catch runtime import errors at analysis time
-include = ["src"]
+# Type-check both the package and the test suite.
+include = ["src", "tests"]
 exclude = ["**/__pycache__", ".venv", "build", "dist"]
 extraPaths = ["GraXpert", "toml-repo"]  # Include local sources for type checking
 typeCheckingMode = "standard"                          # Standard type checking: catches type errors, missing annotations, etc.

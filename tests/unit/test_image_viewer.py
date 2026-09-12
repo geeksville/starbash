@@ -21,7 +21,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 try:  # Probe Qt startup once, so an unusable Qt skips rather than erroring.
     from PySide6.QtWidgets import QApplication as _QApplication
 
-    _QApplication.instance() or _QApplication([])
+    if _QApplication.instance() is None:
+        _QApplication([])
 except Exception as _qt_error:  # pragma: no cover - environment dependent
     pytest.skip(f"Qt cannot start here: {_qt_error}", allow_module_level=True)
 
@@ -174,7 +175,7 @@ def test_show_file_decodes_off_the_gui_thread(qtbot, tmp_path, monkeypatch):
     threads: list[int] = []
     real = viewer_module.load_image_file
 
-    def spy(source: object) -> QImage:
+    def spy(source: str | Path) -> QImage:
         threads.append(threading.get_ident())
         return real(source)
 
@@ -268,12 +269,14 @@ def test_a_slow_load_cannot_overwrite_a_newer_one(qtbot, tmp_path, monkeypatch):
     viewer.show_file(tmp_path / "slow.fits")
     viewer.show_file(tmp_path / "fast.fits")
     qtbot.waitUntil(lambda: viewer._image is not None, timeout=5000)
+    assert viewer._image is not None
     assert viewer._image.width() == 22
 
     # Now let the stale load finish; its result must be dropped on the floor.
     release.set()
     qtbot.waitUntil(slow_returned.is_set, timeout=5000)
     qtbot.wait(100)
+    assert viewer._image is not None
     assert viewer._image.width() == 22
     assert viewer.is_loading() is False
 
@@ -310,6 +313,7 @@ def test_show_file_displays_a_real_raster_image(qtbot, tmp_path):
     viewer.show_file(path)
     qtbot.waitUntil(lambda: viewer._image is not None, timeout=5000)
 
+    assert viewer._image is not None
     assert (viewer._image.width(), viewer._image.height()) == (40, 30)
     assert viewer.is_loading() is False
     assert "frame.png" in viewer._caption.text()
@@ -324,6 +328,7 @@ def test_show_file_renders_a_fits_frame(qtbot, tmp_path):
     viewer.show_file(path)
     qtbot.waitUntil(lambda: viewer._image is not None, timeout=5000)
 
+    assert viewer._image is not None
     assert (viewer._image.width(), viewer._image.height()) == (48, 32)
 
 
