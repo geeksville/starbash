@@ -125,7 +125,7 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           # Download Siril DMG
-          curl -L -o siril.dmg https://free-astro.org/download/siril-1.4.0-arm64.dmg
+          curl -L -o siril.dmg https://free-astro.org/download/siril-1.4.4-arm64.dmg
           # Mount the DMG
           hdiutil attach siril.dmg -nobrowse -quiet
           # Copy Siril.app to /Applications
@@ -147,7 +147,7 @@ jobs:
         run: |
           # Download Siril installer
           $installer = "siril-setup.exe"
-          Invoke-WebRequest -Uri "https://free-astro.org/download/siril-1.4.0-setup.exe" -OutFile $installer
+          Invoke-WebRequest -Uri "https://free-astro.org/download/siril-1.4.4-setup.exe" -OutFile $installer
           
           # Run installer in silent mode (Inno Setup uses /VERYSILENT /NORESTART)
           # /DIR specifies installation directory
