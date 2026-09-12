@@ -17,7 +17,7 @@ from tomlkit.toml_document import TOMLDocument
 from tomlkit.toml_file import TOMLFile
 
 from starbash import to_shortdate
-from starbash.doit_types import cleanup_old_contexts, get_processing_dir
+from starbash.doit_types import get_processing_dir
 from starbash.parameters import ParameterStore
 from starbash.processing_like import ProcessingLike
 from starbash.report import (
@@ -392,6 +392,18 @@ class ProcessedTarget:
             self.p.context["target"] = target
 
     def _cleanup_processing_dir(self) -> None:
+        """Release this job's processing directory.
+
+        Only *temporary* (master) directories are removed here; a real target's
+        processing dir is left in place because it may still be used later.
+
+        Note: we deliberately do **not** prune older contexts here.  This method
+        runs at *build* time (see ``_job_to_tasks``), and a planning pass builds
+        every target before anything runs — pruning then would delete the
+        processing dirs that phase 2 is about to use.  The cache is instead
+        bounded by ``Processing._run_all_tasks()``, which calls
+        ``cleanup_old_contexts()`` once per completed run.
+        """
         logging.debug(f"Cleaning up processing context at {self.name}")
 
         # unregister our process dir
@@ -402,7 +414,18 @@ class ProcessedTarget:
             logging.debug(f"Removing temporary processing directory: {self.name}")
             shutil.rmtree(self.name, ignore_errors=True)
 
-        cleanup_old_contexts()
+    def remove_processing_dir(self) -> None:
+        """Delete this job's processing directory.
+
+        Unlike :meth:`_cleanup_processing_dir`, this removes the directory even
+        for a *real* target: it is called once a target's run has finished, so
+        the (potentially hundreds-of-GB) ``.cache`` scratch tree is freed
+        immediately rather than accumulating until the next prune.
+        """
+        self.p.context.pop("process_dir", None)
+        if self.name.exists():
+            logging.debug(f"Removing processing directory: {self.name}")
+            shutil.rmtree(self.name, ignore_errors=True)
 
     def _set_default_stages(self) -> None:
         """If we have newly discovered stages which should be excluded by default, add them now."""

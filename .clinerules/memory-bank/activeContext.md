@@ -310,6 +310,20 @@ Open tabs / files being touched suggest active work in:
 
 ## Next steps
 
+- Done: [`doc/plans/master-cull.md`](../../doc/plans/master-cull.md) — after
+  phase 1 (master regeneration) cull the displayed master runs that no selected
+  target depends on, via an explicit **preflight** (plan) phase. Approach **A** is
+  implemented end-to-end: `cleanup_old_contexts()` moved out of
+  `ProcessedTarget.close()` (pruning now only at the run boundary), and
+  `Processing.run_all_stages()` now (1) runs masters, (2) builds **every** target's
+  tasks without running anything, computes needed masters with
+  `masters_needed_by()` and publishes `events.EVENT_PREFLIGHT_FINISHED`
+  (`{"drop": [labels]}`), then (3) runs the prebuilt tasks with `prune=False`,
+  deleting each target's `.cache` processing dir via
+  `ProcessedTarget.remove_processing_dir()` immediately after its run and pruning
+  once at the end. Front-ends: `ProcessingView` (CLI) and
+  `ProcessingPage._on_preflight_finished` (GUI). Targets now run in stable
+  session order (deduped dict, not a `set`). The full `tests/unit` suite passes.
 - Complete the R3 migration: route all three OSC stacking variants through `report_registration.toml` stages, remove `_update_ha_registration_metrics()` from `src/starbash/recipes/osc.py`, and verify `.seq` basenames per stack variant (Phase 0 in `doc/design/report.md`).
 - Decide whether to merge the in-progress `feat-report2` branch work into `main`.
 - Long-term (from TODO.md, uncheckmarked): mono-camera workflow recipes, drizzle by default, recipe `[import]`/inheritance to reduce copy-paste, per-frame report regeneration, and a recipes writer's guide.

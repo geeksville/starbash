@@ -48,6 +48,7 @@ __all__ = [
     "EVENT_REINDEX_PROGRESS",
     "EVENT_REINDEX_FINISHED",
     "EVENT_PROCESS_TARGET",
+    "EVENT_PREFLIGHT_FINISHED",
     "EVENT_RUN_STARTED",
     "EVENT_RUN_FINISHED",
     "EVENT_LOG_MESSAGE",
@@ -77,6 +78,10 @@ EVENT_REINDEX_PROGRESS = "reindex.progress"
 EVENT_REINDEX_FINISHED = "reindex.finished"
 #: A whole target is about to be processed. data: {target, index, total}
 EVENT_PROCESS_TARGET = "process.target"
+#: The preflight (plan) phase finished, before any target task runs.  data:
+#: {drop: [run label, ...]} where ``drop`` lists master runs the selected targets
+#: do not need, so observers can remove them from the displayed pipeline.
+EVENT_PREFLIGHT_FINISHED = "preflight.finished"
 #: A processing run started (for the target in data). data: {target, total}
 EVENT_RUN_STARTED = "run.started"
 #: A processing run finished. data: {target, run: {..plain run-tree..}}

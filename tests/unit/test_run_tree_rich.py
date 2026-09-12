@@ -89,3 +89,27 @@ class TestProcessingView:
         text = _render(view._render())
         assert "Live" in text
         assert "M31" in text
+
+    def test_preflight_finished_drops_unneeded_master_runs(self):
+        view = ProcessingView("Test run", Console(file=StringIO(), no_color=True))
+        view._on_event(events.Event(events.EVENT_RUN_STARTED, {"target": "Master bias"}))
+        view._on_event(events.Event(events.EVENT_STAGE_RESULT, {"run": _RUN}))
+        view._on_event(events.Event(events.EVENT_RUN_STARTED, {"target": "Master flat"}))
+        view._on_event(
+            events.Event(events.EVENT_STAGE_RESULT, {"run": {**_RUN, "target": "Master flat"}})
+        )
+        assert set(view._runs) == {"M31", "Master flat"}
+
+        view._on_event(events.Event(events.EVENT_PREFLIGHT_FINISHED, {"drop": ["Master flat"]}))
+
+        assert "Master flat" not in view._runs
+        assert "Master flat" not in view._order
+        assert "M31" in view._runs
+
+    def test_preflight_finished_with_unknown_label_is_harmless(self):
+        view = ProcessingView("Test run", Console(file=StringIO(), no_color=True))
+        view._on_event(events.Event(events.EVENT_STAGE_RESULT, {"run": _RUN}))
+
+        view._on_event(events.Event(events.EVENT_PREFLIGHT_FINISHED, {"drop": ["Nope"]}))
+
+        assert "M31" in view._runs

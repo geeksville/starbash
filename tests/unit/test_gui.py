@@ -699,6 +699,40 @@ def test_processing_page_collapses_master_nodes(qtbot, app_context, bus):
     assert not root.isExpanded()
 
 
+def test_processing_page_drops_unneeded_master_runs(qtbot, app_context, bus):
+    """PREFLIGHT_FINISHED removes the master runs no target depends on."""
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    def master_run(label: str) -> dict:
+        return {
+            "target": label,
+            "is_master": True,
+            "stages": [{"name": "stack_bias", "status": "ok", "excluded": False}],
+        }
+
+    events.publish(
+        events.EVENT_STAGE_RESULT,
+        {"result": None, "run": master_run("Master flat_Ha · 2024-01-01 · canon")},
+    )
+    events.publish(
+        events.EVENT_STAGE_RESULT,
+        {"result": None, "run": master_run("Master dark · 2024-01-01 · canon")},
+    )
+    assert page._tasks.topLevelItemCount() == 2
+
+    events.publish(
+        events.EVENT_PREFLIGHT_FINISHED,
+        {"drop": ["Master dark · 2024-01-01 · canon"]},
+    )
+
+    assert page._tasks.topLevelItemCount() == 1
+    assert _top(page._tasks, 0).text(0) == "Master flat_Ha · 2024-01-01 · canon"
+    assert "Master dark · 2024-01-01 · canon" not in page._targets
+
+
 def test_processing_page_groups_logs_under_each_task(qtbot, app_context, bus):
     """Each task gets its own Log node plus flat output rows; finished logs close."""
     from starbash.ui.qt.pages.processing import ProcessingPage

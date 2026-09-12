@@ -954,3 +954,310 @@ class TestRemoveMissingToolTasks:
         assert result == []
         warnings = [r for r in caplog.records if "blur_exterminator" in r.message]
         assert len(warnings) == 1
+
+
+class TestMastersNeededBy:
+    """Tests for the masters_needed_by() dependency closure."""
+
+    def test_direct_dependency_is_needed(self, tmp_path):
+        """A master consumed directly by a target lands in the needed set."""
+        from starbash.processing import masters_needed_by
+
+        flat = tmp_path / "flat_master.fit"
+        needed = masters_needed_by(
+            [{"file_dep": [str(flat)], "targets": [str(tmp_path / "light.fit")]}],
+            [{"targets": [str(flat)], "file_dep": [str(tmp_path / "raw_flat.fit")]}],
+        )
+        assert str(flat) in needed
+
+    def test_transitive_dependency_is_needed(self, tmp_path):
+        """A master that a *needed* master consumes is also needed."""
+        from starbash.processing import masters_needed_by
+
+        flat = tmp_path / "flat_master.fit"
+        bias = tmp_path / "bias_master.fit"
+        dark = tmp_path / "dark_master.fit"
+        needed = masters_needed_by(
+            [{"file_dep": [str(flat)], "targets": [str(tmp_path / "light.fit")]}],
+            [
+                {"targets": [str(flat)], "file_dep": [str(bias)]},
+                {"targets": [str(bias)], "file_dep": [str(tmp_path / "raw_bias.fit")]},
+                {"targets": [str(dark)], "file_dep": [str(tmp_path / "raw_dark.fit")]},
+            ],
+        )
+        assert str(bias) in needed
+        assert str(flat) in needed
+        assert str(dark) not in needed
+
+    def test_unrelated_master_is_not_needed(self, tmp_path):
+        """A master nothing depends on is absent from the needed set."""
+        from starbash.processing import masters_needed_by
+
+        needed = masters_needed_by(
+            [{"file_dep": [str(tmp_path / "used.fit")], "targets": []}],
+            [{"targets": [str(tmp_path / "unused.fit")], "file_dep": []}],
+        )
+        assert str(tmp_path / "unused.fit") not in needed
+
+
+class TestRunAllTasksPrune:
+    """Tests for the optional cleanup in _run_all_tasks()."""
+
+    @staticmethod
+    def _make_processing() -> Any:
+        from starbash.processing import Processing
+
+        proc: Any = Processing.__new__(Processing)
+
+        class FakeDoit:
+            def __init__(self) -> None:
+                self.tasks: list[dict] = []
+
+            def set_tasks(self, tasks: list[dict]) -> None:
+                self.tasks = tasks
+
+        proc.doit = FakeDoit()
+        proc.results = []
+        proc._run_jobs = lambda: None
+        return proc
+
+    def test_prune_defaults_to_true(self, monkeypatch):
+        """Without an argument, finishing a batch still prunes old contexts."""
+        calls: list[int] = []
+        monkeypatch.setattr("starbash.processing.cleanup_old_contexts", lambda: calls.append(1))
+
+        proc = self._make_processing()
+        proc._run_all_tasks([])
+
+        assert calls == [1]
+
+    def test_prune_false_skips_cleanup(self, monkeypatch):
+        """prune=False lets a caller that created all dirs up front defer pruning."""
+        calls: list[int] = []
+        monkeypatch.setattr("starbash.processing.cleanup_old_contexts", lambda: calls.append(1))
+
+        proc = self._make_processing()
+        proc._run_all_tasks([], prune=False)
+
+        assert calls == []
+
+
+class TestPublishMasterCull:
+    """Tests for Processing._publish_master_cull()."""
+
+    @staticmethod
+    def _master_result(label: str, targets: list[str], file_dep: list[str]) -> Any:
+        from types import SimpleNamespace
+
+        class FakePt:
+            def run_label(self, context: dict | None = None) -> str:
+                return label
+
+        task = SimpleNamespace(
+            file_dep=file_dep,
+            targets=targets,
+            meta={"processed_target": FakePt(), "context": {}},
+        )
+        return SimpleNamespace(task=task)
+
+    def test_unneeded_master_is_dropped(self, tmp_path, monkeypatch):
+        """A master no target depends on appears in the published drop list."""
+        from starbash import events
+        from starbash.processing import Processing
+
+        published: list[tuple[str, dict | None]] = []
+        monkeypatch.setattr(
+            events, "publish", lambda kind, data=None: published.append((kind, data))
+        )
+
+        used = tmp_path / "used_master.fit"
+        unused = tmp_path / "unused_master.fit"
+        results = [
+            self._master_result("Master used", [str(used)], [str(tmp_path / "r1.fit")]),
+            self._master_result("Master unused", [str(unused)], [str(tmp_path / "r2.fit")]),
+        ]
+        target_tasks = [{"file_dep": [str(used)], "targets": []}]
+
+        proc = Processing.__new__(Processing)
+        drop = proc._publish_master_cull(results, target_tasks)
+
+        assert drop == ["Master unused"]
+        assert published[-1][0] == events.EVENT_PREFLIGHT_FINISHED
+        assert published[-1][1] == {"drop": ["Master unused"]}
+
+    def test_all_needed_publishes_nothing(self, tmp_path, monkeypatch):
+        """When every master is needed, no event is published."""
+        from starbash import events
+        from starbash.processing import Processing
+
+        published: list[tuple[str, dict | None]] = []
+        monkeypatch.setattr(
+            events, "publish", lambda kind, data=None: published.append((kind, data))
+        )
+
+        used = tmp_path / "used_master.fit"
+        results = [self._master_result("Master used", [str(used)], [str(tmp_path / "r1.fit")])]
+
+        proc = Processing.__new__(Processing)
+        drop = proc._publish_master_cull(results, [{"file_dep": [str(used)], "targets": []}])
+
+        assert drop == []
+        assert published == []
+
+    def test_no_targets_drops_nothing(self, tmp_path, monkeypatch):
+        """With no targets selected, every master survives (nothing pulls them in)."""
+        from starbash import events
+        from starbash.processing import Processing
+
+        published: list[tuple[str, dict | None]] = []
+        monkeypatch.setattr(
+            events, "publish", lambda kind, data=None: published.append((kind, data))
+        )
+
+        results = [
+            self._master_result("Master a", [str(tmp_path / "a.fit")], []),
+            self._master_result("Master b", [str(tmp_path / "b.fit")], []),
+        ]
+
+        proc = Processing.__new__(Processing)
+        drop = proc._publish_master_cull(results, [])
+
+        assert drop == []
+        assert published == []
+
+    def test_single_master_run_drops_nothing(self, tmp_path, monkeypatch):
+        """A single master run is never culled (there is no choice to make)."""
+        from starbash import events
+        from starbash.processing import Processing
+
+        published: list[tuple[str, dict | None]] = []
+        monkeypatch.setattr(
+            events, "publish", lambda kind, data=None: published.append((kind, data))
+        )
+
+        results = [self._master_result("Master only", [str(tmp_path / "only.fit")], [])]
+
+        proc = Processing.__new__(Processing)
+        drop = proc._publish_master_cull(results, [{"file_dep": [], "targets": []}])
+
+        assert drop == []
+        assert published == []
+
+
+class TestRunAllStagesPreflight:
+    """The auto pipeline builds every target before running any of them."""
+
+    @staticmethod
+    def _fake_processing(targets: list[str]):
+        from starbash.processing import Processing
+
+        proc: Any = Processing.__new__(Processing)
+
+        class FakeSb:
+            def search_session(self, *args, **kwargs):
+                return [{"object": t} for t in targets]
+
+        class FakeProgress:
+            def __init__(self) -> None:
+                self.events: list[str] = []
+
+            def add_task(self, *args, **kwargs) -> int:
+                return 0
+
+            def update(self, *args, **kwargs) -> None:
+                pass
+
+            def track(self, iterable, *args, **kwargs):
+                return iterable
+
+            def remove_task(self, *args, **kwargs) -> None:
+                pass
+
+        class FakePt:
+            def __init__(self, name: str) -> None:
+                self.name = name
+                self.removed = False
+
+            def remove_processing_dir(self) -> None:
+                self.removed = True
+
+        proc.sb = FakeSb()
+        proc.progress = FakeProgress()
+        proc.processed_target = None
+        return proc, FakePt
+
+    def test_all_targets_built_before_any_run(self, monkeypatch):
+        """Planning for every target completes before the first target runs."""
+        import starbash
+        from starbash import processing as processing_mod
+
+        monkeypatch.setattr(starbash, "process_masters", False, raising=False)
+        proc, FakePt = self._fake_processing(["M42", "M31"])
+
+        sequence: list[tuple[str, str]] = []
+        prune_flags: list[bool] = []
+
+        def fake_create(sessions, targets):
+            target = targets[0]
+            sequence.append(("create", target))
+            pt = FakePt(target)
+            orig = pt.remove_processing_dir
+
+            def fake_remove() -> None:
+                sequence.append(("remove", target))
+                orig()
+
+            pt.remove_processing_dir = fake_remove
+            return [{"meta": {"processed_target": pt}}]
+
+        def fake_run(tasks, prune: bool = True):
+            target = tasks[0]["meta"]["processed_target"].name
+            sequence.append(("run", target))
+            prune_flags.append(prune)
+            return []
+
+        proc._create_tasks = fake_create
+        proc._run_all_tasks = fake_run
+        proc._finish_runs = lambda results: None
+        proc._publish_master_cull = lambda results, tasks: []
+        monkeypatch.setattr(processing_mod, "cleanup_old_contexts", lambda: None)
+
+        proc.run_all_stages()
+
+        # Every "create" happens before every "run": planning is its own phase.
+        last_create = max(i for i, (kind, _) in enumerate(sequence) if kind == "create")
+        first_run = min(i for i, (kind, _) in enumerate(sequence) if kind == "run")
+        assert last_create < first_run
+        # Targets are processed in stable selection order (deduped)...
+        assert [t for kind, t in sequence if kind == "create"] == ["m42", "m31"]
+        assert [t for kind, t in sequence if kind == "run"] == ["m42", "m31"]
+        # Mid-run pruning is disabled (the dirs are shed per target instead)...
+        assert prune_flags == [False, False]
+        # ...and each target's scratch dir is removed right after it runs.
+        assert {t for kind, t in sequence if kind == "remove"} == {"m42", "m31"}
+        assert proc.processed_target is None
+
+    def test_master_cull_sees_every_targets_tasks(self, monkeypatch):
+        """The cull is computed from all targets' tasks, not just the first."""
+        import starbash
+        from starbash import processing as processing_mod
+
+        monkeypatch.setattr(starbash, "process_masters", False, raising=False)
+        proc, FakePt = self._fake_processing(["M42", "M31"])
+
+        def fake_create(sessions, targets):
+            return [{"meta": {"processed_target": FakePt(targets[0]), "tag": targets[0]}}]
+
+        seen: list[list[str]] = []
+        proc._create_tasks = fake_create
+        proc._run_all_tasks = lambda tasks, prune=True: []
+        proc._finish_runs = lambda results: None
+        proc._publish_master_cull = lambda results, tasks: seen.append(
+            [t["meta"]["tag"] for t in tasks]
+        )
+        monkeypatch.setattr(processing_mod, "cleanup_old_contexts", lambda: None)
+
+        proc.run_all_stages()
+
+        assert len(seen) == 1
+        assert set(seen[0]) == {"m42", "m31"}

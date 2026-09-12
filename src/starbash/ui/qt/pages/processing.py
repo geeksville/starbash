@@ -216,6 +216,23 @@ class ProcessingPage(Page):
             notes = getattr(data.get("result"), "notes", None)
             if notes:
                 self._caption.setText(str(notes))
+        elif kind == events.EVENT_PREFLIGHT_FINISHED:
+            self._on_preflight_finished(data)
+
+    def _on_preflight_finished(self, data: dict) -> None:
+        """Drop master runs that planning found no target depends on."""
+        dropped: list[str] = []
+        for label in data.get("drop", []):
+            item = self._targets.pop(str(label), None)
+            if item is not None:
+                index = self._tasks.indexOfTopLevelItem(item)
+                if index >= 0:
+                    self._tasks.takeTopLevelItem(index)
+            dropped.append(str(label))
+        # If a removed run was somehow still the active one, stop attributing
+        # further log lines to a row that no longer exists.
+        if self._running is not None and self._running[0] in dropped:
+            self._running = None
 
     def _ensure_target(self, target: str) -> QTreeWidgetItem:
         """Return (creating if needed) the top-level item for a target."""

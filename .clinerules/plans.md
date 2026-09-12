@@ -21,3 +21,7 @@ Implementation and design plans live in `doc/plans/*.md` and are tracked in git.
 ## Existing plans
 
 - `doc/plans/gui.md` — PySide6 desktop GUI launched via `sb gui`.
+- `doc/plans/processed-target-model.md` — `ProcessedTarget` as the single model
+  for a target's `.starbash` files + the live run tree.
+- `doc/plans/master-cull.md` — cull unneeded master runs from the displayed
+  pipeline before phase 2.

@@ -483,11 +483,16 @@ class TestProcessedTargetCleanup:
     """Tests for ProcessedTarget cleanup and lifecycle."""
 
     def test_cleanup_processing_dir_removes_temp(self, mock_processing_like, temp_processing_dir):
-        """Test that temporary directories are removed on cleanup."""
+        """Test that temporary directories are removed on cleanup.
+
+        Build/plan time must *not* prune older contexts: planning builds every
+        target before anything runs, so pruning here would delete processing
+        dirs that a later run phase still needs.  The cache is bounded by
+        ``Processing._run_all_tasks()`` instead.
+        """
         with (
             patch("starbash.processed_target.toml_from_template") as mock_template,
             patch("starbash.processed_target.Repo") as mock_repo_class,
-            patch("starbash.processed_target.cleanup_old_contexts") as mock_cleanup,
         ):
             mock_template.return_value = {}
             mock_repo = MagicMock()
@@ -504,7 +509,6 @@ class TestProcessedTargetCleanup:
 
             assert not temp_dir.exists()
             assert "process_dir" not in mock_processing_like.context
-            mock_cleanup.assert_called_once()
 
     def test_cleanup_processing_dir_preserves_named(
         self, mock_processing_like, temp_processing_dir
@@ -515,7 +519,6 @@ class TestProcessedTargetCleanup:
         with (
             patch("starbash.processed_target.toml_from_template") as mock_template,
             patch("starbash.processed_target.Repo") as mock_repo_class,
-            patch("starbash.processed_target.cleanup_old_contexts") as mock_cleanup,
         ):
             mock_template.return_value = {}
             mock_repo = MagicMock()
@@ -532,7 +535,62 @@ class TestProcessedTargetCleanup:
 
             assert target_dir.exists()
             assert "process_dir" not in mock_processing_like.context
-            mock_cleanup.assert_called_once()
+
+    def test_remove_processing_dir_frees_named_scratch_only(
+        self, mock_processing_like, temp_processing_dir
+    ):
+        """remove_processing_dir() frees a named target's scratch tree only.
+
+        A named target's ``self.name`` is its *cache* processing dir (the
+        potentially huge ``.cache/.../processing/<target>`` tree); its processed
+        output lives elsewhere (``context["output"].base``).  Dropping the scratch
+        tree after the run must therefore never touch the output directory.
+        """
+        target = "M42"
+
+        with (
+            patch("starbash.processed_target.toml_from_template") as mock_template,
+            patch("starbash.processed_target.Repo") as mock_repo_class,
+        ):
+            mock_template.return_value = {}
+            mock_repo = MagicMock()
+            mock_repo.get.return_value = {}
+            mock_repo_class.return_value = mock_repo
+
+            pt = ProcessedTarget(mock_processing_like, target)
+            scratch_dir = pt.name
+            output_dir = Path(mock_processing_like.context["output"].base)
+
+            # Sanity: the scratch tree and the processed output are different places.
+            assert scratch_dir != output_dir
+            scratch_dir.mkdir(parents=True, exist_ok=True)
+            (scratch_dir / "intermediate.fit").write_text("scratch")
+            output_dir.mkdir(parents=True, exist_ok=True)
+            (output_dir / "final.fit").write_text("keep me")
+
+            pt.remove_processing_dir()
+
+            assert not scratch_dir.exists()
+            assert "process_dir" not in mock_processing_like.context
+            # The processed output is untouched.
+            assert (output_dir / "final.fit").read_text() == "keep me"
+
+    def test_remove_processing_dir_is_idempotent(self, mock_processing_like, temp_processing_dir):
+        """Calling remove_processing_dir() on an already-gone dir is harmless."""
+        with (
+            patch("starbash.processed_target.toml_from_template") as mock_template,
+            patch("starbash.processed_target.Repo") as mock_repo_class,
+        ):
+            mock_template.return_value = {}
+            mock_repo = MagicMock()
+            mock_repo.get.return_value = {}
+            mock_repo_class.return_value = mock_repo
+
+            pt = ProcessedTarget(mock_processing_like, "M42")
+            pt.remove_processing_dir()
+            pt.remove_processing_dir()  # must not raise
+
+            assert not pt.name.exists()
 
     def test_close_writes_config_when_valid(self, mock_processing_like, temp_processing_dir):
         """Test that close writes config when valid."""

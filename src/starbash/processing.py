@@ -154,6 +154,52 @@ def _stage_fingerprint(stage: StageDict, context: dict[str, Any]) -> dict[str, A
     }
 
 
+def masters_needed_by(
+    target_tasks: list[TaskDict],
+    master_tasks: list[TaskDict],
+) -> set[str]:
+    """Set of master output paths (normalised) that the given targets depend on.
+
+    Seeds from every ``file_dep`` of ``target_tasks`` (a target's light stages
+    depend on the master files they consume), then walks the master→master edges
+    — a needed flat master consumes a bias/dark master — so a *transitive*
+    dependency is never mistaken for an unneeded one.
+
+    Args:
+        target_tasks: Task dicts for the selected targets.
+        master_tasks: Task dicts for the master runs (each with ``file_dep`` and
+            ``targets``).
+
+    Returns:
+        The set of needed master output paths, normalised with
+        :func:`os.path.realpath` so symlinked/relative spellings still match.
+    """
+    needed: set[str] = set()
+    for task in target_tasks:
+        for dep in task.get("file_dep", None) or []:
+            needed.add(os.path.realpath(str(dep)))
+
+    # Map every produced master path to the task that produces it, so the
+    # closure below can follow a needed output back to its own inputs.
+    producers: dict[str, TaskDict] = {}
+    for task in master_tasks:
+        for output in task.get("targets", None) or []:
+            producers[os.path.realpath(str(output))] = task
+
+    frontier = list(needed)
+    while frontier:
+        task = producers.get(frontier.pop())
+        if task is None:
+            continue
+        for dep in task.get("file_dep", None) or []:
+            normalised = os.path.realpath(str(dep))
+            if normalised not in needed:
+                needed.add(normalised)
+                frontier.append(normalised)
+
+    return needed
+
+
 class Processing(ProcessingLike):
     """Abstract base class for processing operations.
 
@@ -283,11 +329,23 @@ class Processing(ProcessingLike):
                 },
             )
 
-    def _run_all_tasks(self, tasks: list[TaskDict]) -> list[ProcessingResult]:
+    def _run_all_tasks(self, tasks: list[TaskDict], prune: bool = True) -> list[ProcessingResult]:
+        """Run a batch of doit tasks and return their results.
+
+        Args:
+            tasks: The doit task dictionaries to execute.
+            prune: When true (the default) shed the oldest processing contexts
+                once the batch finishes.  The auto pipeline passes ``False``
+                while running pre-built targets: their processing directories
+                are created up front, so pruning mid-run could delete a not-yet
+                run target's directory.  That caller removes each target's
+                directory as soon as it finishes, and prunes once at the end.
+        """
         self.doit.set_tasks(tasks)
         self.results.clear()
         self._run_jobs()
-        cleanup_old_contexts()
+        if prune:
+            cleanup_old_contexts()
         return self.results
 
     def _create_tasks(
@@ -370,15 +428,27 @@ class Processing(ProcessingLike):
         *       run session.light stages
         *   after all sessions are processed, run final.stack stages (using the shared context and temp dir)
 
+        The work is split into three phases:
+
+        1. **Masters** — generate the calibration masters (they must exist before
+           the targets can select which ones to use).
+        2. **Preflight** — build every target's task graph without running any
+           tool.  This resolves each target's recipes and input ``requires``,
+           creates its processing/output directories and writes its config, and
+           tells us which master runs nothing actually needs.
+        3. **Run** — execute the pre-built target tasks, removing each target's
+           (potentially huge) processing directory as soon as it finishes.
+
         """
         sessions = self.sb.search_session()
-        targets: set[str] = set()
+        # Preserve the order targets first appear in the selection (deduped), so a
+        # run processes them in a stable, predictable order.
+        targets: dict[str, None] = {}
 
         for s in sessions:
             target = s.get(get_column_name(Database.OBJECT_KEY))
             if target:
-                target = normalize_target_name(target)
-                targets.add(target)
+                targets[normalize_target_name(target)] = None
 
         targets_list: list[str | None] = list(targets)
 
@@ -386,38 +456,125 @@ class Processing(ProcessingLike):
 
         results: list[ProcessingResult] = []
         auto_process_masters = starbash.process_masters
+        master_results: list[ProcessingResult] = []
         if auto_process_masters:
-            results.extend(self.run_master_stages())
-
-        # Note: we don't process all tasks in one big doit run, because we want to be able to cleanup processing dirs
-        # between targets.
+            master_results = self.run_master_stages()
+            results.extend(master_results)
 
         # Show two progress bars, one for each target and a second (from inside doit.py) showing the tasks
         progress_task = self.progress.add_task("Processing targets...", total=len(targets_list))
+
+        # --- preflight: build the task graph for every target, run nothing ---
+        # We deliberately do *not* run every target in one big doit run, because
+        # we want to shed each target's processing dir as soon as it is done.
+        prebuilt: dict[str | None, list[TaskDict]] = {}
         try:
-            for index, t in enumerate(
-                self.progress.track(targets_list, task_id=progress_task), start=1
-            ):
+            for index, t in enumerate(targets_list, start=1):
                 self.progress.update(
-                    progress_task, description=f"Processing: {t}" if t else "masters", refresh=True
+                    progress_task, description=f"Planning: {t}" if t else "masters", refresh=True
                 )
                 events.publish(
                     events.EVENT_PROCESS_TARGET,
                     {"target": t, "index": index, "total": len(targets_list)},
                 )
+                prebuilt[t] = self._create_tasks(sessions, [t])
+
+            # Now that we know what every target needs, tell observers which
+            # master runs are unneeded so they can drop them from the displayed
+            # pipeline before the target runs start.
+            self._publish_master_cull(
+                master_results, [task for tasks in prebuilt.values() for task in tasks]
+            )
+
+            # --- run: execute the pre-built target tasks ---
+            for t in self.progress.track(targets_list, task_id=progress_task):
+                self.progress.update(
+                    progress_task, description=f"Processing: {t}" if t else "masters", refresh=True
+                )
                 events.publish(
                     events.EVENT_RUN_STARTED,
                     {"target": t or "masters", "total": len(targets_list)},
                 )
-                tasks = self._create_tasks(sessions, [t])
-                target_results = self._run_all_tasks(tasks)
+                tasks = prebuilt.get(t) or self._create_tasks(sessions, [t])
+                pt = self._processed_target_of(tasks)
+                self.processed_target = pt
+                # Don't prune mid-run: every target's processing dir was created
+                # up front, so pruning could delete one we have not run yet.
+                target_results = self._run_all_tasks(tasks, prune=False)
                 results.extend(target_results)
                 self._finish_runs(target_results)
+                # The scratch tree can be hundreds of GB; drop it now instead of
+                # letting one accumulate per target until the next prune.
+                if pt is not None:
+                    pt.remove_processing_dir()
+                self.processed_target = None
         finally:
             # we manually created this task, so we manually need to remove it
             self.progress.remove_task(progress_task)
+            self.processed_target = None
+            # Re-apply the normal cache bound now that the whole run is over.  This
+            # runs even if a target failed, so an interrupted run cannot leave an
+            # unbounded scratch tree behind (completed targets were already shed).
+            cleanup_old_contexts()
 
         return results
+
+    def _processed_target_of(self, tasks: list[TaskDict]) -> ProcessedTarget | None:
+        """The :class:`ProcessedTarget` that owns a batch of tasks (or None)."""
+        for task in tasks:
+            pt = (task.get("meta") or {}).get("processed_target")
+            if pt is not None:
+                return pt
+        return None
+
+    def _publish_master_cull(
+        self,
+        master_results: list[ProcessingResult],
+        target_tasks: list[TaskDict],
+    ) -> list[str]:
+        """Announce which master runs the selected targets do not need.
+
+        Derives, for each master run, the output files it produced, then asks
+        :func:`masters_needed_by` which of those any target depends on (directly
+        or transitively).  Runs whose outputs are all unneeded end up in the
+        ``drop`` list of an :data:`starbash.events.EVENT_PREFLIGHT_FINISHED`.
+
+        Returns:
+            The dropped run labels (empty when everything is needed).
+        """
+        master_graphs: list[TaskDict] = []
+        outputs_by_label: dict[str, set[str]] = {}
+        for result in master_results:
+            task = getattr(result, "task", None)
+            if task is None:
+                continue
+            file_dep = list(getattr(task, "file_dep", None) or [])
+            targets = list(getattr(task, "targets", None) or [])
+            master_graphs.append({"file_dep": file_dep, "targets": targets})
+
+            meta = getattr(task, "meta", None) or {}
+            pt = meta.get("processed_target")
+            if pt is None:
+                continue
+            label = pt.run_label(meta.get("context") or {})
+            outputs_by_label.setdefault(label, set()).update(
+                os.path.realpath(str(p)) for p in targets
+            )
+
+        # Culling can only help when there is more than one master run to choose
+        # between and at least one target whose dependencies we can match against.
+        if not target_tasks or len(outputs_by_label) <= 1:
+            return []
+
+        needed = masters_needed_by(target_tasks, master_graphs)
+        drop = sorted(
+            label
+            for label, outputs in outputs_by_label.items()
+            if outputs and not (outputs & needed)
+        )
+        if drop:
+            events.publish(events.EVENT_PREFLIGHT_FINISHED, {"drop": drop})
+        return drop
 
     def build_all_tasks(self) -> list[TaskDict]:
         """Build the full task tree for every selected target without running it.

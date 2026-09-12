@@ -145,6 +145,19 @@ class ProcessingView:
                     self._order.append(target)
                 self._runs[target] = run
                 self._refresh()
+        elif event.kind == events.EVENT_PREFLIGHT_FINISHED:
+            # Planning determined these master runs are not needed by any target:
+            # drop them from the tree before the target runs begin.
+            changed = False
+            for label in data.get("drop", []):
+                if label in self._runs:
+                    del self._runs[label]
+                    changed = True
+                if label in self._order:
+                    self._order.remove(label)
+                    changed = True
+            if changed:
+                self._refresh()
 
     def _render(self) -> Group:
         header = Text(self.title, style="bold")
