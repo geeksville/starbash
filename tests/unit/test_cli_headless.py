@@ -71,7 +71,7 @@ sys.exit(0 if info.exit_code == 0 and help_result.exit_code == 0 else 1)
 '''
 
 #: Proves the invariant behind the headless guarantee: the CLI never pulls in Qt.
-NO_QT_IMPORT_SCRIPT = '''
+NO_QT_IMPORT_SCRIPT = """
 import sys
 
 from starbash import app as starbash_app
@@ -91,7 +91,7 @@ print("QT_MODULES", qt_modules)
 print("GUI_MODULES", gui_modules)
 
 sys.exit(0 if result.exit_code == 0 and not qt_modules and not gui_modules else 1)
-'''
+"""
 
 
 def _headless_env(tmp_path: Path) -> dict[str, str]:

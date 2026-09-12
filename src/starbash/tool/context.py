@@ -123,9 +123,7 @@ def expand_context_unsafe(s: str, context: dict) -> str:
 
         try:
             # Compile the expression with RestrictedPython
-            byte_code = compile_restricted(
-                expr, filename="<template expression>", mode="eval"
-            )
+            byte_code = compile_restricted(expr, filename="<template expression>", mode="eval")
 
             # Evaluate with safe globals and the context
             result = eval(byte_code, make_safe_globals(context), None)
@@ -218,7 +216,9 @@ def make_safe_globals(extra_globals: dict = {}) -> dict:
 
         # If it starts with underscore, block it (security)
         if name.startswith("_"):
-            raise AttributeError(f'"{name}" is an invalid attribute name because it starts with "_".')
+            raise AttributeError(
+                f'"{name}" is an invalid attribute name because it starts with "_".'
+            )
 
         # Otherwise allow normal attribute access
         return getattr(obj, name, default)
@@ -249,16 +249,16 @@ def make_safe_globals(extra_globals: dict = {}) -> dict:
 
     # Add RestrictedPython's utility_builtins for safe access to math, random, string modules
     from RestrictedPython.Utilities import utility_builtins
+
     builtins.update(utility_builtins)
 
     execution_globals = {
         # Required for RestrictedPython
         "__builtins__": builtins,
-        "__name__": "__starbash_script__", # Loaded scripts can check for this name to know we are in starbash
+        "__name__": "__starbash_script__",  # Loaded scripts can check for this name to know we are in starbash
         "__metaclass__": type,
         # Extra globals auto imported into the scripts context
         "logger": logging.getLogger("script"),  # Allow logging within the script,
-
         # Used by siril scripts without importing
         "staticmethod": staticmethod,
     }

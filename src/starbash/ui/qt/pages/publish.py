@@ -86,6 +86,4 @@ class PublishPage(Page):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(get_publish_site_dir())))
 
     def _on_open_site(self) -> None:
-        QDesktopServices.openUrl(
-            QUrl.fromLocalFile(str(get_publish_site_dir() / "index.html"))
-        )
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(get_publish_site_dir() / "index.html")))

@@ -605,7 +605,9 @@ def test_target_rows_expose_recipe_and_folder_links(qtbot, app_context, processe
     assert "file://" in text
 
 
-def test_target_link_opens_on_activate_not_on_click(qtbot, app_context, processed_repo, monkeypatch):
+def test_target_link_opens_on_activate_not_on_click(
+    qtbot, app_context, processed_repo, monkeypatch
+):
     """A plain click selects; only activating the row opens the recipe."""
     from starbash.ui.qt.models import LINK_ROLE
     from starbash.ui.qt.widgets import file_links
@@ -642,4 +644,3 @@ def test_target_table_output_column_is_a_link(qtbot, app_context, processed_repo
 
     index = page._model.index(0, 1)
     assert str(index.data(LINK_ROLE)).startswith("file://")
-

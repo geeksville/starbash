@@ -58,9 +58,7 @@ def cleanup_old_contexts() -> None:
     from starbash import paths
 
     if os.environ.get("PYTEST_CURRENT_TEST") is not None:
-        using_override = (
-            paths._override_cache_dir is not None or os.getenv("STARBASH_CACHE_DIR")
-        )
+        using_override = paths._override_cache_dir is not None or os.getenv("STARBASH_CACHE_DIR")
         if not using_override:
             logging.warning(
                 "Refusing to clean processing contexts during tests without a cache override: %s",

@@ -352,4 +352,3 @@ def test_clear_resets_the_viewer(qtbot, tmp_path):
     assert viewer.is_loading() is False
     assert viewer._label.text() == "Select a frame to preview."
     assert viewer._caption.text() == ""
-

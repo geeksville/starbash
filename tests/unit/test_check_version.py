@@ -32,9 +32,7 @@ class TestCheckVersion:
 
         check_version()
 
-        mock_checker.check.assert_called_once_with(
-            package_name="starbash", package_version="0.3.2"
-        )
+        mock_checker.check.assert_called_once_with(package_name="starbash", package_version="0.3.2")
 
     @patch("starbash.check_version.UpdateChecker")
     @patch("starbash.check_version.version", return_value="0.3.2")
@@ -49,16 +47,12 @@ class TestCheckVersion:
         with caplog.at_level(logging.WARNING):
             check_version()
 
-        assert any(
-            record.name == "root" and record.msg is mock_result for record in caplog.records
-        )
+        assert any(record.name == "root" and record.msg is mock_result for record in caplog.records)
 
     @patch("starbash.check_version.UpdateChecker")
     @patch("starbash.check_version.version", return_value="0.3.2")
     @patch("starbash.check_version.is_connected", return_value=True)
-    def test_no_update_logs_nothing(
-        self, mock_connected, mock_version, mock_checker_cls, caplog
-    ):
+    def test_no_update_logs_nothing(self, mock_connected, mock_version, mock_checker_cls, caplog):
         """A None result (no update available) should not log an update warning."""
         mock_checker_cls.return_value.check.return_value = None
 
@@ -88,9 +82,6 @@ class TestCheckVersion:
         side_effect=PackageNotFoundError("starbash"),
     )
     @patch("starbash.check_version.is_connected", return_value=True)
-    def test_package_not_found_is_ignored(
-        self, mock_connected, mock_version, mock_checker_cls
-    ):
+    def test_package_not_found_is_ignored(self, mock_connected, mock_version, mock_checker_cls):
         """Running from source without the package installed must not raise."""
         check_version()  # Must not raise
-

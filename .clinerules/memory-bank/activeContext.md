@@ -183,6 +183,19 @@ Open tabs / files being touched suggest active work in:
 - `doc/design/report.md` — the end-to-end design covering target report metadata (R1), Jekyll publishing (R2), and per-frame registration TOML stages (R3).
 
 ## Recent changes
+- **`ruff format` now actually formats the Python sources** (`pyproject.toml`): the
+  `[tool.ruff.format]` `exclude` list contained `"*.py"`, which (ruff's globset
+  treats `*` as crossing `/`) excluded **every** Python file - so `just lint`'s
+  format step silently did nothing. Removed that entry and ran `ruff format src
+  tests` once, normalising 53 files (all 154 are now format-clean; `just lint` is a
+  no-op on a clean tree).  Note the format step reformatted a long call in
+  `score.py` and detached an `# type: ignore[arg-type]` from the line it guarded;
+  replaced it with a proper `"None"` default (matching the neighbouring filter
+  lookups), which also removes a latent `normalize(None)` crash.  Also fixed 9
+  pre-existing `basedpyright` errors in `processed_target.py` (unbound
+  `metadata_dir`, undeclared `config_path`, annotated attribute assignments outside
+  `__init__`, `Path | None` into `_read_or_template`, and a possibly-`None` task) so
+  `basedpyright src/` is clean.
 - **Hover previews stay open + Targets links** (`ui/qt/widgets/hover_preview.py`,
   new `ui/qt/widgets/file_links.py`, `ui/qt/pages/targets.py`, `ui/qt/models.py`,
   `ui/qt/services.py`, `processed_target.py`): the preview is now an interactive

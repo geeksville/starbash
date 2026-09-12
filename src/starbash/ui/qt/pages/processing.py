@@ -208,9 +208,7 @@ class ProcessingPage(Page):
         elif kind == events.EVENT_TASK_FINISHED:
             self._on_task_finished(data)
         elif kind == events.EVENT_TOOL_OUTPUT:
-            self._append_log_line(
-                str(data.get("line", "")), error=data.get("stream") == "stderr"
-            )
+            self._append_log_line(str(data.get("line", "")), error=data.get("stream") == "stderr")
         elif kind == events.EVENT_TOOL_PROGRESS:
             self._progress.setRange(0, 100)
             self._progress.setValue(int(data.get("percent") or 0))
@@ -478,4 +476,3 @@ class ProcessingPage(Page):
     def _apply_status(item: QTreeWidgetItem, status: RunStatus) -> None:
         """Colour a row by its run status."""
         item.setForeground(0, QBrush(QColor(_STATUS_COLORS.get(status, "#c9d1d9"))))
-

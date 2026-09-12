@@ -162,7 +162,6 @@ class ProcessingView:
         self._refresh()
 
 
-
 @app.command()
 def auto(
     session_num: Annotated[

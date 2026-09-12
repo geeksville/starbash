@@ -114,7 +114,9 @@ def test_my_reporter_enriches_task_events_with_stage_labels(recorder):
     assert finished.data["stage"] == "stack"
 
 
-def test_reindex_repo_publishes_progress_and_finished(setup_test_environment, mock_analytics, recorder):
+def test_reindex_repo_publishes_progress_and_finished(
+    setup_test_environment, mock_analytics, recorder
+):
     """Indexing a repo reports coarse progress and a final count."""
     from starbash.app import Starbash
 

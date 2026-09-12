@@ -355,6 +355,7 @@ def test_load_app_icon_tolerates_a_missing_asset(monkeypatch, qapp):
 
 # --- FITS rendering --------------------------------------------------------
 
+
 def test_fits_to_qimage_renders_grayscale(qapp, tmp_path):
     """A FITS frame is stretched into a non-null QImage of the right size."""
     from astropy.io import fits
@@ -466,7 +467,9 @@ def test_a_checked_box_is_filled_with_the_accent_and_a_tick(qtbot, qapp):
     accent = QColor(theme.ACCENT)
     assert sum(1 for colour in pixels if _is_near(colour, accent)) > 50
     # ...plus the tick glyph itself, which is white.
-    assert sum(1 for colour in pixels if min(colour.red(), colour.green(), colour.blue()) > 200) >= 5
+    assert (
+        sum(1 for colour in pixels if min(colour.red(), colour.green(), colour.blue()) > 200) >= 5
+    )
 
 
 def test_the_checkmark_is_packaged_and_referenced_by_the_stylesheet(qapp):
@@ -486,7 +489,6 @@ def test_a_missing_checkmark_only_drops_the_tick(monkeypatch, qapp):
 
     monkeypatch.setattr(theme, "CHECKMARK_NAME", "definitely-not-a-real-check.png")
     assert theme.checkmark_path() is None
-
 
 
 # --- main window and pages -------------------------------------------------
@@ -588,7 +590,6 @@ def _child_named(parent, kind, name):
     return None
 
 
-
 def test_processing_page_renders_core_events(qtbot, app_context, bus):
     """Core events drive the nested run tree, progress bar and per-task log."""
     from starbash.ui.qt.pages.processing import ProcessingPage
@@ -680,8 +681,6 @@ def test_processing_page_collapses_master_nodes(qtbot, app_context, bus):
     assert not root.isExpanded()
 
 
-
-
 def test_processing_page_groups_logs_under_each_task(qtbot, app_context, bus):
     """Each task gets its own Log/Out nodes; finished logs start closed."""
     from starbash.ui.qt.pages.processing import ProcessingPage
@@ -741,8 +740,7 @@ def test_processing_page_groups_logs_under_each_task(qtbot, app_context, bus):
     # With tasks present the stage's flat log tail is *not* rendered: the lines
     # live under the tasks instead.
     assert not any(
-        "stage-level noise" in stage_item.child(i).text(0)
-        for i in range(stage_item.childCount())
+        "stage-level noise" in stage_item.child(i).text(0) for i in range(stage_item.childCount())
     )
     assert _child_named(stage_item, "task", "lightvbias_s555") is not None
 
@@ -825,7 +823,6 @@ def test_processing_page_closes_log_on_finish_keeps_failure_open(qtbot, app_cont
     assert failed_log.isExpanded()
 
 
-
 def test_run_tree_starts_with_an_even_column_split(qtbot):
     """The run tree gives its first column half the viewport on first show."""
     from starbash.ui.qt.pages.processing import _RunTree
@@ -872,9 +869,7 @@ def test_processing_page_marks_links_and_opens_them(qtbot, app_context, bus, mon
                         "name": "stack_s1",
                         "title": "stack_s1",
                         "status": "ok",
-                        "outputs": [
-                            {"label": "stack.fits", "url": "file:///out/stack.fits"}
-                        ],
+                        "outputs": [{"label": "stack.fits", "url": "file:///out/stack.fits"}],
                         "logs": [],
                     }
                 ],
@@ -907,7 +902,6 @@ def test_processing_page_marks_links_and_opens_them(qtbot, app_context, bus, mon
     # Clicking the link cell opens it (the decorator listens on view.clicked).
     page._tasks.clicked.emit(page._tasks.indexFromItem(file_row, 1))
     assert opened == ["file:///out/stack.fits"]
-
 
 
 def test_repositories_page_reports_indexing_progress(qtbot, app_context, bus):

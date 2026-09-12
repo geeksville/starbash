@@ -84,7 +84,10 @@ class GitHubCredential:
 
     def needs_refresh(self, leeway: float = 60) -> bool:
         """Return whether the access token is expired or close to expiry."""
-        return self.access_token_expires_at is not None and time.time() + leeway >= self.access_token_expires_at
+        return (
+            self.access_token_expires_at is not None
+            and time.time() + leeway >= self.access_token_expires_at
+        )
 
 
 class SimpleCredentialStore:

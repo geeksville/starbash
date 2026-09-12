@@ -54,7 +54,6 @@ __all__ = [
 TARGET_CONFIG_NAME = Path(".starbash") / "main.toml"
 
 
-
 def image_basename(image: dict[str, Any]) -> str:
     """Return the display filename for an image row."""
     path = image.get("abspath") or image.get("path") or ""
@@ -214,4 +213,3 @@ def dashboard_stats(sb: Starbash) -> dict[str, Any]:
         "repos": len(sb.repo_manager.repos),
         "images_indexed": sb.db.len_table(Database.IMAGES_TABLE),
     }
-

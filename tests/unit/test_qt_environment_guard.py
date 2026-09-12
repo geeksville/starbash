@@ -19,8 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: The failure the CI runner produced: PySide6 present, its libEGL missing.
 _MISSING_LIBEGL = (
-    'raise ImportError("libEGL.so.1: cannot open shared object file: '
-    'No such file or directory")\n'
+    'raise ImportError("libEGL.so.1: cannot open shared object file: No such file or directory")\n'
 )
 
 

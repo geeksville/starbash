@@ -174,7 +174,6 @@ def stage_declarations(recipes: Any) -> dict[str, dict[str, Any]]:
     return declarations
 
 
-
 def _file_url(path: Any) -> str | None:
     """Best-effort ``file://`` URL for a path-like value."""
     if path is None:
@@ -229,7 +228,6 @@ def _result_inputs(context: dict[str, Any]) -> list[FileRef]:
         for path in context.get("input_files") or []:
             refs.append(FileRef(label=Path(str(path)).name, url=_file_url(path)))
     return refs
-
 
 
 class ProcessedTarget:
@@ -665,6 +663,7 @@ class ProcessedTarget:
         traceback: types.TracebackType | None,
     ) -> None:
         self.close()
+
     # --- read-only model view (GUI / publish) -----------------------------
 
     @classmethod
@@ -760,7 +759,6 @@ class ProcessedTarget:
             document = self._read_or_template(self.sessions_path, "target/processed/sessions")
             self.sessions_config = document
         return document
-
 
     # --- stage / option accessors (shared by GUI + publishing) ------------
 
@@ -1077,4 +1075,3 @@ class ProcessedTarget:
             logging.debug(f"Could not read run log {self.run_log_path}: {e}")
             return None
         return document_to_tree(document)
-

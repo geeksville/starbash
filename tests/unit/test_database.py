@@ -41,9 +41,7 @@ def test_update_images_metadata_merges_without_changing_image_fields(tmp_path: P
             repo_url,
         )
 
-        assert db.update_images_metadata(
-            {image_id: {"FWHM": 3.2, "Stars": 42}}
-        ) == 1
+        assert db.update_images_metadata({image_id: {"FWHM": 3.2, "Stars": 42}}) == 1
         image = db.get_image(repo_url, "foo.fit")
         assert image is not None
         assert image["KEEP"] == "yes"

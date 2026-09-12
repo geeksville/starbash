@@ -112,9 +112,7 @@ class GitHubService:
         """Make a GitHub request, retrying transient failures."""
         for attempt in range(1, GITHUB_REQUEST_ATTEMPTS + 1):
             try:
-                return self._request_once(
-                    method, url, payload, _retried_after_refresh
-                )
+                return self._request_once(method, url, payload, _retried_after_refresh)
             except (GitHubTimeoutError, GitHubTransientError) as exc:
                 if attempt == GITHUB_REQUEST_ATTEMPTS:
                     if isinstance(exc, GitHubTimeoutError):
@@ -209,7 +207,9 @@ class GitHubService:
                 if self.refresh_token and self.client_id and not _retried_after_refresh:
                     with self._refresh_lock:
                         if self.token == request_token:
-                            refreshed = self.refresh_access_token(self.client_id, self.refresh_token)
+                            refreshed = self.refresh_access_token(
+                                self.client_id, self.refresh_token
+                            )
                             self.apply_token_response(refreshed)
                     return self._request(method, url, payload, _retried_after_refresh=True)
                 raise GitHubAuthenticationError(
@@ -229,8 +229,7 @@ class GitHubService:
         except (urllib.error.URLError, TimeoutError) as exc:
             logger.debug("GitHub request failed: %s %s error=%r", method, url, exc)
             if isinstance(exc, TimeoutError) or (
-                isinstance(exc, urllib.error.URLError)
-                and isinstance(exc.reason, TimeoutError)
+                isinstance(exc, urllib.error.URLError) and isinstance(exc.reason, TimeoutError)
             ):
                 raise GitHubTimeoutError("GitHub request timed out") from exc
             raise GitHubError("Could not connect to GitHub") from exc
@@ -242,7 +241,11 @@ class GitHubService:
         request = urllib.request.Request(
             "https://github.com/login/device/code",
             data=body,
-            headers={"Accept": "application/json", "User-Agent": "starbash", "Content-Type": "application/x-www-form-urlencoded"},
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "starbash",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
             method="POST",
         )
         try:
@@ -258,8 +261,11 @@ class GitHubService:
         if "error" in value:
             raise GitHubError("GitHub refused the authentication request")
         return DeviceCode(
-            value["device_code"], value["user_code"], value["verification_uri"],
-            int(value.get("interval", 5)), int(value["expires_in"]),
+            value["device_code"],
+            value["user_code"],
+            value["verification_uri"],
+            int(value.get("interval", 5)),
+            int(value["expires_in"]),
         )
 
     def poll_device_token(
@@ -269,14 +275,22 @@ class GitHubService:
         deadline = time.monotonic() + device.expires_in
         interval = device.interval
         while time.monotonic() < deadline:
-            body = urllib.parse.urlencode({
-                "client_id": client_id,
-                "device_code": device.device_code,
-                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-            }).encode()
+            body = urllib.parse.urlencode(
+                {
+                    "client_id": client_id,
+                    "device_code": device.device_code,
+                    "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                }
+            ).encode()
             request = urllib.request.Request(
-                "https://github.com/login/oauth/access_token", data=body,
-                headers={"Accept": "application/json", "User-Agent": "starbash", "Content-Type": "application/x-www-form-urlencoded"}, method="POST",
+                "https://github.com/login/oauth/access_token",
+                data=body,
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": "starbash",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                method="POST",
             )
             try:
                 with self.opener(request) as response:
@@ -362,8 +376,7 @@ class GitHubService:
     def app_is_installed(self, app_slug: str) -> bool:
         """Return whether the authenticated user has installed the named GitHub App."""
         return any(
-            installation.get("app_slug") == app_slug
-            for installation in self.user_installations()
+            installation.get("app_slug") == app_slug for installation in self.user_installations()
         )
 
     def repository(self, owner: str, name: str) -> dict[str, Any] | None:
@@ -417,10 +430,7 @@ class GitHubService:
         return self._request(
             "PUT",
             f"{self.api}/repos/{owner}/{name}/contents/README.md",
-            {
-                "message": "Initialize Starbash publishing repository",
-                "content": content
-            },
+            {"message": "Initialize Starbash publishing repository", "content": content},
         )
 
     def create_blob(self, owner: str, name: str, content: bytes) -> str:
@@ -431,10 +441,20 @@ class GitHubService:
         return str(self._request("POST", url, payload)["sha"])
 
     def create_tree(self, owner: str, name: str, entries: list[dict[str, str]]) -> str:
-        return str(self._request("POST", f"{self.api}/repos/{owner}/{name}/git/trees", {"tree": entries})["sha"])
+        return str(
+            self._request("POST", f"{self.api}/repos/{owner}/{name}/git/trees", {"tree": entries})[
+                "sha"
+            ]
+        )
 
     def create_commit(self, owner: str, name: str, message: str, tree: str) -> str:
-        return str(self._request("POST", f"{self.api}/repos/{owner}/{name}/git/commits", {"message": message, "tree": tree})["sha"])
+        return str(
+            self._request(
+                "POST",
+                f"{self.api}/repos/{owner}/{name}/git/commits",
+                {"message": message, "tree": tree},
+            )["sha"]
+        )
 
     def update_branch(self, owner: str, name: str, commit: str) -> None:
         url = f"{self.api}/repos/{owner}/{name}/git/refs/heads/gh-pages"
@@ -468,11 +488,8 @@ class GitHubService:
                 if str(exc) != "GitHub resource was not found" or attempt == 2:
                     raise
                 logger.info(
-                    "GitHub Pages configuration is not ready yet; retrying in 5 seconds "
-                    "(%d/3).",
+                    "GitHub Pages configuration is not ready yet; retrying in 5 seconds (%d/3).",
                     attempt + 2,
                 )
                 time.sleep(5)
         raise AssertionError("GitHub Pages configuration retry loop did not return")
-
-

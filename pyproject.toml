@@ -125,8 +125,7 @@ exclude = [
     "starbash-recipes/**",
     "test-data/**",
     "GraXpert/**",
-    "bin/**",
-    "*.py"  # Exclude root-level Python files
+    "bin/**"
 ]
 
 [tool.ruff.lint]

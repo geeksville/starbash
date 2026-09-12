@@ -257,13 +257,11 @@ class TestStarbashInit:
             assert app.user_repo is not None
             assert app.user_repo.is_scheme("file")
 
-    def test_init_loads_max_contexts_from_user_config(
-        self, setup_test_environment, mock_analytics
-    ):
+    def test_init_loads_max_contexts_from_user_config(self, setup_test_environment, mock_analytics):
         """Test that the processing-context limit is loaded from user preferences."""
         config_path = paths.get_user_config_path()
         config_path.write_text(
-            "[repo]\nkind = \"preferences\"\n\n[config]\nmax_contexts = 7\n",
+            '[repo]\nkind = "preferences"\n\n[config]\nmax_contexts = 7\n',
             encoding="utf-8",
         )
 

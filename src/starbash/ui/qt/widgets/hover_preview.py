@@ -60,6 +60,7 @@ def _safe_hide(popup: _PreviewPopup) -> None:
     except RuntimeError:  # pragma: no cover - the C++ object was destroyed first
         pass
 
+
 #: Suffixes we decode as an image (FITS via astropy, the rest via Qt).
 FITS_SUFFIXES = {".fit", ".fits", ".fts"}
 RASTER_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tif", ".tiff", ".webp"}
@@ -581,4 +582,3 @@ class HoverPreview(QObject):
             self._shown_url = url
         else:
             self._shown_url = None
-

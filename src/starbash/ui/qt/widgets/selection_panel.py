@@ -183,4 +183,3 @@ class SelectionPanel(QGroupBox):
             else None
         )
         selection.set_date_range(start, end)
-

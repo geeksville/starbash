@@ -112,9 +112,7 @@ def _publish_tool_line(cmd: str, stream_name: str, line: str) -> None:
     CLI has no subscribers, so this is a cheap no-op there.
     """
     text = line.rstrip("\n")
-    events.publish(
-        events.EVENT_TOOL_OUTPUT, {"cmd": cmd, "stream": stream_name, "line": text}
-    )
+    events.publish(events.EVENT_TOOL_OUTPUT, {"cmd": cmd, "stream": stream_name, "line": text})
     match = _PERCENT_RE.search(text)
     if match:
         events.publish(

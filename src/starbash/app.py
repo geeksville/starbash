@@ -133,13 +133,13 @@ def remap_expected_errors(exc: BaseException | None) -> BaseException | None:
         return None
 
     # Some OSErrors definitely don't indicate a code level bug...
-    expected_errors = [ "Read-only file system", "No space left on device" ]
+    expected_errors = ["Read-only file system", "No space left on device"]
     # Update: I give up, keep seeing misc reports from field.  I think all OSErrors should be considered
     # 'not a bug' until proven otherwise.
 
     if isinstance(exc, OperationalError):
         return NonSoftwareError(f"[red]Database IO error:[/red] {exc}")
-    elif isinstance(exc, OSError): # Was FileNotFoundError
+    elif isinstance(exc, OSError):  # Was FileNotFoundError
         return NonSoftwareError(f"[red]OS error:[/red] {exc}")
     elif isinstance(exc, OSError):
         exc_str = str(exc)
@@ -304,7 +304,12 @@ class Starbash:
     def __enter__(self) -> "Starbash":
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None, exc: BaseException | None, tb: types.TracebackType | None) -> bool:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: types.TracebackType | None,
+    ) -> bool:
         from starbash import _is_test_env
         from starbash.exception import UserHandledError
 
@@ -328,7 +333,7 @@ class Starbash:
                 self.close()
                 if not handled:
                     # Show the full exception for developers
-                    starbash.console.print_exception(show_locals=False) # Locals are too verbose
+                    starbash.console.print_exception(show_locals=False)  # Locals are too verbose
 
                 # In test environments, let exceptions propagate naturally for better test diagnostics
                 if not _is_test_env:

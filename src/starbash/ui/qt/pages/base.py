@@ -34,7 +34,9 @@ class Page(QWidget):
     #: Emitted with a short message for the window's status bar.
     status = Signal(str)
 
-    def __init__(self, sb: Starbash, bus: object | None = None, parent: QWidget | None = None) -> None:
+    def __init__(
+        self, sb: Starbash, bus: object | None = None, parent: QWidget | None = None
+    ) -> None:
         """Create the page.
 
         Args:
@@ -89,6 +91,7 @@ class Page(QWidget):
             on_failed=_failed,
             on_progress=on_progress,  # type: ignore[arg-type]
         )
+
     def heading(self, text: str | None = None, subtitle: str | None = None) -> QVBoxLayout:
         """Return a layout holding the page title block."""
         box = QVBoxLayout()

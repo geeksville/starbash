@@ -28,7 +28,6 @@ runner = CliRunner(env={"NO_COLOR": "1"})
 pytestmark = pytest.mark.integration
 
 
-
 @pytest.fixture(scope="module")
 def workflow_environment(tmp_path_factory, test_data_dir):
     """Shared environment for the entire workflow test sequence.
@@ -48,7 +47,7 @@ def workflow_environment(tmp_path_factory, test_data_dir):
     data_dir.mkdir(parents=True, exist_ok=True)
     documents_dir.mkdir(parents=True, exist_ok=True)
     (config_dir / "starbash.toml").write_text(
-        "[repo]\nkind = \"preferences\"\n\n[config]\nmax_contexts = 1\n",
+        '[repo]\nkind = "preferences"\n\n[config]\nmax_contexts = 1\n',
         encoding="utf-8",
     )
 
@@ -301,7 +300,8 @@ class TestProcessAutoWorkflow:
         result = runner.invoke(app, ["process", "auto"])
         # Store full stdout to temp/process-auto.log for manual debugging
         import tempfile
-        log_path = get_log_dir()/ "process-auto.log"
+
+        log_path = get_log_dir() / "process-auto.log"
         with open(log_path, "w", encoding="utf-8") as log_file:
             log_file.write(result.stdout)
 

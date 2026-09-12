@@ -104,6 +104,8 @@ def test_local_path_decodes_a_percent_escaped_file_url(tmp_path):
     path = tmp_path / "my notes.txt"
     path.write_text("hi", encoding="utf-8")
     assert hp.local_path(path.as_uri()) == path
+
+
 # --- popup -----------------------------------------------------------------
 
 
@@ -297,15 +299,11 @@ def test_engine_replaces_the_preview_for_a_new_link(qtbot, tmp_path):
     tree = _link_tree(qtbot, [first.as_uri(), second.as_uri()])
     engine = hp.HoverPreview(tree, url_role=URL_ROLE, parent=tree)
 
-    engine._on_mouse_move(
-        tree.visualRect(tree.indexFromItem(tree.topLevelItem(0), 0)).center()
-    )
+    engine._on_mouse_move(tree.visualRect(tree.indexFromItem(tree.topLevelItem(0), 0)).center())
     engine._show_preview()
     assert engine._shown_url == first.as_uri()
 
-    engine._on_mouse_move(
-        tree.visualRect(tree.indexFromItem(tree.topLevelItem(1), 0)).center()
-    )
+    engine._on_mouse_move(tree.visualRect(tree.indexFromItem(tree.topLevelItem(1), 0)).center())
     assert engine._pending_url == second.as_uri()
     engine._show_preview()
 
@@ -346,5 +344,3 @@ def test_engine_shows_a_hand_cursor_over_links(qtbot, tmp_path):
 
     engine._on_mouse_move(tree.visualRect(tree.indexFromItem(item, 1)).center())
     assert tree.viewport().cursor().shape() == Qt.CursorShape.ArrowCursor
-
-

@@ -40,7 +40,12 @@ def set_test_directories(
     state_dir_override: Path | None = None,
 ) -> None:
     """Set override directories for testing. Used by test fixtures to isolate test data."""
-    global _override_config_dir, _override_data_dir, _override_cache_dir, _override_documents_dir, _override_state_dir
+    global \
+        _override_config_dir, \
+        _override_data_dir, \
+        _override_cache_dir, \
+        _override_documents_dir, \
+        _override_state_dir
     _override_config_dir = config_dir_override
     _override_data_dir = data_dir_override
     _override_cache_dir = cache_dir_override

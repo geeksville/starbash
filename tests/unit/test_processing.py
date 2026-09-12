@@ -529,8 +529,7 @@ class TestTasksToStages:
         assert len(stages) == 2
         # Despite veralux having much higher priority, background must come first
         assert stages[0]["name"] == "background", (
-            "Dependency must be satisfied before dependent stage, "
-            "regardless of priority"
+            "Dependency must be satisfied before dependent stage, regardless of priority"
         )
         assert stages[1]["name"] == "veralux"
 
@@ -621,8 +620,7 @@ class TestTasksToStages:
 
         # Additional check: veralux should come after background despite potentially higher priority
         assert background_idx < veralux_idx, (
-            "This is the key bug: veralux depends on background.*, "
-            "so background must come first"
+            "This is the key bug: veralux depends on background.*, so background must come first"
         )
 
 
@@ -954,4 +952,3 @@ class TestRemoveMissingToolTasks:
         assert result == []
         warnings = [r for r in caplog.records if "blur_exterminator" in r.message]
         assert len(warnings) == 1
-

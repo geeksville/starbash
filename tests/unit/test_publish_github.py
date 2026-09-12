@@ -29,12 +29,8 @@ def test_publisher_reads_split_target_and_publishes_main_toml(tmp_path):
     metadata = target / ".starbash"
     metadata.mkdir(parents=True)
     (metadata / "main.toml").write_text('[repo]\nkind = "processed-target"\n')
-    (metadata / "about.toml").write_text(
-        '[about]\nsummary = "A target"\n[target]\nid = "M 42!"\n'
-    )
-    (metadata / "sessions.toml").write_text(
-        '[[sessions]]\ndate = "2026-08-31"\nframes = []\n'
-    )
+    (metadata / "about.toml").write_text('[about]\nsummary = "A target"\n[target]\nid = "M 42!"\n')
+    (metadata / "sessions.toml").write_text('[[sessions]]\ndate = "2026-08-31"\nframes = []\n')
     (target / "M 42.jpg").write_bytes(b"jpeg")
 
     publisher = _publisher(tmp_path)
@@ -50,9 +46,10 @@ def test_publisher_reads_split_target_and_publishes_main_toml(tmp_path):
     assert (tmp_path / "site" / "favicon.ico").read_bytes() == (
         Path(__file__).parents[2] / "src" / "starbash" / "assets" / "favicon.ico"
     ).read_bytes()
-    assert "href=\"{{ '/favicon.ico' | relative_url }}\"" in (
-        tmp_path / "site" / "_layouts" / "default.html"
-    ).read_text()
+    assert (
+        "href=\"{{ '/favicon.ico' | relative_url }}\""
+        in (tmp_path / "site" / "_layouts" / "default.html").read_text()
+    )
 
 
 def test_publisher_renders_github_username_in_target_title(tmp_path):
@@ -113,9 +110,7 @@ def test_publisher_generates_distinct_pages_for_legacy_targets(tmp_path):
     modern_metadata.mkdir(parents=True)
     (modern_metadata / "main.toml").write_text('[repo]\nkind = "processed-target"\n')
     (modern_metadata / "about.toml").write_text(
-        "[about]\n"
-        'summary = "Sh2 91 summary"\n'
-        'target.id = "Sh2 91"\n'
+        '[about]\nsummary = "Sh2 91 summary"\ntarget.id = "Sh2 91"\n'
     )
 
     publisher = _publisher(tmp_path)
@@ -130,4 +125,3 @@ def test_publisher_generates_distinct_pages_for_legacy_targets(tmp_path):
     assert "$target" not in m31_post
     assert (site / "assets" / "targets" / "m-31" / "main.toml").exists()
     assert (site / "assets" / "targets" / "sh2-91" / "main.toml").exists()
-

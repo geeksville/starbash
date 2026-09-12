@@ -186,6 +186,7 @@ class TestProcessedTargetInit:
             assert (metadata_dir / "sessions.toml").exists()
             assert pt.log_path == metadata_dir / "starbash.log"
 
+
 class TestProcessedTargetMethods:
     """Tests for ProcessedTarget methods."""
 
@@ -408,26 +409,50 @@ class TestProcessedTargetContext:
             # Verify sessions were added to the AoT
             assert len(mock_sessions_aot) == 2
 
-    def test_collects_sorted_report_sessions_and_frames(self, mock_processing_like, temp_processing_dir):
+    def test_collects_sorted_report_sessions_and_frames(
+        self, mock_processing_like, temp_processing_dir
+    ):
         """Report data is sorted and contains the approved metadata only."""
         mock_processing_like.sessions = [
-            {"id": 2, "start": "2026-08-10T00:00:00", "end": "2026-08-10T02:00:00", "metadata": {
-                "OBJECT": "M42", "FOCALLEN": 600.0, "SITELAT": 1.0, "TELESCOP": "Scope", "INSTRUME": "Camera",
-            }},
-            {"id": 1, "start": "2026-08-09T00:00:00", "end": "2026-08-09T02:00:00", "metadata": {
-                "FOCALLEN": 500.0, "XPIXSZ": 3.76, "YPIXSZ": 3.76, "TELESCOP": "Scope", "INSTRUME": "Camera",
-            }},
+            {
+                "id": 2,
+                "start": "2026-08-10T00:00:00",
+                "end": "2026-08-10T02:00:00",
+                "metadata": {
+                    "OBJECT": "M42",
+                    "FOCALLEN": 600.0,
+                    "SITELAT": 1.0,
+                    "TELESCOP": "Scope",
+                    "INSTRUME": "Camera",
+                },
+            },
+            {
+                "id": 1,
+                "start": "2026-08-09T00:00:00",
+                "end": "2026-08-09T02:00:00",
+                "metadata": {
+                    "FOCALLEN": 500.0,
+                    "XPIXSZ": 3.76,
+                    "YPIXSZ": 3.76,
+                    "TELESCOP": "Scope",
+                    "INSTRUME": "Camera",
+                },
+            },
         ]
         images = {
-            2: [{"DATE-OBS": "2026-08-10T01:00:00", "DEWPOINT": 2.0, "SITELAT": 3.0},
-                {"DATE-OBS": "2026-08-10T00:30:00", "HUMIDITY": 80.0}],
+            2: [
+                {"DATE-OBS": "2026-08-10T01:00:00", "DEWPOINT": 2.0, "SITELAT": 3.0},
+                {"DATE-OBS": "2026-08-10T00:30:00", "HUMIDITY": 80.0},
+            ],
             1: [],
         }
         mock_processing_like.sb.repo_manager.get.side_effect = lambda key, default=None: {
             "repo.metadata_blacklist": ["SITELAT"],
             "equipment": [],
         }.get(key, default)
-        mock_processing_like.sb.get_session_images.side_effect = lambda session: images[session["id"]]
+        mock_processing_like.sb.get_session_images.side_effect = lambda session: images[
+            session["id"]
+        ]
 
         with (
             patch("starbash.processed_target.toml_from_template") as mock_template,

@@ -66,10 +66,7 @@ def test_parse_siril_seq_accepts_osc_r1_rows(tmp_path: Path):
 
 def test_parse_siril_seq_rejects_count_mismatch(tmp_path: Path):
     sequence = tmp_path / "test.seq"
-    sequence.write_text(
-        "S 'test' 1 2 1 5 1 6 0 0 0\nI 1 1\n"
-        "R0 3.2 4.5 0.8 0 0.001 20 H 1\n"
-    )
+    sequence.write_text("S 'test' 1 2 1 5 1 6 0 0 0\nI 1 1\nR0 3.2 4.5 0.8 0 0.001 20 H 1\n")
 
     with pytest.raises(SirilSequenceError, match="I records"):
         parse_siril_seq(sequence)
@@ -78,8 +75,7 @@ def test_parse_siril_seq_rejects_count_mismatch(tmp_path: Path):
 def test_parse_siril_conversion_preserves_noncontiguous_mapping(tmp_path: Path):
     conversion = tmp_path / "conversion.txt"
     conversion.write_text(
-        "'./r_source_00001.fit' -> 'all_00001.fit'\n"
-        "'./r_source_00003.fit' -> 'all_00002.fit'\n"
+        "'./r_source_00001.fit' -> 'all_00001.fit'\n'./r_source_00003.fit' -> 'all_00002.fit'\n"
     )
 
     result = parse_siril_conversion(conversion)

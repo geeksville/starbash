@@ -55,7 +55,9 @@ class SessionInfo:
     frames: list[FrameInfo]
 
 
-def selected_metadata(metadata: dict[str, Any], keys: Iterable[str], blacklist: Iterable[str] = ()) -> dict[str, Any]:
+def selected_metadata(
+    metadata: dict[str, Any], keys: Iterable[str], blacklist: Iterable[str] = ()
+) -> dict[str, Any]:
     """Copy selected metadata fields, excluding blacklisted keys and ``None`` values."""
     excluded = set(blacklist)
     return {
@@ -75,9 +77,7 @@ def image_scale_arcsec_per_pixel(metadata: dict[str, Any]) -> float | None:
     try:
         focal_length = float(metadata["FOCALLEN"])
         pixel_sizes = [
-            float(metadata[key])
-            for key in ("XPIXSZ", "YPIXSZ")
-            if metadata.get(key) is not None
+            float(metadata[key]) for key in ("XPIXSZ", "YPIXSZ") if metadata.get(key) is not None
         ]
     except (KeyError, TypeError, ValueError):
         return None
@@ -111,7 +111,9 @@ def _matches(pattern: str, observed: str) -> tuple[bool, bool]:
         return False, False
 
 
-def match_equipment(metadata: dict[str, Any], catalog: Iterable[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+def match_equipment(
+    metadata: dict[str, Any], catalog: Iterable[dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
     """Match supported equipment types, returning complete or partial records.
 
     Exact matches outrank regular-expression matches; ties retain catalog order.

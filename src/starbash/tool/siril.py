@@ -44,7 +44,7 @@ class SirilTool(ExternalTool):
         # siril_path = "/home/kevinh/packages/Siril-1.4.0~beta3-x86_64.AppImage"
         # Possible siril commands, with preferred option first
         commands: list[str] = [
-            "siril-cli", # We prefer the top two options because they work even without a Gtk accessible GUI
+            "siril-cli",  # We prefer the top two options because they work even without a Gtk accessible GUI
             "org.siril.Siril",
             "siril",
             "Siril",
@@ -53,6 +53,7 @@ class SirilTool(ExternalTool):
         super().__init__("Siril", commands, "https://siril.org/")
 
     """Siril can run for a long time on big jobs."""
+
     def set_defaults(self) -> None:
         super().set_defaults()
         self.timeout = (

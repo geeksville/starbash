@@ -154,4 +154,3 @@ def install_desktop_entry() -> DesktopInstallResult | None:
         "Desktop entry %s: %s", "written" if changed else "already up to date", desktop_file
     )
     return DesktopInstallResult(desktop_file=desktop_file, executable=executable, changed=changed)
-

@@ -167,9 +167,14 @@ class GitHubPublisher:
             layouts = self.site_dir / "_layouts"
             layouts.mkdir(exist_ok=True)
             default_layout = resources.files("starbash.templates.report").joinpath("default.html")
-            (layouts / "default.html").write_text(default_layout.read_text(encoding="utf-8"), encoding="utf-8")
+            (layouts / "default.html").write_text(
+                default_layout.read_text(encoding="utf-8"), encoding="utf-8"
+            )
             favicon = resources.files("starbash.assets").joinpath("favicon.ico")
-            with favicon.open("rb") as source, (self.site_dir / "favicon.ico").open("wb") as destination:
+            with (
+                favicon.open("rb") as source,
+                (self.site_dir / "favicon.ico").open("wb") as destination,
+            ):
                 shutil.copyfileobj(source, destination)
             progress.update(task, description="Copied static assets", advance=1)
             index_targets: list[dict[str, Any]] = []
@@ -247,9 +252,7 @@ class GitHubPublisher:
                 )
                 progress.update(task, description=f"Generated {name}", advance=1)
 
-            index = self.environment.get_template("index.md.jinja").render(
-                targets=index_targets
-            )
+            index = self.environment.get_template("index.md.jinja").render(targets=index_targets)
             (self.site_dir / "index.md").write_text(index)
             progress.update(task, description="Wrote index", advance=1)
 

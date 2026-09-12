@@ -162,6 +162,7 @@ class TaskNode:
             logs=[str(line) for line in data.get("logs", [])],
         )
 
+
 @dataclass
 class StageNode:
     """One recipe stage for the current target, with its tasks."""
@@ -261,6 +262,8 @@ class RunTree:
             is_master=bool(data.get("is_master", False)),
             stages=[StageNode.from_plain(s) for s in data.get("stages", [])],
         )
+
+
 def _plain_to_toml(value: Any) -> Any:
     """Convert a JSON-able value into tomlkit items (dicts -> tables, dict-lists -> AoT)."""
     import tomlkit
@@ -401,7 +404,6 @@ class RunState:
         node = self.register_stage(stage_name)
         node.status = status
 
-
     # --- finalisation -----------------------------------------------------
 
     def compute_dependencies(self) -> None:
@@ -516,4 +518,3 @@ def document_to_tree(document: Any) -> RunTree | None:
     if not isinstance(first, dict):
         return None
     return RunTree.from_plain(first)
-

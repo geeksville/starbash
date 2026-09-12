@@ -36,7 +36,6 @@ def _is_unset(expanded: str) -> bool:
     return expanded == "" or expanded == "None"
 
 
-
 def parse_json_line(line: str) -> dict | None:
     """Parse a single line of rc-astro ``--json`` output.
 
@@ -64,7 +63,9 @@ class RCAstroTool(ExternalTool):
     manages_own_progress = True
 
     def __init__(self) -> None:
-        super().__init__("rc-astro", ["rc-astro"], "https://www.rc-astro.com/stand-alone-rc-astro-tools/")
+        super().__init__(
+            "rc-astro", ["rc-astro"], "https://www.rc-astro.com/stand-alone-rc-astro-tools/"
+        )
 
     def set_defaults(self) -> None:
         super().set_defaults()
@@ -150,13 +151,13 @@ class RCAstroTool(ExternalTool):
                 if event == "progress":
                     done = float(obj.get("done", 0.0))
                     message = "Processing"
-                    progress.update(task, completed=done, description=f"[bold]{self.name}[/bold]: {message}")
+                    progress.update(
+                        task, completed=done, description=f"[bold]{self.name}[/bold]: {message}"
+                    )
                 elif event == "status":
                     message = obj.get("message") or obj.get("phase") or ""
                     progress.update(task, description=f"[bold]{self.name}[/bold]: {message}")
                 elif event == "info":
                     logger.debug(f"[rc-astro] {obj}")
 
-            tool_run_streaming(
-                cmd, cwd, on_line=on_line, timeout=self.timeout, log_out=log_out
-            )
+            tool_run_streaming(cmd, cwd, on_line=on_line, timeout=self.timeout, log_out=log_out)

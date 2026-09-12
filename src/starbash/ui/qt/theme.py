@@ -69,6 +69,7 @@ def load_app_icon() -> QIcon:
         return QIcon()
     return QIcon(pixmap)
 
+
 STYLESHEET = f"""
 * {{
     font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;

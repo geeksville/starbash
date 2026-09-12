@@ -68,9 +68,7 @@ def test_app_is_installed_checks_app_slug():
     service = GitHubService("token", opener=opener)
 
     assert service.app_is_installed("geeksville-starbash") is True
-    assert requests[0].full_url == (
-        "https://api.github.com/user/installations?per_page=100"
-    )
+    assert requests[0].full_url == ("https://api.github.com/user/installations?per_page=100")
 
 
 def test_app_is_installed_is_false_when_app_is_missing():
@@ -156,11 +154,13 @@ def test_request_refreshes_once_after_401_and_persists_new_token():
     assert service.user() == {"login": "owner"}
     assert service.token == "new-access"
     assert service.refresh_token == "new-refresh"
-    assert refreshed == [{
-        "access_token": "new-access",
-        "refresh_token": "new-refresh",
-        "expires_in": 28800,
-    }]
+    assert refreshed == [
+        {
+            "access_token": "new-access",
+            "refresh_token": "new-refresh",
+            "expires_in": 28800,
+        }
+    ]
     assert calls == 2
 
 

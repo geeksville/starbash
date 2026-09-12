@@ -115,9 +115,7 @@ def run_tree_to_rich(run: dict[str, Any], root_label: str | None = None) -> Tree
         if stage.get("excluded"):
             head = f"[dim]{RunStatus.EXCLUDED.glyph} {stage.get('name')} (excluded)[/dim]"
         else:
-            head = (
-                f"[{status.rich_style}]{status.glyph} {stage.get('name')}[/{status.rich_style}]"
-            )
+            head = f"[{status.rich_style}]{status.glyph} {stage.get('name')}[/{status.rich_style}]"
         if stage.get("dependencies"):
             head += f" [dim]← {', '.join(stage['dependencies'])}[/dim]"
         if stage.get("recipe_url"):

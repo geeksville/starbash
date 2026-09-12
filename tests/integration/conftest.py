@@ -20,6 +20,7 @@ def get_log_dir() -> Path:
     """Get the directory for integration test logs."""
     return Path(os.environ.get("STARBASH_LOG_DIR", tempfile.gettempdir()))
 
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_integration_logging():
     """Configure logging for integration tests to write to temp/sb-integration-log.txt.

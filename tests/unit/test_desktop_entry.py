@@ -51,7 +51,9 @@ def test_installs_desktop_entry_and_themed_icons(setup_test_environment, fake_ex
     assert result is not None
     assert result.changed is True
     assert result.executable == str(fake_executable)
-    assert result.desktop_file == _base(setup_test_environment) / "applications" / "starbash.desktop"
+    assert (
+        result.desktop_file == _base(setup_test_environment) / "applications" / "starbash.desktop"
+    )
 
     content = result.desktop_file.read_text(encoding="utf-8")
     for key in REQUIRED_KEYS:
@@ -81,7 +83,9 @@ def test_reinstall_leaves_identical_files_alone(setup_test_environment, fake_exe
     assert second.desktop_file == first.desktop_file
 
 
-def test_reinstall_repairs_a_moved_executable(setup_test_environment, fake_executable, monkeypatch, tmp_path):
+def test_reinstall_repairs_a_moved_executable(
+    setup_test_environment, fake_executable, monkeypatch, tmp_path
+):
     """After an upgrade moves the console script, the entry is rewritten."""
     desktop.install_desktop_entry()
 
@@ -95,9 +99,7 @@ def test_reinstall_repairs_a_moved_executable(setup_test_environment, fake_execu
     assert f'Exec="{moved}" gui' in result.desktop_file.read_text(encoding="utf-8")
 
 
-def test_opt_out_env_var_skips_installation(
-    setup_test_environment, fake_executable, monkeypatch
-):
+def test_opt_out_env_var_skips_installation(setup_test_environment, fake_executable, monkeypatch):
     """STARBASH_NO_DESKTOP_INSTALL=1 leaves the user's data dir untouched."""
     monkeypatch.setenv(desktop.DISABLE_ENV_VAR, "1")
 

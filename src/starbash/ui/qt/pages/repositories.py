@@ -143,9 +143,7 @@ class RepositoriesPage(Page):
                 self._progress.setValue(done)
             self.status.emit(f"Indexing {data.get('repo', '')} — {done}/{total}")
         elif kind == events.EVENT_REINDEX_FINISHED:
-            self.status.emit(
-                f"Indexed {data.get('indexed', 0)} file(s) in {data.get('repo', '')}"
-            )
+            self.status.emit(f"Indexed {data.get('indexed', 0)} file(s) in {data.get('repo', '')}")
 
     def _busy(self, busy: bool, message: str = "") -> None:
         for button in (self._add, self._remove, self._reindex):

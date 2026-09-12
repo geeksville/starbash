@@ -90,9 +90,7 @@ def crop_rectangle(
         actual_height = min(height, int(parsed_height.value))
 
     if actual_width < 1 or actual_height < 1:
-        raise ValueError(
-            f"Crop dimensions produce an empty crop for {width}x{height}"
-        )
+        raise ValueError(f"Crop dimensions produce an empty crop for {width}x{height}")
     crop_x = (width - actual_width) // 2
     crop_y = (height - actual_height) // 2
     return crop_x, crop_y, actual_width, actual_height

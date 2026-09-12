@@ -80,7 +80,9 @@ def score_candidates(
             candidate_image = candidate  # metadata is already in the root of this object
 
             # Define rankers that close over candidate_image, ref_* and reasons
-            def rank_gain(reasons: list[str] = reasons, candidate_image: dict[str, Any] = candidate_image) -> float:
+            def rank_gain(
+                reasons: list[str] = reasons, candidate_image: dict[str, Any] = candidate_image
+            ) -> float:
                 """Score by GAIN difference: prefer exact match, penalize mismatch."""
                 ref_gain = metadata.get(Database.GAIN_KEY, None)
                 if ref_gain is None:
@@ -100,7 +102,9 @@ def score_candidates(
                 except (ValueError, TypeError):
                     return 0.0
 
-            def rank_temp(reasons: list[str] = reasons, candidate_image: dict[str, Any] = candidate_image) -> float:
+            def rank_temp(
+                reasons: list[str] = reasons, candidate_image: dict[str, Any] = candidate_image
+            ) -> float:
                 """Score by CCD-TEMP difference: prefer closer temperatures."""
                 ref_temp = metadata.get("CCD-TEMP", None)
                 if ref_temp is None:
@@ -118,7 +122,9 @@ def score_candidates(
                 except (ValueError, TypeError):
                     return 0.0
 
-            def rank_time(reasons: list[str] = reasons, candidate_image: dict[str, Any] = candidate_image) -> float:
+            def rank_time(
+                reasons: list[str] = reasons, candidate_image: dict[str, Any] = candidate_image
+            ) -> float:
                 """Score by time difference: prefer older or slightly newer candidates."""
                 ref_date_str = metadata.get(Database.DATE_OBS_KEY)
                 candidate_date_str = candidate_image.get(Database.DATE_OBS_KEY)
@@ -143,7 +149,9 @@ def score_candidates(
                     logging.warning("Malformed date - ignoring entry")
                     return 0.0
 
-            def rank_instrument(reasons: list[str] = reasons, candidate_image: dict[str, Any] = candidate_image) -> float:
+            def rank_instrument(
+                reasons: list[str] = reasons, candidate_image: dict[str, Any] = candidate_image
+            ) -> float:
                 """Penalize instrument mismatch between reference and candidate."""
                 ref_instrument = metadata_to_instrument_id(metadata)
                 candidate_instrument = metadata_to_instrument_id(candidate_image)
@@ -152,7 +160,9 @@ def score_candidates(
                     return -200000.0
                 return 0.0
 
-            def rank_camera(reasons: list[str] = reasons, candidate_image: dict[str, Any] = candidate_image) -> float:
+            def rank_camera(
+                reasons: list[str] = reasons, candidate_image: dict[str, Any] = candidate_image
+            ) -> float:
                 """Penalize camera mismatch between reference and candidate."""
                 ref_camera = metadata_to_camera_id(metadata)
                 candidate_camera = metadata_to_camera_id(candidate_image)
@@ -161,7 +171,9 @@ def score_candidates(
                     return -300000.0
                 return 0.0
 
-            def rank_camera_dimensions(reasons: list[str] = reasons, candidate_image: dict[str, Any] = candidate_image) -> float:
+            def rank_camera_dimensions(
+                reasons: list[str] = reasons, candidate_image: dict[str, Any] = candidate_image
+            ) -> float:
                 """Penalize if camera dimensions do not match (NAXIS, NAXIS1, NAXIS2)."""
                 dimension_keys = ["NAXIS", "NAXIS1", "NAXIS2"]
                 for key in dimension_keys:
@@ -172,13 +184,18 @@ def score_candidates(
                         return float("-inf")
                 return 0.0
 
-            def rank_flat_filter(reasons: list[str] = reasons, candidate_image: dict[str, Any] = candidate_image) -> float:
+            def rank_flat_filter(
+                reasons: list[str] = reasons, candidate_image: dict[str, Any] = candidate_image
+            ) -> float:
                 """Heavily penalize FLAT frames whose FILTER metadata does not match the reference.
 
                 Only applies if the candidate imagetyp is FLAT. Missing filter values are treated as None
                 and do not cause a penalty (neutral)."""
+                # Default to "None" (as the filter lookups below do) so a missing
+                # imagetyp is neutral rather than crashing normalize().
                 imagetyp = get_aliases().normalize(
-                    candidate_image.get(Database.IMAGETYP_KEY), lenient=True  # type: ignore[arg-type]
+                    candidate_image.get(Database.IMAGETYP_KEY, "None"),
+                    lenient=True,
                 )
                 if imagetyp and imagetyp == "flat":
                     ref_filter = get_aliases().normalize(

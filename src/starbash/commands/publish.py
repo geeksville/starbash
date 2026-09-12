@@ -152,9 +152,7 @@ def _authenticate() -> GitHubCredential:
             except (OSError, webbrowser.Error):
                 opened = False
             if opened:
-                console.print(
-                    "[green]✓[/green] I opened the verification page. "
-                )
+                console.print("[green]✓[/green] I opened the verification page. ")
             else:
                 console.print(
                     "[yellow]⚠ I could not open a browser automatically.[/yellow] "
@@ -222,12 +220,14 @@ def _upload_blobs(
         futures = {executor.submit(upload, path): path for path in files}
         for future in as_completed(futures):
             relative_path, blob = future.result()
-            entries.append({
-                "path": relative_path,
-                "mode": "100644",
-                "type": "blob",
-                "sha": blob,
-            })
+            entries.append(
+                {
+                    "path": relative_path,
+                    "mode": "100644",
+                    "type": "blob",
+                    "sha": blob,
+                }
+            )
             progress.update(
                 operation,
                 description=f"Uploaded {relative_path}",
@@ -269,8 +269,7 @@ def _publish_github(dry_run: bool, login: bool) -> None:
         and "_site" not in path.parts
         and path.name != "github-auth.toml"
         and not any(
-            path.relative_to(site).as_posix().startswith(prefix)
-            for prefix in UPLOAD_PATH_BLACKLIST
+            path.relative_to(site).as_posix().startswith(prefix) for prefix in UPLOAD_PATH_BLACKLIST
         )
     )
     timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
@@ -300,10 +299,14 @@ def _publish_github(dry_run: bool, login: bool) -> None:
                 progress.update(operation, description=f"Authenticated as {owner}", advance=1)
                 _require_app_installation(service)
                 repository = service.repository(owner, "starbash-public")
-                progress.update(operation, description="Checked starbash-public repository", advance=1)
+                progress.update(
+                    operation, description="Checked starbash-public repository", advance=1
+                )
                 if repository is None:
                     repository = service.create_repository("starbash-public")
-                    progress.update(operation, description="Created starbash-public repository", advance=1)
+                    progress.update(
+                        operation, description="Created starbash-public repository", advance=1
+                    )
 
                 if not service.branch_exists(owner, "starbash-public", "main"):
                     console.print(
@@ -328,8 +331,12 @@ def _publish_github(dry_run: bool, login: bool) -> None:
                 progress.update(operation, description="Updated gh-pages", advance=1)
                 service.configure_pages(owner, "starbash-public")
                 progress.update(operation, description="Configured GitHub Pages", advance=1)
-                progress.update(operation, description="GitHub Pages deployment complete", advance=1)
-            console.print(f"Uploaded {len(files)} files to {pages_url} ... It should be live in a few minutes.")
+                progress.update(
+                    operation, description="GitHub Pages deployment complete", advance=1
+                )
+            console.print(
+                f"Uploaded {len(files)} files to {pages_url} ... It should be live in a few minutes."
+            )
         except GitHubError as exc:
             raise typer.BadParameter(str(exc)) from exc
 

@@ -86,6 +86,8 @@ class TestOpenAndDiscover:
 
         assert pt.stage_counts() == (2, 1)
         assert pt.stage_entries() == [("a", False), ("b", False), ("c", True)]
+
+
 class TestStageOptions:
     def test_options_merge_recipe_declarations(self, tmp_path):
         target = _write_target(tmp_path, "M31", [("stack", False)])
@@ -137,12 +139,16 @@ class TestRunRecording:
 
         pt.task_started(cal)
         pt.record_result(
-            _result(cal, output=FileInfo(base="/out", full=Path("/out/pp.fits"), relative="pp.fits"))
+            _result(
+                cal, output=FileInfo(base="/out", full=Path("/out/pp.fits"), relative="pp.fits")
+            )
         )
         pt.task_started(stack)
         pt.record_log("working")
         pt.record_result(
-            _result(stack, output=FileInfo(base="/out", full=Path("/out/s.fits"), relative="s.fits"))
+            _result(
+                stack, output=FileInfo(base="/out", full=Path("/out/s.fits"), relative="s.fits")
+            )
         )
 
         tree = pt.run_tree()
@@ -335,5 +341,3 @@ class TestFinishRuns:
         assert finished, "finishing a run should publish run.finished"
         assert finished[0].data["target"] == "M31"
         assert finished[0].data["run"]["stages"][0]["name"] == "stack"
-
-

@@ -50,7 +50,6 @@ class _LoadResult:
     error: str | None
 
 
-
 def fits_to_qimage(path: Path) -> QImage:
     """Render a FITS file to an 8-bit greyscale :class:`QImage`.
 
@@ -260,4 +259,3 @@ class ImageViewer(QWidget):
         super().resizeEvent(event)  # type: ignore[arg-type]
         if self._fit.isChecked():
             self._render()
-

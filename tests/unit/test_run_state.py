@@ -74,7 +74,9 @@ class TestDependencies:
 
     def test_no_self_dependency(self):
         state = RunState("M31")
-        state.add_task("stack", _task("stack", RunStatus.OK, deps=["/out/s.fits"], targets=["/out/s.fits"]))
+        state.add_task(
+            "stack", _task("stack", RunStatus.OK, deps=["/out/s.fits"], targets=["/out/s.fits"])
+        )
         assert state.tree().stages[0].dependencies == []
 
 

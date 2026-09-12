@@ -977,8 +977,8 @@ class TestCropRecipe:
         assert params["crop_width"]["default"] == "80%"
         assert params["crop_height"]["default"] == "80%"
         assert params["rotate_deg"]["default"] == 0
-        assert "crop_width=context[\"parameters\"].crop_width" in stage["script"]
-        assert "crop_height=context[\"parameters\"].crop_height" in stage["script"]
+        assert 'crop_width=context["parameters"].crop_width' in stage["script"]
+        assert 'crop_height=context["parameters"].crop_height' in stage["script"]
         assert stage["outputs"][0]["auto"]["prefix"] == "crop_"
 
     def test_default_manifest_includes_crop_recipe(self):

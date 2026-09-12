@@ -52,5 +52,7 @@ def init_tools(tool_prefs: dict[str, Any]) -> None:
 # A dictionary mapping tool names to their respective tool instances.
 tools: dict[str, Tool] = {
     tool.name.lower(): tool
-    for tool in list[Tool]([SirilTool(), GraxpertBuiltinTool(), PythonTool(), RCAstroTool(), StarnetTool()])
+    for tool in list[Tool](
+        [SirilTool(), GraxpertBuiltinTool(), PythonTool(), RCAstroTool(), StarnetTool()]
+    )
 }

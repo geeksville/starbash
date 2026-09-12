@@ -42,7 +42,7 @@ class SirilInterface:
         logging.debug("SirilInterface.get_image_pixeldata called")
         input: InputDef = SirilInterface.Context["stage_input"]
         inputf = input[0]
-        f = inputf.full_paths[0] # FIXME, we currently we assume we only care about the first input
+        f = inputf.full_paths[0]  # FIXME, we currently we assume we only care about the first input
         read_result = fits.getdata(f, header=True)
         if not read_result:
             raise OSError(f"SirilInterface.get_image_pixeldata: failed to read {f}")
@@ -70,7 +70,12 @@ class SirilInterface:
             def __enter__(self) -> None:
                 pass
 
-            def __exit__(self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: types.TracebackType | None) -> None:
+            def __exit__(
+                self,
+                exc_type: type[BaseException] | None,
+                exc_value: BaseException | None,
+                traceback: types.TracebackType | None,
+            ) -> None:
                 pass
 
         return StubContextManager()

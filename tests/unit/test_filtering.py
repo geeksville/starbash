@@ -232,9 +232,7 @@ class TestFilterByRequires:
 
     def test_filter_filename_exclude(self):
         """filename/exclude keeps only basenames NOT matching the regex."""
-        input_def = {
-            "requires": [{"kind": "filename", "value": "starmask", "mode": "exclude"}]
-        }
+        input_def = {"requires": [{"kind": "filename", "value": "starmask", "mode": "exclude"}]}
         candidates = [
             {"path": "starless_SHO.fits"},
             {"path": "starmask_SHO.fits"},
