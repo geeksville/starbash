@@ -27,11 +27,15 @@ except Exception as _qt_error:  # pragma: no cover - environment dependent
     pytest.skip(f"Qt cannot start here: {_qt_error}", allow_module_level=True)
 
 from PySide6.QtCore import Qt, QTimer  # noqa: E402
-from PySide6.QtGui import QImage  # noqa: E402
+from PySide6.QtGui import QColor, QImage  # noqa: E402
 from PySide6.QtWidgets import QWidget  # noqa: E402
 
 from starbash.ui.qt.widgets import image_viewer as viewer_module  # noqa: E402
-from starbash.ui.qt.widgets.busy_indicator import BusyIndicator, Spinner  # noqa: E402
+from starbash.ui.qt.widgets.busy_indicator import (  # noqa: E402
+    BUSY_ACCENT,
+    BusyIndicator,
+    Spinner,
+)
 from starbash.ui.qt.widgets.image_viewer import ImageViewer  # noqa: E402
 
 pytestmark = pytest.mark.gui
@@ -166,28 +170,64 @@ def test_busy_indicator_caption_grows_the_panel(qtbot):
 # --- Spinner (inline, next to a control) -----------------------------------
 
 
+def _accent_pixels(widget: QWidget) -> int:
+    """How many pixels of the moving accent arc a widget draws.
+
+    Counting non-background pixels will not do: rendering a widget always fills its
+    palette background first, so an idle spinner still covers its whole square.  The
+    *accent* arc is the signal that says "working", and it is far enough from any
+    palette colour (light or dark) to be counted reliably - only the accent is
+    matched, not the faint track, since a dark theme's panel colour sits close to it.
+    """
+    image = QImage(widget.size(), QImage.Format.Format_RGB32)
+    image.fill(Qt.GlobalColor.magenta)
+    widget.render(image)
+
+    accent = QColor(BUSY_ACCENT)
+    return sum(
+        1
+        for y in range(image.height())
+        for x in range(image.width())
+        if _is_near(image.pixelColor(x, y), accent)
+    )
+
+
+def _is_near(colour: QColor, other: QColor, tolerance: int = 40) -> bool:
+    """Whether two colours are close enough to be the same drawn element."""
+    return (
+        abs(colour.red() - other.red()) < tolerance
+        and abs(colour.green() - other.green()) < tolerance
+        and abs(colour.blue() - other.blue()) < tolerance
+    )
+
+
 def test_spinner_only_animates_while_running(qtbot):
-    """start() shows and animates; stop() hides and stops the timer."""
+    """start() animates; stop() clears the arc but keeps its layout slot."""
     spinner = Spinner()
     qtbot.addWidget(spinner)
 
-    # Idle and hidden until asked, so it costs the button row nothing.
+    # Idle: in the layout (its slot is reserved) but drawing nothing.
     assert spinner.is_running() is False
-    assert spinner.isHidden() is True
     assert spinner._timer.isActive() is False
+    assert spinner.size().width() > 0
+    assert _accent_pixels(spinner) == 0
 
     spinner.start()
     assert spinner.is_running() is True
-    assert spinner.isHidden() is False
     assert spinner._timer.isActive() is True
+    assert _accent_pixels(spinner) > 0  # the arc is really drawn
 
     spinner.start()  # idempotent: a second start must not double up
     assert spinner.is_running() is True
 
     spinner.stop()
     assert spinner.is_running() is False
-    assert spinner.isHidden() is True
     assert spinner._timer.isActive() is False
+    # Crucially it is *not* hidden - hiding would collapse the slot and shift
+    # every widget after it in the row.
+    assert spinner.isHidden() is False
+    assert spinner.size().width() > 0
+    assert _accent_pixels(spinner) == 0
 
 
 def test_spinner_paints_and_ignores_mouse_events(qtbot):

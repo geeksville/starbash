@@ -7,6 +7,7 @@ all on this machine the whole module skips instead of failing.
 """
 
 import os
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -493,6 +494,76 @@ def test_a_missing_checkmark_only_drops_the_tick(monkeypatch, qapp):
     assert theme.checkmark_path() is None
 
 
+# --- styled (id-selector) buttons ------------------------------------------
+
+
+def _button_fill(button: QWidget) -> QColor:
+    """The most common colour on the button's face.
+
+    The fill dominates the interior (the label glyphs and the border are a small
+    minority of the pixels), so the mode is a stable read of the background the
+    stylesheet resolved for the button's current state.
+    """
+    image = button.grab().toImage()
+    counts = Counter(
+        image.pixelColor(x, y).name()
+        for x in range(2, image.width() - 2)
+        for y in range(2, image.height() - 2)
+    )
+    return QColor(counts.most_common(1)[0][0])
+
+
+@pytest.mark.parametrize("object_name", ["Primary", "Danger"])
+def test_a_styled_button_looks_disabled_when_it_is_disabled(qtbot, qapp, object_name):
+    """Regression: a disabled Primary/Danger button looked exactly like an enabled one.
+
+    Qt uses CSS2 specificity, where an id selector outranks a pseudo-class, so
+    ``QPushButton#Primary`` beat ``QPushButton:disabled`` and kept its full accent
+    fill in every state.  Render both states and require the face to actually dim.
+    """
+    from PySide6.QtWidgets import QPushButton
+
+    from starbash.ui.qt import theme
+
+    theme.apply_theme(qapp)
+    button = QPushButton("Run auto pipeline")
+    button.setObjectName(object_name)
+    qtbot.addWidget(button)
+    button.resize(160, 30)
+    button.show()
+    qtbot.waitExposed(button)
+
+    enabled = _button_fill(button)
+    assert button.isEnabled() is True
+
+    button.setEnabled(False)
+    disabled = _button_fill(button)
+
+    assert disabled.name() != enabled.name()
+    assert _luminance(disabled) < _luminance(enabled)
+
+
+def test_a_plain_button_still_looks_disabled_when_it_is_disabled(qtbot, qapp):
+    """The unnamed buttons ("Cancel") keep their own, dimmer disabled styling."""
+    from PySide6.QtWidgets import QPushButton
+
+    from starbash.ui.qt import theme
+
+    theme.apply_theme(qapp)
+    button = QPushButton("Cancel")
+    qtbot.addWidget(button)
+    button.resize(120, 30)
+    button.show()
+    qtbot.waitExposed(button)
+
+    enabled = _button_fill(button)
+    button.setEnabled(False)
+    disabled = _button_fill(button)
+
+    assert disabled.name() != enabled.name()
+    assert _luminance(disabled) < _luminance(enabled)
+
+
 # --- main window and pages -------------------------------------------------
 
 
@@ -954,7 +1025,7 @@ def test_processing_page_marks_links_and_opens_them(qtbot, app_context, bus, mon
 
 
 def test_processing_page_disables_buttons_and_shows_spinner(qtbot, app_context, bus, monkeypatch):
-    """Starting a run disables both action buttons and shows the inline spinner.
+    """Starting a run disables Run, enables Cancel and shows the inline spinner.
 
     The job itself runs on a worker and is exercised elsewhere; here we stub
     ``start_job`` so we can observe the page's immediate feedback - which is the
@@ -981,20 +1052,96 @@ def test_processing_page_disables_buttons_and_shows_spinner(qtbot, app_context, 
 
     monkeypatch.setattr(page, "start_job", fake_start_job)
 
-    page._start(masters_only=False)
+    page._start()
 
     assert started  # the job was handed off to the (stubbed) worker pool
     assert page._run.isEnabled() is False
-    assert page._masters.isEnabled() is False
     assert page._cancel.isEnabled() is True
     assert page._spinner.is_running() is True
 
     page._on_finished({"message": "done"})
 
     assert page._run.isEnabled() is True
-    assert page._masters.isEnabled() is True
     assert page._cancel.isEnabled() is False
     assert page._spinner.is_running() is False
+
+
+def test_processing_page_run_button_starts_a_job(qtbot, app_context, bus, monkeypatch):
+    """Clicking the button itself starts a run (the signal passes no stray args)."""
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    started: list[object] = []
+    monkeypatch.setattr(page, "start_job", lambda job, **kwargs: started.append(job))
+
+    page._run.click()
+
+    assert started
+    assert page._spinner.is_running() is True
+
+
+def test_processing_page_offers_no_masters_only_button(qtbot, app_context, bus):
+    """Masters-only processing is CLI-only (``sb process masters``)."""
+    from PySide6.QtWidgets import QPushButton
+
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    labels = {button.text() for button in page.findChildren(QPushButton)}
+    assert "Run auto pipeline" in labels
+    assert "Cancel" in labels
+    # ...and nothing offered masters on its own (the decorator's "✕" is fine).
+    assert not [label for label in labels if "master" in label.lower()]
+
+
+def test_processing_page_button_row_does_not_shift_when_a_run_starts(
+    qtbot, qapp, app_context, bus, monkeypatch
+):
+    """The spinner reserves its slot, so the buttons stay put during a run.
+
+    Regression: the spinner was *hidden* while idle, so its layout slot collapsed
+    and the buttons after it slid ~27px left the instant the job began - they moved
+    out from under the cursor that had just clicked them.
+    """
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+    page.resize(900, 600)
+    page.show()
+    qtbot.waitExposed(page)
+
+    class FakeWorker:
+        """Stands in for the real Worker; only ``.token`` is ever touched."""
+
+        class token:
+            @staticmethod
+            def cancel() -> None:
+                pass
+
+    monkeypatch.setattr(page, "start_job", lambda job, **kwargs: FakeWorker())
+
+    def positions() -> tuple[int, int]:
+        """Where the buttons sit right now, after letting the layout settle."""
+        qapp.processEvents()
+        layout = page.layout()
+        assert layout is not None
+        layout.activate()
+        return page._run.x(), page._cancel.x()
+
+    idle = positions()
+    assert idle[0] > 0  # the row really is laid out
+    assert page._spinner.isHidden() is False  # its slot is reserved from the start
+
+    page._start()
+    assert positions() == idle
+
+    page._on_finished({"message": "done"})
+    assert positions() == idle
 
 
 def test_repositories_page_reports_indexing_progress(qtbot, app_context, bus):

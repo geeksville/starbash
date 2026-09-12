@@ -50,25 +50,23 @@ def add_repo_job(
 def process_job(
     report: Callable[[Any], None],
     token: CancelToken,
-    masters_only: bool = False,
 ) -> dict[str, Any]:
-    """Run the automated processing pipeline (or just generate masters)."""
-    import starbash
+    """Run the automated processing pipeline.
+
+    Masters-only processing is CLI-only (`sb process masters`), so there is no
+    option for it here.
+    """
     from starbash.app import Starbash
     from starbash.processing import Processing
 
     token.raise_if_cancelled()
-    if masters_only:
-        starbash.process_masters = True
-        report("Generating master calibration frames...")
-    else:
-        report("Auto-processing selected sessions...")
+    report("Auto-processing selected sessions...")
 
     # Bind before the `with`: `__exit__` can suppress exceptions, so the type
     # checker (correctly) can't prove the body ran.
     results: list[Any] = []
     with Starbash("gui.process") as sb, Processing(sb) as proc:
-        results = proc.run_master_stages() if masters_only else proc.run_all_stages()
+        results = proc.run_all_stages()
 
     succeeded = sum(1 for r in results if getattr(r, "success", None))
     failed = len(results) - succeeded

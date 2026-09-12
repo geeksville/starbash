@@ -60,7 +60,7 @@ Doc: PySide6 is a normal dependency of `starbash`, so no extra is needed. Dev te
 | `sb info target/telescope/filter` | **Dashboard** breakdown widgets (click -> filters Sessions) |
 | `sb info master [kind]` | **Masters** sub-tab (table + date/type/filename) |
 | `sb process auto [--no-masters]` | **Processing > Run** (Auto / Auto without masters) |
-| `sb process masters` | Processing > Run (**Generate masters**) |
+| `sb process masters` | *(no GUI equivalent — masters-only is deliberately CLI-only)* |
 | `sb process siril <n> <dir> [--run]` | Sessions > row **Export to Siril...** |
 | `sb process doit` (dev) | Hidden dev drawer (optional; likely omit) |
 | `sb publish github rewrite` (+ `--dry-run`, `--login`) | **Publish > Generate site / Publish / Sign in** |
@@ -192,7 +192,7 @@ Fonts: UI = system sans; tables/logs/TOML = monospace. Section headers mimic the
 |           |  | m81         ### 38               | | ~  masters (darks) 42%  | |
 |           |  +----------------------------------+ +-------------------------+ |
 |           |  +- Quick actions ---------------------------------------------+ |
-|           |  | [ > Process selection ] [ o Generate masters ] [ ~ Reindex ] | |
+|           |  | [ > Process selection ] [ ~ Reindex ]                       | |
 |           |  +--------------------------------------------------------------+ |
 +-----------+------------------------------------------------------------------+
 | o idle | Repos ready | 3 tools found (Siril ok GraXpert ok rc-astro no)        |

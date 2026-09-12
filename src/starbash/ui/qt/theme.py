@@ -184,6 +184,22 @@ QPushButton#Primary {{
 }}
 QPushButton#Primary:hover {{ background-color: #61b2e8; }}
 QPushButton#Danger {{ background-color: #8f3b3b; border-color: #8f3b3b; color: #fff; }}
+/* A styled button needs its *own* disabled rule.  Qt's stylesheet specificity is
+   CSS2's (id > class/pseudo-class > element), so `QPushButton#Primary` (an id
+   selector) outranks the plain `QPushButton:disabled` above and kept the full accent
+   fill - a disabled "Run auto pipeline" looked exactly like an enabled one.  These
+   rules therefore have to be at least as specific and come *after* the `:hover`
+   rules, which would otherwise win on equal specificity. */
+QPushButton#Primary:disabled {{
+    background-color: #2f5a77;
+    border-color: #2f5a77;
+    color: #9aa7b4;
+}}
+QPushButton#Danger:disabled {{
+    background-color: #4d2b2b;
+    border-color: #4d2b2b;
+    color: #9aa7b4;
+}}
 
 /* Tables ---------------------------------------------------------------- */
 QTableView, QTreeView, QListView {{

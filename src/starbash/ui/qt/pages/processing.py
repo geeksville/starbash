@@ -111,23 +111,23 @@ class ProcessingPage(Page):
 
         self._run = QPushButton("Run auto pipeline")
         self._run.setObjectName("Primary")
-        self._run.clicked.connect(lambda: self._start(masters_only=False))
+        self._run.clicked.connect(self._start)
 
-        # A compact arc shown only while a run is in flight, so a long (or slow
-        # to start) job is obviously "doing something" without freezing the row.
+        # A compact arc shown while a run is in flight, so a long (or slow to
+        # start) job is obviously "doing something" without freezing the row.  It
+        # always keeps its slot (it just paints nothing when idle), so the buttons
+        # beside it never jump when the run begins.
         self._spinner = Spinner()
-
-        self._masters = QPushButton("Generate masters only")
-        self._masters.clicked.connect(lambda: self._start(masters_only=True))
 
         self._cancel = QPushButton("Cancel")
         self._cancel.setEnabled(False)
         self._cancel.clicked.connect(self._on_cancel)
 
+        # Masters-only processing is deliberately CLI-only (`sb process masters`)
+        # - there is no button for it here.
         bar = QHBoxLayout()
         bar.addWidget(self._run)
         bar.addWidget(self._spinner)
-        bar.addWidget(self._masters)
         bar.addWidget(self._cancel)
         bar.addStretch(1)
         layout.addLayout(bar)
@@ -153,7 +153,7 @@ class ProcessingPage(Page):
             self.bus.received.connect(self._on_event)  # type: ignore[attr-defined]
 
     # --- actions ----------------------------------------------------------
-    def _start(self, masters_only: bool) -> None:
+    def _start(self) -> None:
         self._tasks.clear()
         self._targets.clear()
         self._running = None
@@ -161,13 +161,12 @@ class ProcessingPage(Page):
         self._progress.setRange(0, 0)  # indeterminate until a tool reports a percentage
         self._caption.setText("Starting…")
 
-        for button in (self._run, self._masters):
-            button.setEnabled(False)
+        self._run.setEnabled(False)
         self._cancel.setEnabled(True)
         self._spinner.start()
 
         self._worker = self.start_job(
-            lambda report, token: process_job(report, token, masters_only=masters_only),
+            lambda report, token: process_job(report, token),
             on_progress=self._on_progress,
             on_finished=self._on_finished,
             on_failed=self._on_failed,
@@ -197,8 +196,7 @@ class ProcessingPage(Page):
     def _finish(self) -> None:
         self._progress.setRange(0, 100)
         self._progress.setValue(100)
-        for button in (self._run, self._masters):
-            button.setEnabled(True)
+        self._run.setEnabled(True)
         self._cancel.setEnabled(False)
         self._spinner.stop()
 

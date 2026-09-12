@@ -102,6 +102,13 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
   and the item-view indicators are drawn explicitly in the QSS — a visible outline off,
   the accent plus `assets/check.png` on. Keep new styled controls away from
   palette-derived colours, which have no contrast against this theme.
+- **Theme gotcha (specificity)**: Qt applies CSS2 specificity, so an id selector
+  outranks a pseudo-class — a button given `setObjectName("Primary")` kept its accent
+  fill even when disabled, because `QPushButton#Primary` beat the generic
+  `QPushButton:disabled`. Any id-styled control (`#Primary`, `#Danger`) therefore needs
+  its **own** `...:disabled` rule placed *after* the `:hover` rules (equal specificity →
+  later wins). `test_a_styled_button_looks_disabled_when_it_is_disabled` renders both
+  states and fails if the face colour stops changing.
 - **Threading rule (important)**: the shared `Starbash`/SQLite connection belongs
   to the GUI thread. Every long operation runs in a worker that builds its **own**
   `Starbash` (hence its own SQLite connection) and reports through the event bus.

@@ -219,25 +219,29 @@ class Spinner(QWidget):
     :class:`BusyIndicator` centres a panel (and optional caption) over the widget
     whose content is loading, which is wrong for a button row: there the spinner
     has to be a compact, layout-sized companion.  This widget is exactly that -
-    it draws only the arc (no panel, no caption), takes no space while idle, and
-    is transparent to mouse events, so it never steals a click meant for a
-    neighbouring button.
+    it draws only the arc (no panel, no caption) and is transparent to mouse
+    events, so it never steals a click meant for a neighbouring button.
+
+    It **always keeps its slot in the layout**: while idle it paints nothing but
+    still occupies its square, so the controls beside it do not jump sideways the
+    moment a run starts — exactly when the user is looking at them.
+    (Hiding it instead collapsed the slot and slid the following buttons left.)
 
     Typical use::
 
         self._spinner = Spinner()
         button_row.addWidget(self._spinner)
         ...
-        self._spinner.start()   # show + animate
+        self._spinner.start()   # animate the arc
         ...
-        self._spinner.stop()    # hide + stop the timer
+        self._spinner.stop()    # clear it (the slot stays)
 
     Like the overlay indicator, it is idempotent: calling :meth:`start` twice
     does not double the timer, and :meth:`stop` on an idle spinner is a no-op.
     """
 
     def __init__(self, parent: QWidget | None = None, diameter: float = SPINNER_DIAMETER) -> None:
-        """Create a hidden spinner whose arc is ``diameter`` pixels across.
+        """Create an idle spinner whose arc is ``diameter`` pixels across.
 
         Args:
             parent: optional parent widget (the spinner is a normal layout child,
@@ -255,7 +259,6 @@ class Spinner(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         side = int(self._diameter + _SPINNER_PEN) + 1
         self.setFixedSize(side, side)
-        self.hide()
 
         self._timer = QTimer(self)
         self._timer.setInterval(_SPINNER_INTERVAL_MS)
@@ -263,24 +266,28 @@ class Spinner(QWidget):
 
     # --- public API -------------------------------------------------------
     def start(self) -> None:
-        """Show the spinner and begin animating (a second call is a no-op)."""
+        """Begin animating the arc (a second call is a no-op)."""
         if self._running:
             return
         self._running = True
-        self.show()
+        self.show()  # belt and braces: the slot is reserved either way
         self._timer.start()
         self.update()
 
     def stop(self) -> None:
-        """Stop animating and hide the spinner (a second call is a no-op)."""
+        """Stop animating and clear the arc (a second call is a no-op).
+
+        The widget stays *visible* - only its painting stops - so the layout it
+        lives in does not reflow.
+        """
         if not self._running:
             return
         self._running = False
         self._timer.stop()
-        self.hide()
+        self.update()
 
     def is_running(self) -> bool:
-        """Return ``True`` while the spinner is visible and animating."""
+        """Return ``True`` while the arc is animating (it is laid out either way)."""
         return self._running
 
     # --- painting ---------------------------------------------------------
@@ -290,7 +297,11 @@ class Spinner(QWidget):
         self.update()
 
     def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802 - Qt API
-        """Draw the faint ring and the moving accent arc."""
+        """Draw the faint ring and the moving accent arc, or nothing while idle."""
+        if not self._running:
+            # Idle: keep the footprint, draw no pixels.
+            return
+
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 

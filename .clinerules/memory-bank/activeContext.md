@@ -138,6 +138,14 @@ Targets page specifics (recent tweak round):
   `importlib.resources`; if it cannot be found the tick is simply omitted (solid
   accent box), so a packaging slip degrades rather than breaks. The same rules cover
   the Targets/Processing tree indicators.
+- **An id-styled button needs its own `:disabled` rule** (`theme.py`). Qt applies CSS2
+  specificity, so `QPushButton#Primary` (id) outranked the generic
+  `QPushButton:disabled` and the disabled "Run auto pipeline" button kept its full
+  accent fill — pixel-identical to the enabled state (user-visible bug). `#Primary`
+  and `#Danger` now declare `...:disabled` **after** their `:hover` rules (equal
+  specificity, so later wins). Regression:
+  `test_gui.py::test_a_styled_button_looks_disabled_when_it_is_disabled`, which grabs
+  the rendered face colour in both states — it fails against the old stylesheet.
 - **Tree rows carry their own vertical padding *and* a height floor**
   (`QTreeView::item { padding: 4px 0; min-height: 16px; }`). The indicator is 16px
   but an unpadded tree row was only ~16px tall, so the stage checkboxes in the
@@ -298,6 +306,28 @@ Open tabs / files being touched suggest active work in:
   (`_RunTree`). *Superseded details (mouse-transparent, auto-dismiss) replaced by
   the entry above.* Tests: `tests/unit/test_hover_preview.py` + `test_gui.py`.
 
+- **Processing page run feedback** (`ui/qt/pages/processing.py`,
+  `ui/qt/widgets/busy_indicator.py`): clicking "Run auto pipeline" now disables that
+  button and shows a compact inline `Spinner` (21×21 px, `WA_TransparentForMouseEvents`)
+  in the button row; `Cancel` becomes enabled and the spinner keeps turning until
+  `_finish()` (which also runs on failure). Masters-only processing deliberately has
+  **no GUI button** — it stays CLI-only (`sb process masters`, `Processing.run_master_stages()`),
+  and `jobs.process_job()` no longer takes a `masters_only` flag; the GUI always runs the
+  full pipeline. Unlike `BusyIndicator` (a self-centring overlay panel + caption),
+  `Spinner` is laid out in the row and reuses the `BUSY_ACCENT`/`BUSY_TRACK` theme colours.
+  It **always keeps its layout slot** — while idle it stays visible and paints nothing
+  (`paintEvent` returns early), because hiding it collapsed the slot and slid `Cancel`
+  27px left the instant a run began, i.e. the button moved out from under the cursor that
+  had just clicked Run. Covered by
+  `test_gui.py::test_processing_page_disables_buttons_and_shows_spinner`,
+  `test_processing_page_run_button_starts_a_job`,
+  `test_processing_page_offers_no_masters_only_button` and
+  `test_processing_page_button_row_does_not_shift_when_a_run_starts` (measures real
+  geometry; fails if the spinner hides again), plus `test_image_viewer.py`'s
+  `test_spinner_only_animates_while_running` (`_accent_pixels` renders onto a solid
+  image and counts only accent-coloured pixels — rendering always fills the palette
+  background first, and a dark theme's panel colour sits within tolerance of
+  `BUSY_TRACK`, so only the accent is a palette-independent signal).
 - **Per-task log grouping in the Processing page** (`ui/qt/pages/processing.py`,
   `run_state.py`, `processed_target.py`): tool output is now attributed to the
   running *task* (`RunState.set_current_task`/`TaskNode.add_log`) and rendered
