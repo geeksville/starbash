@@ -37,6 +37,9 @@ __all__ = [
     "publish",
     "clear_subscribers",
     "subscriber_count",
+    # Stream naming for EVENT_TOOL_OUTPUT payloads.
+    "STRUCTURED_STREAM_MIMES",
+    "is_structured_stream",
     # Well-known event kinds (kept here so producers/consumers can't typo them).
     "EVENT_TOOL_OUTPUT",
     "EVENT_TOOL_PROGRESS",
@@ -59,6 +62,11 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 #: One line of output from an external tool. data: {cmd, stream, line}
+#:
+#: ``stream`` is normally ``"stdout"`` or ``"stderr"``.  A tool whose stdout is a
+#: machine-readable protocol (e.g. rc-astro's ``--json`` event stream) names it
+#: ``"stdout.<mime>"`` instead, so log renderers can skip it - see
+#: :func:`is_structured_stream`.
 EVENT_TOOL_OUTPUT = "tool.output"
 #: A parsed progress percentage streamed by a tool. data: {cmd, percent, message?}
 EVENT_TOOL_PROGRESS = "tool.progress"
@@ -88,6 +96,31 @@ EVENT_RUN_STARTED = "run.started"
 EVENT_RUN_FINISHED = "run.finished"
 #: A log record was emitted (for the GUI log pane). data: {level, message}
 EVENT_LOG_MESSAGE = "log.message"
+
+#: ``<stream>.<mime>`` suffixes that mark a machine-readable protocol stream
+#: rather than human-readable log text.  See :func:`is_structured_stream`.
+STRUCTURED_STREAM_MIMES = frozenset({"json"})
+
+
+def is_structured_stream(stream: str) -> bool:
+    """Whether a tool output ``stream`` name carries machine-readable protocol data.
+
+    ``tool_run_streaming`` names a tool's stdout ``"stdout.<mime>"`` (e.g.
+    ``"stdout.json"``, as rc-astro does for its ``--json`` event stream) when the
+    tool declares that stream is structured.  Such lines are protocol frames, not
+    messages meant for a human - the interesting parts are republished as
+    :data:`EVENT_TOOL_PROGRESS` - so log renderers (the CLI run tree, the GUI Log
+    nodes) skip them instead of echoing them verbatim.
+
+    Args:
+        stream: The ``stream`` field of an :data:`EVENT_TOOL_OUTPUT` payload.
+
+    Returns:
+        True if the stream is structured (has a known mime suffix).
+    """
+    _, _, mime = stream.partition(".")
+    return mime in STRUCTURED_STREAM_MIMES
+
 
 Subscriber = Callable[["Event"], None]
 

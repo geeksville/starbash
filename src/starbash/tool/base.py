@@ -33,6 +33,7 @@ __all__ = [
     "ExternalTool",
     "tool_run",
     "tool_run_streaming",
+    "publish_tool_progress",
 ]
 
 # If we want to ensure that child tools don't accidentally try to open GUI windows, we can set this flag.
@@ -105,6 +106,37 @@ def color_lines(lines: list[str]) -> str:
 _PERCENT_RE = re.compile(r"(\d{1,3})(?:\.\d+)?\s*%")
 
 
+def publish_tool_progress(
+    cmd: str,
+    *,
+    percent: float | int | None = None,
+    message: str | None = None,
+    line: str | None = None,
+) -> None:
+    """Publish an ``EVENT_TOOL_PROGRESS`` event for ``cmd``.
+
+    This is the single place that shapes a tool-progress payload, so a tool that
+    parses its own structured output (rc-astro's ``--json`` stream) reports
+    progress identically to the generic ``NN%`` scan in
+    :func:`_publish_tool_line`.
+
+    Args:
+        cmd: The command line the progress came from.
+        percent: Completion in the 0-100 range, or ``None`` for a message-only
+            status update (the GUI then leaves the bar untouched).
+        message: Optional human-readable phase/status caption.
+        line: Optional raw output line the progress was derived from.
+    """
+    data: dict[str, Any] = {"cmd": cmd}
+    if percent is not None:
+        data["percent"] = max(0, min(100, int(percent)))
+    if message:
+        data["message"] = message
+    if line is not None:
+        data["line"] = line
+    events.publish(events.EVENT_TOOL_PROGRESS, data)
+
+
 def _publish_tool_line(cmd: str, stream_name: str, line: str) -> None:
     """Publish a tool output line (plus any percentage found in it) to the bus.
 
@@ -115,10 +147,7 @@ def _publish_tool_line(cmd: str, stream_name: str, line: str) -> None:
     events.publish(events.EVENT_TOOL_OUTPUT, {"cmd": cmd, "stream": stream_name, "line": text})
     match = _PERCENT_RE.search(text)
     if match:
-        events.publish(
-            events.EVENT_TOOL_PROGRESS,
-            {"cmd": cmd, "percent": min(100, int(match.group(1))), "line": text},
-        )
+        publish_tool_progress(cmd, percent=int(match.group(1)), line=text)
 
 
 class ToolLiveDisplay:
@@ -244,6 +273,7 @@ def tool_run_streaming(
     commands: str | None = None,
     arguments: str | None = None,
     stderr_fixup: Callable[[list[str], list[str]], list[str]] | None = None,
+    stdout_mime: str | None = None,
 ) -> None:
     """Execute an external tool, invoking on_line for each stdout line as it arrives.
 
@@ -252,6 +282,23 @@ def tool_run_streaming(
     reader threads for stdout and stderr feed a shared queue so the timeout fires
     correctly even for silent processes and both streams are written to log_out in
     approximate arrival order.  A non-zero exit code raises ToolError.
+
+    Args:
+        cmd: Shell command line to run.
+        cwd: Working directory for the child process.
+        on_line: Called with each stdout line as it arrives (already newline-stripped
+            for the caller's convenience by convention).
+        timeout: Seconds to wait before killing the child, or None for no limit.
+        log_out: Raw log file; receives *every* line from both streams, verbatim.
+        commands: Text written to the child's stdin, which is then closed.
+        arguments: Extra arguments appended to the command line (see above).
+        stderr_fixup: Rewrites (stdout, stderr) line lists into the raised ToolError.
+        stdout_mime: When the tool's stdout is a machine-readable protocol (e.g.
+            ``"json"`` for rc-astro's ``--json`` events), names it ``"stdout.<mime>"``
+            in the published :data:`~starbash.events.EVENT_TOOL_OUTPUT` payload so log
+            renderers can skip those frames (see
+            :func:`starbash.events.is_structured_stream`).  ``log_out`` still receives
+            the raw lines, and ``on_line`` is unaffected.
     """
     import queue
     import threading
@@ -328,7 +375,11 @@ def tool_run_streaming(
             active_display = Tool._active_display
             if active_display is not None:
                 active_display.add_line(line, is_stderr=stream_name == "stderr")
-            _publish_tool_line(cmd, stream_name, line)
+            # Tag a structured stdout so log renderers can drop its protocol frames.
+            published_stream = (
+                f"stdout.{stdout_mime}" if stdout_mime and stream_name == "stdout" else stream_name
+            )
+            _publish_tool_line(cmd, published_stream, line)
             if stream_name == "stdout":
                 stdout_captured.append(line)
                 if on_line:

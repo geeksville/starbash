@@ -756,7 +756,7 @@ class TestRCAstroTool:
         """RCAstroTool.run should build the full rc-astro command and stream output."""
         captured: dict[str, str] = {}
 
-        def fake_stream(cmd, cwd, on_line, timeout=None, log_out=None):
+        def fake_stream(cmd, cwd, on_line, timeout=None, log_out=None, stdout_mime=None):
             captured["cmd"] = cmd
             # Handler must tolerate progress, status and non-json lines
             on_line('{"event":"progress","done":100.0,"eta":0.0}')

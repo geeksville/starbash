@@ -16,7 +16,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from starbash.tool.base import ExternalTool, tool_run_streaming
+from starbash.tool.base import ExternalTool, publish_tool_progress, tool_run_streaming
 from starbash.tool.context import expand_context_unsafe
 
 logger = logging.getLogger(__name__)
@@ -154,10 +154,27 @@ class RCAstroTool(ExternalTool):
                     progress.update(
                         task, completed=done, description=f"[bold]{self.name}[/bold]: {message}"
                     )
+                    # Surface the structured progress on the bus too: the CLI
+                    # drives its own Rich bar above, but the GUI only sees events.
+                    publish_tool_progress(cmd, percent=done, message=message)
                 elif event == "status":
                     message = obj.get("message") or obj.get("phase") or ""
                     progress.update(task, description=f"[bold]{self.name}[/bold]: {message}")
+                    if message:
+                        # No percentage in a status line, so this is a phase-only
+                        # update; consumers must not reset their bar to zero.
+                        publish_tool_progress(cmd, message=message)
                 elif event == "info":
                     logger.debug(f"[rc-astro] {obj}")
 
-            tool_run_streaming(cmd, cwd, on_line=on_line, timeout=self.timeout, log_out=log_out)
+            # ``--json`` makes stdout a structured event stream, so declare it:
+            # log renderers then skip these protocol frames (the useful parts are
+            # already published as tool.progress) while log_out keeps them raw.
+            tool_run_streaming(
+                cmd,
+                cwd,
+                on_line=on_line,
+                timeout=self.timeout,
+                log_out=log_out,
+                stdout_mime="json",
+            )

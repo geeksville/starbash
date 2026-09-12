@@ -106,6 +106,15 @@ def test_clear_subscribers_empties_the_bus():
     assert events.subscriber_count() == 0
 
 
+def test_is_structured_stream_recognises_known_mimes():
+    """Only ``<stream>.<known-mime>`` names count as machine-readable protocol streams."""
+    assert events.is_structured_stream("stdout.json")
+    assert not events.is_structured_stream("stdout")
+    assert not events.is_structured_stream("stderr")
+    # An unrecognised mime is still human-facing log text, not protocol data.
+    assert not events.is_structured_stream("stdout.xml")
+
+
 def test_auto_accept_interaction_returns_defaults():
     """The headless interaction answers every prompt with its default."""
     interaction = AutoAcceptUserInteraction()

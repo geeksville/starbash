@@ -83,6 +83,32 @@ Status (all phases 0–7 landed except GitHub upload from the GUI):
   `AutoAccept`, `get/set_interaction`) and routed the guided prompts in
   `commands/user.py` through it. Tests: `tests/unit/test_events.py`,
   `tests/unit/test_emit_hooks.py`.
+- **rc-astro JSON progress → events** — `tool/base.py` gained
+  `publish_tool_progress(cmd, *, percent, message, line)` (the single shaper of
+  `EVENT_TOOL_PROGRESS` payloads; clamps percent; `_publish_tool_line` reuses it).
+  `tool/rcastro.py`'s `on_line` now publishes parsed `progress`/`status` info
+  through it (status is message-only, so the GUI leaves the bar untouched and
+  shows the phase on the running task's details column). Previously the CLI's
+  Rich bar worked but the GUI never saw rc-astro progress. Tests:
+  `test_emit_hooks.py::test_rc_astro_json_progress_is_published_as_tool_progress`,
+  `test_gui.py::test_processing_page_tool_phase_does_not_reset_progress`.
+- **Structured tool streams stay out of the log** — rc-astro's `--json` frames were
+  being echoed verbatim into the run-tree log tails (and so into the GUI `Log`
+  nodes, which are rebuilt from the core's run snapshots). Fix: `tool_run_streaming`
+  gained `stdout_mime`; when a tool declares one (rc-astro passes `"json"`) its
+  `EVENT_TOOL_OUTPUT` stream is named `stdout.<mime>` (e.g. `stdout.json`), and both
+  log renderers — `Processing._on_log_event` (feeds the CLI *and* GUI trees plus the
+  persisted `run-log.toml`) and `ProcessingPage._on_event` (live GUI append) — skip
+  it via the new `events.is_structured_stream(stream)` helper
+  (`STRUCTURED_STREAM_MIMES = {"json"}`; unknown mimes stay human log text). The raw
+  lines still land in `log_out`, and the parsed progress still arrives as
+  `EVENT_TOOL_PROGRESS`. Tests:
+  `test_emit_hooks.py::test_tool_run_streaming_tags_structured_stdout_with_its_mime`,
+  `::test_tool_run_streaming_leaves_plain_stdout_untagged`,
+  `::test_rc_astro_declares_its_stdout_is_json`,
+  `test_processing.py::TestRunLogAttribution::test_skips_structured_stream_frames`,
+  `test_gui.py::test_processing_page_skips_structured_tool_stream_lines`,
+  `test_events.py::test_is_structured_stream_recognises_known_mimes`.
 - **Phase 1 (skeleton + Textual removal)** — `pyside6` is a **normal dependency**
   (no `gui` extra: the GUI is first-class, "optional" only meant users may keep using
   the CLI), `pytest-qt` dev dep, `gui` pytest marker (runs by default, deselect with

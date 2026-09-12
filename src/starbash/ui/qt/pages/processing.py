@@ -213,10 +213,13 @@ class ProcessingPage(Page):
         elif kind == events.EVENT_TASK_FINISHED:
             self._on_task_finished(data)
         elif kind == events.EVENT_TOOL_OUTPUT:
-            self._append_log_line(str(data.get("line", "")), error=data.get("stream") == "stderr")
+            stream = str(data.get("stream") or "")
+            # Structured streams (e.g. "stdout.json") are protocol frames, not log
+            # text; their useful content already arrives as EVENT_TOOL_PROGRESS.
+            if not events.is_structured_stream(stream):
+                self._append_log_line(str(data.get("line", "")), error=stream == "stderr")
         elif kind == events.EVENT_TOOL_PROGRESS:
-            self._progress.setRange(0, 100)
-            self._progress.setValue(int(data.get("percent") or 0))
+            self._on_tool_progress(data)
         elif kind in (events.EVENT_STAGE_RESULT, events.EVENT_RUN_FINISHED):
             self._render_run(data.get("run"))
             notes = getattr(data.get("result"), "notes", None)
@@ -224,6 +227,22 @@ class ProcessingPage(Page):
                 self._caption.setText(str(notes))
         elif kind == events.EVENT_PREFLIGHT_FINISHED:
             self._on_preflight_finished(data)
+
+    def _on_tool_progress(self, data: dict) -> None:
+        """Reflect a tool's streamed progress (and phase message) live.
+
+        ``percent`` is optional: rc-astro's ``status`` lines carry only a
+        message, so a message-only update must not reset the bar to zero.
+        """
+        percent = data.get("percent")
+        if percent is not None:
+            self._progress.setRange(0, 100)
+            self._progress.setValue(int(percent))
+        message = data.get("message")
+        if message and self._running is not None:
+            item = self._task_item(*self._running)
+            if item is not None:
+                item.setText(1, str(message))
 
     def _on_preflight_finished(self, data: dict) -> None:
         """Drop master runs that planning found no target depends on."""

@@ -39,7 +39,12 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
 - **Tools**: `src/starbash/tool/` — runners for Siril (Flatpak, stdin script), GraXpert (CLI),
   Python (RestrictedPython sandbox), and rc-astro (BlurXTerminator `bxt` + NoiseXTerminator `nxt`
   CLI; always passes `--json` and streams JSON progress events to a live Rich progress bar via
-  `tool_run_streaming`).
+  `tool_run_streaming`). When a tool's stdout is a *machine-readable* protocol
+  (rc-astro declares `stdout_mime="json"`), `tool_run_streaming` names its
+  `EVENT_TOOL_OUTPUT` stream `stdout.<mime>` (e.g. `stdout.json`); log renderers
+  (`Processing._on_log_event` → the CLI/GUI run tree, and the GUI Log node) skip
+  those frames via `events.is_structured_stream()`, since the useful content is
+  already republished as `EVENT_TOOL_PROGRESS`. `log_out` still gets the raw lines.
 - **Paths**: `src/starbash/paths.py` — platformdirs-based; override in tests via
   `paths.set_test_directories(...)`.
 - **Events**: `src/starbash/events.py` — dependency-free pub/sub bus. The core

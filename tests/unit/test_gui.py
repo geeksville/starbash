@@ -733,6 +733,58 @@ def test_processing_page_renders_core_events(qtbot, app_context, bus):
     assert page._progress.value() == 42
 
 
+def test_processing_page_tool_phase_does_not_reset_progress(qtbot, app_context, bus):
+    """A message-only tool progress event shows the phase but keeps the bar value."""
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    events.publish(
+        events.EVENT_TASK_STARTED,
+        {"task": "bxt", "title": "BlurX", "target": "M31", "stage": "deconvolution"},
+    )
+    events.publish(events.EVENT_TOOL_PROGRESS, {"percent": 60})
+    events.publish(events.EVENT_TOOL_PROGRESS, {"message": "Saving"})
+
+    assert page._progress.value() == 60
+    stage_item = _row(_top(page._tasks, 0), 0)
+    task_item = _child_of_kind(stage_item, "task")
+    assert task_item is not None
+    assert task_item.text(1) == "Saving"
+
+
+def test_processing_page_skips_structured_tool_stream_lines(qtbot, app_context, bus):
+    """Protocol frames on a structured stream (``stdout.json``) never reach the Log node."""
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    events.publish(
+        events.EVENT_TASK_STARTED,
+        {"task": "bxt", "title": "BlurX", "target": "M31", "stage": "deconvolution"},
+    )
+    events.publish(
+        events.EVENT_TOOL_OUTPUT,
+        {"stream": "stdout.json", "line": '{"event":"progress","done":42}'},
+    )
+    events.publish(events.EVENT_TOOL_OUTPUT, {"stream": "stdout", "line": "human line"})
+    events.publish(events.EVENT_TOOL_PROGRESS, {"percent": 42})
+
+    stage_item = _row(_top(page._tasks, 0), 0)
+    task_item = _child_of_kind(stage_item, "task")
+    assert task_item is not None
+    log_node = _child_of_kind(task_item, "log")
+    assert log_node is not None
+    lines = [_row(log_node, i).text(0) for i in range(log_node.childCount())]
+    assert any("human line" in line for line in lines)
+    assert not any("event" in line for line in lines)
+
+    # The parsed progress still drove the bar.
+    assert page._progress.value() == 42
+
+
 def test_processing_page_labels_unused_stages(qtbot, app_context, bus):
     """A stage that never ran reads as 'unused' rather than 'pending'."""
     from starbash.ui.qt.pages.processing import ProcessingPage

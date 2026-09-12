@@ -14,6 +14,54 @@ from starbash.stages import (
 )
 
 
+class TestRunLogAttribution:
+    """Tests that streamed lines reach (or are kept from) the active target's log tail."""
+
+    def _processing_with_target(self) -> tuple[Any, list[str]]:
+        """A Processing with only the bits ``_on_log_event`` needs, plus its log."""
+        from starbash.processing import Processing
+
+        recorded: list[str] = []
+
+        class _Target:
+            def record_log(self, line: str) -> None:
+                recorded.append(line)
+
+        processing = Processing.__new__(Processing)
+        processing._active_target = _Target()  # type: ignore  # duck-typed stub
+        return processing, recorded
+
+    def test_records_tool_output_and_log_messages(self):
+        from starbash import events
+
+        processing, recorded = self._processing_with_target()
+
+        processing._on_log_event(
+            events.Event(events.EVENT_TOOL_OUTPUT, {"stream": "stdout", "line": "working"})
+        )
+        processing._on_log_event(events.Event(events.EVENT_LOG_MESSAGE, {"message": "hello"}))
+
+        assert recorded == ["working", "hello"]
+
+    def test_skips_structured_stream_frames(self):
+        """Protocol frames (e.g. rc-astro's --json) must not pollute the log tail."""
+        from starbash import events
+
+        processing, recorded = self._processing_with_target()
+
+        processing._on_log_event(
+            events.Event(
+                events.EVENT_TOOL_OUTPUT,
+                {"stream": "stdout.json", "line": '{"event":"progress","done":1}'},
+            )
+        )
+        processing._on_log_event(
+            events.Event(events.EVENT_TOOL_OUTPUT, {"stream": "stdout", "line": "human"})
+        )
+
+        assert recorded == ["human"]
+
+
 class TestImportFromPriorStages:
     """Tests for filtering outputs imported from multiplexed stages."""
 

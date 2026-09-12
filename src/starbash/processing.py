@@ -299,6 +299,12 @@ class Processing(ProcessingLike):
         data = event.data
         if not isinstance(data, dict):
             return
+        # Skip machine-readable protocol frames (e.g. rc-astro's --json events):
+        # they are not log text, and are republished as EVENT_TOOL_PROGRESS.
+        if event.kind == events.EVENT_TOOL_OUTPUT and events.is_structured_stream(
+            str(data.get("stream") or "")
+        ):
+            return
         line = data.get("line") or data.get("message")
         if line:
             pt.record_log(str(line))

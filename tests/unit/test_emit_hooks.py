@@ -114,6 +114,98 @@ def test_my_reporter_enriches_task_events_with_stage_labels(recorder):
     assert finished.data["stage"] == "stack"
 
 
+def test_publish_tool_progress_clamps_and_includes_message(recorder):
+    """The progress helper shapes one canonical payload (percent clamped to 100)."""
+    from starbash.tool.base import publish_tool_progress
+
+    publish_tool_progress("cmd", percent=142, message="Finishing")
+
+    event = next(event for event in recorder if event.kind == events.EVENT_TOOL_PROGRESS)
+    assert event.data == {"cmd": "cmd", "percent": 100, "message": "Finishing"}
+
+
+def test_rc_astro_json_progress_is_published_as_tool_progress(monkeypatch, recorder):
+    """rc-astro's ``--json`` lines become EVENT_TOOL_PROGRESS events for the GUI.
+
+    The CLI drives its own Rich bar from the same handler, but the GUI only sees
+    the bus, so structured progress/status must be published there.
+    """
+    import tempfile
+
+    from starbash.tool.base import Tool
+    from starbash.tool.rcastro import RCAstroTool
+
+    def fake_stream(cmd, cwd, on_line, timeout=None, log_out=None, stdout_mime=None):
+        on_line('{"event":"progress","done":37.0,"eta":12.0}')
+        on_line('{"event":"status","phase":"saving","message":"Saving"}')
+        on_line('{"event":"info","topic":"version","cliVersion":"1.1.3"}')
+        on_line("plain diagnostic")
+
+    monkeypatch.setattr("starbash.tool.rcastro.tool_run_streaming", fake_stream)
+    monkeypatch.setattr(Tool, "Preferences", {"rc-astro": {"path": "/usr/bin/rc-astro"}})
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        RCAstroTool().run(["bxt", "in.fits"], context={}, cwd=temp_dir)
+
+    progress = [event for event in recorder if event.kind == events.EVENT_TOOL_PROGRESS]
+    assert [event.data["percent"] for event in progress if "percent" in event.data] == [37]
+    assert [event.data["message"] for event in progress if "message" in event.data] == [
+        "Processing",
+        "Saving",
+    ]
+
+
+def test_tool_run_streaming_tags_structured_stdout_with_its_mime(tmp_path, recorder):
+    """A tool that declares its stdout mime publishes it as e.g. ``stdout.json``.
+
+    Log renderers key off that name to drop protocol frames, while log_out still
+    receives the raw lines and the generic percentage scan is unaffected.
+    """
+    from starbash.tool.base import tool_run_streaming
+
+    log_path = tmp_path / "tool.log"
+    with log_path.open("w") as log_out:
+        tool_run_streaming(
+            'echo \'{"event":"progress","done":1}\'',
+            str(tmp_path),
+            log_out=log_out,
+            stdout_mime="json",
+        )
+
+    streams = [event.data["stream"] for event in recorder if event.kind == events.EVENT_TOOL_OUTPUT]
+    assert streams == ["stdout.json"]
+    # The raw protocol line is preserved for debugging.
+    assert '{"event":"progress","done":1}' in log_path.read_text()
+
+
+def test_tool_run_streaming_leaves_plain_stdout_untagged(tmp_path, recorder):
+    """Without a declared mime, stdout keeps its plain ``stdout`` stream name."""
+    from starbash.tool.base import tool_run_streaming
+
+    tool_run_streaming('echo \'{"event":"progress"}\'', str(tmp_path))
+
+    streams = [event.data["stream"] for event in recorder if event.kind == events.EVENT_TOOL_OUTPUT]
+    assert streams == ["stdout"]
+
+
+def test_rc_astro_declares_its_stdout_is_json(monkeypatch, tmp_path):
+    """rc-astro always passes ``--json``, so it tells the runner stdout is json."""
+    from starbash.tool.base import Tool
+    from starbash.tool.rcastro import RCAstroTool
+
+    seen: dict = {}
+
+    def fake_stream(cmd, cwd, on_line, timeout=None, log_out=None, **kwargs):
+        seen.update(kwargs)
+
+    monkeypatch.setattr("starbash.tool.rcastro.tool_run_streaming", fake_stream)
+    monkeypatch.setattr(Tool, "Preferences", {"rc-astro": {"path": "/usr/bin/rc-astro"}})
+
+    RCAstroTool().run(["bxt", "in.fits"], context={}, cwd=str(tmp_path))
+
+    assert seen["stdout_mime"] == "json"
+
+
 def test_reindex_repo_publishes_progress_and_finished(
     setup_test_environment, mock_analytics, recorder
 ):
