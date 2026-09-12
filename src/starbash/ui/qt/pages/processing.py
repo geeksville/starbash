@@ -57,7 +57,6 @@ _ROLE_NAME = Qt.ItemDataRole.UserRole + 1
 _KIND_STAGE = "stage"
 _KIND_TASK = "task"
 _KIND_LOG = "log"
-_KIND_OUT = "out"
 
 
 class _RunTree(QTreeWidget):
@@ -255,7 +254,7 @@ class ProcessingPage(Page):
             # A stage links to the recipe (or target config) that defines it.
             set_link(stage_item, 0, stage.get("recipe_url") or stage.get("config_url"))
             root.addChild(stage_item)
-            # Keep stages open so their tasks (and each task's Log/Out) are visible.
+            # Keep stages open so their tasks (and each task's Log) are visible.
             stage_item.setExpanded(True)
 
             tasks = [task for task in stage.get("tasks", []) if isinstance(task, dict)]
@@ -268,14 +267,7 @@ class ProcessingPage(Page):
                     log_item = QTreeWidgetItem([f"    {line}", ""])
                     log_item.setForeground(0, QBrush(QColor(_DIM)))
                     stage_item.addChild(log_item)
-                outputs = stage.get("outputs", [])
-                if isinstance(outputs, list) and outputs:
-                    out_node = QTreeWidgetItem(["      Out", self._file_labels(outputs)])
-                    out_node.setForeground(0, QBrush(QColor(_DIM)))
-                    for ref in outputs:
-                        if isinstance(ref, dict):
-                            out_node.addChild(self._file_row(ref))
-                    stage_item.addChild(out_node)
+                self._add_output_rows(stage.get("outputs"), stage_item)
 
         # Real targets open; master (calibration) runs stay collapsed — there are
         # usually many of them and they are rarely what the user is looking at.
@@ -283,7 +275,12 @@ class ProcessingPage(Page):
         self._tasks.scrollToItem(root)
 
     def _add_task_rows(self, task: dict, stage_item: QTreeWidgetItem) -> None:
-        """Add one task row, plus its collapsible ``Log`` and ``Out`` children."""
+        """Add one task row, plus its collapsible ``Log`` and output rows.
+
+        Output files are added as siblings of the ``Log`` node (one row each),
+        rather than nested inside a wrapper ``Out`` node, so a task's outputs sit
+        at the same level as its log.
+        """
         tstatus = RunStatus(task.get("status", RunStatus.PENDING))
         label = str(task.get("title") or task.get("name") or "task")
         details = tstatus.label
@@ -311,25 +308,30 @@ class ProcessingPage(Page):
             log_node.setExpanded(tstatus in (RunStatus.RUNNING, RunStatus.FAILED))
 
         outputs = task.get("outputs", [])
-        if isinstance(outputs, list) and outputs:
-            out_node = QTreeWidgetItem(["      Out", self._file_labels(outputs)])
-            out_node.setData(0, _ROLE_KIND, _KIND_OUT)
-            out_node.setForeground(0, QBrush(QColor(_DIM)))
-            for ref in outputs:
-                if isinstance(ref, dict):
-                    out_node.addChild(self._file_row(ref))
-            task_item.addChild(out_node)
+        self._add_output_rows(outputs, task_item)
 
         task_item.setExpanded(
             bool(logs or outputs or tstatus in (RunStatus.RUNNING, RunStatus.FAILED))
         )
 
     # --- links ------------------------------------------------------------
+    def _add_output_rows(self, outputs: object, parent: QTreeWidgetItem) -> None:
+        """Add one linkable row per output file, directly under ``parent``.
+
+        Outputs are *not* wrapped in an ``Out`` node: each file is a sibling of
+        the task's ``Log`` node, on the same level as it.
+        """
+        if not isinstance(outputs, list):
+            return
+        for ref in outputs:
+            if isinstance(ref, dict):
+                parent.addChild(self._file_row(ref))
+
     @staticmethod
     def _file_row(ref: dict) -> QTreeWidgetItem:
         """A linkable row (label + URL) for one output file ref."""
         url = ref.get("url")
-        item = QTreeWidgetItem([f"        {ref.get('label', '')}", str(url or "")])
+        item = QTreeWidgetItem([f"      {ref.get('label', '')}", str(url or "")])
         set_link(item, 0, url)
         set_link(item, 1, url)
         return item
@@ -463,14 +465,6 @@ class ProcessingPage(Page):
         if stage.get("dependencies"):
             label += f"  ← {', '.join(stage['dependencies'])}"
         return label
-
-    @staticmethod
-    def _file_labels(refs: object) -> str:
-        """Human-readable labels for a list of plain file refs."""
-        if not isinstance(refs, list):
-            return ""
-        labels = [str(ref.get("label")) for ref in refs if isinstance(ref, dict)]
-        return ", ".join(labels)
 
     @staticmethod
     def _apply_status(item: QTreeWidgetItem, status: RunStatus) -> None:

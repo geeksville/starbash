@@ -700,7 +700,7 @@ def test_processing_page_collapses_master_nodes(qtbot, app_context, bus):
 
 
 def test_processing_page_groups_logs_under_each_task(qtbot, app_context, bus):
-    """Each task gets its own Log/Out nodes; finished logs start closed."""
+    """Each task gets its own Log node plus flat output rows; finished logs close."""
     from starbash.ui.qt.pages.processing import ProcessingPage
 
     page = ProcessingPage(app_context, bus)
@@ -750,10 +750,11 @@ def test_processing_page_groups_logs_under_each_task(qtbot, app_context, bus):
         "line a",
         "line b",
     ]
-    out_node = _child_of_kind(first, "out")
-    assert out_node is not None
-    assert out_node.childCount() == 1
-    assert "bkg_pp_light_s123.fits" in _row(out_node, 0).text(0)
+    # Outputs are flat rows sitting next to the Log node, not wrapped in their
+    # own "Out" node: the file row is a sibling of the log, one level up.
+    assert _child_of_kind(first, "out") is None
+    assert first.childCount() == 2  # the Log node + the single output row
+    assert _row(first, 1).text(0).strip() == "bkg_pp_light_s123.fits"
 
     # With tasks present the stage's flat log tail is *not* rendered: the lines
     # live under the tasks instead.
@@ -906,12 +907,8 @@ def test_processing_page_marks_links_and_opens_them(qtbot, app_context, bus, mon
     assert stage_item.toolTip(0) == "https://example.com/stack.toml"
 
     task_item = _row(stage_item, 0)
-    out_node = next(
-        _row(task_item, i)
-        for i in range(task_item.childCount())
-        if _row(task_item, i).text(0).strip() == "Out"
-    )
-    file_row = _row(out_node, 0)
+    # The output file is a direct child of the task (no wrapping "Out" node).
+    file_row = _row(task_item, 0)
     assert file_row.data(0, LINK_ROLE) == "file:///out/stack.fits"
     assert file_row.data(1, LINK_ROLE) == "file:///out/stack.fits"
     assert file_row.font(0).underline() is True
