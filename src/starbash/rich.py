@@ -4,11 +4,23 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Console
+from rich.table import Table
 from rich.tree import Tree
 
 from starbash.url import make_file_url
 
 BRIEF_LIMIT = 3  # Maximum number of leaf items to show in brief mode
+
+
+def supports_live_display(console: Console) -> bool:
+    """True when ``console`` can drive an auto-refreshing live display.
+
+    Rich's :class:`~rich.live.Live` only repaints a real terminal; with a pipe,
+    a file redirect, a "dumb" terminal or pytest capture it silently renders
+    nothing until the very end.  Callers that show a live tree use this to fall
+    back to plain, parseable output for those sinks.
+    """
+    return bool(console.is_terminal) and not console.is_dumb_terminal
 
 
 def to_tree(obj: Any, label: str = "root", brief: bool = True) -> Tree:
@@ -149,6 +161,84 @@ def run_tree_to_rich(run: dict[str, Any], root_label: str | None = None) -> Tree
             branch.add(row)
 
     return tree
+
+
+#: Plain status words for the non-interactive results table.  Kept separate from
+#: ``RunStatus`` so the CLI's piped output is stable even if glyphs change.
+_STATUS_WORDS: dict[str, str] = {
+    "ok": "Success",
+    "failed": "Failed",
+    "skipped": "Skipped",
+    "running": "Running",
+    "pending": "Pending",
+    "excluded": "Excluded",
+}
+
+_STATUS_STYLES: dict[str, str] = {
+    "ok": "green",
+    "failed": "red",
+    "skipped": "yellow",
+    "running": "cyan",
+    "pending": "dim",
+    "excluded": "dim",
+}
+
+
+def _status_cell(status: str) -> str:
+    """Render a run status as a plain-text word (styled when colour is enabled)."""
+    word = _STATUS_WORDS.get(status, status or "Unknown")
+    style = _STATUS_STYLES.get(status)
+    return f"[{style}]{word}[/{style}]" if style else word
+
+
+def runs_to_table(runs: Iterable[Any], title: str | None = None) -> Table:
+    """Flatten run snapshots into a stable table for non-interactive output.
+
+    A live tree is great on a terminal, but a tool that pipes or captures our
+    output cannot follow it (and a dumb terminal cannot draw it at all), so the
+    CLI falls back to this one-row-per-task table with plain status words such
+    as ``Success``.  Each ``run`` is a plain dict from ``RunTree.to_plain()``.
+    """
+    table = Table(title=title, show_header=True, header_style="bold magenta")
+    table.add_column("Target", style="cyan", no_wrap=True)
+    table.add_column("Stage", style="cyan", no_wrap=True)
+    table.add_column("Task", style="cyan", no_wrap=False)
+    table.add_column("Status", justify="center", no_wrap=True)
+    table.add_column("Outputs", no_wrap=False)
+
+    rows = 0
+    for run in runs:
+        if not isinstance(run, dict):
+            continue
+        target = str(run.get("target") or "masters")
+        for stage in run.get("stages") or []:
+            if not isinstance(stage, dict):
+                continue
+            stage_name = str(stage.get("name") or "")
+            tasks = [t for t in stage.get("tasks") or [] if isinstance(t, dict)]
+            if tasks:
+                for task in tasks:
+                    table.add_row(
+                        target,
+                        stage_name,
+                        str(task.get("title") or task.get("name") or ""),
+                        _status_cell(str(task.get("status") or "")),
+                        _file_ref_links(task.get("outputs", [])),
+                    )
+                    rows += 1
+            else:
+                table.add_row(
+                    target,
+                    stage_name,
+                    "",
+                    _status_cell(str(stage.get("status") or "")),
+                    _file_ref_links(stage.get("outputs", [])),
+                )
+                rows += 1
+
+    if rows == 0:
+        table.add_row("-", "-", "-", "No results", "")
+    return table
 
 
 def to_rich_string(obj: Any) -> str:

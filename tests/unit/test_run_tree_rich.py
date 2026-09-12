@@ -8,7 +8,7 @@ from rich.console import Console
 
 from starbash import events
 from starbash.commands.process import ProcessingView
-from starbash.rich import run_tree_to_rich
+from starbash.rich import run_tree_to_rich, runs_to_table, supports_live_display
 
 _RUN = {
     "target": "M31",
@@ -65,6 +65,33 @@ class TestRunTreeToRich:
         assert "denoise (excluded)" in text
 
 
+class TestSupportsLiveDisplay:
+    def test_false_for_captured_non_terminal_output(self):
+        assert supports_live_display(Console(file=StringIO(), no_color=True)) is False
+
+    def test_true_for_a_real_terminal(self):
+        console = Console(file=StringIO(), force_terminal=True, no_color=True)
+        assert supports_live_display(console) is True
+
+
+class TestRunsToTable:
+    def test_lists_plain_status_words_and_stage_outputs(self):
+        text = _render(runs_to_table([_RUN], title="Results"))
+
+        assert "Results" in text
+        assert "Success" in text  # the stable word tools scrape for
+        assert "Excluded" in text
+        assert "Stack lights" in text
+        assert "pp.fits" in text  # a stage with no tasks still shows its outputs
+        assert "✓" not in text  # no live-tree glyphs in the flat table
+
+    def test_empty_runs_render_a_placeholder(self):
+        assert "No results" in _render(runs_to_table([]))
+
+    def test_ignores_non_dict_runs(self):
+        assert "No results" in _render(runs_to_table([None, "nope", 3]))
+
+
 class TestProcessingView:
     def test_accumulates_runs_from_events(self):
         view = ProcessingView("Test run", Console(file=StringIO(), no_color=True))
@@ -113,3 +140,34 @@ class TestProcessingView:
         view._on_event(events.Event(events.EVENT_PREFLIGHT_FINISHED, {"drop": ["Nope"]}))
 
         assert "M31" in view._runs
+
+    def test_dumb_sink_skips_live_and_prints_a_flat_table(self):
+        sio = StringIO()
+        view = ProcessingView("Auto-processing", Console(file=sio, no_color=True, width=200))
+        assert view._live is None  # a pipe/capture cannot drive a live display
+
+        view._on_event(events.Event(events.EVENT_STAGE_RESULT, {"run": _RUN}))
+        with view:
+            view.finish()
+
+        out = sio.getvalue()
+        assert "Auto-processing" in out
+        assert "Success" in out  # stable word tools scrape for
+        assert "Stack lights" in out
+        assert "✓" not in out  # no live-tree glyphs when we cannot animate
+
+    def test_finish_prints_the_dumb_table_exactly_once(self):
+        sio = StringIO()
+        view = ProcessingView("Test run", Console(file=sio, no_color=True, width=200))
+        view._on_event(events.Event(events.EVENT_STAGE_RESULT, {"run": _RUN}))
+
+        with view:
+            view.finish()  # the command finishes explicitly ...
+        # ... then __exit__ finishes again; the guard must not double-print.
+
+        assert sio.getvalue().count("Success") == 2  # calibrate + stack rows
+
+    def test_terminal_sink_still_uses_a_live_tree(self):
+        console = Console(file=StringIO(), force_terminal=True, no_color=True)
+        view = ProcessingView("Live", console)
+        assert view._live is not None

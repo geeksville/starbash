@@ -18,7 +18,7 @@ from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
 from starbash.paths import get_user_config_path
 from starbash.processing import Processing
-from starbash.rich import run_tree_to_rich
+from starbash.rich import run_tree_to_rich, runs_to_table, supports_live_display
 
 app = typer.Typer()
 
@@ -103,6 +103,13 @@ class ProcessingView:
     and the progress bar share one render loop) and renders each target's run as
     ``target -> stage -> task`` with status glyphs, clickable links and a log
     tail.  It is the CLI counterpart of the GUI's processing tree.
+
+    When the output is **not** an interactive terminal (a pipe, a file redirect,
+    a "dumb" terminal or a test harness), a live tree would render nothing until
+    it stops -- and even then it carries no plain status words -- so tools
+    watching our output would see no results.  In that case the view skips
+    ``Live`` entirely and prints a flat :func:`~starbash.rich.runs_to_table`
+    summary on :meth:`finish` instead.
     """
 
     def __init__(self, title: str, console: rich.console.Console) -> None:
@@ -112,11 +119,18 @@ class ProcessingView:
         self._runs: dict[str, dict] = {}
         self._order: list[str] = []
         self._subscriber = self._on_event
-        self._live = Live(self._render(), console=console, refresh_per_second=4)
+        self._interactive = supports_live_display(console)
+        self._live: Live | None = (
+            Live(self._render(), console=console, refresh_per_second=4)
+            if self._interactive
+            else None
+        )
+        self._finished = False
 
     def __enter__(self) -> ProcessingView:
         events.subscribe(self._subscriber)
-        self._live.start()
+        if self._live is not None:
+            self._live.start()
         return self
 
     def __exit__(
@@ -126,7 +140,10 @@ class ProcessingView:
         tb: object | None,
     ) -> bool:
         events.unsubscribe(self._subscriber)
-        self._live.stop()
+        if self._live is not None:
+            self._live.stop()
+        else:
+            self.finish()
         return False
 
     def _on_event(self, event: events.Event) -> None:
@@ -165,6 +182,8 @@ class ProcessingView:
         return Group(header, *trees, self.progress)
 
     def _refresh(self) -> None:
+        if self._live is None:
+            return  # non-interactive sinks get the flat table on finish() only
         try:
             self._live.update(self._render(), refresh=True)
         except Exception:  # noqa: BLE001 - rendering must never break a run
@@ -172,7 +191,20 @@ class ProcessingView:
 
     def finish(self) -> None:
         """Render the final state once more before the view is closed."""
-        self._refresh()
+        if self._finished:
+            return
+        self._finished = True
+        if self._live is not None:
+            self._refresh()
+        else:
+            self._print_table()
+
+    def _print_table(self) -> None:
+        """Emit the simplified, line-oriented summary used for dumb sinks."""
+        runs = [self._runs[t] for t in self._order if t in self._runs]
+        self.console.print(self.title, style="bold")
+        if runs:
+            self.console.print(runs_to_table(runs))
 
 
 @app.command()

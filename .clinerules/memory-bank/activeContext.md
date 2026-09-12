@@ -55,6 +55,18 @@ Landed (all phases):
   — parsing every `sessions.toml` there hung the GUI thread.
 - Tests: `tests/unit/test_run_state.py`, `tests/unit/test_processed_target_model.py`,
   `tests/unit/test_run_tree_rich.py`; `test_emit_hooks.py`/`test_gui.py` updated.
+- **Non-interactive output fallback** — a `rich.live.Live` renders *nothing* to a
+  pipe/file/dumb terminal, so the live tree silently produced no CLI output for
+  tools.  That broke
+  `tests/integration/test_workflow.py::TestProcessMastersWorkflow::test_process_masters_executes`,
+  which parses stdout for ≥10 rows containing `Success`.  Now
+  `rich.supports_live_display(console)` gates the `Live`; when false,
+  `ProcessingView` skips `Live` entirely and prints `rich.runs_to_table(...)` on
+  `finish()` — a flat one-row-per-task table with plain status words
+  (`Success`/`Failed`/`Skipped`/`Excluded`/…) plus a row for any task-less stage.
+  Real terminals are unchanged (still the live tree).  Tests in
+  `tests/unit/test_run_tree_rich.py` (`TestSupportsLiveDisplay`, `TestRunsToTable`,
+  the dumb-sink `TestProcessingView` cases).
 
 ## Current work focus — Phase GUI (branch `feat-gui`)
 
@@ -348,3 +360,12 @@ Open tabs / files being touched suggest active work in:
 - Recipes are versioned remote repos fetched from `https://raw.githubusercontent.com/geeksville/starbash-recipes/v${version}` with a local `starbash-recipes/` git submodule fallback during development.
 - Session ↔ frame relation is NOT stored explicitly in the DB; frame lookup reconstructs from session criteria (date range, target, filter, telescope, imagetyp).
 - **`sessions.telescop` is `NOT NULL`** while `filter`/`object` are nullable, so `_add_session` must always write a value (it uses `""` for "unknown").  `get_session()` only filters on a column when the candidate value is *truthy*, so an empty telescope means "match any" — that is what makes TELESCOP-less frames merge into the same rig's session instead of being split off.
+- **Never let a shell command line end at a secondary prompt.** A composite one-liner
+  that mixed `&&`, `nohup ... &` and a quoted `echo "$!"` left bash at its
+  `dquote>` prompt, which blocks forever (the agent cannot type the closing
+  quote) and the intended command never even starts — verified by `ps` showing no
+  process and no redirected log being created. The fix is not to retry but to
+  simplify: one simple statement per command, long work via a temp script or
+  `timeout` in the foreground, multi-line via a correctly terminated heredoc.
+  Captured as a standing rule in `.clinerules/terminal.md` and AGENTS.md →
+  *Terminal commands (never block on a prompt)*.

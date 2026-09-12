@@ -185,6 +185,15 @@ that prompts will hang until it times out. This environment sets `PAGER=less`, s
 - Never launch an editor or pager (`less`, `vi`, `nano`, `man`) directly; redirect
   stdout or pass the tool's own no-pager flag.
 - When unsure a command terminates, run it as `timeout <seconds> <cmd>`.
+- **Keep each command a single simple statement.** Do not bolt backgrounding
+  (`nohup ... &`, `& echo $!`) onto a long `&&` chain: a single mis-escaped quote
+  drops bash to its `dquote>`/`quote>` secondary prompt, which hangs forever and
+  the intended command never starts. For long work, write a temp script and run
+  it, or use `timeout` in the foreground and poll a redirected log — never
+  background a composite line. If a command appears to hang, first check whether
+  it actually started (`ps aux | grep -c '[p]ytest'`) and consult its log before
+  retrying. Multi-line scripts belong in a correctly terminated heredoc
+  (`python - <<'EOF' ... EOF`).
 
 ## Conventions
 
