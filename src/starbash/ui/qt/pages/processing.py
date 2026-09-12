@@ -4,14 +4,20 @@ Nothing here polls: the core publishes tool output, task transitions and stage
 results on the event bus, and this page renders them as they arrive.  Tool output
 lands under the *task* node it belongs to, inside a collapsible ``Log`` node, so
 the tree *is* the log.
+
+Cells that point at a file (a stage's recipe, a task's outputs) are underlined
+links: clicking one opens it with the desktop's default application, and resting
+the cursor on it pops up an in-process preview (see
+:mod:`starbash.ui.qt.widgets.hover_preview`).
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtCore import Qt, QTimer, QUrl
+from PySide6.QtGui import QBrush, QColor, QDesktopServices
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QProgressBar,
     QPushButton,
@@ -24,6 +30,7 @@ from starbash import events
 from starbash.run_state import LOG_TAIL_LINES, RunStatus
 from starbash.ui.qt.jobs import process_job
 from starbash.ui.qt.pages.base import Page
+from starbash.ui.qt.widgets.hover_preview import HoverPreview
 
 __all__ = ["ProcessingPage"]
 
@@ -51,6 +58,43 @@ _KIND_STAGE = "stage"
 _KIND_TASK = "task"
 _KIND_LOG = "log"
 _KIND_OUT = "out"
+
+#: Item-data role holding the URL a link cell opens / previews.
+_ROLE_URL = Qt.ItemDataRole.UserRole + 2
+
+
+class _RunTree(QTreeWidget):
+    """A two-column run tree that starts with a ~50/50 column split.
+
+    The first column holds target/stage/task names and is unreadable when it is
+    squeezed, so it is given half the viewport the first time the tree is shown.
+    After that the divider can be dragged freely (the last column then stretches
+    to fill the remaining space).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        header = self.header()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(True)
+        self._split_applied = False
+
+    def showEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        """Apply the initial split once the tree is actually laid out."""
+        super().showEvent(event)  # type: ignore[arg-type]
+        if not self._split_applied:
+            QTimer.singleShot(0, self._apply_initial_split)
+
+    def _apply_initial_split(self) -> None:
+        """Give the first column half the viewport (once)."""
+        if self._split_applied:
+            return
+        width = self.viewport().width()
+        if width < 200:  # not laid out yet; the next show will retry
+            return
+        self._split_applied = True
+        self.setColumnWidth(0, int(width * 0.5))
 
 
 class ProcessingPage(Page):
@@ -95,10 +139,14 @@ class ProcessingPage(Page):
         self._caption.setObjectName("PageSubtitle")
         layout.addWidget(self._caption)
 
-        self._tasks = QTreeWidget()
+        self._tasks = _RunTree()
         self._tasks.setHeaderLabels(["Target / stage / task", "Status / details"])
         self._tasks.setAlternatingRowColors(True)
+        self._tasks.itemClicked.connect(self._on_item_clicked)
         layout.addWidget(self._tasks, 1)
+
+        #: Resting the cursor on a link cell shows a small in-process preview.
+        self._preview = HoverPreview(self._tasks, url_role=_ROLE_URL, parent=self)
 
         if self.bus is not None:
             self.bus.received.connect(self._on_event)  # type: ignore[attr-defined]
@@ -108,6 +156,7 @@ class ProcessingPage(Page):
         self._tasks.clear()
         self._targets.clear()
         self._running = None
+        self._preview.dismiss()
         self._progress.setRange(0, 0)  # indeterminate until a tool reports a percentage
         self._caption.setText("Starting…")
 
@@ -191,12 +240,15 @@ class ProcessingPage(Page):
         """Rebuild a target's subtree from a plain run-tree snapshot."""
         if not isinstance(run, dict):
             return
+        # The items are about to be replaced, so any preview is now stale.
+        self._preview.dismiss()
         target = str(run.get("target") or "masters")
         root = self._ensure_target(target)
         root.takeChildren()
 
         if run.get("output_url"):
             root.setText(1, "output →")
+            self._make_link(root, 1, run.get("output_url"))
 
         for stage in run.get("stages", []):
             if not isinstance(stage, dict):
@@ -206,6 +258,10 @@ class ProcessingPage(Page):
             stage_item.setData(0, _ROLE_KIND, _KIND_STAGE)
             stage_item.setData(0, _ROLE_NAME, str(stage.get("name") or ""))
             self._apply_status(stage_item, status)
+            # A stage links to the recipe (or target config) that defines it.
+            self._make_link(
+                stage_item, 0, stage.get("recipe_url") or stage.get("config_url")
+            )
             root.addChild(stage_item)
             # Keep stages open so their tasks (and each task's Log/Out) are visible.
             stage_item.setExpanded(True)
@@ -220,9 +276,14 @@ class ProcessingPage(Page):
                     log_item = QTreeWidgetItem([f"    {line}", ""])
                     log_item.setForeground(0, QBrush(QColor(_DIM)))
                     stage_item.addChild(log_item)
-                outputs = self._file_labels(stage.get("outputs", []))
-                if outputs:
-                    stage_item.addChild(QTreeWidgetItem(["    out", outputs]))
+                outputs = stage.get("outputs", [])
+                if isinstance(outputs, list) and outputs:
+                    out_node = QTreeWidgetItem(["      Out", self._file_labels(outputs)])
+                    out_node.setForeground(0, QBrush(QColor(_DIM)))
+                    for ref in outputs:
+                        if isinstance(ref, dict):
+                            out_node.addChild(self._file_row(ref))
+                    stage_item.addChild(out_node)
 
         # Real targets open; master (calibration) runs stay collapsed — there are
         # usually many of them and they are rarely what the user is looking at.
@@ -263,18 +324,50 @@ class ProcessingPage(Page):
             out_node.setData(0, _ROLE_KIND, _KIND_OUT)
             out_node.setForeground(0, QBrush(QColor(_DIM)))
             for ref in outputs:
-                if not isinstance(ref, dict):
-                    continue
-                out_node.addChild(
-                    QTreeWidgetItem(
-                        [f"        {ref.get('label', '')}", str(ref.get("url") or "")]
-                    )
-                )
+                if isinstance(ref, dict):
+                    out_node.addChild(self._file_row(ref))
             task_item.addChild(out_node)
 
         task_item.setExpanded(
             bool(logs or outputs or tstatus in (RunStatus.RUNNING, RunStatus.FAILED))
         )
+
+    # --- links ------------------------------------------------------------
+    @staticmethod
+    def _make_link(item: QTreeWidgetItem, column: int, url: object) -> None:
+        """Mark a cell as a link: underlined, clickable and hover-previewable.
+
+        A URL we cannot preview locally (e.g. an ``https://`` recipe) also gets a
+        native tooltip, so its destination is discoverable without clicking.
+        """
+        if not url:
+            return
+        text = str(url)
+        item.setData(column, _ROLE_URL, text)
+        font = item.font(column)
+        font.setUnderline(True)
+        item.setFont(column, font)
+        if QUrl(text).scheme() in ("http", "https"):
+            item.setToolTip(column, text)
+
+    @classmethod
+    def _file_row(cls, ref: dict) -> QTreeWidgetItem:
+        """A linkable row (label + URL) for one output file ref."""
+        url = ref.get("url")
+        item = QTreeWidgetItem([f"        {ref.get('label', '')}", str(url or "")])
+        cls._make_link(item, 0, url)
+        cls._make_link(item, 1, url)
+        return item
+
+    def _on_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
+        """Open a linked cell with the desktop's default application."""
+        url = item.data(column, _ROLE_URL)
+        if not url:
+            return
+        if QDesktopServices.openUrl(QUrl(str(url))):
+            self.status.emit(f"Opened {url}")
+        else:
+            self.status.emit(f"Could not open {url}")
 
     def _stage_item(self, target: str, stage: str) -> QTreeWidgetItem | None:
         """Find a stage row under a target (used for live log attribution)."""
@@ -283,7 +376,11 @@ class ProcessingPage(Page):
             return None
         for index in range(root.childCount()):
             child = root.child(index)
-            if child.data(0, _ROLE_KIND) == _KIND_STAGE and child.data(0, _ROLE_NAME) == stage:
+            if (
+                child is not None
+                and child.data(0, _ROLE_KIND) == _KIND_STAGE
+                and child.data(0, _ROLE_NAME) == stage
+            ):
                 return child
         return None
 
@@ -307,7 +404,11 @@ class ProcessingPage(Page):
             return None
         for index in range(stage_item.childCount()):
             child = stage_item.child(index)
-            if child.data(0, _ROLE_KIND) == _KIND_TASK and child.data(0, _ROLE_NAME) == task:
+            if (
+                child is not None
+                and child.data(0, _ROLE_KIND) == _KIND_TASK
+                and child.data(0, _ROLE_NAME) == task
+            ):
                 return child
         return None
 
@@ -318,7 +419,7 @@ class ProcessingPage(Page):
             return None
         for index in range(task_item.childCount()):
             child = task_item.child(index)
-            if child.data(0, _ROLE_KIND) == _KIND_LOG:
+            if child is not None and child.data(0, _ROLE_KIND) == _KIND_LOG:
                 return child
         return None
 
@@ -380,7 +481,10 @@ class ProcessingPage(Page):
 
         # Keep only the trailing lines so a chatty tool can't flood the tree.
         while log_item.childCount() > _LOG_LIMIT:
-            log_item.removeChild(log_item.child(0))
+            oldest = log_item.child(0)
+            if oldest is None:
+                break
+            log_item.removeChild(oldest)
 
         self._tasks.scrollToItem(item)
 

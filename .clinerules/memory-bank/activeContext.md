@@ -183,6 +183,18 @@ Open tabs / files being touched suggest active work in:
 - `doc/design/report.md` — the end-to-end design covering target report metadata (R1), Jekyll publishing (R2), and per-frame registration TOML stages (R3).
 
 ## Recent changes
+- **Processing page: clickable links + hover previews** (`ui/qt/pages/processing.py`,
+  new `ui/qt/widgets/hover_preview.py`): link cells (a stage's recipe, a task's
+  output files, the target output) are underlined; clicking one opens it with the
+  desktop default app (`QDesktopServices.openUrl`, external process) and resting
+  the cursor on a *local* file pops up a frameless, shadowed, mouse-transparent
+  `Qt.ToolTip`-style preview (~25% of the owning window, placed beside — never
+  over — the hovered cell). Text, FITS and raster are rendered; decoding runs off
+  the GUI thread (`run_async` + `BusyIndicator`) and reuses
+  `image_viewer.load_image_file`. HTTP(S) links keep a native tooltip instead.
+  The run tree also splits its columns ~50/50 on first show (`_RunTree`).
+  Tests: `tests/unit/test_hover_preview.py` (9) + 2 new `test_gui.py` cases.
+
 - **Per-task log grouping in the Processing page** (`ui/qt/pages/processing.py`,
   `run_state.py`, `processed_target.py`): tool output is now attributed to the
   running *task* (`RunState.set_current_task`/`TaskNode.add_log`) and rendered

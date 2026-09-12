@@ -826,6 +826,95 @@ def test_processing_page_closes_log_on_finish_keeps_failure_open(qtbot, app_cont
 
 
 
+def test_run_tree_starts_with_an_even_column_split(qtbot):
+    """The run tree gives its first column half the viewport on first show."""
+    from starbash.ui.qt.pages.processing import _RunTree
+
+    tree = _RunTree()
+    qtbot.addWidget(tree)
+    tree.setHeaderLabels(["Target / stage / task", "Status / details"])
+    tree.resize(1000, 400)
+    tree.show()
+    qtbot.waitExposed(tree)
+
+    tree._split_applied = False  # as if shown for the first time
+    tree._apply_initial_split()
+
+    assert tree.columnWidth(0) == tree.viewport().width() // 2
+
+
+def test_processing_page_marks_links_and_opens_them(qtbot, app_context, bus, monkeypatch):
+    """Stage/output cells are underlined links that open with the OS handler."""
+    from types import SimpleNamespace
+
+    from starbash.ui.qt.pages import processing as processing_module
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    opened: list[str] = []
+    monkeypatch.setattr(
+        processing_module,
+        "QDesktopServices",
+        SimpleNamespace(openUrl=lambda url: opened.append(url.toString()) or True),
+    )
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    run = {
+        "target": "M31",
+        "output_url": "file:///out",
+        "is_master": False,
+        "stages": [
+            {
+                "name": "stack",
+                "status": "ok",
+                "excluded": False,
+                "recipe_url": "https://example.com/stack.toml",
+                "dependencies": [],
+                "outputs": [],
+                "tasks": [
+                    {
+                        "name": "stack_s1",
+                        "title": "stack_s1",
+                        "status": "ok",
+                        "outputs": [
+                            {"label": "stack.fits", "url": "file:///out/stack.fits"}
+                        ],
+                        "logs": [],
+                    }
+                ],
+            }
+        ],
+    }
+    events.publish(events.EVENT_STAGE_RESULT, {"result": None, "run": run})
+
+    role = processing_module._ROLE_URL
+    root = page._tasks.topLevelItem(0)
+    assert root.data(1, role) == "file:///out"
+
+    stage_item = root.child(0)
+    assert stage_item.data(0, role) == "https://example.com/stack.toml"
+    assert stage_item.font(0).underline() is True
+    # A remote recipe cannot be previewed, so its URL stays discoverable.
+    assert stage_item.toolTip(0) == "https://example.com/stack.toml"
+
+    task_item = stage_item.child(0)
+    out_node = next(
+        task_item.child(i)
+        for i in range(task_item.childCount())
+        if task_item.child(i).text(0).strip() == "Out"
+    )
+    file_row = out_node.child(0)
+    assert file_row.data(0, role) == "file:///out/stack.fits"
+    assert file_row.data(1, role) == "file:///out/stack.fits"
+    assert file_row.font(0).underline() is True
+    assert file_row.font(1).underline() is True
+
+    page._on_item_clicked(file_row, 1)
+    assert opened == ["file:///out/stack.fits"]
+
+
+
 def test_repositories_page_reports_indexing_progress(qtbot, app_context, bus):
     """Re-index progress events update the page's progress bar."""
     from starbash.ui.qt.pages.repositories import RepositoriesPage
