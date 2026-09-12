@@ -54,14 +54,21 @@ def test_set_link_ignores_empty_and_tooltips_remote_urls():
 
 
 class _FakeDesktop:
-    """A stand-in for QDesktopServices that can fail chosen paths."""
+    """A stand-in for QDesktopServices that can fail chosen paths.
+
+    ``QUrl.toLocalFile()`` returns ``/``-separated paths on Windows, while
+    ``str(Path)`` uses ``\\``, so every path is normalised with
+    :func:`os.path.normpath` before it is recorded or matched.  Without that the
+    Windows run recorded ``C:/...`` against expected ``C:\\...`` and this fake
+    silently stopped failing the paths the tests asked it to.
+    """
 
     def __init__(self, fail: set[str]) -> None:
         self.opened: list[str] = []
-        self._fail = fail
+        self._fail = {os.path.normpath(path) for path in fail}
 
     def openUrl(self, url: object) -> bool:  # noqa: N802 - Qt API
-        target = url.toLocalFile()  # type: ignore[attr-defined]
+        target = os.path.normpath(url.toLocalFile())  # type: ignore[attr-defined]
         self.opened.append(target)
         return target not in self._fail
 

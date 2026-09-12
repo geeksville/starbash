@@ -126,14 +126,25 @@ Targets page specifics (recent tweak round):
   `importlib.resources`; if it cannot be found the tick is simply omitted (solid
   accent box), so a packaging slip degrades rather than breaks. The same rules cover
   the Targets/Processing tree indicators.
-- **Tree rows carry their own vertical padding** (`QTreeView::item { padding: 4px 0; }`).
-  The indicator is 16px but an unpadded tree row was only ~16px tall, so the stage
-  checkboxes in the Targets list touched each other. A test measures the *rendered*
-  row height against the indicator size read out of `theme.STYLESHEET`
-  (`test_stage_rows_are_tall_enough_to_separate_their_checkboxes`) — it fails if the
-  rule is removed, and applies the theme itself (`theme.apply_theme(qapp)`), since
-  `test_targets_page.py` otherwise runs unstyled. Horizontal padding stays 0 so the
-  indentation and checkbox inset are unchanged.
+- **Tree rows carry their own vertical padding *and* a height floor**
+  (`QTreeView::item { padding: 4px 0; min-height: 16px; }`). The indicator is 16px
+  but an unpadded tree row was only ~16px tall, so the stage checkboxes in the
+  Targets list touched each other. A row's *natural* height follows the font
+  metrics, which are platform-dependent — on Windows (shorter Segoe UI rows) the
+  padded row rendered at 22px, only 6px taller than the box, so `min-height` (set
+  to the same 16px constant as the indicator, `theme.INDICATOR_SIZE`) floors the
+  row's *content* box; padding is added on top, giving 24px on every platform.
+  A test measures the *rendered* row height against the indicator size read out
+  of `theme.STYLESHEET` and also asserts the theme declares the `min-height` floor
+  (`test_stage_rows_are_tall_enough_to_separate_their_checkboxes`) — it fails if
+  the rule is removed, and applies the theme itself (`theme.apply_theme(qapp)`),
+  since `test_targets_page.py` otherwise runs unstyled. Horizontal padding stays 0
+  so the indentation and checkbox inset are unchanged.
+- **`QUrl.toLocalFile()` returns `/`-separated paths on Windows** while
+  `str(Path)` uses `\`, so `test_file_links.py`'s `_FakeDesktop` (and its `fail`
+  set) normalises both sides with `os.path.normpath`. Without that the Windows run
+  recorded `C:/...` against expected `C:\...`, so the fake never failed the paths
+  the tests asked it to and three tests failed (`assert True is False`).
 - **Qt needs OS libraries the wheel does not ship.** CI failed with
   `INTERNALERROR> ImportError: libEGL.so.1: cannot open shared object file` because
   `pytest-qt` imports `QtGui` while pytest is still configuring, so a missing system

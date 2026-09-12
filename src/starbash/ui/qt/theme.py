@@ -18,11 +18,22 @@ __all__ = [
     "load_app_icon",
     "STYLESHEET",
     "ACCENT",
+    "INDICATOR_SIZE",
     "APP_ICON_NAME",
     "CHECKMARK_NAME",
 ]
 
 ACCENT = "#4aa3df"
+
+#: Side (px) of the square checkbox indicator the theme draws explicitly.
+#:
+#: Tree rows pin their minimum *content* height to this (see the tree-row rule
+#: below), so a stage's checkbox always leaves daylight inside its row instead of
+#: abutting the next stage's box.  Pinning it matters because a row's natural
+#: height comes from the *font* metrics, which differ per platform (Windows'
+#: Segoe UI yields a shorter row than Linux's default), so on Windows a padded row
+#: could still end up only a hair taller than the box.
+INDICATOR_SIZE = 16
 
 #: Application icon, shipped inside the package (``src/starbash/assets/``).
 APP_ICON_NAME = "icon.png"
@@ -194,11 +205,15 @@ QHeaderView::section {{
 }}
 QTableView::item {{ padding: 3px 6px; }}
 /* Tree rows need their own vertical padding.  The stage checkbox indicator is
-   16px tall (see *Checkboxes* below) while an unpadded tree row is only about
-   that tall, so in the Targets page's stage list the boxes of consecutive
+   {INDICATOR_SIZE}px tall (see *Checkboxes* below) while an unpadded tree row is only
+   about that tall, so in the Targets page's stage list the boxes of consecutive
    stages ended up visually touching.  Horizontal padding stays 0 so the
-   indentation and the checkbox inset are exactly as before. */
-QTreeView::item {{ padding: 4px 0; }}
+   indentation and the checkbox inset are exactly as before.
+   `min-height` floors the row's *content* box at the indicator's size (padding is
+   added on top of it), which keeps a row 8px taller than the box on every
+   platform rather than relying on font metrics: Windows' shorter Segoe UI rows
+   otherwise came out at 22px, leaving barely any daylight. */
+QTreeView::item {{ padding: 4px 0; min-height: {INDICATOR_SIZE}px; }}
 
 /* The per-parameter option editor on the Targets page --------------------- */
 QGroupBox#OptionEditor {{
@@ -247,8 +262,8 @@ QTabBar::tab:hover:!selected {{
    the accent with a tick when on. */
 QCheckBox, QRadioButton {{ spacing: 8px; }}
 QCheckBox::indicator, QTreeView::indicator, QListView::indicator {{
-    width: 16px;
-    height: 16px;
+    width: {INDICATOR_SIZE}px;
+    height: {INDICATOR_SIZE}px;
     border: 1px solid #5b6a78;
     border-radius: 4px;
     background-color: #10161b;

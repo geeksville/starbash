@@ -555,6 +555,15 @@ def _indicator_size() -> int:
     return int(match.group(1))
 
 
+def _tree_row_min_height() -> int:
+    """Minimum *content* height the theme pins on a tree row, from its stylesheet."""
+    from starbash.ui.qt import theme
+
+    match = re.search(r"QTreeView::item\s*\{[^}]*min-height:\s*(\d+)px", theme.STYLESHEET)
+    assert match is not None, "the theme no longer floors the tree row height"
+    return int(match.group(1))
+
+
 def test_stage_rows_are_tall_enough_to_separate_their_checkboxes(
     qtbot, qapp, app_context, processed_repo
 ):
@@ -582,7 +591,12 @@ def test_stage_rows_are_tall_enough_to_separate_their_checkboxes(
     crop = page._tree.visualItemRect(page._stage_items["crop"])
     denoise = page._tree.visualItemRect(page._stage_items["denoise"])
 
-    # A row taller than the box leaves daylight above and below it...
+    # A row's natural height follows the *font* metrics, which differ per platform
+    # (Windows' Segoe UI gives a shorter row than Linux's default), so the theme
+    # also floors the row's content box at the indicator size.  Check that floor is
+    # declared, then that it renders on top of the padding - a Linux-only run would
+    # otherwise never notice the floor going missing.
+    assert _tree_row_min_height() == indicator
     assert crop.height() >= indicator + 8
     # ...and tree rows are laid out back-to-back, so that daylight is all that
     # separates one stage's checkbox from the next one's.
