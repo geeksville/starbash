@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated
 
@@ -144,7 +145,7 @@ class _RunTail:
     per-frame cost proportional to the screen instead of to the run count.
     """
 
-    def __init__(self, renderables: list[RenderableType], unit: str = "run") -> None:
+    def __init__(self, renderables: Sequence[RenderableType], unit: str = "run") -> None:
         self.renderables = renderables
         self.unit = unit
 
@@ -152,7 +153,11 @@ class _RunTail:
         height = options.height or console.height
         if height <= 0:
             return
-        unbounded = options.update_height(None)
+        # ``reset_height()`` (not ``update_height(None)``, whose parameter is typed
+        # ``int``) makes the options unbounded, so each run is measured at its own
+        # natural height: a numeric height would crop *and pad* it to that height
+        # (``Console.render_lines``), defeating the summing below.
+        unbounded = options.reset_height()
         # Keep one row free for the "earlier runs" note, so the region does not
         # jump by a line each time a run appears or is culled.
         budget = max(height - 1, 1)
@@ -380,9 +385,9 @@ class ProcessingView:
         # Measure the status region so the tree gets exactly the rows left over.
         # Rich hands a region's renderable its own height, which is what lets
         # ``_RunTail`` pick the runs that fit.
-        status_height = 1 + len(
-            self.console.render_lines(status, self.console.options.update_height(None), pad=False)
-        )
+        # ``console.options`` carries no height (only ``max_height``), so this
+        # measures the status at its natural height.
+        status_height = 1 + len(self.console.render_lines(status, self.console.options, pad=False))
         height = self.console.height
         if height < 4:
             # No room to split: the status is the only thing worth showing.

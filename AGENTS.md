@@ -211,6 +211,9 @@ that prompts will hang until it times out. This environment sets `PAGER=less`, s
 
 ## Conventions
 
+- **After editing code, run `just lint` and confirm it builds clean**
+  (`format` + `ruff check` + `basedpyright`; it rewrites files, so re-run the tests
+  after it). `ruff` alone is not enough — see `.clinerules/collaboration.md`.
 - Keep typing hints and docstrings on code you change; don't introduce new linter warnings.
 - Add/adjust unit tests for behavior changes. Tests that only assert a mock "was called"
   don't verify real behavior — assert on actual resulting state.

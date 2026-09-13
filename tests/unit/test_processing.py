@@ -1225,6 +1225,16 @@ class TestRunAllStagesPreflight:
             def __init__(self, name: str) -> None:
                 self.name = name
 
+            def remove_processing_dir(self) -> None:
+                """Tripwire: the run loop must never delete a target's cache.
+
+                The real ``ProcessedTarget.remove_processing_dir()`` no longer
+                exists; this makes that explicit so a test can install a recorder
+                (see ``test_target_processing_dir_is_kept_after_run``) and any
+                other use fails loudly instead of silently passing.
+                """
+                raise AssertionError("remove_processing_dir() must not be called")
+
         proc.sb = FakeSb()
         proc.progress = FakeProgress()
         proc.processed_target = None

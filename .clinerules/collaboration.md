@@ -19,3 +19,30 @@ ahead.
   instructions, just proceed — do not ask questions you can answer yourself.
 
 Rule of thumb: **an inelegant hack is a last resort, not a shortcut.**
+
+## Confirm `just lint` builds clean after editing code
+
+**Whenever I finish editing code, I must run `just lint` and confirm it builds
+clean** — not "ruff passed", the whole recipe:
+
+```bash
+just lint    # = format + _lint (ruff check src tests) + _typecheck (basedpyright)
+```
+
+- `just lint` **rewrites files** (`format` runs first: trailing whitespace, then
+  `ruff check --fix` and `ruff format`). So run it *before* re-reading a diff or
+  reporting success, and check `git status` afterwards for what it changed.
+- It is **not** the same as `ruff check`. `basedpyright` (the same engine as
+  Pylance in VS Code) is the part that catches real mistakes — on the live-display
+  work it flagged `ConsoleOptions.update_height(None)` (its parameter is typed
+  `int`; `reset_height()` is the correct API) and a `list[Tree]` passed where
+  `Sequence[RenderableType]` was wanted, **while ruff and all 939 tests were
+  green**.
+- Order of operations: **edit → `just lint` → tests (`poetry run pytest -q`)**.
+  If lint reformatted anything, re-run the tests, because the formatter touched
+  the file.
+- Pre-existing lint errors are still mine to deal with: fix them (or ask), rather
+  than reporting "clean, apart from some pre-existing errors".
+- Needs the dev deps: `poetry install --with dev` (`basedpyright`/`ruff` live
+  there, not in the runtime install).
+

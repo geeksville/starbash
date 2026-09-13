@@ -65,6 +65,17 @@ the CLI now has **exactly one** live display, driven only by `starbash.events`.
   every sampled frame.  Regression tests: `TestLiveLayout` (renders at a given
   size and asserts the row count never exceeds it, no `...`, status on row 1
   with 200 runs).
+- **`just lint` is the real gate** — `ruff check` + `ruff format` + `basedpyright`
+  (Pylance's engine).  It caught what a ruff-only pass missed: Rich's
+  `ConsoleOptions.update_height(None)` is typed `int` (`reset_height()` is the
+  correct unbounded-height API), and `_RunTail` must take
+  `Sequence[RenderableType]` because `list[Tree]` is invariant.  It also surfaced
+  a pre-existing error in `tests/unit/test_processing.py` (a test assigning
+  `remove_processing_dir` on a fake; the method exists nowhere in `src` any more),
+  fixed by declaring it on `FakePt` as a raising tripwire.  **Rule added** to
+  `.clinerules/collaboration.md`, with a pointer in `AGENTS.md` → *Conventions*:
+  after editing code, run `just lint` and confirm it is clean (it rewrites files,
+  so re-run the tests afterwards).
 - **PTY-debugging kit** (kept in `/tmp`, per-session): `/tmp/pty_win.py` runs a
   command under a pty with a real `TIOCSWINSZ` size (a 0x0 pty makes Rich fall
   back to 80x24 and hides overflow), `/tmp/vt.py` is a mini VT screen emulator,
