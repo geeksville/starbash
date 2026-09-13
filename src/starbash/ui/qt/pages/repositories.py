@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Signal
+from PySide6.QtGui import QStandardItemModel
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QHBoxLayout,
@@ -39,6 +41,10 @@ class RepositoriesPage(Page):
     contextChanged = Signal()
 
     def _build(self) -> None:
+        #: True while a job runs, so *Remove selected* stays disabled no matter
+        #: what the table selection is doing.
+        self._busy_state = False
+
         layout = QVBoxLayout(self)
         layout.addLayout(self.heading())
 
@@ -56,6 +62,15 @@ class RepositoriesPage(Page):
         self._remove = QPushButton("Remove selected")
         self._remove.setObjectName("Danger")
         self._remove.clicked.connect(self._on_remove)
+        self._remove.setEnabled(False)  # nothing is selected yet
+        self._table.selectionModel().selectionChanged.connect(self._update_remove_enabled)
+
+        self._show_all = QCheckBox("Show all repositories")
+        self._show_all.setToolTip(
+            "Also list the internal repositories Starbash manages for you "
+            "(preferences, recipes and the built-in defaults)."
+        )
+        self._show_all.toggled.connect(self.refresh)
 
         self._reindex = QPushButton("Re-index all")
         self._reindex.setObjectName("Primary")
@@ -66,6 +81,7 @@ class RepositoriesPage(Page):
         bar.addWidget(self._kind)
         bar.addWidget(self._add)
         bar.addWidget(self._remove)
+        bar.addWidget(self._show_all)
         bar.addStretch(1)
         bar.addWidget(self._reindex)
         layout.addLayout(bar)
@@ -80,10 +96,64 @@ class RepositoriesPage(Page):
 
     def refresh(self) -> None:
         """Reload the repository list."""
-        self._model.set_rows(load_repos(self.sb))
+        self._model.set_rows(load_repos(self.sb, show_all=self._show_all.isChecked()))
+        self._update_add_kinds()
+        self._update_remove_enabled()
+
+    # --- button/kind state -------------------------------------------------
+    def _update_add_kinds(self) -> None:
+        """Disable add kinds that already have a repository.
+
+        Master and processed output repos are restricted to one each (see
+        ``sb repo add``), so offering to add a second one is a trap.  Raw image
+        repos may be added as many times as the user likes.
+        """
+        kinds = [value for _label, value in ADD_KINDS if value]
+        present = {kind for kind in kinds if self.sb.repo_manager.get_repo_by_kind(kind)}
+
+        model = self._kind.model()
+        for index, (_label, value) in enumerate(ADD_KINDS):
+            if value is None or not isinstance(model, QStandardItemModel):
+                continue
+            item = model.item(index)
+            if item is not None:
+                item.setEnabled(value not in present)
+
+        # If the current choice just became unavailable, fall back to an enabled
+        # one - otherwise "Add folder…" would try to add a kind we already have.
+        if not self._kind_enabled(self._kind.currentIndex()):
+            for index in range(self._kind.count()):
+                if self._kind_enabled(index):
+                    self._kind.setCurrentIndex(index)
+                    break
+
+    def _kind_enabled(self, index: int) -> bool:
+        """Return whether the add-kind entry at ``index`` may be chosen."""
+        model = self._kind.model()
+        if isinstance(model, QStandardItemModel):
+            item = model.item(index)
+            if item is not None:
+                return item.isEnabled()
+        return True
+
+    def _update_remove_enabled(self) -> None:
+        """Enable *Remove selected* only for a repo the user can actually remove.
+
+        Repositories Starbash manages itself (the recipes checkout, the built-in
+        defaults and the preferences repo) have no entry in the user config, so
+        they cannot be removed individually; the button stays off for them rather
+        than offering a click that can only fail after the fact.
+        """
+        _row, url = self._selected_url()
+        removable = bool(url) and self.sb.is_repo_removable(url)
+        self._remove.setEnabled(removable and not self._busy_state)
+        self._remove.setToolTip(
+            "" if removable or not url else f"{url} is managed by Starbash and cannot be removed."
+        )
 
     # --- actions ----------------------------------------------------------
     def _selected_url(self) -> tuple[dict | None, str]:
+        """The selected row (if any) and its repository URL ('' when none)."""
         indexes = self._table.selectionModel().selectedRows()
         row = self._model.row_at(indexes[0].row()) if indexes else None
         return row, (row or {}).get("url", "")
@@ -104,6 +174,11 @@ class RepositoriesPage(Page):
         _row, url = self._selected_url()
         if not url:
             self.status.emit("Select a repository to remove first.")
+            return
+        if not self.sb.is_repo_removable(url):
+            # Defensive: the button is disabled for these, but never silently
+            # drop indexed rows for a repository we cannot actually remove.
+            self.status.emit(f"{url} is managed by Starbash and cannot be removed.")
             return
         try:
             self.sb.remove_repo_ref(url)
@@ -146,8 +221,10 @@ class RepositoriesPage(Page):
             self.status.emit(f"Indexed {data.get('indexed', 0)} file(s) in {data.get('repo', '')}")
 
     def _busy(self, busy: bool, message: str = "") -> None:
-        for button in (self._add, self._remove, self._reindex):
+        self._busy_state = busy
+        for button in (self._add, self._reindex):
             button.setEnabled(not busy)
+        self._update_remove_enabled()
         self._progress.setVisible(busy)
         if busy:
             self._progress.setRange(0, 0)  # indeterminate until the first progress event

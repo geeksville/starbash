@@ -1,5 +1,57 @@
 # Active Context
 
+## Current work focus — Repositories page uses the CLI's repo list
+
+GUI fix for `ui/qt/pages/repositories.py` + `ui/qt/services.py`:
+
+- **`load_repos(sb, *, show_all=False)`** now defaults to
+  `RepoManager.regular_repos` — the exact set `sb repo list` shows (it goes
+  through the same property, so the two cannot drift) — and returns
+  `RepoManager.repos` (the CLI's verbose listing, incl. preferences / recipe /
+  `pkg://`) only when `show_all=True`.
+- **Page**: a *Show all repositories* `QCheckBox` toggles `refresh()` between the
+  two; it is the only other caller of `load_repos`.
+- **Add-kind limits**: `_update_add_kinds()` disables the *Master frames* /
+  *Processed output* entries in the add-kind combo once
+  `repo_manager.get_repo_by_kind(kind)` finds one — the same test
+  `sb repo add` uses to refuse a second (`commands/repo.py`), so the GUI no longer
+  offers an action the CLI rejects.  Raw input (`value=None`) is never disabled.
+  If the *current* choice just became unselectable it falls back to an enabled
+  entry, otherwise *Add folder…* would add a kind we already have.
+  Qt detail: `QComboBox` entries are disabled via the model's
+  `QStandardItemModel.item(i).setEnabled(False)` — hence the `_kind_enabled(i)`
+  helper reading `item.isEnabled()` back.
+- **Remove selected** starts disabled, follows `selectionChanged`, and is
+  re-evaluated in `_busy()` via a `_busy_state` flag (the old code blanket-enabled
+  it during a job) — so it is enabled only with a selection *and* no running job.
+- **Managed repos are never removable**: the button is additionally gated on the
+  new `Starbash.is_repo_removable(url)`, which answers "is there a `[[repo-ref]]`
+  for this URL in the user config?" — the exact condition `remove_repo_ref()`
+  needs, sharing a `_find_user_repo_ref()` helper with it so the two cannot
+  drift.  The bundled `starbash-recipes` checkout is `kind = "std-recipe"`, which
+  `regular_repos` does *not* filter out, so it really does appear in the default
+  view (observed as row 0 in tests) — previously the button was enabled and the
+  click produced an error toast (plus, before this change, deleted that repo's
+  indexed DB rows and then refused).  A `toolTip` explains the disabled state.
+  Also gated: preferences and `pkg://defaults`, which only appear with *Show all*.
+- **`remove_repo_ref` validates before touching the DB** (it now resolves the
+  ref first, then calls `db.remove_repo`), so refusing to remove a repo no longer
+  silently drops its indexed rows/sessions.  Unreachable from the GUI (the
+  page's `_on_remove` re-checks and emits a status instead) but it also fixes
+  `sb repo remove <managed-url>`, which used to delete rows and then raise.
+- **Tests**: `tests/unit/test_repositories_page.py` (9 tests, `gui`-marked)
+  covering the default-vs-show-all listing, the master/processed kind limits
+  (including the fallback), the remove-button rules for both removable and
+  managed repos, and that a refused removal leaves the user config alone; the
+  two new core tests live in `tests/unit/test_app.py::TestRemoveRepoRef`.  All
+  three new behaviours were mutation-checked (reverting the page logic fails them
+  cleanly).  Note the "refused removal" test stubs `show_error`, because a
+  regression there would otherwise raise a **modal dialog and hang a headless
+  run** — the first mutation run did exactly that.  Full suite: 980 passed; the
+  single failure (`test_unavailable_when_configured_path_is_gone`) is
+  environmental — `/usr/bin/starnet2` genuinely exists in this dev container —
+  and `just lint` is clean (0 errors/warnings).
+
 ## Current work focus — missing-tool warnings (severity + ignore)
 
 Implemented [`doc/plans/tool-warnings.md`](../../doc/plans/tool-warnings.md): one

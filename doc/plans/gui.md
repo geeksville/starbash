@@ -303,6 +303,8 @@ Maps to `sb info` + `sb info target/telescope/filter` + quick entry to process/r
 ```
 Add dialog: path picker + radio kind (Input / Master / Processed / Recipe). Enforces the single-master/single-processed rule (`get_repo_by_kind`) with the same error copy as `repo add`.
 
+Managed repos (the bundled `std-recipe` / `recipe` checkouts, the preferences repo and `pkg://defaults`) may be *listed* (with *Show all repositories*) but are never offered for removal: the *Remove selected* button is gated on `Starbash.is_repo_removable(url)`, i.e. "the user config has a `[[repo-ref]]` for it" — exactly the condition under which `remove_repo_ref()` succeeds.
+
 ### 5.7 Publish
 ```
 +-----------+------------------------------------------------------------------+

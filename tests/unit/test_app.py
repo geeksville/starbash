@@ -684,6 +684,48 @@ class TestRemoveRepoRef:
             with pytest.raises(UserHandledError, match="not found in user configuration"):
                 app.remove_repo_ref("file:///some/path")
 
+    def test_is_repo_removable_only_for_user_added_repos(
+        self, setup_test_environment, mock_analytics
+    ):
+        """Repos Starbash manages itself are listed, but not removable."""
+        with Starbash() as app:
+            added_repo = setup_test_environment["tmp_path"] / "added_repo"
+            added_repo.mkdir()
+            added_repo.joinpath("starbash.toml").write_text("[repo]\nkind = 'test'\n")
+            app.user_repo.add_repo_ref(app.repo_manager, added_repo)
+
+            # A repo the user added is removable, by dir or by URL.
+            assert app.is_repo_removable(f"file://{added_repo}") is True
+            assert app.is_repo_removable(str(added_repo)) is True
+
+            # The ones Starbash manages for the user are not.
+            recipes = app.repo_manager.get_repo_by_kind("std-recipe")
+            assert recipes is not None
+            assert app.is_repo_removable(recipes.url) is False
+            assert app.is_repo_removable("pkg://defaults") is False
+            assert app.is_repo_removable(app.user_repo.url) is False
+
+    def test_remove_managed_repo_keeps_its_indexed_rows(
+        self, setup_test_environment, mock_analytics
+    ):
+        """Refusing a managed repo leaves its indexed rows in the database."""
+        from starbash.exception import UserHandledError
+
+        with Starbash() as app:
+            managed_repo = setup_test_environment["tmp_path"] / "managed_repo"
+            managed_repo.mkdir()
+            url = f"file://{managed_repo}"
+            # Indexed like any other repo, but never recorded in the user config.
+            app.db.upsert_repo(url)
+            assert app.db.get_repo_id(url) is not None
+
+            with pytest.raises(UserHandledError, match="not found in user configuration"):
+                app.remove_repo_ref(url)
+
+            # The failed removal must not have dropped the repo (or cascaded to
+            # its images/sessions) from the database.
+            assert app.db.get_repo_id(url) is not None
+
 
 class TestReindexRepo:
     """Tests for the reindex_repo method."""

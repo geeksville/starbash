@@ -648,6 +648,40 @@ class Starbash:
         # Reconstruct absolute paths for all images
         return [self._add_image_abspath(img) for img in filtered_images]
 
+    def _find_user_repo_ref(self, url: str) -> dict | None:
+        """
+        Find the user configuration ``[[repo-ref]]`` entry matching a repository URL.
+
+        Args:
+            url: The repository URL to look for (e.g., 'file:///path/to/repo')
+
+        Returns:
+            The matching repo-ref entry, or None if the URL is not user configured.
+        """
+        for ref in self.user_repo.config.get("repo-ref", []):
+            ref_dir = ref.get("dir", "")
+            # Match by converting to file:// URL format if needed
+            if ref_dir and (ref_dir == url or f"file://{ref_dir}" == url):
+                return ref
+        return None
+
+    def is_repo_removable(self, url: str) -> bool:
+        """
+        Whether remove_repo_ref() would be able to remove a repository.
+
+        Only repositories the user added are recorded in the user configuration;
+        the ones Starbash manages itself (``pkg://defaults``, the recipes checkout
+        and the preferences repo) have no entry there and therefore cannot be
+        removed individually.
+
+        Args:
+            url: The repository URL to check (e.g., 'file:///path/to/repo')
+
+        Returns:
+            True if the repository is recorded in the user configuration.
+        """
+        return self._find_user_repo_ref(url) is not None
+
     def remove_repo_ref(self, url: str) -> None:
         """
         Remove a repository reference from the user configuration.
@@ -656,27 +690,17 @@ class Starbash:
             url: The repository URL to remove (e.g., 'file:///path/to/repo')
 
         Raises:
-            ValueError: If the repository URL is not found in user configuration
+            UserHandledError: If the repository URL is not found in user configuration
         """
-        self.db.remove_repo(url)
-
-        # Get the repo-ref list from user config
-        repo_refs: list = self.user_repo.config.get("repo-ref", [])
-
-        # Find and remove the matching repo-ref
-        found = False
-        refs_copy = [r for r in repo_refs]  # Make a copy to iterate
-        for ref in refs_copy:
-            ref_dir = ref.get("dir", "")
-            # Match by converting to file:// URL format if needed
-            if ref_dir == url or f"file://{ref_dir}" == url:
-                repo_refs.remove(ref)
-
-                found = True
-                break
-
-        if not found:
+        ref = self._find_user_repo_ref(url)
+        if ref is None:
+            # Check before touching the database: for a repository we refuse to
+            # remove (the recipes checkout, pkg://defaults, ...) dropping its
+            # indexed rows would only force a pointless re-index later.
             raise UserHandledError(f"Repository '{url}' not found in user configuration.")
+
+        self.db.remove_repo(url)
+        self.user_repo.config.get("repo-ref", []).remove(ref)
 
         # Write the updated config
         self.user_repo.write_config()

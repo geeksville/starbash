@@ -88,8 +88,15 @@ def load_session_images(sb: Starbash, session: dict[str, Any]) -> list[dict[str,
     return rows
 
 
-def load_repos(sb: Starbash) -> list[dict[str, Any]]:
-    """Return every managed repository with its indexed image count."""
+def load_repos(sb: Starbash, *, show_all: bool = False) -> list[dict[str, Any]]:
+    """Return managed repositories with their indexed image count.
+
+    By default this lists only the repositories users care about - the exact set
+    the CLI's ``sb repo list`` shows, since both go through
+    :attr:`~toml_repo.manager.RepoManager.regular_repos` (preferences, recipe and
+    ``pkg://`` repos are hidden).  Pass ``show_all=True`` for the CLI's verbose
+    listing, which includes those too.
+    """
     counts: Counter[int] = Counter(sb.db.get_column(Database.IMAGES_TABLE, "repo_id"))
     per_url: dict[str, int] = {}
     for repo_id, count in counts.items():
@@ -97,8 +104,9 @@ def load_repos(sb: Starbash) -> list[dict[str, Any]]:
         if url:
             per_url[url] = count
 
+    repos = sb.repo_manager.repos if show_all else sb.repo_manager.regular_repos
     rows: list[dict[str, Any]] = []
-    for repo in sb.repo_manager.repos:
+    for repo in repos:
         repo_path = repo.get_path()
         rows.append(
             {
