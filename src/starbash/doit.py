@@ -488,18 +488,31 @@ class MyReporter(ConsoleReporter):
 
         # Update the target's live run state (best-effort; never break a run).
         pt = (task.meta or {}).get("processed_target")
+        run_plain: dict[str, Any] | None = None
         if pt is not None:
             setter = getattr(self.processing, "set_active_target", None)
             if setter is not None:
                 setter(pt)
             try:
                 pt.task_started(task)
+                # Publish the run *now*, with this task marked as running.  This is
+                # the only snapshot that can contain a running node: the one sent
+                # with a stage result is taken when the task has just finished, so
+                # nothing is running at that instant -- which left the CLI's live
+                # tree unable to show (or scroll to) the task being worked on.
+                tree = pt.run_tree()
+                run_plain = tree.to_plain() if tree is not None else None
             except Exception as e:  # noqa: BLE001
                 logging.debug(f"run-state task_started failed: {e}")
 
         events.publish(
             events.EVENT_TASK_STARTED,
-            {"task": task.name, "title": task.title(), **self._task_labels(task)},
+            {
+                "task": task.name,
+                "title": task.title(),
+                "run": run_plain,
+                **self._task_labels(task),
+            },
         )
 
         if self.processing:

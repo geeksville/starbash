@@ -25,6 +25,39 @@ def supports_live_display(console: Console) -> bool:
     return bool(console.is_terminal) and not console.is_dumb_terminal
 
 
+def log_line_to_text(line: str, is_stderr: bool = False) -> Text:
+    """A tool output line as literal, coloured :class:`~rich.text.Text`.
+
+    Used by the CLI's live log pane.  The line is built as ``Text`` rather than as
+    markup, so a stray ``[`` in tool output cannot raise ``MarkupError`` inside the
+    live display's refresh thread (the same hardening the status caption uses).
+
+    Siril and friends are poor at marking their own errors, so a line containing a
+    "bad word" (see :data:`starbash.tool.base.BAD_WORDS`) is drawn red just like
+    the tool's stderr.
+
+    Args:
+        line: One line of tool output; a trailing newline is ignored.
+        is_stderr: True when the line arrived on the tool's stderr stream.
+
+    Returns:
+        A one-line ``Text`` ready to be appended to the log scrollback.
+    """
+    # Imported here (not at module scope) so that importing starbash.rich does not
+    # drag in the whole starbash.tool package, which would risk an import cycle if
+    # a tool ever wants to render something.
+    from starbash.tool.base import BAD_WORDS
+
+    text = line.rstrip("\n")
+    if is_stderr:
+        return Text(text, style="red")
+    lowered = text.lower()
+    # Compare case-insensitively: BAD_WORDS holds entries like "No image".
+    if any(bad.lower() in lowered for bad in BAD_WORDS):
+        return Text(text, style="red")
+    return Text(text)
+
+
 def to_tree(obj: Any, label: str = "root", brief: bool = True) -> Tree:
     """Given any object, recursively descend through it to generate a nice nested Tree
 

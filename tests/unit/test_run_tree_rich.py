@@ -268,26 +268,51 @@ class TestLiveStatusLine:
 
         assert "Failed" not in _render(view._render())
 
-    def test_tool_output_keeps_only_the_last_few_lines(self):
+    def test_tool_output_keeps_a_scrollback_not_just_the_last_few_lines(self):
         view = self._view()
         self._tool_started(view)
-        for i in range(5):
+        for i in range(50):
             view._on_event(
                 events.Event(events.EVENT_TOOL_OUTPUT, {"stream": "stdout", "line": f"line {i}"})
             )
 
         text = _render(view._render())
+        logged = [str(line) for line in view._log]
 
-        assert "line 4" in text
-        assert "line 1" not in text  # only ProcessingView.TOOL_TAIL_LINES stay visible
+        assert "line 49" in text  # the pane scrolls to the newest line ...
+        # ... but a run is minutes long, so the whole log is kept (this was a
+        # 3-line tail, which threw away the line the user needed).
+        assert "line 0" in logged
+        assert ProcessingView.LOG_LINES == 500
 
-    def test_stderr_lines_render_red_and_stdout_lines_yellow(self):
+    def test_the_scrollback_is_bounded(self):
+        view = self._view()
+        self._tool_started(view)
+        for i in range(ProcessingView.LOG_LINES + 10):
+            view._on_event(
+                events.Event(events.EVENT_TOOL_OUTPUT, {"stream": "stdout", "line": f"line {i}"})
+            )
+
+        assert len(view._log) == ProcessingView.LOG_LINES
+        assert "line 0" not in [str(line) for line in view._log]
+
+    def test_stderr_and_bad_word_lines_render_red(self):
         view = self._view()
         self._tool_started(view)
         view._on_event(events.Event(events.EVENT_TOOL_OUTPUT, {"stream": "stderr", "line": "bad"}))
         view._on_event(events.Event(events.EVENT_TOOL_OUTPUT, {"stream": "stdout", "line": "good"}))
+        view._on_event(
+            events.Event(
+                events.EVENT_TOOL_OUTPUT, {"stream": "stdout", "line": "Error: cannot open file"}
+            )
+        )
 
-        assert {str(line): line.style for line in view._tail} == {"bad": "red", "good": "yellow"}
+        styles = {str(line): line.style for line in view._log}
+
+        assert styles["bad"] == "red"  # stderr is always an error
+        assert styles["good"] == ""  # ordinary stdout is left alone
+        # Siril is poor at marking its own errors, so a bad word is enough.
+        assert styles["Error: cannot open file"] == "red"
 
     def test_skips_structured_protocol_frames(self):
         view = self._view()
@@ -300,8 +325,9 @@ class TestLiveStatusLine:
         )
 
         assert '{"event"' not in _render(view._render())
+        assert [str(line) for line in view._log] == ["──── rc-astro " + "─" * 24]
 
-    def test_starting_a_tool_clears_the_previous_tool_tail(self):
+    def test_starting_a_tool_keeps_the_history_and_adds_a_separator(self):
         view = self._view()
         self._tool_started(view, "siril-cli")
         view._on_event(
@@ -310,7 +336,12 @@ class TestLiveStatusLine:
 
         self._tool_started(view, "rc-astro")  # a new tool starts
 
-        assert "old output" not in _render(view._render())
+        text = _render(view._render())
+
+        # The log is the run's own log, so it survives the tool that produced it ...
+        assert "old output" in text
+        # ... and a dim rule says whose output follows.
+        assert any(str(line).startswith("──── rc-astro") for line in view._log)
 
     def test_finish_reports_done_and_drops_the_tool(self):
         view = self._view()
@@ -320,7 +351,10 @@ class TestLiveStatusLine:
         text = _render(view._render())
 
         assert "Live: done" in text
-        assert "siril-cli" not in text  # nothing is running any more
+        # Nothing is running any more, so the *status line* stops naming the tool
+        # (its "──── siril-cli ────" separator stays in the log, which is history).
+        assert view._tool is None
+        assert view._status_text().plain == "Live: done"
 
     def test_finish_keeps_reporting_a_failure(self):
         view = self._view()
@@ -346,7 +380,8 @@ class TestLiveLayout:
     renderable from the *top* and marks the cut with a red ``...`` (its
     ``live.ellipsis`` style) -- which used to delete the status line, leaving
     users staring at three red dots.  The view now splits the screen so the
-    status keeps its own rows and the tree region shows its newest activity.
+    header keeps its own rows, and the body is two panes: the log on the left and
+    the run tree on the right, scrolled to the task that is building.
     """
 
     def _view(self, runs: int, width: int = 80, height: int = 24) -> ProcessingView:
@@ -414,8 +449,161 @@ class TestLiveLayout:
     def test_one_run_taller_than_its_region_still_renders(self):
         # Degenerate sizing: one run alone is taller than the region, but the
         # region must still render *something* rather than collapse to nothing.
+        # What it renders is the row the pane anchors on (the newest progress);
+        # in a region this small the run's root scrolls off, as it does mid-run in
+        # a real terminal -- the header above still names the target being worked.
         view = self._running(self._view(1, height=10))
         rows = _render_at(view._render(), 80, 10)
 
         assert len(rows) == 10
-        assert any("Master 0" in row for row in rows)
+        assert any("Stack lights" in row for row in rows)
+
+    def _tall_building_run(self, target: str = "M31") -> dict:
+        """A run whose running task sits far above the bottom of its own tree."""
+        stages = [
+            {
+                "name": f"stage{i}",
+                "status": "pending",
+                "excluded": False,
+                "dependencies": [],
+                "outputs": [],
+                "logs": [],
+                "tasks": [
+                    {"name": f"t{i}", "title": f"Task {i}", "status": "pending", "outputs": []}
+                ],
+            }
+            for i in range(30)
+        ]
+        stages[1] = {
+            "name": "stack",
+            "status": "running",
+            "excluded": False,
+            "dependencies": [],
+            "outputs": [],
+            "logs": [],
+            "tasks": [
+                {
+                    "name": "stack",
+                    "title": "Stack lights",
+                    "status": "running",
+                    "session": "2024-01-01:osc",
+                    "outputs": [],
+                }
+            ],
+        }
+        return {**_RUN, "target": target, "stages": stages}
+
+    def test_wide_terminal_shows_the_log_and_the_tree_side_by_side(self):
+        view = self._running(self._view(1, width=120, height=24))
+        rows = _render_at(view._render(), 120, 24)
+
+        tool_rows = [row for row in rows if "rc-astro" in row]
+
+        assert tool_rows, "the log pane should show the tool separator"
+        # Both panes start at the same body row, so the separator and the tree's
+        # first line share a row: that is what "side by side" means.
+        assert any("Master 0" in row for row in tool_rows)
+
+    def test_narrow_terminal_still_shows_both_panes(self):
+        view = self._running(self._view(1, width=80, height=24))
+        text = "\n".join(_render_at(view._render(), 80, 24))
+
+        assert "rc-astro" in text  # the log pane ...
+        assert "Master 0" in text  # ... and the tree pane below it
+
+    def test_tree_pane_scrolls_to_the_task_that_is_building(self):
+        # The building run is a tall tree whose running task is nowhere near its
+        # bottom, so a pane that simply showed the newest rows would hide it.
+        view = self._view(3, width=120, height=24)
+        view._on_event(events.Event(events.EVENT_STAGE_RESULT, {"run": self._tall_building_run()}))
+        text = "\n".join(_render_at(view._render(), 120, 24))
+
+        assert "⏳" in text  # the running glyph ...
+        assert "Stack lights" in text  # ... and the task it marks
+        assert "stage29" not in text  # the far end of the run is off screen
+        assert re.search(r"… 3 earlier runs", text)  # and what scrolled off is noted
+
+    @staticmethod
+    def _tall_finished_run(done: int = 5, total: int = 30) -> dict:
+        """A tall run with ``done`` stages finished on top and the rest pending."""
+        stages = [
+            {
+                "name": f"stage{i}",
+                "status": "ok" if i < done else "pending",
+                "excluded": False,
+                "dependencies": [],
+                "outputs": [],
+                "logs": [],
+                "tasks": [],
+            }
+            for i in range(total)
+        ]
+        return {**_RUN, "stages": stages}
+
+    def test_tree_pane_stays_where_progress_was_between_tasks(self):
+        # Between two tasks the newest snapshot has nothing running in it (the task
+        # it was taken for has just finished).  Anchoring on the run's *top* there
+        # showed the finished stages and never moved -- the pane looked frozen.
+        view = self._view(3, width=120, height=24)
+        view._on_event(events.Event(events.EVENT_STAGE_RESULT, {"run": self._tall_finished_run()}))
+        text = "\n".join(_render_at(view._render(), 120, 24))
+
+        assert "stage4" in text  # the most recent progress is on screen ...
+        assert "stage0" not in text  # ... not the finished top of the run ...
+        assert "stage29" not in text  # ... and not its far end either
+        assert re.search(r"… 3 earlier runs", text)
+
+    def test_the_newest_running_run_wins_over_a_stale_one(self):
+        # A run whose last task was never recorded keeps a running node forever; it
+        # must not pin the pane away from the run that is actually building.
+        view = self._view(2, width=120, height=24)
+        view._on_event(
+            events.Event(events.EVENT_STAGE_RESULT, {"run": self._tall_building_run("Master 0")})
+        )
+        view._on_event(
+            events.Event(events.EVENT_STAGE_RESULT, {"run": self._tall_building_run("Master 1")})
+        )
+
+        assert view._building_index(view._order) == 1
+
+    def test_the_reporter_starting_a_task_lands_the_running_task_in_the_tree(self, tmp_path):
+        """End to end: the event the core publishes is what makes the tree follow.
+
+        Regression: ``task.started`` used to carry no run snapshot, so every
+        snapshot the view saw was taken just after a task finished -- nothing in it
+        was ever running, so no ``⏳`` could be drawn and the pane never scrolled.
+        """
+        from doit.task import Task
+
+        from starbash.doit import MyReporter
+        from starbash.processed_target import ProcessedTarget
+
+        target = tmp_path / "M31"
+        (target / ".starbash").mkdir(parents=True)
+        (target / ".starbash" / "main.toml").write_text("[stages]\n", encoding="utf-8")
+        pt = ProcessedTarget.open(target)
+
+        console = Console(file=StringIO(), width=120, height=24, no_color=True)
+        view = ProcessingView("Auto-processing", console)
+        reporter = MyReporter(outstream=StringIO(), options={})
+        reporter.processing = None
+        task = Task(
+            "stack_lights",
+            [],
+            meta={
+                "context": {"target": "M31"},
+                "stage": {"name": "stack"},
+                "processed_target": pt,
+            },
+        )
+
+        events.subscribe(view._on_event)
+        try:
+            reporter.execute_task(task)
+        finally:
+            events.unsubscribe(view._on_event)
+        pt.close()
+
+        text = "\n".join(_render_at(view._render(), 120, 24))
+        assert "⏳" in text
+        assert "stack" in text

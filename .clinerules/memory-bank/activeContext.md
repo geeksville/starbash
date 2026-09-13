@@ -21,15 +21,15 @@ the CLI now has **exactly one** live display, driven only by `starbash.events`.
   thousands of lines) and nothing can outpace the terminal.  `__rich__` =
   `_render()`.
 - **`_render()` returns a `rich.layout.Layout`, not a `Group`** (fix 2, see
-  below).  A pinned top region (title + spinner/caption/tool/percentage + tool
-  tail + progress bars) is sized to its content; the run trees get the rest.
+  below).  A pinned header (title + spinner/caption/tool/percentage + progress
+  bars) is sized to its content; the body below it is **two panes** (fix 3): the
+  tool log on the left, the run tree on the right.
 - **Status line** — `Spinner("arc", text=Text)` + a literal `Text` caption built
   from `process.target` / `run.started` / `task.started` / `task.finished` /
   `tool.started` / `tool.progress` / `tool.finished`, e.g.
-  `stack: Stack lights · Siril 45%`.  Tool tail = last 3 non-structured
-  `tool.output` lines (stderr red, stdout yellow, one row each with ellipsis);
-  cleared on `tool.started`.  `finish()` leaves `✓ <title>: done` on screen — or
-  `✗ Failed: <task>` if anything failed (the final frame must not claim success).
+  `stack: Stack lights · Siril 45%`.  `finish()` leaves `✓ <title>: done` on
+  screen — or `✗ Failed: <task>` if anything failed (the final frame must not
+  claim success).
 - **`tool_label(cmd)`** (`commands/process.py`) shortens a command line
   (`flatpak run --command=siril-cli org.siril.Siril …` → `Siril`).
 - **Hardening** — `rich.run_tree_to_rich` renders log lines as literal `Text`
@@ -56,7 +56,9 @@ the CLI now has **exactly one** live display, driven only by `starbash.events`.
   renderable that takes the **newest runs** until the region is full and prints
   `… N earlier runs` (Rich's crop keeps the top, which is the wrong end for a
   live log).  Unfitted runs are never rendered, so cost tracks the screen, not
-  the run count.
+  the run count.  (Its always-show-the-bottom anchoring is superseded by fix 3's
+  `_RunWindow`, which still measures newest-first but then scrolls *to the task
+  that is building*.)
 - **Verified after fix 2** (real PTY 100x30, 75 s of `sb process auto`): the
   live shape is *constant* (~29-30 rows) across all 266 frames instead of growing
   212→327; Rich's `...` count fell **245 → 13**, and all 13 are real text
@@ -76,12 +78,73 @@ the CLI now has **exactly one** live display, driven only by `starbash.events`.
   `.clinerules/collaboration.md`, with a pointer in `AGENTS.md` → *Conventions*:
   after editing code, run `just lint` and confirm it is clean (it rewrites files,
   so re-run the tests afterwards).
+- **Fix 3 — the tool log came back, and the tree scrolls to the running task.**
+  Fix 2 over-corrected: the only tool output was a **3-line tail**, and the tree
+  pane always showed the **newest rows**.  A stack runs for minutes, so the line
+  a user needs is rarely among the last three; and while a stage builds, the run
+  being worked on is the newest one, so bottom-anchoring showed its *last* rows
+  (the stages still to come) and could push the `⏳` row off the pane.  Now the
+  body is two panes:
+  - **Log (left)** — `_LogTail` over `deque(maxlen=LOG_LINES)` (500), fed by every
+    non-structured `tool.output`.  It is the *run's* log, so it is **not** cleared
+    per tool; `tool.started` appends a dim `──── <tool> ────` rule instead.
+    `rich.log_line_to_text()` builds a literal `Text` (never markup — a `[` in
+    output must not raise `MarkupError` in the refresh thread), stderr red, plain
+    stdout untouched, and any `tool.base.BAD_WORDS` hit also red (Siril does not
+    mark its own errors; compare case-insensitively — the list holds `"No image"`).
+    Tail-anchored, `… N earlier lines`.
+  - **Tree (right)** — `_RunWindow` (replaced `_RunTail`) measures runs from the
+    newest backwards (still screen-proportional cost), then windows the text so
+    the `RunStatus.RUNNING.glyph` (`⏳`) row of the run that is building is visible,
+    keeping `ANCHOR_CONTEXT = 2` rows of context above it; `_building_index()`
+    finds that run in the plain snapshots (no rendering).  If the run fits it is
+    shown from its root so the **target name stays on screen**; with nothing
+    building it falls back to the newest run.  Notes: `… N earlier runs` (above)
+    and `… N more runs` (below).  *(Superseded by fix 4: with nothing running the
+    pane now anchors on the newest run's **last finished** row, and the
+    degenerate case (one run taller than its pane) shows that anchored region
+    rather than the root — the header above still names the target.)*
+  - **Sizing** — `< MIN_SIDE_BY_SIDE_WIDTH` (100 cols) **stacks** the panes rather
+    than dropping one; `< MIN_SPLIT_HEIGHT` (6 rows) renders the header alone.
+  - Tests (`tests/unit/test_run_tree_rich.py`): scrollback keeps 500 / drops the
+    oldest, stderr + bad-word red, a new tool keeps history and adds a separator,
+    wide layout is genuinely side by side (log separator and tree row share a
+    row), narrow still shows both, tall run shows `⏳ Stack lights` +
+    `… 3 earlier runs`.  Also verified under a real PTY `Live` (120x30): no
+    traceback/Rich error, final frame `✓ Auto-processing: done`.
 - **PTY-debugging kit** (kept in `/tmp`, per-session): `/tmp/pty_win.py` runs a
   command under a pty with a real `TIOCSWINSZ` size (a 0x0 pty makes Rich fall
   back to 80x24 and hides overflow), `/tmp/vt.py` is a mini VT screen emulator,
   `/tmp/check_cap.py` counts `...`/frames and prints the screen at several replay
   points.  Measure the live shape per frame by counting consecutive
   `\x1b[1A\x1b[2K` runs (Rich emits one per rendered line).
+- **Fix 4 — the tree never saw a *running* task, so the pane looked frozen.**
+  `EVENT_STAGE_RESULT` snapshots are published when a task has *just finished*
+  (`Processing.add_result` → `pt.record_result()` then `run_tree().to_plain()`),
+  and `MyReporter.execute_task()` published `task.started` **without** a snapshot
+  — so the in-memory `RUNNING` placeholder from `pt.task_started()` never left the
+  process.  Consequences: `run_tree_to_rich` drew no `⏳` at all,
+  `_building_index()` always returned `None` (fix 3's anchoring was dead code), and
+  the no-anchor fallback showed the newest run from its **top** — i.e. the frozen
+  pane the user reported ("fills the screen once and never changes again").
+  **Fix:** `task.started` now carries `"run"`, the fresh `run_tree().to_plain()`
+  taken right after `pt.task_started(task)` — the only snapshot that can contain a
+  running node.  On the view side `_building_index()` scans **newest-first** (a run
+  whose last task was never recorded can hold a stale running node), the window
+  follows that run (else the newest), and `_RunWindow._anchor_row()` anchors on the
+  **last finished** row (`✓`/`Ø`/`✗`; never `⊘` — excluded stages are not progress
+  and usually sit below the work) when nothing is running, so the gap between two
+  tasks no longer snaps the pane back to the run's top.  Tests:
+  `test_emit_hooks.py::test_my_reporter_publishes_the_started_task_as_running` and
+  `test_run_tree_rich.py::TestLiveLayout::test_the_reporter_starting_a_task_lands_the_running_task_in_the_tree`
+  (both verified to **fail** with the `run` key removed),
+  `…::test_tree_pane_stays_where_progress_was_between_tasks`,
+  `…::test_the_newest_running_run_wins_over_a_stale_one`; the degenerate-region
+  test now asserts the anchored row instead of the root.  Live PTY (120x30, driven
+  by the real reporter + the snapshot `add_result` publishes): `⏳` rows **0 → 28**,
+  no traceback, final screen all `✓`.  Harness kept for re-runs:
+  `/tmp/sb_e2e_child.py` (feeds the real producer path) + `/tmp/sb_e2e_pty.py`
+  (runs it under a PTY and counts `⏳`/`✓`/tracebacks).
 
 ## Current work focus — `ProcessedTarget` model + live run tree
 
@@ -324,6 +387,18 @@ Open tabs / files being touched suggest active work in:
 - `doc/design/report.md` — the end-to-end design covering target report metadata (R1), Jekyll publishing (R2), and per-frame registration TOML stages (R3).
 
 ## Recent changes
+- **Fixed the frozen run-tree pane in `sb process auto`** (fix 4 of
+  [`doc/plans/cli-live-display.md`](../../doc/plans/cli-live-display.md)): the pane
+  "filled the screen once and never changed again" because no event ever carried a
+  *running* node -- `stage.result` snapshots are taken just after a task finished,
+  and `MyReporter.execute_task()` published `task.started` with no snapshot, so
+  `pt.task_started()`'s `RUNNING` placeholder never escaped the process.  So the
+  tree drew no `⏳`, fix 3's anchoring was dead code, and the fallback parked the
+  pane on the newest run's finished top.  `task.started` now carries the fresh
+  `run_tree().to_plain()`; the view scans runs newest-first and anchors on the
+  running task -- or, between tasks, on the run's last finished row -- instead of
+  its root.  Verified by two new tests that fail without the payload key, plus a
+  live PTY run of the real producer path (`⏳` rows `0 → 28`).
 - **Fixed the `sessions.telescop` collation typo** (`src/starbash/database.py`): the
   column was declared `telescop TEXT COLLATENOCASE NOT NULL` — the missing space made
   SQLite treat `COLLATENOCASE` as part of the *type name*, so no `NOCASE` collation was
@@ -513,6 +588,17 @@ Open tabs / files being touched suggest active work in:
 - `toml_repo` is an external/git-submodule package (`toml-repo/`); repo config suffix is `starbash.toml` (set in `starbash/__init__.py`).
 - Recipes are versioned remote repos fetched from `https://raw.githubusercontent.com/geeksville/starbash-recipes/v${version}` with a local `starbash-recipes/` git submodule fallback during development.
 - Session ↔ frame relation is NOT stored explicitly in the DB; frame lookup reconstructs from session criteria (date range, target, filter, telescope, imagetyp).
+- **Never batch a "patch then restore" pair as two commands in one `run_commands`
+  call.** The tool runs the commands in a call *concurrently* (its own guidance:
+  batch commands "safe to run concurrently").  Restoring a temporarily-patched file
+  in the same call as the patch is therefore a race: the restore ran first, the
+  patch landed last, and `src/starbash/doit.py` was left silently broken (the
+  `"run"` key I had just added was gone; the `git diff` in that same call even
+  reported the *pre-race* line count).  Keep a mutation and its undo in **separate**
+  calls — or better, verify a test fails without a change by *inspecting* the
+  payload (`KeyError`) rather than by reverting the source at all.  A `&&`-chained
+  single command string (e.g. `git diff ... && pytest ...`) is fine; it is one
+  statement executed sequentially.
 - **`sessions.telescop` is `NOT NULL`** while `filter`/`object` are nullable, so `_add_session` must always write a value (it uses `""` for "unknown").  `get_session()` only filters on a column when the candidate value is *truthy*, so an empty telescope means "match any" — that is what makes TELESCOP-less frames merge into the same rig's session instead of being split off.
 - **Never let a shell command line end at a secondary prompt.** A composite one-liner
   that mixed `&&`, `nohup ... &` and a quoted `echo "$!"` left bash at its

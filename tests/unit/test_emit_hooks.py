@@ -88,6 +88,40 @@ def test_my_reporter_publishes_task_started_and_finished(recorder):
     assert finished[0].data["task"] == "stack_lights"
 
 
+def test_my_reporter_publishes_the_started_task_as_running(tmp_path, recorder):
+    """``task.started`` carries a run snapshot with that task marked running.
+
+    The snapshot published with a stage result is taken when the task has just
+    finished, so nothing in it is running; without this one the CLI's live tree
+    could never see (or scroll to) the task being worked on.
+    """
+    from starbash.processed_target import ProcessedTarget
+
+    target = tmp_path / "M31"
+    (target / ".starbash").mkdir(parents=True)
+    (target / ".starbash" / "main.toml").write_text("[stages]\n", encoding="utf-8")
+    pt = ProcessedTarget.open(target)
+    reporter = MyReporter(outstream=io.StringIO(), options={})
+    reporter.processing = None
+    task = Task(
+        "stack_lights",
+        [],
+        meta={"stage": {"name": "stack"}, "processed_target": pt},
+    )
+
+    try:
+        reporter.execute_task(task)
+    finally:
+        pt.close()
+
+    started = next(event for event in recorder if event.kind == events.EVENT_TASK_STARTED)
+    run = started.data["run"]
+    assert isinstance(run, dict)
+    stage = next(stage for stage in run["stages"] if stage["name"] == "stack")
+    assert stage["status"] == "running"
+    assert [task["status"] for task in stage["tasks"]] == ["running"]
+
+
 def test_my_reporter_enriches_task_events_with_stage_labels(recorder):
     """Task events carry target/stage/is_master so consumers can nest them."""
     reporter = MyReporter(outstream=io.StringIO(), options={})

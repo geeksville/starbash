@@ -11,7 +11,6 @@ import typer
 from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.layout import Layout
 from rich.live import Live
-from rich.padding import Padding
 from rich.progress import Progress
 from rich.segment import Segment
 from rich.spinner import Spinner
@@ -24,7 +23,8 @@ from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
 from starbash.paths import get_user_config_path
 from starbash.processing import Processing
-from starbash.rich import run_tree_to_rich, runs_to_table, supports_live_display
+from starbash.rich import log_line_to_text, run_tree_to_rich, runs_to_table, supports_live_display
+from starbash.run_state import RunStatus
 
 app = typer.Typer()
 
@@ -130,23 +130,18 @@ def siril(
         # Also FIXME, check for the existence of such a file
 
 
-class _RunTail:
-    """Show the *bottom* of a list of run trees that is taller than its region.
+class _LogTail:
+    """Show the *bottom* of a log that is taller than its region.
 
-    ``Live`` handles a renderable that is too tall for the terminal by keeping
-    the top and drawing a red ``...`` over the rest (its ``live.ellipsis``
-    style).  A real run has *hundreds* of ``Master ...`` runs, so the whole
-    screen became that ``...`` and the status line -- which lived at the bottom
-    of the old single ``Group`` -- was cropped away entirely.
-
-    Rather than crop, this renderable measures as many of the *most recent*
-    runs as the region can hold, starting from the newest, and reports how many
-    scrolled off.  Runs that do not fit are never rendered, which also keeps the
-    per-frame cost proportional to the screen instead of to the run count.
+    A run emits thousands of lines, and the interesting one is almost always the
+    newest, so this renderable yields only the trailing lines that fit (measured
+    with wrapping, so a long line can take several rows) and reports how many
+    scrolled off above.  Measuring stops as soon as the region is full, so the
+    per-frame cost is proportional to the screen, not to the log length.
     """
 
-    def __init__(self, renderables: Sequence[RenderableType], unit: str = "run") -> None:
-        self.renderables = renderables
+    def __init__(self, lines: Sequence[Text], unit: str = "line") -> None:
+        self.lines = lines
         self.unit = unit
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
@@ -154,33 +149,171 @@ class _RunTail:
         if height <= 0:
             return
         # ``reset_height()`` (not ``update_height(None)``, whose parameter is typed
-        # ``int``) makes the options unbounded, so each run is measured at its own
-        # natural height: a numeric height would crop *and pad* it to that height
-        # (``Console.render_lines``), defeating the summing below.
+        # ``int``) makes the options unbounded, so a line is measured at its own
+        # natural (wrapped) height instead of being cropped to the region.
         unbounded = options.reset_height()
-        # Keep one row free for the "earlier runs" note, so the region does not
-        # jump by a line each time a run appears or is culled.
+        # Keep one row free for the "earlier lines" note, so the pane does not
+        # jump by a line each time a line arrives.
         budget = max(height - 1, 1)
         chosen: list[list[list[Segment]]] = []
         used = 0
-        for renderable in reversed(self.renderables):
-            lines = console.render_lines(renderable, unbounded, pad=True)
-            # Always take at least one run, even when a single run is taller than
-            # the whole region (its own top is then cropped by the region).
-            if chosen and used + len(lines) > budget:
+        # Always take at least one line, even when a single line wraps past the
+        # whole region (its own top is then cropped by the region).
+        for line in reversed(list(self.lines)):
+            rows = console.render_lines(line, unbounded, pad=True)
+            if chosen and used + len(rows) > budget:
                 break
-            chosen.append(lines)
-            used += len(lines)
+            chosen.append(rows)
+            used += len(rows)
 
-        hidden = len(self.renderables) - len(chosen)
+        hidden = len(self.lines) - len(chosen)
         if hidden:
             plural = "" if hidden == 1 else "s"
             yield Text(f"… {hidden} earlier {self.unit}{plural}", style="dim")
         new_line = Segment.line()
-        for lines in reversed(chosen):
-            for line in lines:
-                yield from line
+        for rows in reversed(chosen):
+            for row in rows:
+                yield from row
                 yield new_line
+
+
+class _RunWindow:
+    """Show the run tree around the task that is currently building.
+
+    The combined tree of a real run is far taller than its region, and Rich crops
+    a too-tall live renderable from the *top* -- exactly the wrong end, since the
+    run being worked on is the newest one at the bottom.  This renderable
+    measures runs from the newest backwards (stopping as soon as the region is
+    full *and* the focus run has been measured), then windows that text so the
+    ``⏳`` running task stays on screen, with the stages still to come visible
+    below it, and reports the runs that scrolled off above and below.
+
+    Measuring newest-first keeps the per-frame cost proportional to the screen
+    rather than to the run count, even with hundreds of ``Master ...`` runs.
+    """
+
+    #: Rows of context kept above the anchor row when the pane scrolls, so the
+    #: stage header the anchored task belongs to stays visible.
+    ANCHOR_CONTEXT = 2
+
+    def __init__(
+        self,
+        renderables: Sequence[RenderableType],
+        index: int | None = None,
+        unit: str = "run",
+    ) -> None:
+        self.renderables = renderables
+        #: Index of the run that is currently building, if any.
+        self.index = index
+        self.unit = unit
+
+    @staticmethod
+    def _anchor_row(lines: Sequence[list[Segment]]) -> int | None:
+        """The row this pane should keep on screen: the running task's, else progress'.
+
+        The ``⏳`` row wins when something is building.  In the gap between two
+        tasks (and right after a run finishes) there is no ``⏳`` at all, so the
+        anchor becomes the *last* row that actually ran -- the bottom-most
+        ``✓``/``Ø``/``✗``.  Anchoring those on the run's first stage instead is
+        what made the pane look frozen: it showed the finished top of a run while
+        the work happened hundreds of rows below.
+
+        ``⊘`` (excluded) is deliberately not progress: a target's config usually
+        excludes most stages, and those rows sit *below* the work in the tree.
+        """
+        running = RunStatus.RUNNING.glyph
+        for row, segments in enumerate(lines):
+            if any(running in segment.text for segment in segments):
+                return row
+        progress = (
+            RunStatus.OK.glyph,
+            RunStatus.SKIPPED.glyph,
+            RunStatus.FAILED.glyph,
+        )
+        for row in range(len(lines) - 1, -1, -1):
+            if any(marker in segment.text for segment in lines[row] for marker in progress):
+                return row
+        return None
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        height = options.height or console.height
+        if height <= 0 or not self.renderables:
+            return
+        unbounded = options.reset_height()
+        # One row for each of the "earlier runs"/"more runs" notes (see _LogTail
+        # for why a row is reserved); a second row is reclaimed below when only
+        # one of the two notes is needed.
+        budget = max(height - 1, 1)
+
+        # The run the pane follows: the one that is building, or (between tasks) the
+        # newest one, where the work is.
+        focus = self.index if self.index is not None else len(self.renderables) - 1
+
+        # Measure runs newest-first until the region is full *and* the focus run has
+        # been measured, so its anchor row is always inside the window.
+        chunks: list[tuple[int, list[list[Segment]]]] = []  # newest-first
+        used = 0
+        anchor: tuple[int, int] | None = None  # (run index, row within that run)
+        for index in range(len(self.renderables) - 1, -1, -1):
+            lines = console.render_lines(self.renderables[index], unbounded, pad=True)
+            if index == focus:
+                row = self._anchor_row(lines)
+                if row is not None:
+                    anchor = (index, row)
+            chunks.append((index, lines))
+            used += len(lines)
+            if used >= budget and (anchor is not None or index <= focus):
+                break
+
+        chunks.reverse()  # oldest of the measured runs first, i.e. display order
+        flat: list[list[Segment]] = []
+        offsets: dict[int, int] = {}
+        for index, lines in chunks:
+            offsets[index] = len(flat)
+            flat.extend(lines)
+
+        def window(rows: int) -> tuple[list[list[Segment]], int, int]:
+            """Pick the visible slice and count the runs hidden above and below it."""
+            if anchor is not None and anchor[0] in offsets:
+                anchor_at = offsets[anchor[0]] + anchor[1]
+                start = max(0, min(anchor_at - self.ANCHOR_CONTEXT, max(0, len(flat) - rows)))
+            else:
+                # Nothing to anchor on: the focus run has neither a running task nor
+                # a finished one (its very first frame).  Show it from its root: the
+                # root names the target, and the first stage is about to run there.
+                start = offsets[chunks[-1][0]]
+                if len(flat) - start <= rows:
+                    start = max(0, len(flat) - rows)
+            end = min(len(flat), start + rows)
+
+            def run_at(position: int) -> int:
+                """The run whose text covers ``position``."""
+                index = chunks[0][0]
+                for run_index, _ in chunks:
+                    if offsets[run_index] > position:
+                        break
+                    index = run_index
+                return index
+
+            above = run_at(start)
+            below = len(self.renderables) - 1 - run_at(max(start, end - 1))
+            return flat[start:end], above, below
+
+        visible, above_runs, below_runs = window(budget)
+        if above_runs and below_runs:
+            # A note at each end costs a second row; re-window so it still fits.
+            visible, above_runs, below_runs = window(max(height - 2, 1))
+
+        new_line = Segment.line()
+        if above_runs:
+            plural = "" if above_runs == 1 else "s"
+            yield Text(f"… {above_runs} earlier {self.unit}{plural}", style="dim")
+        for line in visible:
+            yield from line
+            yield new_line
+        if below_runs:
+            plural = "" if below_runs == 1 else "s"
+            yield Text(f"… {below_runs} more {self.unit}{plural}", style="dim")
 
 
 class ProcessingView:
@@ -189,23 +322,29 @@ class ProcessingView:
     Owns the single :class:`~rich.live.Live` used during a CLI run -- so the tree,
     the live status line and the progress bars share one render loop -- and renders
     each target's run as ``target -> stage -> task`` with status glyphs, clickable
-    links and a log tail.  It is the CLI counterpart of the GUI's processing tree.
+    links and a live log pane.  It is the CLI counterpart of the GUI's tree.
 
     Its *only* input is :mod:`starbash.events` (``process.target``, ``run.*``,
     ``task.*``, ``tool.*`` and ``stage.result``).  Nothing under ``starbash.tool``
     draws to the terminal any more, because two Rich ``Live`` displays on one
     console tear each other apart (see ``doc/plans/cli-live-display.md``).
 
-    The screen is split with a :class:`~rich.layout.Layout`: a *pinned* status
-    region on top shows what is happening *now* -- a spinner, the current
-    target/stage/task, the tool being run with its percentage, the last few tool
-    output lines (stderr red, stdout yellow) and the progress bars -- and the
-    run trees get every remaining row below it, showing their newest activity.
+    The screen is split with a :class:`~rich.layout.Layout`:
+
+    * a *pinned* header on top -- the spinner, the current target/stage/task, the
+      tool being run with its percentage and the progress bars;
+    * the main body below it, in two panes: a scrolling log of the tools' own
+      output on the *left* (stderr and "bad word" lines red), and the run trees
+      on the *right*, scrolled so the task that is currently building stays
+      visible.
 
     That split is what keeps the status line on screen.  A full run has hundreds
     of ``Master ...`` runs, so the combined tree is hundreds of lines tall; Rich
     crops a too-tall live renderable from the *top*, so a single ``Group`` used
     to throw away the status line and leave only its red ``...`` overflow marker.
+
+    On a narrow terminal the two body panes stack instead of sitting side by
+    side, so neither the log nor the tree is lost.
 
     When the output is **not** an interactive terminal (a pipe, a file redirect,
     a "dumb" terminal or a test harness), a live tree would render nothing until
@@ -215,8 +354,17 @@ class ProcessingView:
     summary on :meth:`finish` instead.
     """
 
-    #: How many of the most recent tool output lines stay on screen.
-    TOOL_TAIL_LINES = 3
+    #: How many tool output lines the log pane keeps (a bounded scrollback, not
+    #: just the last few: a run is minutes long and the interesting line is
+    #: usually the one that scrolled past).
+    LOG_LINES = 500
+
+    #: Below this width the log and the run tree stack instead of sitting side
+    #: by side, because two ~30-column panes are unreadable.
+    MIN_SIDE_BY_SIDE_WIDTH = 100
+
+    #: Below this terminal height there is no point splitting at all.
+    MIN_SPLIT_HEIGHT = 6
 
     def __init__(self, title: str, console: Console) -> None:
         self.title = title
@@ -235,7 +383,9 @@ class ProcessingView:
         self._tool: str | None = None
         self._percent: int | None = None
         self._note: str | None = None
-        self._tail: deque[Text] = deque(maxlen=self.TOOL_TAIL_LINES)
+        # The log pane's bounded scrollback: every tool line for the whole run,
+        # so a stack that has been running for minutes can still be read back.
+        self._log: deque[Text] = deque(maxlen=self.LOG_LINES)
         # The view renders itself: Live's own refresh thread repaints the current
         # state at a fixed rate.  That keeps a chatty tool (Siril emits thousands of
         # lines) from forcing a re-render per line -- events only mutate a few
@@ -290,13 +440,15 @@ class ProcessingView:
         elif kind == events.EVENT_TOOL_STARTED:
             self._clear_tool()
             self._tool = tool_label(str(data.get("cmd") or ""))
-            self._tail.clear()
+            # The scrollback is kept across tools: it is the run's log, so a tool
+            # starting only adds a separator to say whose output follows.
+            self._log_separator(self._tool)
         elif kind == events.EVENT_TOOL_OUTPUT:
             stream = str(data.get("stream") or "")
             # Structured streams (e.g. "stdout.json") are protocol frames, not log
             # text; their useful content already arrives as EVENT_TOOL_PROGRESS.
             if not events.is_structured_stream(stream):
-                self._add_tail_line(str(data.get("line") or ""), is_stderr=stream == "stderr")
+                self._add_log_line(str(data.get("line") or ""), is_stderr=stream == "stderr")
         elif kind == events.EVENT_TOOL_PROGRESS:
             percent = data.get("percent")
             if percent is not None:
@@ -339,7 +491,7 @@ class ProcessingView:
         self._caption = Text(text, style=style)
 
     def _clear_tool(self) -> None:
-        """Forget the running tool (and its progress) - the tail stays visible."""
+        """Forget the running tool (and its progress) - the log stays visible."""
         self._tool = None
         self._percent = None
         self._note = None
@@ -360,55 +512,96 @@ class ProcessingView:
         stage = data.get("stage")
         return f"{stage}: {title}" if stage else title
 
-    def _add_tail_line(self, line: str, is_stderr: bool) -> None:
-        """Keep a tool output line for the live tail (one row, ellipsised)."""
-        text = line.rstrip("\n")
-        if not text.strip():
+    def _add_log_line(self, line: str, is_stderr: bool) -> None:
+        """Append one tool output line to the live log pane."""
+        if not line.strip():
             return
-        self._tail.append(
-            Text(
-                text,
-                style="red" if is_stderr else "yellow",
-                no_wrap=True,
-                overflow="ellipsis",
-            )
-        )
+        self._log.append(log_line_to_text(line, is_stderr=is_stderr))
+
+    def _log_separator(self, label: str) -> None:
+        """Announce a new tool in the log pane, so the scrollback stays readable."""
+        self._log.append(Text(f"──── {label} " + "─" * 24, style="dim", no_wrap=True))
 
     def _render(self) -> RenderableType:
-        """The whole view: a pinned status region above the scrolling run trees.
+        """The whole view: header on top, the log left and the run tree right.
 
         Snapshot the mutable state up front: Live's refresh thread may render
         this while the thread folding events mutates it (``list()``/dict lookups
         are atomic).
         """
+        title = Text(self.title, style="bold")
         status = self._status_renderable()
-        # Measure the status region so the tree gets exactly the rows left over.
-        # Rich hands a region's renderable its own height, which is what lets
-        # ``_RunTail`` pick the runs that fit.
+        # Measure the header so the body gets exactly the rows left over.  Rich
+        # hands a region's renderable its own height, which is what lets the two
+        # body panes pick the lines that fit.
         # ``console.options`` carries no height (only ``max_height``), so this
-        # measures the status at its natural height.
-        status_height = 1 + len(self.console.render_lines(status, self.console.options, pad=False))
+        # measures the header at its natural height.
+        header_height = 1 + len(self.console.render_lines(status, self.console.options, pad=False))
         height = self.console.height
-        if height < 4:
+        if height < self.MIN_SPLIT_HEIGHT:
             # No room to split: the status is the only thing worth showing.
-            return Group(Text(self.title, style="bold"), status)
-        status_height = min(status_height, height - 1)
-        trees = [run_tree_to_rich(self._runs[t]) for t in list(self._order) if t in self._runs]
+            return Group(title, status)
+        header_height = min(header_height, height - 1)
+
+        labels = [t for t in list(self._order) if t in self._runs]
+        log = _LogTail(list(self._log))
+        runs = _RunWindow(
+            [run_tree_to_rich(self._runs[t]) for t in labels],
+            index=self._building_index(labels),
+        )
+
+        body = Layout(name="body", ratio=1, minimum_size=1)
+        if self.console.width >= self.MIN_SIDE_BY_SIDE_WIDTH:
+            body.split_row(
+                Layout(log, name="log", ratio=3, minimum_size=20),
+                Layout(runs, name="tree", ratio=2, minimum_size=20),
+            )
+        else:
+            # A narrow terminal: stack the panes rather than lose one of them.
+            body.split_column(
+                Layout(log, name="log", ratio=1, minimum_size=2),
+                Layout(runs, name="tree", ratio=1, minimum_size=2),
+            )
+
         layout = Layout()
         layout.split_column(
-            Layout(
-                Group(Text(self.title, style="bold"), status), name="status", size=status_height
-            ),
-            Layout(_RunTail(trees), name="runs", ratio=1, minimum_size=1),
+            Layout(Group(title, status), name="status", size=header_height),
+            body,
         )
         return layout
+
+    def _building_index(self, labels: Sequence[str]) -> int | None:
+        """Index (into ``labels``) of the run holding the task that is building.
+
+        Drives the right-hand pane's scrolling: while a stage runs the tree should
+        show that task, not the (far more numerous) finished ones.  ``None`` when
+        nothing is running -- between tasks -- and the pane then follows the newest
+        run via its last finished row.
+
+        Newest-first: task events (which now carry the running snapshot) are the
+        only source of a ``running`` node, and a run whose last task was never
+        recorded can leave one behind -- it must not pin the pane to a stale run.
+        """
+        for index in range(len(labels) - 1, -1, -1):
+            run = self._runs.get(labels[index])
+            if not isinstance(run, dict):
+                continue
+            for stage in run.get("stages") or []:
+                if not isinstance(stage, dict):
+                    continue
+                if stage.get("status") == RunStatus.RUNNING:
+                    return index
+                for task in stage.get("tasks") or []:
+                    if isinstance(task, dict) and task.get("status") == RunStatus.RUNNING:
+                        return index
+        return None
 
     def __rich__(self) -> RenderableType:
         """Render for :class:`~rich.live.Live`, which re-renders us on each refresh."""
         return self._render()
 
     def _status_renderable(self) -> RenderableType:
-        """The live status line, the recent tool output lines and the progress bars."""
+        """The live status line and the progress bars (the pinned header)."""
         if self._finished:
             # The frame that stays on screen (Live leaves the last one behind).
             if self._failure:
@@ -417,8 +610,7 @@ class ProcessingView:
                 head = Text.assemble(("✓", "green"), " ", self._status_text())
         else:
             head = Spinner("arc", text=self._status_text(), speed=2.0, style=SPINNER_STYLE)
-        lines = [Padding(line, (0, 0, 0, 4)) for line in list(self._tail)]
-        return Group(head, *lines, self.progress)
+        return Group(head, self.progress)
 
     def _status_text(self) -> Text:
         """The 'what is happening now' text: phase, tool, percentage and message."""

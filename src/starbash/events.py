@@ -77,7 +77,10 @@ EVENT_TOOL_PROGRESS = "tool.progress"
 EVENT_TOOL_STARTED = "tool.started"
 #: An external tool finished. data: {cmd, returncode, success}
 EVENT_TOOL_FINISHED = "tool.finished"
-#: A doit task is about to run. data: {task, title, target?, stage?, is_master?}
+#: A doit task is about to run. data: {task, title, target?, stage?, is_master?,
+#: run: {..plain run-tree..}} -- the ``run`` snapshot carries this task as
+#: ``running``, so a live tree can scroll to it (the snapshot published with a
+#: stage result has nothing running).
 EVENT_TASK_STARTED = "task.started"
 #: A doit task finished. data: {task, title, success, reason, target?, stage?, is_master?}
 EVENT_TASK_FINISHED = "task.finished"
