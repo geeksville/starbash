@@ -25,7 +25,14 @@ FALLBACK_FILENAME = "github-creds.toml"
 
 @dataclass(frozen=True)
 class GitHubCredential:
-    """An OAuth access token and, when available, its refresh metadata."""
+    """An OAuth access token and, when available, its refresh metadata.
+
+    ``login`` is the GitHub account the token belongs to.  It is not part of the
+    token response, so it is filled in by whichever code asks GitHub who the user
+    is (see ``github_install_job`` / ``publish_github_job``); storing it means the
+    GUI can show the signed-in account without another API call.  Credentials
+    written before this field existed simply have an empty ``login``.
+    """
 
     access_token: str
     refresh_token: str | None = None
@@ -33,6 +40,7 @@ class GitHubCredential:
     refresh_token_expires_at: float | None = None
     token_type: str = "bearer"
     scope: str = ""
+    login: str = ""
 
     @classmethod
     def from_token_response(cls, value: dict[str, Any]) -> GitHubCredential:
@@ -69,6 +77,7 @@ class GitHubCredential:
             ),
             token_type=str(value.get("token_type", "bearer")),
             scope=str(value.get("scope", "")),
+            login=str(value.get("login", "")),
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -80,6 +89,7 @@ class GitHubCredential:
             "refresh_token_expires_at": self.refresh_token_expires_at,
             "token_type": self.token_type,
             "scope": self.scope,
+            "login": self.login,
         }
 
     def needs_refresh(self, leeway: float = 60) -> bool:
@@ -131,6 +141,8 @@ class SimpleCredentialStore:
             github["refresh_token_expires_at"] = credential.refresh_token_expires_at
         github["token_type"] = credential.token_type
         github["scope"] = credential.scope
+        if credential.login:
+            github["login"] = credential.login
         document["github"] = github
         temporary.write_text(tomlkit.dumps(document))
         try:

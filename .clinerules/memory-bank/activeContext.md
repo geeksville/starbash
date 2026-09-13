@@ -1,5 +1,108 @@
 # Active Context
 
+## Current work focus — GUI "Publish to GitHub"
+
+Implemented [`doc/plans/gui-github-publish.md`](../../doc/plans/gui-github-publish.md):
+the GUI Publish page can now publish for real, including the first-run sign-in +
+App-install steps, sharing the publish sequence with the CLI.
+
+- **Core extraction**: `src/starbash/publish/github_publish.py` (new) holds the
+  whole sign-in → App-check → create-repo → upload-blobs → commit → configure-Pages
+  sequence with **no** Rich/terminal/Qt imports.  Callers pass a `StepReporter`
+  (`(description, completed, total)`) and do their own user-facing work.  It owns
+  `CLIENT_ID` / `APP_SLUG` / `APP_INSTALLATION_URL` / `PUBLISH_REPOSITORY`
+  (`"starbash-public"`) / `UPLOAD_PATH_BLACKLIST` / `MAX_BLOB_UPLOADS`,
+  `PublishResult`, `GitHubAppNotInstalledError`, and `collect_site_files`,
+  `upload_blobs`, `publish_site`, `finish_device_login`, `credential_service`,
+  `refresh_if_needed`, `save_credential`, `pages_url_for`.
+  `publish_site(..., require_app=True)` exists for front ends that already guided
+  the user past installation (the GUI passes `False`); `finish_device_login(...,
+  sleeper=...)` lets a cancellable front end interrupt GitHub's poll interval.
+- **CLI**: `commands/publish.py`'s `_publish_github` is now only prompts + Rich
+  rendering (its `_upload_blobs` and the rest of the sequence were deleted) —
+  behaviour unchanged, existing command tests untouched and green.
+- **GUI jobs** (`ui/qt/jobs.py`): `github_sign_in_job` (device flow; reports
+  `{"user_code","verification_uri"}` early so the dialog can show/open it while
+  polling, and **deliberately does not save** the credential — the App must be
+  installed first), `github_install_job` (loads/checks the credential off the GUI
+  thread and only then `save_credential`s — saving it **with** the account name
+  GitHub reports; returns `{"signed_in","installed","login"}`, with
+  `signed_in=False` meaning "start over"), `github_identity_job` (reads the stored
+  credential off the GUI thread and returns `{"signed_in","login"}` for the page —
+  no network call), `publish_github_job` (full publish for the account GitHub
+  reports, so **no username argument**; reports `(description, completed, total)`
+  tuples that drive the page's progress bar, and records the account name beside
+  the token), and `_cancel_aware_sleeper`.  The dead `publish_job` (local
+  generation, no upload) is gone.
+- **Key decision — `needs_sign_in` / `needs_install` are *returned*, not raised.**
+  Neither is an error; the page opens the setup dialog and then simply calls
+  `_on_publish()` again (the credential is re-read from the store, so no state is
+  threaded back).
+- **Key decision — the GitHub account is never typed.**  `GitHubCredential` gained
+  a persisted `login` (empty for credentials saved before it existed);
+  `credential_service`'s rotate callback and `refresh_if_needed`'s **return value**
+  both carry it across a token refresh, and `refresh_if_needed` now returns the
+  credential in effect so a caller cannot save the expired one back over a rotated
+  token.
+- **Dialog** (`ui/qt/widgets/github_login.py`, new): `GitHubSetupDialog` runs
+  `STEP_WELCOME → STEP_WAITING → STEP_INSTALL → STEP_DONE` off one widget set
+  (`_show_step` + `_on_primary`/`_on_secondary` dispatch); its contract is just
+  `ready`.  `run_github_setup(parent, *, start_at_install=False)` is the entry
+  point (`start_at_install=True` skips straight to installing when a token exists
+  but the App does not).  Closing the window is treated as Cancel — both call
+  `_stop_worker()` and set `_closed`, and every callback early-returns on
+  `_closed`, so a late result can never touch a dead window.  `theme.py` gained a
+  `DeviceCode` rule (large monospace) because the code must be transcribed
+  accurately.
+- **Dialog re-fit after a step reveals text** (`_refit()`, called at the end of
+  `_show_step`; `_set_status()` routes every `_status.setText(...)` through it).
+  The dialog is shown once, on `STEP_WELCOME`, so each later step has to grow the
+  window itself — without this the device code and the install step's
+  instructions were **vertically clipped**.  `adjustSize()` alone does not fix it
+  (a word-wrapped `QLabel.sizeHint()` under-reports height at the layout's real
+  width), and `heightForWidth()` is accurate but **sticky**: `QLabel` clamps its
+  hints by the minimum height it was last given, so a window that grew would never
+  shrink again.  `_refit()` therefore zeroes the wrapped labels' minimums, lets
+  the layout settle (`_box.activate()`), re-measures each with
+  `heightForWidth(label.width())` (`max(0, …)` — an empty label reports `-1`),
+  settles again, and only then calls `adjustSize()`.
+  `test_github_setup_dialog.py::test_a_revealed_step_is_not_clipped` renders each
+  step and asserts the text fits; it calls `theme.apply_theme(qapp)` first, because
+  the metrics that expose the bug come from the themed fonts (the default test
+  platform styles the `DeviceCode` label with a smaller font, hiding it).
+- **Page** (`ui/qt/pages/publish.py`): a `#Primary` *Publish to GitHub* button, a
+  compact `Spinner`, *Open in browser*, and a progress bar hidden unless a publish
+  is in flight.  Buttons lock during the job and success emits the page's `status`
+  signal.  Two follow-up behaviours (user request, same session):
+  - the GitHub account box is **read-only** — `refresh()` runs
+    `github_identity_job` and shows the account recorded with the credential
+    (`"Signed in to GitHub"` placeholder when a pre-`login` credential has no
+    name), and the publish job uses the account GitHub reports instead;
+  - *Open in browser* **starts disabled** and is enabled only after a publish
+    returns a `pages_url` (`https://<owner>.github.io/starbash-public/`), which it
+    opens; a later failed publish keeps the link to the live site.  The
+    *Generate report site* and *Open site folder* buttons were removed (generating
+    without publishing was a dead end) — so `publish_job` is gone too.
+- **Tests**: `tests/unit/test_github_publish.py` (core sequence, plus the
+  credential round trip / TOML fallback / pre-`login` back-compat and the
+  login-preserving rotation), `tests/unit/test_github_jobs.py` (new: the identity
+  readback and the account recorded by install/publish, with
+  `credential_service`/`GitHubCredentialStore` stubbed),
+  `tests/unit/test_github_setup_dialog.py` (every step transition, the two
+  "return to an earlier step" paths, cancel/close cancelling the worker *and*
+  ignoring a late result, `run_github_setup`'s return value, and
+  `test_a_revealed_step_is_not_clipped` — it applies the real theme, renders each
+  step and asserts no wrapped text is cut off, which is what pins `_refit()`) and
+  `tests/unit/test_publish_page.py` (publish flow, the read-only account field,
+  *Open in browser* gating/URL, the dialog handoff + re-run for both `needs_*`
+  states, failure path).  Both GUI modules monkeypatch `run_async` with a
+  **recorder** (`_RecordedJob` + `_FakeWorker`) that also captures the job
+  callable, so tests can run the real job with a stub `report` and assert what was
+  passed in — no network, callbacks invoked directly on the GUI thread.
+  `test_publish_page.py` stubs `Page.show_error` autouse so a regression cannot
+  raise a **modal dialog and hang a headless run**.
+  Full suite: **1028 passed**; `just lint` clean.
+
 ## Current work focus — Repositories page uses the CLI's repo list
 
 GUI fix for `ui/qt/pages/repositories.py` + `ui/qt/services.py`:

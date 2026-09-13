@@ -1,30 +1,34 @@
 """Publish processed targets locally or to GitHub Pages."""
 
 import webbrowser
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
 from rich.panel import Panel
-from rich.progress import BarColumn, Progress, SpinnerColumn, TaskID, TextColumn, TimeElapsedColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from starbash import console
 from starbash.analytics import analytics_start_span
 from starbash.app import Starbash
 from starbash.publish.credentials import GitHubCredential, GitHubCredentialStore
 from starbash.publish.github import GitHubPublisher
+from starbash.publish.github_publish import (
+    APP_INSTALLATION_URL,
+    APP_SLUG,
+    CLIENT_ID,
+    collect_site_files,
+    credential_service,
+    finish_device_login,
+    publish_site,
+    refresh_if_needed,
+    save_credential,
+)
 from starbash.publish.github_service import GitHubError, GitHubService
 
 app = typer.Typer()
 github_app = typer.Typer()
 app.add_typer(github_app, name="github")
-
-CLIENT_ID = "Iv23liewanBO4WT8No6v"
-APP_SLUG = "geeksville-starbash"
-APP_INSTALLATION_URL = f"https://github.com/apps/{APP_SLUG}/installations/new"
-UPLOAD_PATH_BLACKLIST = ("Gemfile",)
-MAX_BLOB_UPLOADS = 4
 
 
 def _rewrite(github_username: str | None = None) -> Path:
@@ -159,13 +163,12 @@ def _authenticate() -> GitHubCredential:
                     "Please open the printed link manually."
                 )
             with console.status("[bold cyan]Waiting for GitHub authorization…[/bold cyan]"):
-                token = service.poll_device_token(device, CLIENT_ID)
-            authenticated_service = GitHubService(token["access_token"])
+                credential = finish_device_login(service, device, CLIENT_ID)
+            authenticated_service = GitHubService(credential.access_token)
             if not authenticated_service.app_is_installed(APP_SLUG):
                 with console.status("[bold cyan]Checking GitHub App installation…[/bold cyan]"):
                     _require_app_installation(authenticated_service)
-            credential = GitHubCredential.from_token_response(token)
-            GitHubCredentialStore().save(credential)
+            save_credential(credential, store=GitHubCredentialStore())
             console.print(
                 Panel(
                     "[bold green]✓ GitHub authentication completed.[/bold green]\n\n"
@@ -190,51 +193,7 @@ def _authenticate() -> GitHubCredential:
 
 def _credential_service(credential: GitHubCredential) -> GitHubService:
     """Create an authenticated service and persist any rotated token."""
-    store = GitHubCredentialStore()
-    return GitHubService(
-        credential.access_token,
-        refresh_token=credential.refresh_token,
-        client_id=CLIENT_ID,
-        on_token_refresh=lambda value: store.save(GitHubCredential.from_token_response(value)),
-    )
-
-
-def _upload_blobs(
-    service: GitHubService,
-    owner: str,
-    site: Path,
-    files: list[Path],
-    progress: Progress,
-    operation: TaskID,
-) -> list[dict[str, str]]:
-    """Upload independent Git blobs concurrently while preserving tree order."""
-
-    def upload(path: Path) -> tuple[str, str]:
-        relative_path = path.relative_to(site).as_posix()
-        blob = service.create_blob(owner, "starbash-public", path.read_bytes())
-        return relative_path, blob
-
-    entries: list[dict[str, str]] = []
-    worker_count = min(MAX_BLOB_UPLOADS, len(files)) or 1
-    with ThreadPoolExecutor(max_workers=worker_count, thread_name_prefix="github-blob") as executor:
-        futures = {executor.submit(upload, path): path for path in files}
-        for future in as_completed(futures):
-            relative_path, blob = future.result()
-            entries.append(
-                {
-                    "path": relative_path,
-                    "mode": "100644",
-                    "type": "blob",
-                    "sha": blob,
-                }
-            )
-            progress.update(
-                operation,
-                description=f"Uploaded {relative_path}",
-                advance=1,
-            )
-
-    return entries
+    return credential_service(credential, client_id=CLIENT_ID, store=GitHubCredentialStore())
 
 
 def _publish_github(dry_run: bool, login: bool) -> None:
@@ -253,25 +212,11 @@ def _publish_github(dry_run: bool, login: bool) -> None:
     if not dry_run:
         assert credential is not None
         service = _credential_service(credential)
-        if credential.needs_refresh() and credential.refresh_token:
-            service.apply_token_response(
-                service.refresh_access_token(CLIENT_ID, credential.refresh_token)
-            )
         owner = str(service.user()["login"])
+        refresh_if_needed(service, credential, client_id=CLIENT_ID)
 
     site = _rewrite(owner) if owner else _rewrite()
-    files = sorted(
-        path
-        for path in site.rglob("*")
-        if path.is_file()
-        and ".git" not in path.parts
-        and ".jekyll-cache" not in path.parts
-        and "_site" not in path.parts
-        and path.name != "github-auth.toml"
-        and not any(
-            path.relative_to(site).as_posix().startswith(prefix) for prefix in UPLOAD_PATH_BLACKLIST
-        )
-    )
+    files = collect_site_files(site)
     timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     message = f"Publish Starbash images ({timestamp})"
     if dry_run:
@@ -293,49 +238,26 @@ def _publish_github(dry_run: bool, login: bool) -> None:
                 TimeElapsedColumn(),
                 console=console,
             ) as progress:
-                operation = progress.add_task("Contacting GitHub", total=8 + len(files))
+                operation = progress.add_task("Contacting GitHub", total=10 + len(files))
 
-                pages_url = f"https://{owner}.github.io/starbash-public/"
-                progress.update(operation, description=f"Authenticated as {owner}", advance=1)
+                def on_step(description: str, _completed: int, _total: int) -> None:
+                    progress.update(operation, description=description, advance=1)
+
+                # The CLI has already offered to install the App (in _authenticate, or
+                # via _require_app_installation below) with its own Rich prompts.
                 _require_app_installation(service)
-                repository = service.repository(owner, "starbash-public")
-                progress.update(
-                    operation, description="Checked starbash-public repository", advance=1
-                )
-                if repository is None:
-                    repository = service.create_repository("starbash-public")
-                    progress.update(
-                        operation, description="Created starbash-public repository", advance=1
-                    )
-
-                if not service.branch_exists(owner, "starbash-public", "main"):
-                    console.print(
-                        "[yellow]The GitHub repository is empty; creating its required initial commit.[/yellow]"
-                    )
-                    service.bootstrap_repository(
-                        owner,
-                        "starbash-public",
-                        pages_url,
-                        owner,
-                    )
-                    progress.update(operation, description="Initialized repository", advance=1)
-                else:
-                    progress.update(operation, description="Repository is ready", advance=1)
-
-                entries = _upload_blobs(service, owner, site, files, progress, operation)
-                tree = service.create_tree(owner, "starbash-public", entries)
-                progress.update(operation, description="Created Git tree", advance=1)
-                commit = service.create_commit(owner, "starbash-public", message, tree)
-                progress.update(operation, description="Created publication commit", advance=1)
-                service.update_branch(owner, "starbash-public", commit)
-                progress.update(operation, description="Updated gh-pages", advance=1)
-                service.configure_pages(owner, "starbash-public")
-                progress.update(operation, description="Configured GitHub Pages", advance=1)
-                progress.update(
-                    operation, description="GitHub Pages deployment complete", advance=1
+                result = publish_site(
+                    service,
+                    owner,
+                    site,
+                    files,
+                    message=message,
+                    require_app=False,
+                    on_step=on_step,
                 )
             console.print(
-                f"Uploaded {len(files)} files to {pages_url} ... It should be live in a few minutes."
+                f"Uploaded {result.file_count} files to {result.pages_url} ... "
+                "It should be live in a few minutes."
             )
         except GitHubError as exc:
             raise typer.BadParameter(str(exc)) from exc

@@ -134,6 +134,19 @@ QLabel#PathLabel {{
     border-radius: 6px;
     padding: 6px 10px;
 }}
+/* The GitHub device-flow code (see widgets/github_login.py): large, spaced and
+   monospaced so it is easy to read off the screen and retype in a browser. */
+QLabel#DeviceCode {{
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: {ACCENT};
+    background-color: #141a1f;
+    border: 1px solid #2c353d;
+    border-radius: 8px;
+    padding: 10px 16px;
+}}
 QLabel#StatValue {{
     font-size: 26px;
     font-weight: 700;

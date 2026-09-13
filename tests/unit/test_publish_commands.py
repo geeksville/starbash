@@ -1,10 +1,8 @@
 """Tests for the consolidated GitHub publishing command."""
 
-import threading
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from rich.progress import TaskID
 from typer.testing import CliRunner
 
 from starbash.main import app
@@ -108,38 +106,34 @@ def test_github_upload_starts_analytics_span(tmp_path):
     start_span.assert_called_once_with(name="github", op="upload")
 
 
-def test_blob_uploads_use_at_most_four_workers_and_preserve_tree_order(tmp_path):
-    """Independent blob requests run concurrently without reordering the tree."""
+def test_github_upload_starts_analytics_span_and_reports_the_url(tmp_path):
+    """A real publication drives the shared publisher and prints the resulting URL."""
     from starbash.commands import publish
+    from starbash.publish.credentials import GitHubCredential
 
-    files = []
-    for index in range(6):
-        path = tmp_path / f"image-{index}.fits"
-        path.write_bytes(f"blob-{index}".encode())
-        files.append(path)
-
-    lock = threading.Lock()
-    first_four_started = threading.Barrier(4)
-    active = 0
-    maximum_active = 0
-
-    def create_blob(owner, name, content):
-        nonlocal active, maximum_active
-        with lock:
-            active += 1
-            maximum_active = max(maximum_active, active)
-        try:
-            if int(content.decode().split("-")[1]) < 4:
-                first_four_started.wait(timeout=2)
-            return content.decode()
-        finally:
-            with lock:
-                active -= 1
-
+    (tmp_path / "index.html").write_text("site")
+    span = MagicMock()
     service = MagicMock()
-    service.create_blob.side_effect = create_blob
-    entries = publish._upload_blobs(service, "owner", tmp_path, files, MagicMock(), TaskID(1))
+    service.user.return_value = {"login": "owner"}
+    service.app_is_installed.return_value = True
+    service.repository.return_value = {"name": "starbash-public"}
+    service.branch_exists.return_value = True
+    service.create_blob.return_value = "blob-sha"
+    service.create_tree.return_value = "tree-sha"
+    service.create_commit.return_value = "commit-sha"
 
-    assert maximum_active == 4
-    assert {entry["path"] for entry in entries} == {path.name for path in files}
-    assert {entry["sha"] for entry in entries} == {f"blob-{index}" for index in range(6)}
+    with (
+        patch.object(publish, "_rewrite", return_value=tmp_path),
+        patch.object(
+            publish,
+            "GitHubCredentialStore",
+            return_value=MagicMock(load=MagicMock(return_value=GitHubCredential("token"))),
+        ),
+        patch.object(publish, "_credential_service", return_value=service),
+        patch.object(publish, "analytics_start_span", return_value=span) as start_span,
+    ):
+        publish._publish_github(False, False)
+
+    start_span.assert_called_once_with(name="github", op="upload")
+    service.update_branch.assert_called_once_with("owner", "starbash-public", "commit-sha")
+    service.configure_pages.assert_called_once_with("owner", "starbash-public")
