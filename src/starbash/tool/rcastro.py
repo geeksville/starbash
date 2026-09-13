@@ -7,7 +7,7 @@ import os
 import re
 from typing import Any
 
-from starbash.tool.base import ExternalTool, publish_tool_progress, tool_run_streaming
+from starbash.tool.base import ExternalTool, ToolSeverity, publish_tool_progress, tool_run_streaming
 from starbash.tool.context import expand_context_unsafe
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,12 @@ class RCAstroTool(ExternalTool):
 
     def __init__(self) -> None:
         super().__init__(
-            "rc-astro", ["rc-astro"], "https://www.rc-astro.com/stand-alone-rc-astro-tools/"
+            "rc-astro",
+            ["rc-astro"],
+            "https://www.rc-astro.com/stand-alone-rc-astro-tools/",
+            # Optional: BlurXTerminator/NoiseXTerminator are a paid add-on, and
+            # plenty of workflows never use them.
+            ToolSeverity.OPTIONAL,
         )
 
     def set_defaults(self) -> None:

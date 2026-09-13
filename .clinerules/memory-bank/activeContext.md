@@ -1,5 +1,54 @@
 # Active Context
 
+## Current work focus — missing-tool warnings (severity + ignore)
+
+Implemented [`doc/plans/tool-warnings.md`](../../doc/plans/tool-warnings.md): one
+core model for "a tool Starbash needs is missing", rendered by both front ends.
+
+- **Core** (`tool/base.py`): `ToolSeverity` (`IntEnum`, so the ordering *is* the
+  rule: `OPTIONAL < RECOMMENDED < REQUIRED`, and `severity < REQUIRED` means "may be
+  dismissed") plus a frozen `ToolStatus` (`name`, `key`, `severity`, `available`,
+  `install_url`, `ignored`, `detail`) with derived `needs_attention`,
+  `can_be_ignored` and `summary` (first line of `detail`).  `plain_message()` turns
+  Rich `[link=URL]x[/link]` into `x (URL)` so Qt labels/tooltips/log files never
+  show markup.
+- **Severities**: Siril `REQUIRED`; Starnet `RECOMMENDED`; GraXpert / rc-astro /
+  Python `OPTIONAL` — the base default (`Tool.severity = ToolSeverity.OPTIONAL`), so
+  a newly added tool is quiet until someone proves otherwise.
+- **Registry** (`tool/__init__.py`): `tool_statuses()`, `tool_status(key)`,
+  `missing_tool_statuses(*, include_ignored=False)` (missing ones, most important
+  first), and `set_tool_ignored(key)` which only touches the in-memory preferences —
+  persisting is the caller's job, keeping the tool module free of repo knowledge.
+  `init_tools()` calls `Tool.preflight()`, which logs at a severity-matched level
+  (error / warning / debug), so the CLI needed **no** front-end-specific code.
+- **GUI**: `ui/qt/widgets/tool_warning.py` (`ToolWarningBar` + `ToolWarningPanel`)
+  sits above the nav rail and page stack, so a warning is visible from any page and
+  the panel hides itself when nothing needs attention.  One bar per missing tool:
+  severity badge, `<Name> was not found`, the one-line `summary`, *How to install*
+  (only when the tool has an `install_url`) and *Ignore* (only when
+  `can_be_ignored`); the long explanation stays as the tooltip.  Severity colours
+  come from a `severity` **dynamic property** set on *both* the frame and the badge,
+  because a Qt selector cannot read the parent's property.
+- **Ignore preference**: `Tool.is_ignored` reads the tool's own `[tool]` section of
+  the user config, i.e. `tool.<key>.ignored` — the same key
+  `MainWindow._on_ignore_tool` writes via `user_repo.set` + `write_config()`, which
+  is why ignoring in the GUI also silences the CLI startup warning.  A failed write
+  keeps the bar and reports it to the status bar instead of pretending it stuck.
+  `src/starbash/templates/userconfig.toml` documents the key.
+- **Detection must be honest**: `StarnetTool.is_available` validates the configured
+  `starnet_exe` via `_starnet_exe_usable()` (bare name → `shutil.which`, explicit path
+  → must still exist).  Before, *any* non-empty value counted as configured, and
+  because Starbash itself writes that value when it finds `starnet2` on the PATH,
+  deleting the binary left a dangling setting that reported StarNet as available —
+  so neither front end warned.  A stale path now reports missing, and
+  `missing_message()` names the dead path rather than telling the user to configure
+  something Siril already has configured.  Starbash still never rewrites a non-blank
+  `starnet_exe` (only a blank one is auto-filled).
+- **Tests**: `tests/unit/test_tool_warning.py` (new), `TestToolSeverity` in
+  `tests/unit/test_tool.py`, and a GUI end-to-end ignore test in
+  `tests/unit/test_gui.py` that reads the written config back with `tomllib`.
+  Those three files = 187 tests; full suite **970 passed**; `just lint` clean.
+
 ## Current work focus — one live CLI widget (event-driven)
 
 Implementing [`doc/plans/cli-live-display.md`](../../doc/plans/cli-live-display.md):
@@ -609,3 +658,18 @@ Open tabs / files being touched suggest active work in:
   `timeout` in the foreground, multi-line via a correctly terminated heredoc.
   Captured as a standing rule in `.clinerules/terminal.md` and AGENTS.md →
   *Terminal commands (never block on a prompt)*.
+- **pytest-qt tracks widgets by *weak* reference**, so a parentless test host is
+  garbage-collected mid-test and takes its child widgets with it — the failure
+  surfaces as `Internal C++ object (X) already deleted`, not as a test error you can
+  read.  `test_tool_warning.py` keeps an explicit strong reference (`_KEEPALIVE`)
+  to each host it creates.  (Also: a widget's `parentWidget()`/a window's
+  `centralWidget()` is `QWidget | None` to the type checker even when it cannot be
+  `None` at that point, so tests need an `assert ... is not None` helper rather than
+  `# type: ignore`.)
+- **`.clinerules/memory-bank/` is the memory bank's real location** (the six core
+  files are git-tracked there); the rule file is `.clinerules/memory-bank.md`, a
+  sibling of the directory — not the directory itself.  Looking for a bare
+  `memory-bank/` at the repo root finds nothing, which is an easy way to conclude
+  "this repo has no memory bank" and then edit the wrong (or a new) place.  The
+  shared, cross-agent docs are `AGENTS.md` / `.github/copilot-instructions.md`
+  plus `doc/`; `.clinerules/` is Cline-only.

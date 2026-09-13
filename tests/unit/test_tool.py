@@ -20,10 +20,13 @@ from starbash.tool import (
     SirilTool,
     Tool,
     ToolError,
+    ToolSeverity,
+    ToolStatus,
     _SafeFormatter,
     expand_context,
     expand_context_unsafe,
     make_safe_globals,
+    set_tool_ignored,
     strip_comments,
     tool_run,
     tools,
@@ -504,6 +507,143 @@ class TestToolsDict:
         """Test that dict keys are lowercase versions of tool names."""
         for key, tool in tools.items():
             assert key == tool.name.lower()
+
+
+class _FakeTool(Tool):
+    """A tool whose availability a test controls (the real probes look at disk)."""
+
+    def __init__(self, name: str, severity: ToolSeverity, available: bool) -> None:
+        super().__init__(name)
+        self.severity = severity
+        self.install_url = "https://example.test/install"
+        self._available = available
+
+    @property
+    def is_available(self) -> bool:
+        """Whether this fake tool is installed."""
+        return self._available
+
+    def missing_message(self) -> str:
+        """Explain why this fake tool is unavailable."""
+        return f"The {self.name} executable was not found."
+
+
+class TestToolSeverity:
+    """Tests for severity-aware status, ignores and preflight logging."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_preferences(self, monkeypatch):
+        """Tool preferences are process-wide, so give each test a clean copy."""
+        monkeypatch.setattr(Tool, "Preferences", {})
+
+    def test_severity_is_ordered_and_labelled(self):
+        """The enum orders optional < recommended < required, for comparisons."""
+        assert ToolSeverity.OPTIONAL < ToolSeverity.RECOMMENDED < ToolSeverity.REQUIRED
+        assert ToolSeverity.REQUIRED.label == "required"
+        assert ToolSeverity.RECOMMENDED.label == "recommended"
+        assert ToolSeverity.OPTIONAL.label == "optional"
+
+    def test_registry_tags_each_tool_with_its_severity(self):
+        """Siril is required, StarNet recommended, the rest optional."""
+        assert tools["siril"].severity is ToolSeverity.REQUIRED
+        assert tools["starnet"].severity is ToolSeverity.RECOMMENDED
+        assert tools["graxpert"].severity is ToolSeverity.OPTIONAL
+        assert tools["rc-astro"].severity is ToolSeverity.OPTIONAL
+
+    def test_status_reports_a_missing_tool(self):
+        """A missing tool's status carries its key, severity, link and explanation."""
+        tool = _FakeTool("Fake", ToolSeverity.RECOMMENDED, available=False)
+        status = tool.status()
+
+        assert (status.name, status.key) == ("Fake", "fake")
+        assert status.severity is ToolSeverity.RECOMMENDED
+        assert status.available is False
+        assert status.needs_attention is True
+        assert status.install_url == "https://example.test/install"
+        assert status.detail == "The Fake executable was not found."
+        assert status.summary == "The Fake executable was not found."
+
+    def test_an_installed_tool_never_needs_attention(self):
+        """Nothing to report (and no detail) once the tool is found."""
+        tool = _FakeTool("Fake", ToolSeverity.REQUIRED, available=True)
+        status = tool.status()
+
+        assert status.available is True
+        assert status.needs_attention is False
+        assert status.detail is None
+        assert status.summary == ""
+
+    def test_ignoring_a_tool_silences_its_status(self):
+        """The ``ignored`` preference is what the GUI's Ignore button persists."""
+        tool = _FakeTool("Fake", ToolSeverity.RECOMMENDED, available=False)
+        assert tool.is_ignored is False
+
+        set_tool_ignored("fake")
+
+        assert tool.is_ignored is True
+        assert tool.status().ignored is True
+        assert tool.status().needs_attention is False
+
+    def test_only_non_required_warnings_can_be_ignored(self):
+        """A required tool keeps warning: you cannot dismiss Siril away."""
+        required = ToolStatus("Siril", "siril", ToolSeverity.REQUIRED, available=False)
+        recommended = ToolStatus("StarNet", "starnet", ToolSeverity.RECOMMENDED, available=False)
+
+        assert required.can_be_ignored is False
+        assert recommended.can_be_ignored is True
+
+    def test_missing_tool_statuses_sorts_by_severity_and_skips_ignored(self, monkeypatch):
+        """Most important first, and an ignored tool is left out by default."""
+        from starbash import tool as tool_module
+
+        statuses = [
+            ToolStatus("Python", "python", ToolSeverity.OPTIONAL, available=True),
+            ToolStatus("rc-astro", "rc-astro", ToolSeverity.OPTIONAL, available=False),
+            ToolStatus(
+                "StarNet",
+                "starnet",
+                ToolSeverity.RECOMMENDED,
+                available=False,
+                ignored=True,
+            ),
+            ToolStatus("Siril", "siril", ToolSeverity.REQUIRED, available=False),
+        ]
+        monkeypatch.setattr(tool_module, "tool_statuses", lambda: statuses)
+
+        assert [s.key for s in tool_module.missing_tool_statuses()] == ["siril", "rc-astro"]
+        # ``include_ignored`` is the diagnostics view: everything missing, as probed.
+        assert [s.key for s in tool_module.missing_tool_statuses(include_ignored=True)] == [
+            "rc-astro",
+            "starnet",
+            "siril",
+        ]
+
+    def test_preflight_reports_a_missing_tool_by_severity(self, caplog):
+        """Required logs an error, recommended a warning, optional only debug."""
+        cases = [
+            (ToolSeverity.REQUIRED, logging.ERROR),
+            (ToolSeverity.RECOMMENDED, logging.WARNING),
+            (ToolSeverity.OPTIONAL, logging.DEBUG),
+        ]
+        for severity, expected in cases:
+            tool = _FakeTool("Fake", severity, available=False)
+            with caplog.at_level(logging.DEBUG):
+                tool.preflight()
+            assert caplog.records, f"a missing {severity.label} tool must be reported"
+            assert caplog.records[-1].levelno == expected
+
+    def test_preflight_is_silent_for_installed_or_ignored_tools(self, caplog):
+        """Nothing is logged when there is nothing to do about it."""
+        installed = _FakeTool("Installed", ToolSeverity.REQUIRED, available=True)
+        with caplog.at_level(logging.DEBUG):
+            installed.preflight()
+        assert caplog.records == []
+
+        ignored = _FakeTool("Ignored", ToolSeverity.REQUIRED, available=False)
+        set_tool_ignored("ignored")
+        with caplog.at_level(logging.DEBUG):
+            ignored.preflight()
+        assert caplog.records == []
 
 
 class TestToolRun:
@@ -1144,6 +1284,14 @@ class TestStarnetTool:
         )
         return config_dir
 
+    @staticmethod
+    def _make_exe(tmp_path: Path) -> Path:
+        """Create a real (dummy) ``starnet2``, since the probe checks existence."""
+        executable = tmp_path / "bin" / "starnet2"
+        executable.parent.mkdir(exist_ok=True)
+        executable.write_text("starnet")
+        return executable
+
     def _make_tool(self, monkeypatch, config_dir: Path, siril_available: bool):
         from starbash.tool import base, starnet
 
@@ -1156,17 +1304,52 @@ class TestStarnetTool:
         return tool
 
     def test_available_when_starnet_configured(self, tmp_path, monkeypatch):
-        config_dir = self._make_config(tmp_path, "/usr/bin/starnet2")
+        # The configured path has to exist: Siril would fail on a stale one, so a
+        # non-empty string in the config file is not enough to call StarNet usable.
+        executable = self._make_exe(tmp_path)
+        config_dir = self._make_config(tmp_path, str(executable))
         tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
         assert tool.is_available is True
 
-    def test_unavailable_when_starnet_exe_blank(self, tmp_path, monkeypatch, caplog):
+    def test_available_when_configured_name_is_on_path(self, tmp_path, monkeypatch):
+        # A bare command name is resolved by Siril itself, so look it up on the PATH.
+        config_dir = self._make_config(tmp_path, "starnet2")
+        tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
+        monkeypatch.setattr("shutil.which", lambda name: "/somewhere/starnet2")
+        assert tool.is_available is True
+
+    def test_unavailable_when_configured_path_is_gone(self, tmp_path, monkeypatch):
+        """A configured-but-deleted exe is a real failure, and must say so.
+
+        This is the common case in practice: Starbash writes the path it finds on
+        the PATH, so StarNet's removal leaves a setting that looks configured but
+        points at nothing.
+        """
+        config_dir = self._make_config(tmp_path, "/usr/bin/starnet2")
+        tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
+        monkeypatch.setattr("shutil.which", lambda name: None)
+
+        assert tool.is_available is False
+        message = tool.missing_message()
+        assert "/usr/bin/starnet2" in message
+        assert "no longer exists" in message
+
+        # We must not silently rewrite a path the user (or we) chose - only a
+        # blank setting is ever filled in.
+        parser = configparser.ConfigParser()
+        parser.read(config_dir / "config.1.4.ini")
+        assert parser.get("core", "starnet_exe") == "/usr/bin/starnet2"
+
+    def test_unavailable_when_starnet_exe_blank(self, tmp_path, monkeypatch):
         config_dir = self._make_config(tmp_path, "")
         tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
         monkeypatch.setattr("shutil.which", lambda name: None)
-        with caplog.at_level(logging.WARNING):
-            assert tool.is_available is False
-        assert "StarNet is not enabled" in caplog.text
+        assert tool.is_available is False
+        # The explanation is now owned by missing_message() and reported at a log
+        # level matching the tool's severity (see Tool.preflight), so a probe stays
+        # silent - the GUI/CLI decide how loud to be.
+        assert "StarNet is not enabled in Siril" in tool.missing_message()
+        assert tool.install_url == "https://starnetastro.com/cli-tools/"
 
     def test_configures_starnet_from_path(self, tmp_path, monkeypatch, caplog):
         config_dir = self._make_config(tmp_path, "")
@@ -1186,12 +1369,14 @@ class TestStarnetTool:
         assert str(executable.resolve()) in caplog.text
 
     def test_does_not_overwrite_existing_starnet_config(self, tmp_path, monkeypatch):
+        # Even a stale setting is left alone (only a blank one is ever filled in).
+        # It no longer counts as configured, though - reporting it is the point.
         configured_path = "/configured/starnet2"
         config_dir = self._make_config(tmp_path, configured_path)
         tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
         monkeypatch.setattr("shutil.which", lambda name: "/path/starnet2")
 
-        assert tool.is_available is True
+        assert tool.is_available is False
 
         parser = configparser.ConfigParser()
         parser.read(config_dir / "config.1.4.ini")
@@ -1209,7 +1394,8 @@ class TestStarnetTool:
         assert tool.is_available is False
 
     def test_result_is_cached(self, tmp_path, monkeypatch):
-        config_dir = self._make_config(tmp_path, "/usr/bin/starnet2")
+        executable = self._make_exe(tmp_path)
+        config_dir = self._make_config(tmp_path, str(executable))
         tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
         assert tool.is_available is True
 

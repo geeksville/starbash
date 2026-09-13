@@ -10,12 +10,15 @@ from typing import Any
 from rich.progress import track
 
 from starbash.os import symlink_or_copy
-from starbash.tool.base import ExternalTool, tool_run
+from starbash.tool.base import ExternalTool, ToolSeverity, tool_run
 from starbash.tool.context import expand_context_unsafe, strip_comments
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["SirilTool"]
+__all__ = ["SirilTool", "SIRIL_INSTALL_URL"]
+
+#: Where the user can download Siril.
+SIRIL_INSTALL_URL = "https://siril.org/"
 
 
 def link_or_copy_to_dir(input_files: list[Path], dest_dir: str) -> None:
@@ -50,7 +53,14 @@ class SirilTool(ExternalTool):
             "Siril",
         ]
 
-        super().__init__("Siril", commands, "https://siril.org/")
+        super().__init__(
+            "Siril",
+            commands,
+            SIRIL_INSTALL_URL,
+            # Siril is required: virtually every calibration/stacking recipe
+            # runs through it, so a missing Siril must be loud.
+            severity=ToolSeverity.REQUIRED,
+        )
 
     """Siril can run for a long time on big jobs."""
 

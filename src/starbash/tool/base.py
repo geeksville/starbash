@@ -1,5 +1,6 @@
 """Base tool classes for stage execution."""
 
+import enum
 import io
 import logging
 import os
@@ -10,6 +11,7 @@ import sys
 import tempfile
 import textwrap
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from starbash import events
@@ -22,6 +24,9 @@ __all__ = [
     "ToolError",
     "MissingToolError",
     "ExternalTool",
+    "ToolSeverity",
+    "ToolStatus",
+    "plain_message",
     "tool_run",
     "tool_run_streaming",
     "publish_tool_progress",
@@ -370,8 +375,95 @@ def tool_run_streaming(
         logger.debug("Tool command successful.")
 
 
+#: Matches the one piece of Rich markup our tool messages use for a link.
+_LINK_MARKUP = re.compile(r"\[link=([^\]]*)\](.*?)\[/link\]")
+
+
+def plain_message(message: str) -> str:
+    """Rewrite a tool message written for Rich's console as plain text.
+
+    Tool messages are rendered by Rich in the CLI (``Click [link=URL]here[/link]``).
+    Anything that is *not* a console - a Qt label, a tooltip, a log file - must not
+    show that markup, so links become ``here (URL)`` and any leftover link tags are
+    dropped.
+    """
+    text = _LINK_MARKUP.sub(lambda match: f"{match.group(2)} ({match.group(1)})", message)
+    return re.sub(r"\[/?link(?:=[^\]]*)?\]", "", text)
+
+
+class ToolSeverity(enum.IntEnum):
+    """How badly the user needs a tool that Starbash could not find.
+
+    The ordering is significant (``OPTIONAL < RECOMMENDED < REQUIRED``), which is
+    why this is an :class:`enum.IntEnum`: a caller can write
+    ``severity < ToolSeverity.REQUIRED`` to decide whether a missing tool may be
+    dismissed with an *Ignore* button.  A ``REQUIRED`` tool keeps warning, because
+    most workflows cannot run without it.
+    """
+
+    OPTIONAL = 0
+    RECOMMENDED = 1
+    REQUIRED = 2
+
+    @property
+    def label(self) -> str:
+        """A short, lowercase name for messages and stylesheet hooks."""
+        return self.name.lower()
+
+
+@dataclass(frozen=True)
+class ToolStatus:
+    """The availability of one tool, shaped for the CLI and the GUI to render.
+
+    Both front ends need the same facts - which tool, how important it is, where
+    to get it - so probing a tool and describing the result lives here instead of
+    being re-implemented per UI.
+    """
+
+    name: str
+    key: str
+    severity: ToolSeverity
+    available: bool
+    install_url: str | None = None
+    ignored: bool = False
+    detail: str | None = None
+
+    @property
+    def needs_attention(self) -> bool:
+        """True when the user should be told about this tool.
+
+        A missing tool is worth a warning unless the user already asked us to
+        stop mentioning it.
+        """
+        return not self.available and not self.ignored
+
+    @property
+    def can_be_ignored(self) -> bool:
+        """Whether this warning may be dismissed permanently (see ``severity``)."""
+        return self.severity < ToolSeverity.REQUIRED
+
+    @property
+    def summary(self) -> str:
+        """A one-line, plain-text form of :attr:`detail`, for compact UIs.
+
+        The GUI's warning bar shows this beside an *Install* button - the console's
+        multi-paragraph explanation (with its Rich link markup) would be unreadable
+        there, and word-wrapping all of it would make the bar enormous.
+        """
+        if not self.detail:
+            return ""
+        first_line = self.detail.strip().splitlines()[0].strip()
+        return plain_message(first_line)
+
+
 class Tool:
     """A tool for stage execution"""
+
+    #: How important it is that this tool is installed (see :class:`ToolSeverity`).
+    severity: ToolSeverity = ToolSeverity.OPTIONAL
+
+    #: Where the user can install this tool; ``None`` for tools that ship with Starbash.
+    install_url: str | None = None
 
     # A hierarchical dictionary of user preferences for this tool.  Typical node path would be: "siril.path"
     # Normally set by the app constructor based on user configuration toml.
@@ -397,6 +489,57 @@ class Tool:
     def is_available(self) -> bool:
         """Whether this tool can be run. Built-in tools are always available."""
         return True
+
+    @property
+    def key(self) -> str:
+        """The registry and preference key for this tool (its lowercased name)."""
+        return self.name.lower()
+
+    @property
+    def is_ignored(self) -> bool:
+        """Whether the user asked to stop being warned that this tool is missing.
+
+        Set from the ``ignored`` flag of the tool's user-config section, i.e.
+        ``tool.<key>.ignored = true``, which the GUI's *Ignore* button writes.
+        """
+        prefs = Tool.Preferences.get(self.key)
+        return bool(prefs.get("ignored")) if isinstance(prefs, dict) else False
+
+    def missing_message(self) -> str:
+        """Explain why this tool is unavailable, and how the user can fix it."""
+        return f"The {self.name} executable was not found."
+
+    def status(self) -> ToolStatus:
+        """Report this tool's availability (probing it if necessary)."""
+        available = self.is_available
+        return ToolStatus(
+            name=self.name,
+            key=self.key,
+            severity=self.severity,
+            available=available,
+            install_url=self.install_url,
+            ignored=self.is_ignored,
+            detail=None if available else self.missing_message(),
+        )
+
+    def preflight(self) -> None:
+        """Report a missing tool at a log level matching its severity.
+
+        ``REQUIRED`` (Siril) logs an error, ``RECOMMENDED`` (StarNet) a warning,
+        and ``OPTIONAL`` tools only a debug line - so the default CLI run is not
+        cluttered with tools most users never need.  A tool the user chose to
+        ignore stays silent here, exactly as its GUI warning bar disappears.
+        """
+        if self.is_available or self.is_ignored:
+            return
+
+        message = self.missing_message()
+        if self.severity is ToolSeverity.REQUIRED:
+            logger.error("%s This tool is required for most workflows.", message)
+        elif self.severity is ToolSeverity.RECOMMENDED:
+            logger.warning("%s Some features will be unavailable until it is installed.", message)
+        else:
+            logger.debug("Optional tool %s is not installed: %s", self.name, message)
 
     def set_defaults(self) -> None:
         # default timeout in seconds, if you need to run a tool longer than this, you should change
@@ -465,12 +608,22 @@ class ExternalTool(Tool):
         name: Name of the tool (e.g. "Siril" or "GraXpert") it is important that this matches the GUI name exactly
         commands: List of possible command names to try to find the tool executable
         install_url: URL to installation instructions for the tool
+        severity: How important it is that this tool is installed (defaults to
+            :attr:`ToolSeverity.OPTIONAL`, so a new tool is quiet until proven
+            necessary - see :meth:`Tool.preflight`).
     """
 
-    def __init__(self, name: str, commands: list[str], install_url: str) -> None:
+    def __init__(
+        self,
+        name: str,
+        commands: list[str],
+        install_url: str,
+        severity: ToolSeverity = ToolSeverity.OPTIONAL,
+    ) -> None:
         super().__init__(name)
         self.commands = commands
         self.install_url = install_url
+        self.severity = severity
         self._is_available: bool | None = None  # cached result of is_available probe
         self.extra_dirs: list[
             str
@@ -493,19 +646,14 @@ class ExternalTool(Tool):
                 f"/Applications/{name}.app/Contents/MacOS",
             )
 
-    def preflight(self) -> None:
-        """Check that the tool is available"""
-        try:
-            _ = self.executable_path  # raise if not found
-        except MissingToolError:
-            logger.warning(
-                textwrap.dedent(f"""\
-                    The {self.name} executable was not found.  Related features will be unavailable until you install it.
-                    Click [link={self.install_url}]here[/link] for installation instructions.
+    def missing_message(self) -> str:
+        """Explain that the executable was not found, with install and PATH hints."""
+        return textwrap.dedent(f"""\
+            The {self.name} executable was not found.  Related features will be unavailable until you install it.
+            Click [link={self.install_url}]here[/link] for installation instructions.
 
-                    If you have already installed {self.name}, make sure it is in your system PATH.
-                    Instructions for Windows are [link=https://www.architectryan.com/2018/03/17/add-to-the-path-on-windows-10/]here[/link], for Linux or OS-X try [link=https://stackoverflow.com/questions/14637979/how-to-permanently-set-path-on-linux-mac]this[/link].""")
-            )
+            If you have already installed {self.name}, make sure it is in your system PATH.
+            Instructions for Windows are [link=https://www.architectryan.com/2018/03/17/add-to-the-path-on-windows-10/]here[/link], for Linux or OS-X try [link=https://stackoverflow.com/questions/14637979/how-to-permanently-set-path-on-linux-mac]this[/link].""")
 
     @property
     def is_available(self) -> bool:

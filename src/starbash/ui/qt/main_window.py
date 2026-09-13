@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -9,10 +11,12 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QStackedWidget,
+    QVBoxLayout,
     QWidget,
 )
 
 from starbash.app import Starbash
+from starbash.tool import set_tool_ignored
 from starbash.ui.qt.bridge import EventBusBridge
 from starbash.ui.qt.pages import (
     DashboardPage,
@@ -25,8 +29,11 @@ from starbash.ui.qt.pages import (
     TargetsPage,
     run_setup_dialog,
 )
+from starbash.ui.qt.widgets import ToolWarningPanel
 
 __all__ = ["MainWindow"]
+
+logger = logging.getLogger(__name__)
 
 #: Pages in navigation order.
 PAGE_CLASSES = [
@@ -74,11 +81,22 @@ class MainWindow(QMainWindow):
         self._nav.currentRowChanged.connect(self._on_page_changed)
 
         central = QWidget()
-        layout = QHBoxLayout(central)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(self._nav)
-        layout.addWidget(self._stack, 1)
+        column = QVBoxLayout(central)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(0)
+
+        # Missing-tool warnings sit above the pages, so they are visible whatever
+        # page the user is on; the panel hides itself when every tool is present.
+        self._warnings = ToolWarningPanel(self._on_ignore_tool, central)
+        self._warnings.status.connect(self.statusBar().showMessage)
+        column.addWidget(self._warnings)
+
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(0)
+        row.addWidget(self._nav)
+        row.addWidget(self._stack, 1)
+        column.addLayout(row, 1)
         self.setCentralWidget(central)
 
         self._build_menu()
@@ -98,6 +116,11 @@ class MainWindow(QMainWindow):
     def pages(self) -> list[object]:
         """Return every page widget, in navigation order."""
         return [self._stack.widget(index) for index in range(self._stack.count())]
+
+    @property
+    def warnings(self) -> ToolWarningPanel:
+        """The missing-tool warning bars shown above the pages."""
+        return self._warnings
 
     def show_page(self, index: int) -> None:
         """Switch to the page at ``index`` (which refreshes it)."""
@@ -119,12 +142,36 @@ class MainWindow(QMainWindow):
         for index in range(self._stack.count()):
             self._stack.widget(index).sb = self._sb  # type: ignore[attr-defined]
 
+        # A fresh context re-reads the tool preferences, so a newly ignored (or
+        # newly configured) tool changes which warnings apply.
+        self._warnings.refresh()
+
         page = self.current_page()
         refresh = getattr(page, "refresh", None)
         if callable(refresh):
             refresh()
 
     # --- internals --------------------------------------------------------
+    def _on_ignore_tool(self, key: str) -> None:
+        """Stop warning about a missing tool, for good.
+
+        The choice is persisted as ``tool.<key>.ignored`` in the user config, which
+        the core reads back through
+        :func:`starbash.tool.missing_tool_statuses` - so it survives a restart and
+        also silences the CLI's startup warning.  If it cannot be written we keep
+        the bar and say so, rather than pretending the warning is gone.
+        """
+        try:
+            self._sb.user_repo.set(f"tool.{key}.ignored", True)
+            self._sb.user_repo.write_config()
+        except Exception as exc:  # noqa: BLE001 - a failed preference write must not crash the GUI
+            logger.warning(f"Could not save the ignored-tool preference: {exc}")
+            self.statusBar().showMessage(f"Could not save the preference: {exc}")
+            return
+
+        set_tool_ignored(key)  # in memory too, so the bar goes away now
+        self.statusBar().showMessage(f"Starbash will stop warning about {key}.")
+
     def _build_menu(self) -> None:
         menu = self.menuBar().addMenu("&File")
 

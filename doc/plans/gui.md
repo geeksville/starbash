@@ -480,4 +480,7 @@ than an `ImportError` traceback.
   result is discarded instead (see `_request` in `widgets/image_viewer.py`).
 - GUI tests run as part of the default suite (PySide6 is a normal dependency);
   deselect them with `poetry run pytest -m "not gui"`.
+- Missing-tool warnings (the severity model, the *Ignore* preference and the
+  dismissible bars above the pages) are planned and recorded separately in
+  `doc/plans/tool-warnings.md`.
 

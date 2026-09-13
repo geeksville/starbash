@@ -45,6 +45,14 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   (`Processing._on_log_event` → the CLI/GUI run tree, and the GUI Log node) skip
   those frames via `events.is_structured_stream()`, since the useful content is
   already republished as `EVENT_TOOL_PROGRESS`. `log_out` still gets the raw lines.
+- **Tool availability**: each tool declares a `severity`
+  (`ToolSeverity.REQUIRED`/`RECOMMENDED`/`OPTIONAL`); `Tool.status()` (and
+  `missing_tool_statuses()`) reports availability, `install_url` and the fix-up
+  message to both front ends. At startup `init_tools()` calls `Tool.preflight()`,
+  which logs at a severity-matched level (error/warning/debug), and the GUI adds a
+  dismissible warning bar per missing tool (`ui/qt/widgets/tool_warning.py`). A
+  `tool.<key>.ignored = true` entry in the user config (written by the GUI's
+  *Ignore* button) silences both. See `doc/plans/tool-warnings.md`.
 - **Paths**: `src/starbash/paths.py` — platformdirs-based; override in tests via
   `paths.set_test_directories(...)`.
 - **Events**: `src/starbash/events.py` — dependency-free pub/sub bus. The core
@@ -126,7 +134,8 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
 - **Layout**: `ui/qt/main_window.py` (nav rail + `QStackedWidget`), `ui/qt/pages/**`
   (one page per nav entry), `ui/qt/widgets/**` (reusable widgets — `image_viewer.py`
   for FITS/raster previews, `busy_indicator.py` for the loading arc, `log_view.py`,
-  `selection_panel.py`, `stat_card.py`), `ui/qt/models.py`
+  `selection_panel.py`, `stat_card.py`, `tool_warning.py` for the missing-tool
+  warning bars), `ui/qt/models.py`
   (dict-backed `QAbstractTableModel`s), `ui/qt/services.py` (GUI-thread reads),
   `ui/qt/jobs.py` (long operations), `ui/qt/workers.py` (`QThreadPool` +
   cooperative `CancelToken`), `ui/qt/bridge.py` (event bus → Qt signals),

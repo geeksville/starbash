@@ -4,7 +4,7 @@ import io
 import logging
 from typing import Any
 
-from starbash.tool.base import ExternalTool, Tool, tool_run
+from starbash.tool.base import ExternalTool, Tool, ToolSeverity, tool_run
 from starbash.tool.context import expand_context_list, expand_context_unsafe
 
 logger = logging.getLogger(__name__)
@@ -14,6 +14,10 @@ __all__ = ["GraxpertBuiltinTool", "GraxpertExternalTool"]
 
 class GraxpertBuiltinTool(Tool):
     """Expose Graxpert as a tool"""
+
+    #: GraXpert ships inside Starbash (the ``graxpert`` Python package), so it is
+    #: always available; the severity is only a hint for the warning UI.
+    severity = ToolSeverity.OPTIONAL
 
     def __init__(self) -> None:
         super().__init__("GraXpert")
@@ -48,7 +52,9 @@ class GraxpertExternalTool(ExternalTool):
     def __init__(self) -> None:
         commands: list[str] = ["graxpert", "GraXpert"]
 
-        super().__init__("GraXpert", commands, "https://graxpert.com/")
+        # Optional: the built-in GraXpert tool covers the same work, so this
+        # only matters for users who prefer their own installed copy.
+        super().__init__("GraXpert", commands, "https://graxpert.com/", ToolSeverity.OPTIONAL)
 
     def _run(
         self,

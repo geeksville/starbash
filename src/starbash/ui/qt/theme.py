@@ -272,6 +272,51 @@ QTabBar::tab:hover:!selected {{
     color: #e6edf3;
 }}
 
+/* Missing-tool warning bars (ui/qt/widgets/tool_warning.py) ---------------
+   One bar per tool Starbash needs but could not find.  The `severity` dynamic
+   property tints the left stripe and the badge, so a missing *required* tool
+   reads as an error while an optional one is just a note.  The property is set
+   on the frame *and* the badge: Qt selectors cannot reach a parent's property. */
+QFrame#ToolWarningBar {{
+    background-color: #222930;
+    border: 1px solid #2c353d;
+    border-left: 4px solid {ACCENT};
+    border-radius: 8px;
+}}
+QFrame#ToolWarningBar[severity="required"] {{ border-left-color: #d95c5c; }}
+QFrame#ToolWarningBar[severity="recommended"] {{ border-left-color: #d9a441; }}
+QFrame#ToolWarningBar[severity="optional"] {{ border-left-color: #4aa3df; }}
+QLabel#ToolWarningTitle {{
+    color: #e6edf3;
+    font-weight: 600;
+}}
+QLabel#ToolWarningDetail {{ color: #8b98a5; }}
+QLabel#ToolWarningBadge {{
+    color: #9aa7b4;
+    background-color: #2b343d;
+    border: 1px solid #37424c;
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+}}
+QLabel#ToolWarningBadge[severity="required"] {{
+    color: #f2b8b8;
+    background-color: #43262a;
+    border-color: #613034;
+}}
+QLabel#ToolWarningBadge[severity="recommended"] {{
+    color: #edd39a;
+    background-color: #3b321c;
+    border-color: #57482a;
+}}
+QLabel#ToolWarningBadge[severity="optional"] {{
+    color: #a9d5f2;
+    background-color: #1f303d;
+    border-color: #2f4a5e;
+}}
+
 /* Checkboxes ------------------------------------------------------------- */
 /* The dark palette makes Fusion's native indicator a dark box on a dark panel,
    i.e. nearly invisible, so it is drawn explicitly: a visible outline when off,

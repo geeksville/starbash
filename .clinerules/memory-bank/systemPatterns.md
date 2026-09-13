@@ -14,7 +14,7 @@ Starbash is a Typer-based CLI that glues together four subsystems:
 
 3. **Processing pipeline** (`src/starbash/processing.py`, `stages.py`, `doit.py`, `filtering.py`): recipes are `[[stage]]` TOML entries turned into `doit` task graphs. `Processing` orchestrates: select sessions → build context → expand stages into tasks → run via `StarbashDoit`.
 
-4. **Tool layer** (`src/starbash/tool/`): `Tool` base class + `ExternalTool` (probes PATH/common install dirs). Runners: Siril (Flatpak, stdin script), GraXpert (CLI), Python (RestrictedPython sandbox), rc-astro (`bxt`/`nxt` with `--json` progress streaming), Starnet. `tool_run_streaming` streams stdout/stderr with timeout and live Rich display.
+4. **Tool layer** (`src/starbash/tool/`): `Tool` base class + `ExternalTool` (probes PATH/common install dirs). Runners: Siril (Flatpak, stdin script), GraXpert (CLI), Python (RestrictedPython sandbox), rc-astro (`bxt`/`nxt` with `--json` progress streaming), Starnet. `tool_run_streaming` streams stdout/stderr with timeout and *publishes* the output as events (it no longer paints anything itself). Each tool declares a `severity` (`ToolSeverity`: `OPTIONAL < RECOMMENDED < REQUIRED`) and `Tool.status()` returns a `ToolStatus` (`available`/`install_url`/`ignored`/`detail`); `missing_tool_statuses()` feeds the CLI's severity-matched `preflight()` log line and the GUI's dismissible warning bars (see `.clinerules/memory-bank/activeContext.md` → tool warnings, and `doc/plans/tool-warnings.md`).
 
 ## Key technical decisions
 

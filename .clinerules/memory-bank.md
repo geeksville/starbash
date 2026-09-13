@@ -4,7 +4,9 @@ I am Cline, an expert software engineer with a unique characteristic: my memory 
 
 ## Memory Bank Structure
 
-The Memory Bank consists of core files and optional context files, all in Markdown format. Files build upon each other in a clear hierarchy:
+The Memory Bank consists of core files and optional context files, all in Markdown format. Files build upon each other in a clear hierarchy.
+
+All of them live in `.clinerules/memory-bank/` (next to this rule file) - use that as the root wherever the file names below are mentioned.
 
 ### Core Files (Required)
 1. `projectbrief.md`
@@ -49,7 +51,7 @@ The Memory Bank consists of core files and optional context files, all in Markdo
    - Evolution of project decisions
 
 ### Additional Context
-Create additional files/folders within memory-bank/ when they help organize:
+Create additional files/folders within .clinerules/memory-bank/ when they help organize:
 - Complex feature documentation
 - Integration specifications
 - API documentation

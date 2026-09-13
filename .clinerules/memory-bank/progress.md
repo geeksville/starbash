@@ -14,6 +14,7 @@
 - **Processed-target persistence**: split `.starbash/main.toml` / `about.toml` / `sessions.toml` layout; `about.generated_at` + `schema_version = 1`.
 - **Publishing**: `sb publish` generates a GitHub Pages-compatible Jekyll site (Jinja2 + Pygal charts), and `sb publish github` uploads to `starbash-public`.
 - **External tools**: Siril (Flatpak stdin script), GraXpert (CLI), Starnet2, rc-astro (`bxt`/`nxt` with JSON progress streaming), Python (RestrictedPython sandbox).
+- **Missing-tool warnings with severity + ignore** (`doc/plans/tool-warnings.md`): `ToolSeverity` / `ToolStatus` / `missing_tool_statuses()` in `src/starbash/tool/` drive a severity-matched startup log line in the CLI (`Tool.preflight()`) and dismissible per-tool bars in the GUI (`ui/qt/widgets/tool_warning.py`), whose *Ignore* button persists `tool.<key>.ignored = true` to the user config (and therefore silences the CLI too). StarNet detection also validates the configured `starnet_exe` (a dangling path counts as missing) — a non-empty Siril setting alone used to report StarNet as available, so removing `starnet2` warned nobody.
 - **Desktop GUI** (`sb gui`, `feat-gui` branch): PySide6 app providing Dashboard, Sessions (filter/browse/export + FITS & raster preview), Masters, Targets (per-target options tree: stage toggles + overridable recipe parameters, with unsaved-change protection, a target list that defaults to ~2/3 of the page width, and clickable recipe/folder links), live Processing (task tree with per-task collapsible Log/Out nodes, underlined file/recipe links, closable hover previews + streamed log + progress), Repositories (add/remove/re-index with live progress), Publish (local site) and Settings + first-run wizard. PySide6 is a normal dependency; the CLI never imports Qt. Backed by the new `starbash.events` bus and `starbash.interaction` protocol.
 - Image previews decode on a worker thread and show a rotating-arc `BusyIndicator`
   (`ui/qt/widgets/busy_indicator.py`) over the pane while loading, so selecting a big
@@ -37,7 +38,13 @@
 
 ## Current Status
 
-Alpha `v0.3.1` (tag `90529fe`, 2026-08-31), plus one commit on `main` (`21dac19` "fix lint"). OSC workflows are the supported path. Active development is on generalizing per-frame registration reporting across stacking variants (R3). The Memory Bank has been initialized on top of this commit.
+Alpha `v0.3.1` (tag `90529fe`, 2026-08-31). `main` is now at `46f28a5` — the GUI work
+(including the split live display: tool log pane + run tree), the debug hints, and
+"docs: remove code search guidance from AGENTS.md". OSC workflows are the supported
+path; the most recently landed work is the missing-tool warning model
+(`doc/plans/tool-warnings.md`) alongside the R3 per-frame registration reporting
+generalization. The Memory Bank was initialized on top of `21dac19` and extended
+since.
 
 ## Known Issues
 

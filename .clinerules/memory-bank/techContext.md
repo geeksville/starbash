@@ -41,7 +41,7 @@
 ## Tool usage patterns
 
 - **Tool registry**: `init_tools(tool_prefs)` in `app.py` populates the global `tools` dict; stages reference tools by `tool.name`.
-- **ExternalTool** probes `commands` list + `extra_dirs` (homebrew, flatpak, `/Applications/*.app/Contents/MacOS`); `preflight()` warns with an install URL.
+- **ExternalTool** probes `commands` list + `extra_dirs` (homebrew, flatpak, `/Applications/*.app/Contents/MacOS`); `preflight()` reports a missing tool at a level matching its `severity` (error/warning/debug) with an `install_url` and install hint.
 - **tool_run_streaming** runs via `subprocess.Popen(shell=True)` with threaded stdout/stderr readers feeding a shared queue; stderr lines color red, stdout yellow; timeout kills the process.
 - **Siril** runs via stdin script (`tool_run` writes `commands` to stdin); live progress via streaming.
 - **Interactive debugging (debugmcp MCP)**: this dev container has the

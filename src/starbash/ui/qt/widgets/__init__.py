@@ -9,6 +9,7 @@ from starbash.ui.qt.widgets.image_viewer import ImageViewer
 from starbash.ui.qt.widgets.log_view import LogView
 from starbash.ui.qt.widgets.selection_panel import SelectionPanel
 from starbash.ui.qt.widgets.stat_card import StatCard
+from starbash.ui.qt.widgets.tool_warning import ToolWarningBar, ToolWarningPanel
 
 __all__ = [
     "BusyIndicator",
@@ -20,6 +21,8 @@ __all__ = [
     "LogView",
     "SelectionPanel",
     "StatCard",
+    "ToolWarningBar",
+    "ToolWarningPanel",
     "open_link",
     "set_link",
 ]

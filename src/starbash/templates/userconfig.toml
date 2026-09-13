@@ -11,6 +11,11 @@ kind = "preferences"
 # siril.path = "siril"
 # siril.path = "flatpak run --command=siril-cli org.siril.Siril" # To use the flatpak version of siril
 
+# Starbash warns at startup when a tool it needs is missing.  If you don't use a tool
+# you can silence its warning for good (this is what the GUI's "Ignore" button writes):
+# starnet.ignored = true
+# rc-astro.ignored = true
+
 #[aliases]
 # aliases can be used to map non standard (or non english) frame names to standard terms
 # This is also used to map filters based on common misspellings or variations.

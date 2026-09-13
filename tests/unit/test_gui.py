@@ -602,6 +602,55 @@ def test_every_page_refreshes_without_error(qtbot, app_context):
         assert window.current_page() is window.pages()[index]
 
 
+def test_main_window_warns_about_missing_tools(qtbot, app_context, monkeypatch):
+    """A missing tool gets a warning bar above the pages, most important first."""
+    from starbash.tool import Tool
+    from starbash.tool.rcastro import RCAstroTool
+    from starbash.tool.siril import SirilTool
+    from starbash.ui.qt.main_window import MainWindow
+
+    monkeypatch.setattr(Tool, "Preferences", {})
+    monkeypatch.setattr(SirilTool, "is_available", property(lambda self: False))
+    monkeypatch.setattr(RCAstroTool, "is_available", property(lambda self: False))
+
+    window = MainWindow(app_context)
+    qtbot.addWidget(window)
+
+    keys = [bar.tool_status.key for bar in window.warnings.bars()]
+    assert keys[0] == "siril"  # required tools come first
+    assert "rc-astro" in keys
+    central = window.centralWidget()
+    assert central is not None
+    assert window.warnings.isVisibleTo(central)
+
+
+def test_main_window_ignore_persists_to_the_user_config(qtbot, app_context, monkeypatch):
+    """*Ignore* writes ``tool.<key>.ignored`` and drops that bar for good."""
+    import tomllib
+
+    from starbash import paths
+    from starbash.tool import Tool, missing_tool_statuses
+    from starbash.tool.rcastro import RCAstroTool
+    from starbash.ui.qt.main_window import MainWindow
+
+    monkeypatch.setattr(Tool, "Preferences", {})
+    monkeypatch.setattr(RCAstroTool, "is_available", property(lambda self: False))
+
+    window = MainWindow(app_context)
+    qtbot.addWidget(window)
+    bar = next(b for b in window.warnings.bars() if b.tool_status.key == "rc-astro")
+    assert bar._ignore_button is not None
+
+    qtbot.mouseClick(bar._ignore_button, Qt.MouseButton.LeftButton)
+
+    # The choice is on disk (so it survives a restart) ...
+    config = tomllib.loads(paths.get_user_config_path().read_text())
+    assert config["tool"]["rc-astro"]["ignored"] is True
+    # ... and the bar is gone from this window and from the core's own report.
+    assert "rc-astro" not in [b.tool_status.key for b in window.warnings.bars()]
+    assert "rc-astro" not in [s.key for s in missing_tool_statuses()]
+
+
 def test_selection_panel_writes_selection(qtbot, app_context):
     """Applying the panel persists the same Selection the CLI writes."""
     from PySide6.QtCore import Qt
