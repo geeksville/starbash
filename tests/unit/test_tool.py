@@ -1325,20 +1325,25 @@ class TestStarnetTool:
         the PATH, so StarNet's removal leaves a setting that looks configured but
         points at nothing.
         """
-        config_dir = self._make_config(tmp_path, "/usr/bin/starnet2")
+        # Use a path under tmp_path rather than a real system location: a dev
+        # container may well have StarNet installed at e.g. /usr/bin/starnet2, and
+        # this test must not depend on the host's package state to exercise a
+        # dangling setting.
+        gone_exe = str(tmp_path / "gone" / "starnet2")
+        config_dir = self._make_config(tmp_path, gone_exe)
         tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
         monkeypatch.setattr("shutil.which", lambda name: None)
 
         assert tool.is_available is False
         message = tool.missing_message()
-        assert "/usr/bin/starnet2" in message
+        assert gone_exe in message
         assert "no longer exists" in message
 
         # We must not silently rewrite a path the user (or we) chose - only a
         # blank setting is ever filled in.
         parser = configparser.ConfigParser()
         parser.read(config_dir / "config.1.4.ini")
-        assert parser.get("core", "starnet_exe") == "/usr/bin/starnet2"
+        assert parser.get("core", "starnet_exe") == gone_exe
 
     def test_unavailable_when_starnet_exe_blank(self, tmp_path, monkeypatch):
         config_dir = self._make_config(tmp_path, "")

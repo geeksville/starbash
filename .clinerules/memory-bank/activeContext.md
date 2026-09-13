@@ -47,10 +47,13 @@ GUI fix for `ui/qt/pages/repositories.py` + `ui/qt/services.py`:
   three new behaviours were mutation-checked (reverting the page logic fails them
   cleanly).  Note the "refused removal" test stubs `show_error`, because a
   regression there would otherwise raise a **modal dialog and hang a headless
-  run** — the first mutation run did exactly that.  Full suite: 980 passed; the
-  single failure (`test_unavailable_when_configured_path_is_gone`) is
-  environmental — `/usr/bin/starnet2` genuinely exists in this dev container —
-  and `just lint` is clean (0 errors/warnings).
+  run** — the first mutation run did exactly that.
+- **Test hygiene**: `test_unavailable_when_configured_path_is_gone` used to
+  hardcode `/usr/bin/starnet2` as its "gone" path, which failed on any host where
+  StarNet is actually installed (this dev container installs it via
+  `just install-starnet`).  It now uses a `tmp_path`-derived path that is
+  guaranteed absent, so it no longer depends on the host's package state — the
+  full suite is **981 passed** and `just lint` is clean (0 errors/warnings).
 
 ## Current work focus — missing-tool warnings (severity + ignore)
 
