@@ -161,7 +161,7 @@ jobs:
         run: |
           # Download Siril installer
           $installer = "siril-setup.exe"
-          Invoke-WebRequest -Uri "https://free-astro.org/download/siril-1.4.4-setup.exe" -OutFile $installer
+          Invoke-WebRequest -Uri "https://free-astro.org/download/siril-1.4.4-ucrt64-setup.exe" -OutFile $installer
           
           # Run installer in silent mode (Inno Setup uses /VERYSILENT /NORESTART)
           # /DIR specifies installation directory
