@@ -81,6 +81,36 @@ populated (not reset) before the filter runs.
 - Run: `sb <command>` (via poetry venv)
 - Handy workflows live in `justfile` (e.g. `just process`, `just reinit`, `just select-*`).
 
+## Interactive debugging (debugmcp MCP)
+
+This dev container ships the `debugmcp` MCP server, so a live bug can be chased
+with a real debugger (breakpoints, logpoints, stepping, stack/variable
+inspection) instead of print statements or guesswork:
+
+- Invoke the **`debug-live` skill first** (required by the tool contract), then
+  `start_debugging`. Pass one of the existing `.vscode/launch.json`
+  configuration names (e.g. `Python Debugger: starbash process auto`) to reuse
+  the Poetry interpreter (`get_poetry_python.sh`) and the right args — or pass
+  `fileFullPath` (+ optional `testName`) to debug a single test.
+- While paused: `add_breakpoint` / `add_logpoint`, `get_debug_status` (with
+  `waitForPauseSeconds` to wait for the hit), `list_variable_names`,
+  `get_variables_values`, `evaluate_expression`, `step_over`/`step_into`/`step_out`,
+  `continue_execution`, then `stop_debugging`.
+- Additive to the normal loop, not a replacement: `just lint` and
+  `poetry run pytest` are still the gate before reporting a fix.
+- **The configs drift.** They were last audited 2026-09-13 and two were dead
+  (a removed `poc/process.py` and a removed Textual `src/starbash/ui/main.py`);
+  they are now `current file` and `starbash gui`. Before trusting an entry's
+  args, check `sb <cmd> --help`, and edit `.vscode/launch.json` if it is stale —
+  do not assume a config still matches the CLI.
+- **Check `list_breakpoints` before starting a session.** The workspace had ~27
+  lingering breakpoints from earlier sessions (`app.py`, `processing.py`, …),
+  which would pause a fresh run in unexpected places; they were **cleared
+  2026-09-13**. They are workspace state, not `launch.json` — re-check and
+  `clear_all_breakpoints` when done (ask first if unsure whose they are).
+  Verified working: breakpoint → `start_debugging` (test) →
+  `get_variables_values` → `continue_execution` → `remove_breakpoint`.
+
 ## Desktop GUI (`sb gui`)
 
 A PySide6 desktop app. PySide6 is a **normal dependency** — "optional" here only

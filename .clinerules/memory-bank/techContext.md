@@ -44,6 +44,29 @@
 - **ExternalTool** probes `commands` list + `extra_dirs` (homebrew, flatpak, `/Applications/*.app/Contents/MacOS`); `preflight()` warns with an install URL.
 - **tool_run_streaming** runs via `subprocess.Popen(shell=True)` with threaded stdout/stderr readers feeding a shared queue; stderr lines color red, stdout yellow; timeout kills the process.
 - **Siril** runs via stdin script (`tool_run` writes `commands` to stdin); live progress via streaming.
+- **Interactive debugging (debugmcp MCP)**: this dev container has the
+  `debugmcp` MCP server installed (`ozzafar.debugmcpextension` in
+  `.devcontainer/geeksville-private/devcontainer.json`), so a session can drive
+  a real debugger instead of guessing: `start_debugging` (optionally a
+  `fileFullPath` + `testName`, or a `configurationName` from
+  `.vscode/launch.json`), then `add_breakpoint` / `add_logpoint`,
+  `get_debug_status`, `list_variable_names` / `get_variables_values` /
+  `evaluate_expression`, `step_*`, `continue_execution`, `stop_debugging`.
+  Invoke the **`debug-live` skill first** (per the tool contract) and prefer a
+  `configurationName` so the debugpy interpreter/args match
+  `.vscode/get_poetry_python.sh` (the Poetry venv). Use it for live-run bugs the
+  test suite can't reproduce; `just lint` + `poetry run pytest` remain the gate
+  before reporting a fix.
+  **The launch configs drift** — they were last audited 2026-09-13 (they had
+  pointed at `poc/process.py` and a Textual `src/starbash/ui/main.py`, both long
+  deleted; repaired to `current file` and `starbash gui`). Check a config's args
+  with `sb <cmd> --help` before trusting it, and edit `launch.json` when stale.
+  **Lingering breakpoints:** the VS Code workspace carried ~27 pre-existing
+  breakpoints (in `app.py`, `processing.py`, `select.py`, `doit.py`, …) from
+  earlier sessions; they were **cleared 2026-09-13**. Keep the habit: they are
+  *not* in `launch.json` (they live in VS Code workspace state), so
+  `list_breakpoints` before a session and `clear_all_breakpoints` when done —
+  but ask before wiping breakpoints the user set deliberately.
 
 ## Build / lint conventions
 

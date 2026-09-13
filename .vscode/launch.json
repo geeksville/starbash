@@ -3,6 +3,8 @@
     // Hover to view descriptions of existing attributes.
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
+    // NOTE: these configs drift as the CLI evolves - verify an entry with
+    // `sb <cmd> --help` before trusting its args (last audited 2026-09-13).
     "configurations": [
         {
             "name": "Python Debugger: starbash user",
@@ -143,12 +145,15 @@
             ]
         },
         {
-            "name": "Python Debugger: processing script",
+            // Debug whatever file is open in the editor (scratch scripts live in
+            // /tmp, not in the repo - the old poc/ tree was removed).
+            "name": "Python Debugger: current file",
             "type": "debugpy",
             "request": "launch",
-            "program": "poc/process.py",
+            "program": "${file}",
             "console": "integratedTerminal",
-            "python": "${workspaceFolder}/.vscode/get_poetry_python.sh"
+            "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
+            "justMyCode": false
         },
         {
             "name": "Python Debugger: integration test",
@@ -167,13 +172,19 @@
             "justMyCode": false
         },
         {
-            "name": "Python Debugger: Textual UI (standalone)",
+            // The Textual UI is gone; the desktop app is now PySide6, launched
+            // via `sb gui` (src/starbash/ui/qt/app.py -> run()).
+            "name": "Python Debugger: starbash gui",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/starbash/ui/main.py",
+            "module": "starbash.main",
             "console": "integratedTerminal",
             "python": "${workspaceFolder}/.vscode/get_poetry_python.sh",
-            "justMyCode": false
+            "justMyCode": false,
+            "args": [
+                "--debug",
+                "gui"
+            ]
         }
     ]
 }

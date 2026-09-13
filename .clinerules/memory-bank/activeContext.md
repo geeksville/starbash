@@ -500,6 +500,12 @@ Open tabs / files being touched suggest active work in:
 - Follow AGENTS.md: keep type hints/docstrings, don't introduce new linter warnings, tests assert on real resulting state (not mocks).
 - Rich markup is on for Typer; SQLite row factory is `sqlite3.Row`.
 - Tests isolate filesystem via `paths.set_test_directories(...)`.
+- **Interactive debugging is available** via the `debugmcp` MCP server added to
+  this container (breakpoints, logpoints, stack/variable inspection, stepping on
+  the running app). Invoke the `debug-live` skill, then `start_debugging` —
+  ideally with one of the existing `.vscode/launch.json` configuration names so
+  the Poetry interpreter/args are picked up automatically. Details in
+  `techContext.md` → *Tool usage patterns*.
 - Recipe `.seq` parsing lives in `src/starbash/siril/import_registration.py`; DB updates go through atomic `Database.update_images_metadata()`.
 
 ## Learnings and project insights
