@@ -9,19 +9,10 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-from collections import deque
 from collections.abc import Callable
-from contextlib import nullcontext
 from typing import Any
 
-from rich.console import Group, RenderableType
-from rich.live import Live
-from rich.padding import Padding
-from rich.spinner import Spinner
-from rich.text import Text
-
 from starbash import events
-from starbash.commands import SPINNER_STYLE
 from starbash.exception import FilesystemUnavailableError, UserHandledError
 
 logger = logging.getLogger(__name__)
@@ -140,62 +131,16 @@ def publish_tool_progress(
 def _publish_tool_line(cmd: str, stream_name: str, line: str) -> None:
     """Publish a tool output line (plus any percentage found in it) to the bus.
 
-    The desktop GUI subscribes to stream a live log pane and progress bar; the
-    CLI has no subscribers, so this is a cheap no-op there.
+    Observers render it themselves: the desktop GUI streams it into a log pane and
+    progress bar, and the CLI's ``ProcessingView`` keeps the last few lines on
+    screen under its status line.  Publishing is infallible and cheap, so callers
+    never need to know whether anything is listening.
     """
     text = line.rstrip("\n")
     events.publish(events.EVENT_TOOL_OUTPUT, {"cmd": cmd, "stream": stream_name, "line": text})
     match = _PERCENT_RE.search(text)
     if match:
         publish_tool_progress(cmd, percent=int(match.group(1)), line=text)
-
-
-class ToolLiveDisplay:
-    """Live renderable: a running spinner plus the most recent tool output lines.
-
-    Fed incrementally by ``tool_run_streaming`` via :meth:`add_line`.  stderr lines
-    render red, stdout lines yellow.  Each line is truncated to a single row so the
-    display stays a fixed height while the tool runs.
-    """
-
-    MAX_LINES = 3
-
-    def __init__(self, name: str) -> None:
-        self.name = name
-        self.spinner = Spinner(
-            "arc",
-            text=f"Tool running: [bold]{name}[/bold]...",
-            speed=2.0,
-            style=SPINNER_STYLE,
-        )
-        self._lines: deque[Text] = deque(maxlen=self.MAX_LINES)
-        self._done = False
-
-    def add_line(self, line: str, is_stderr: bool) -> None:
-        """Append a tool output line, keeping only the most recent MAX_LINES."""
-        text = line.rstrip("\n")
-        if not text.strip():
-            return
-        self._lines.append(
-            Text(
-                text,
-                style="red" if is_stderr else "yellow",
-                no_wrap=True,
-                overflow="ellipsis",
-            )
-        )
-
-    def finish(self) -> None:
-        """Swap the spinner for a static header so the final frame persists."""
-        self._done = True
-
-    def __rich__(self) -> RenderableType:
-        header: RenderableType = (
-            Text(f"Tool completed: {self.name}", style="dim") if self._done else self.spinner
-        )
-        # Indent each output line by 4 spaces beneath the header.
-        lines = [Padding(line, (0, 0, 0, 4)) for line in self._lines]
-        return Group(header, *lines)
 
 
 def tool_emit_logs(lines: str, log_level: int = logging.INFO) -> None:
@@ -372,9 +317,6 @@ def tool_run_streaming(
             if log_out:
                 log_out.write(line)
                 log_out.flush()  # Just in case the user is 'tailing' the file
-            active_display = Tool._active_display
-            if active_display is not None:
-                active_display.add_line(line, is_stderr=stream_name == "stderr")
             # Tag a structured stdout so log renderers can drop its protocol frames.
             published_stream = (
                 f"stdout.{stdout_mime}" if stdout_mime and stream_name == "stdout" else stream_name
@@ -439,14 +381,10 @@ class Tool:
     # of our call tree, that variables get passed down to all sub-tools.
     _default_log_out: io.TextIOWrapper | None = None
 
-    # The live output display owned by the outermost tool in a call chain.  Nested
-    # tools (and tool_run_streaming) feed their output lines into this same display.
-    _active_display: "ToolLiveDisplay | None" = None
-
-    # If True, this tool renders its own progress display in _run() (e.g. a Rich
-    # Progress bar), so Tool.run() suppresses the default spinner to avoid nested
-    # Live displays.
-    manages_own_progress: bool = False
+    # NOTE: tools no longer own a live terminal display.  The CLI renders run
+    # progress from the event bus (see ProcessingView), so nothing here draws over
+    # it -- two Rich Live displays on one console tear each other apart
+    # (doc/plans/cli-live-display.md).
 
     def __init__(self, name: str) -> None:
         self.name: str = name
@@ -480,55 +418,33 @@ class Tool:
 
         If cwd is provided, use that as the working directory otherwise a temp directory is used as cwd.
         """
-        from starbash import console  # Lazy import to avoid circular dependency
-
         temp_dir = None
-        # Only the outermost tool in a call chain owns the live display; nested tools
-        # (and tool_run_streaming) feed their output into the already-active display.
-        owns_display = not self.manages_own_progress and Tool._active_display is None
-        display_obj = ToolLiveDisplay(self.name) if owns_display else None
-        display = (
-            Live(display_obj, console=console, refresh_per_second=8, transient=False)
-            if display_obj is not None
-            else nullcontext()
-        )
-        with display:
-            if display_obj is not None:
-                Tool._active_display = display_obj
+        did_set_default_log = False  # Assume we are not the top entry into the chain of tool calls
+        if log_out:
+            if not Tool._default_log_out:
+                # set the class default log output if we don't have one yet
+                Tool._default_log_out = log_out
+                did_set_default_log = True
 
-            did_set_default_log = (
-                False  # Assume we are not the top entry into the chain of tool calls
-            )
-            if log_out:
-                if not Tool._default_log_out:
-                    # set the class default log output if we don't have one yet
-                    Tool._default_log_out = log_out
-                    did_set_default_log = True
+        # Use the default if someone higher up provided it
+        my_log = log_out if log_out else Tool._default_log_out
 
-            # Use the default if someone higher up provided it
-            my_log = log_out if log_out else Tool._default_log_out
+        try:
+            if not cwd:
+                # Create a temporary directory for processing
+                cwd = temp_dir = tempfile.mkdtemp(prefix=self.name)
 
-            try:
-                if not cwd:
-                    # Create a temporary directory for processing
-                    cwd = temp_dir = tempfile.mkdtemp(prefix=self.name)
+                context["temp_dir"] = temp_dir  # pass our directory path in for the tool's usage
 
-                    context["temp_dir"] = (
-                        temp_dir  # pass our directory path in for the tool's usage
-                    )
+            self._run(cwd, commands, context=context, log_out=my_log, **kwargs)
+        finally:
+            if temp_dir:
+                shutil.rmtree(temp_dir)
+                context.pop("temp_dir", None)
 
-                self._run(cwd, commands, context=context, log_out=my_log, **kwargs)
-            finally:
-                if display_obj is not None:
-                    display_obj.finish()
-                    Tool._active_display = None
-                if temp_dir:
-                    shutil.rmtree(temp_dir)
-                    context.pop("temp_dir", None)
-
-                if did_set_default_log:
-                    # clear the class default log output if we set it
-                    Tool._default_log_out = None
+            if did_set_default_log:
+                # clear the class default log output if we set it
+                Tool._default_log_out = None
 
     def _run(
         self,

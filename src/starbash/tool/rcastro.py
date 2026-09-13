@@ -7,15 +7,6 @@ import os
 import re
 from typing import Any
 
-from rich.progress import (
-    BarColumn,
-    Progress,
-    SpinnerColumn,
-    TaskProgressColumn,
-    TextColumn,
-    TimeRemainingColumn,
-)
-
 from starbash.tool.base import ExternalTool, publish_tool_progress, tool_run_streaming
 from starbash.tool.context import expand_context_unsafe
 
@@ -59,8 +50,6 @@ class RCAstroTool(ExternalTool):
 
     Always passes ``--json`` so the streaming output can drive a live progress bar.
     """
-
-    manages_own_progress = True
 
     def __init__(self) -> None:
         super().__init__(
@@ -116,9 +105,12 @@ class RCAstroTool(ExternalTool):
         log_out: io.TextIOWrapper | None = None,
         **kwargs: dict[str, Any],
     ) -> None:
-        """Execute rc-astro with the specified command line arguments."""
-        from starbash import console  # Lazy import to avoid circular dependency
+        """Execute rc-astro with the specified command line arguments.
 
+        Progress is published on the event bus rather than drawn here: the CLI's
+        ``ProcessingView`` and the GUI both render it, and a tool-owned Rich
+        ``Live``/``Progress`` would fight the observer's display for the console.
+        """
         args = self.build_args(commands, context)
         cmd = f"{self.executable_path} " + " ".join(args)
 
@@ -132,49 +124,31 @@ class RCAstroTool(ExternalTool):
         except (ValueError, IndexError):
             pass
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            TimeRemainingColumn(),
-            console=console,
-            transient=True,
-        ) as progress:
-            task = progress.add_task(f"[bold]{self.name}[/bold]", total=100.0)
+        def on_line(line: str) -> None:
+            obj = parse_json_line(line)
+            if obj is None:
+                return
+            event = obj.get("event")
+            if event == "progress":
+                done = float(obj.get("done", 0.0))
+                publish_tool_progress(cmd, percent=done, message="Processing")
+            elif event == "status":
+                message = obj.get("message") or obj.get("phase") or ""
+                if message:
+                    # No percentage in a status line, so this is a phase-only
+                    # update; consumers must not reset their bar to zero.
+                    publish_tool_progress(cmd, message=message)
+            elif event == "info":
+                logger.debug(f"[rc-astro] {obj}")
 
-            def on_line(line: str) -> None:
-                obj = parse_json_line(line)
-                if obj is None:
-                    return
-                event = obj.get("event")
-                if event == "progress":
-                    done = float(obj.get("done", 0.0))
-                    message = "Processing"
-                    progress.update(
-                        task, completed=done, description=f"[bold]{self.name}[/bold]: {message}"
-                    )
-                    # Surface the structured progress on the bus too: the CLI
-                    # drives its own Rich bar above, but the GUI only sees events.
-                    publish_tool_progress(cmd, percent=done, message=message)
-                elif event == "status":
-                    message = obj.get("message") or obj.get("phase") or ""
-                    progress.update(task, description=f"[bold]{self.name}[/bold]: {message}")
-                    if message:
-                        # No percentage in a status line, so this is a phase-only
-                        # update; consumers must not reset their bar to zero.
-                        publish_tool_progress(cmd, message=message)
-                elif event == "info":
-                    logger.debug(f"[rc-astro] {obj}")
-
-            # ``--json`` makes stdout a structured event stream, so declare it:
-            # log renderers then skip these protocol frames (the useful parts are
-            # already published as tool.progress) while log_out keeps them raw.
-            tool_run_streaming(
-                cmd,
-                cwd,
-                on_line=on_line,
-                timeout=self.timeout,
-                log_out=log_out,
-                stdout_mime="json",
-            )
+        # ``--json`` makes stdout a structured event stream, so declare it:
+        # log renderers then skip these protocol frames (the useful parts are
+        # already published as tool.progress) while log_out keeps them raw.
+        tool_run_streaming(
+            cmd,
+            cwd,
+            on_line=on_line,
+            timeout=self.timeout,
+            log_out=log_out,
+            stdout_mime="json",
+        )

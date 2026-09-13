@@ -133,6 +133,10 @@ This keeps existing tools untouched (they keep calling `tool_run`); only
     - `event == "info"` (e.g. `modelDownload`, `device`, `version`) → log at debug.
   - Integrate with the existing per-tool Rich `Live`/`Spinner` in `Tool.run()`:
     swap or augment the spinner with a `Progress` bar for this tool.
+    **Superseded:** tools no longer own a Rich `Live` at all — they publish
+    `tool.progress` events and the CLI's `ProcessingView` renders them (a second
+    `Live` on one console fought the observer's display; see
+    `doc/plans/cli-live-display.md`).
 
 #### 3. Register the tool (`src/starbash/tool/__init__.py`)
 
@@ -228,8 +232,9 @@ plumbing), add `starbash-recipes/rc-astro/noise-exterminator.toml` — a recipe 
 runs NoiseXTerminator (`nxt`) on the outputs of blur-exterminator by default.
 
 **No tool code changes required.** `RCAstroTool` already runs any `rc-astro`
-subcommand, auto-injects `--json`, and drives the live progress bar. m3 is purely a
-new recipe + tests + docs.
+subcommand and auto-injects `--json`. *Superseded:* it no longer drives a bar
+itself — it publishes `tool.progress` events and the CLI/GUI render them (see
+`doc/plans/cli-live-display.md`). m3 is purely a new recipe + tests + docs.
 
 ### Goals
 

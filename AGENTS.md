@@ -38,7 +38,7 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   reads them into `self.default_stages`; `remove_excluded_tasks()` (in `stages.py`) applies them.
 - **Tools**: `src/starbash/tool/` — runners for Siril (Flatpak, stdin script), GraXpert (CLI),
   Python (RestrictedPython sandbox), and rc-astro (BlurXTerminator `bxt` + NoiseXTerminator `nxt`
-  CLI; always passes `--json` and streams JSON progress events to a live Rich progress bar via
+  CLI; always passes `--json` and streams JSON progress events onto the event bus via
   `tool_run_streaming`). When a tool's stdout is a *machine-readable* protocol
   (rc-astro declares `stdout_mime="json"`), `tool_run_streaming` names its
   `EVENT_TOOL_OUTPUT` stream `stdout.<mime>` (e.g. `stdout.json`); log renderers
@@ -49,8 +49,10 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   `paths.set_test_directories(...)`.
 - **Events**: `src/starbash/events.py` — dependency-free pub/sub bus. The core
   *publishes* (tool output, task transitions, stage results, reindex/target
-  progress); the CLI subscribes to nothing, so its behaviour is unchanged. See
-  *Desktop GUI* below.
+  progress); observers render from it — the CLI's `ProcessingView` is the single
+  live widget for a run, and the GUI bridges the same events to Qt. Nothing in
+  the core (or in a tool) draws to the terminal itself; see
+  `doc/plans/cli-live-display.md`. Also see *Desktop GUI* below.
 - **Interaction**: `src/starbash/interaction.py` — `UserInteraction` protocol
   (`confirm`/`text`/`notify`/`open_url`) with a Rich default (identical CLI
   behaviour), an `AutoAccept` headless impl, and a process-wide accessor. Guided

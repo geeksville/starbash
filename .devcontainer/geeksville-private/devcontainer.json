@@ -94,7 +94,8 @@
 				"skellock.just",
 				"detachhead.basedpyright",
 				"bierner.markdown-mermaid",
-				"ppp-one.simple-fits-viewer"
+				"ppp-one.simple-fits-viewer",
+				"ozzafar.debugmcpextension"
 			],
 			"settings": {
 				"terminal.integrated.defaultProfile.linux": "zsh"

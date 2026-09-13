@@ -4,7 +4,9 @@ from pathlib import Path
 from typing import Any
 
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
+from rich.text import Text
 from rich.tree import Tree
 
 from starbash.url import make_file_url
@@ -137,7 +139,10 @@ def run_tree_to_rich(run: dict[str, Any], root_label: str | None = None) -> Tree
         branch = tree.add(head)
 
         for line in stage.get("logs", []):
-            branch.add(f"[dim]{line}[/dim]")
+            # Tool output is arbitrary text: render it literally (a stray "[" in a
+            # Siril line would otherwise raise MarkupError inside the live display's
+            # refresh thread and freeze it).
+            branch.add(Text(str(line), style="dim"))
 
         outputs = _file_ref_links(stage.get("outputs", []))
         if outputs:
@@ -154,7 +159,7 @@ def run_tree_to_rich(run: dict[str, Any], root_label: str | None = None) -> Tree
             if task.get("session"):
                 row += f" [dim]{task['session']}[/dim]"
             if task.get("reason"):
-                row += f" [dim]({task['reason']})[/dim]"
+                row += f" [dim]({escape(str(task['reason']))})[/dim]"
             task_out = _file_ref_links(task.get("outputs", []))
             if task_out:
                 row += f" [dim]→[/dim] {task_out}"

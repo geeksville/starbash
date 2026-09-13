@@ -1,5 +1,77 @@
 # Active Context
 
+## Current work focus — one live CLI widget (event-driven)
+
+Implementing [`doc/plans/cli-live-display.md`](../../doc/plans/cli-live-display.md):
+the CLI now has **exactly one** live display, driven only by `starbash.events`.
+
+- **Root cause of the "torn CLI output"** — Rich 15 *stacks* live displays per
+  console (`Console.set_live` returns `len(stack) == 1`); a nested `Live.refresh()`
+  calls `console._live_stack[0].refresh()`.  So the per-tool `ToolLiveDisplay`
+  (`Tool.run` wrapped `Tool._run` in its own 8 Hz `Live`) force-repainted the
+  `ProcessingView` tree 8×/s and then printed its block *over* the live region.
+  rc-astro did the same thing with its own `Progress(...)` context manager.
+- **Removed** — `ToolLiveDisplay`, `Tool._active_display`,
+  `Tool.manages_own_progress`, the `Live`/`nullcontext` block in `Tool.run` and
+  the rc-astro `Progress` bar.  Tools only publish events now (unchanged
+  payloads: `tool.started/finished/output/progress`).
+- **`ProcessingView`** (`commands/process.py`) is the single owner of the console
+  `Live` and *is* the live renderable (`Live(self)`), so Rich's own 4 Hz refresh
+  thread paints current state: no per-event `update()` storm (Siril emits
+  thousands of lines) and nothing can outpace the terminal.  `__rich__` =
+  `_render()`.
+- **`_render()` returns a `rich.layout.Layout`, not a `Group`** (fix 2, see
+  below).  A pinned top region (title + spinner/caption/tool/percentage + tool
+  tail + progress bars) is sized to its content; the run trees get the rest.
+- **Status line** — `Spinner("arc", text=Text)` + a literal `Text` caption built
+  from `process.target` / `run.started` / `task.started` / `task.finished` /
+  `tool.started` / `tool.progress` / `tool.finished`, e.g.
+  `stack: Stack lights · Siril 45%`.  Tool tail = last 3 non-structured
+  `tool.output` lines (stderr red, stdout yellow, one row each with ellipsis);
+  cleared on `tool.started`.  `finish()` leaves `✓ <title>: done` on screen — or
+  `✗ Failed: <task>` if anything failed (the final frame must not claim success).
+- **`tool_label(cmd)`** (`commands/process.py`) shortens a command line
+  (`flatpak run --command=siril-cli org.siril.Siril …` → `Siril`).
+- **Hardening** — `rich.run_tree_to_rich` renders log lines as literal `Text`
+  (a `[` in tool output used to raise `MarkupError` *inside the refresh thread*,
+  which froze the display); task `reason` is `rich.markup.escape`d.
+- **Verified** — PTY repro (`/tmp/sb_live_repro2.py` + a mini terminal emulator)
+  shows one clean pane: tree, spinner/status, tool tail, progress bars, no
+  orphans.  **Gotcha:** read `script`/pty recordings with `newline=""` — Python's
+  universal newlines rewrite `\r` as `\n` and make a *correct* live display look
+  like it drifts; this sandbox's pty layer also mangles termios.
+- Tests: `tests/unit/test_run_tree_rich.py` (`TestToolLabel`,
+  `TestLiveStatusLine`, bracketed-log-line case).  Docs updated: `AGENTS.md`,
+  `events.py`, `.github/copilot-instructions.md`, `doc/design.md` (superseded
+  notes).
+- **Fix 2 — three red `...` everywhere and no spinner.**  Rich crops a live
+  renderable that is too tall by keeping the *top* and appending its red
+  `live.ellipsis` marker, so the old single `Group(header, *trees, status,
+  progress)` did exactly the wrong thing: a real auto run has hundreds of
+  `Master ...` runs (**212 lines median / 327 max** vs a 24-50 row terminal,
+  **93-97% of frames overflowed**), so the status/tail/bars — being *last* —
+  were cropped away and `...` was left.  The dots were not a progress indicator.
+  **Fix:** split the screen with `rich.layout.Layout` — a top region sized to the
+  status, run trees below — and make the tree region a small `_RunTail`
+  renderable that takes the **newest runs** until the region is full and prints
+  `… N earlier runs` (Rich's crop keeps the top, which is the wrong end for a
+  live log).  Unfitted runs are never rendered, so cost tracks the screen, not
+  the run count.
+- **Verified after fix 2** (real PTY 100x30, 75 s of `sb process auto`): the
+  live shape is *constant* (~29-30 rows) across all 266 frames instead of growing
+  212→327; Rich's `...` count fell **245 → 13**, and all 13 are real text
+  (`Starting...`, `Processing tasks...`, `Linking input files...`, a Siril log
+  line).  Spinner + percentage + log tail + both progress bars are present in
+  every sampled frame.  Regression tests: `TestLiveLayout` (renders at a given
+  size and asserts the row count never exceeds it, no `...`, status on row 1
+  with 200 runs).
+- **PTY-debugging kit** (kept in `/tmp`, per-session): `/tmp/pty_win.py` runs a
+  command under a pty with a real `TIOCSWINSZ` size (a 0x0 pty makes Rich fall
+  back to 80x24 and hides overflow), `/tmp/vt.py` is a mini VT screen emulator,
+  `/tmp/check_cap.py` counts `...`/frames and prints the screen at several replay
+  points.  Measure the live shape per frame by counting consecutive
+  `\x1b[1A\x1b[2K` runs (Rich emits one per rendered line).
+
 ## Current work focus — `ProcessedTarget` model + live run tree
 
 Implementing [`doc/plans/processed-target-model.md`](../../doc/plans/processed-target-model.md):
@@ -28,10 +100,11 @@ Landed (all phases):
   `tool.output`/`log.message` to feed the per-stage log tail, and `_finish_runs()`
   persists + announces each target's run.
 - **CLI** — `commands/process.py` replaces the end-of-run table with a live
-  `ProcessingView` (one shared `rich.live.Live` hosting the `Progress` bar and the
-  tree); `rich.run_tree_to_rich()` renders `target → stage → task` with status
-  glyphs, clickable output/recipe/config links and the log tail. `Processing`
-  now accepts an external `Progress` so there is only one render loop.
+  `ProcessingView` (one shared `rich.live.Live` hosting the `Progress` bar, the
+  tree and the live status line — see the section above); `rich.run_tree_to_rich()`
+  renders `target → stage → task` with status glyphs, clickable output/recipe/
+  config links and the log tail. `Processing` now accepts an external `Progress`
+  so there is only one render loop.
 - **GUI** — `ui/qt/pages/processing.py` builds the same nested tree from the
   plain `run` snapshots (`_render_run`), coloured by status.  There is **no
   separate log pane**: the tree is `target → stage → task`, and each task carries

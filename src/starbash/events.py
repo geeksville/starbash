@@ -4,9 +4,12 @@ Starbash is CLI-first: the core modules (``tool.base``, ``doit``, ``app``,
 ``processing``) must not import a UI toolkit.  Instead they *publish* small,
 structured events here, and any interested observer *subscribes*.
 
-The CLI subscribes to nothing, so its behaviour is completely unchanged.  The
-desktop GUI (`sb gui`) subscribes and bridges these events onto Qt signals so
-widgets update live while a tool or processing run is in progress.
+Observers render whatever they need: the CLI's ``ProcessingView``
+(``commands/process.py``) keeps one live tree/status widget up to date for the
+duration of a run, and the desktop GUI (`sb gui`) bridges the same events onto Qt
+signals so its widgets update live.  Nothing in the core draws to the terminal --
+a tool that drew its own Rich ``Live`` would fight the observer for the console
+(see ``doc/plans/cli-live-display.md``).
 
 Design notes
 ------------
