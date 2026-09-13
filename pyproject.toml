@@ -59,7 +59,7 @@ doit-graph = ">=0.3.0"
 # We don't currently use this text based sql client
 # harlequin = "^2.4.1"
 library-skills = "^0.0.19"
-semble = "^0.5.6"
+semble = {version = "^0.6.0", extras = ["mcp"]}
 
 [tool.poetry.scripts]
 starbash = "starbash.main:app"

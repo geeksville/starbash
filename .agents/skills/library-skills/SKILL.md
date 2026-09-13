@@ -11,27 +11,32 @@ Run commands from the project root.
 
 Agents bundle their own skills by including an `.agents/skills` directory. More details in [Library Skills](https://library-skills.io).
 
+This project uses **Poetry**, so run the tool through the project virtualenv as
+`poetry run library-skills` (never `uvx`/`pip install` — see `AGENTS.md` →
+*Build / test / run*). `library-skills` is installed as a dev dependency, so
+`poetry install --with dev` provides it.
+
 ## First-Time Setup
 
-- Make sure project dependencies are installed first, for example with `uv sync` for Python projects or `npm install` / `bun install` for Node.js projects.
-- Run `uvx library-skills` or `npx library-skills` to discover skills bundled by the installed packages and install selected skills interactively.
-- Use `uvx library-skills --all` or `npx library-skills --all` only when all newly discovered skills should be installed without selecting individual skills.
-- Use `uvx library-skills --tool-skill` or `npx library-skills --tool-skill` to copy this Library Skills tool skill into the project so future agents know how to discover, install, update, repair, and check skills.
+- Make sure project dependencies are installed first with `poetry install --with dev`.
+- Run `poetry run library-skills` to discover skills bundled by the installed packages and install selected skills interactively.
+- Use `poetry run library-skills --all` only when all newly discovered skills should be installed without selecting individual skills.
+- Use `poetry run library-skills --tool-skill` to copy this Library Skills tool skill into the project so future agents know how to discover, install, update, repair, and check skills.
 
 ## Commands
 
-- Run `uvx library-skills` or `npx library-skills` to discover package-provided skills, install selected new skills, and reconcile existing managed symlinks.
-- Run `uvx library-skills list` or `npx library-skills list` to inspect discovered and installed skills.
-- Run `uvx library-skills list --json` or `npx library-skills list --json` for machine-readable installed status.
-- Run `uvx library-skills scan --json` or `npx library-skills scan --json` for discovery-only automation.
-- Run `uvx library-skills --check` or `npx library-skills --check` to validate managed skill symlink state without changing files.
-- Run `uvx library-skills --yes` or `npx library-skills --yes` to repair stale managed symlinks and remove orphaned managed symlinks non-interactively.
+- Run `poetry run library-skills` to discover package-provided skills, install selected new skills, and reconcile existing managed symlinks.
+- Run `poetry run library-skills list` to inspect discovered and installed skills.
+- Run `poetry run library-skills list --json` for machine-readable installed status.
+- Run `poetry run library-skills scan --json` for discovery-only automation.
+- Run `poetry run library-skills --check` to validate managed skill symlink state without changing files.
+- Run `poetry run library-skills --yes` to repair stale managed symlinks and remove orphaned managed symlinks non-interactively.
 - Add `--claude` when `.claude/skills` should also be managed.
 - Add `--skill NAME` to install a specific discovered skill by name.
 
 ## Safety
 
-- Prefer rerunning `library-skills` over editing managed symlinks manually.
-- If installed skill symlinks are broken, dependencies may not be installed yet. Try the project's normal install command first, such as `uv sync`, `npm install`, or `bun install`, then rerun `library-skills`.
+- Prefer rerunning `poetry run library-skills` over editing managed symlinks manually.
+- If installed skill symlinks are broken, dependencies may not be installed yet. Run the project's normal install command first (`poetry install --with dev`), then rerun `poetry run library-skills`.
 - Do not delete or overwrite hand-authored skill directories.
 - Library Skills only removes managed symlinks. It should not remove copied or hand-authored skill directories.
