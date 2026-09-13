@@ -72,13 +72,14 @@ processing dirs of targets that have not run yet (once there are >2 targets).
 Candidate approaches:
 
 - **A. Pre-build all target tasks and run them from the pre-built list**, adding
-  a cleanup opt-out for the phase-2 loop and deleting each target's dir right
-  after it runs. Most accurate and no double build. With the `close()` fix above,
-  the remaining cost is that `_run_all_tasks()` still prunes after *each* target,
-  so the phase-2 loop needs either a cleanup opt-out or per-target
-  delete-immediately-after-run. This is now the recommended approach: the one
-  invasive bit (moving cleanup out of `close()`) is already done, and the phase-2
-  loop already owns its own call site, so making it explicit is small.
+  a cleanup opt-out for the phase-2 loop. Most accurate and no double build. With
+  the `close()` fix above, the remaining cost is that `_run_all_tasks()` still
+  prunes after *each* target, so the phase-2 loop needs a cleanup opt-out. This is
+  the approach that landed: the one invasive bit (moving cleanup out of `close()`)
+  is already done, and the phase-2 loop already owns its own call site, so making
+  it explicit is small. (The phase-2 loop originally *also* deleted each target's
+  dir right after its run; that broke reuse and was reverted — see *Each target's
+  processing dir is kept* below.)
 - **B. Throwaway "discovery" pass.** Build all target tasks (and master tasks)
   into a temporary list to compute the needed-master set, discard them, then run
   phase 2 exactly as today (rebuilding per target). No further cleanup change
@@ -98,8 +99,8 @@ build-time `cwd` can go stale is if something prunes (deletes) a processing dir
 *between* building and running — and with cleanup now confined to
 `_run_all_tasks()`, a pure planning pass cannot trigger that. Under approach A
 the phase-2 loop must therefore simply not interleave a prune that would delete a
-not-yet-run target's dir (handled by the cleanup opt-out / delete-after-run
-above).
+not-yet-run target's dir (handled by the `prune=False` + end-of-run cleanup
+opt-out above).
 
 **Recommendation:** implement **A** (now low-risk given the `close()` fix), and
 fall back to **B** only if reuse of prebuilt tasks proves awkward.
@@ -134,15 +135,16 @@ clear seam:
    wants to show before work starts. (This event can subsume/replace the
    narrower `EVENT_RUNS_CULLED` below; carrying cull info in it is fine.)
 3. **Run** — execute the prebuilt tasks with `_run_all_tasks(..., prune=False)`
-   so no prune deletes a not-yet-run target's directory, and delete each
-   target's processing dir immediately after its run
-   (`ProcessedTarget.remove_processing_dir()`); then one
-   `cleanup_old_contexts()` at the very end.
+   so no mid-run prune deletes a not-yet-run target's processing dir; then one
+   `cleanup_old_contexts()` at the very end applies the `max_contexts` bound.
+   Each target **keeps** its processing dir — that dir is the *reuse cache*
+   (`ProcessedTarget._init_processing_dir` reuses an existing one), so deleting
+   it would make the next run redo every stage from scratch.  Note the cache is
+   only bounded when `> max_contexts` dirs exist, so a user who wants to keep
+   every target's intermediates sets a large `max_contexts` (e.g. `80`).
 
 This keeps the unit of work granular (per target) while giving the UI a clean
-"plan is ready" signal, and — because the preflight phase creates the dirs but
-does not populate them — it is the natural place to bound the `.cache`
-processing tree.
+"plan is ready" signal.
 
 ### Core (`src/starbash/processing.py`, `src/starbash/events.py`)
 
@@ -175,9 +177,10 @@ processing tree.
      via `masters_needed_by()`, and publishes `EVENT_PREFLIGHT_FINISHED` with the
      dropped labels.  (It is naturally a no-op with ≤1 master run or no targets,
      so no extra guard is needed.)
-   - Phase 2 runs each *prebuilt* target task list with `prune=False`, then
-     calls `ProcessedTarget.remove_processing_dir()` immediately after each
-     target; one `cleanup_old_contexts()` runs at the very end.
+   - Phase 2 runs each *prebuilt* target task list with `prune=False` (so no
+     mid-run prune deletes a not-yet-run target's cache); one
+     `cleanup_old_contexts()` runs at the very end and applies the
+     `max_contexts` bound.
    - `--no-masters` simply skips phase 1 (empty `master_results`), so nothing is
      culled.
 
@@ -212,10 +215,10 @@ item from `self._tasks` and pop it from `self._targets` (guarding
    the master results and publishes the drop list).  Guarded so it is a no-op
    with ≤1 master run or no targets.
 2. ✅ **Preflight phase** in `run_all_stages()`: build every target first, publish
-   the cull, then run the prebuilt tasks with `prune=False` and shed each
-   target's processing dir via `ProcessedTarget.remove_processing_dir()` right
-   after its run; one `cleanup_old_contexts()` at the very end.  Targets are now
-   processed in stable session order (deduped) rather than arbitrary `set` order.
+   the cull, then run the prebuilt tasks with `prune=False` (no mid-run prune of a
+   not-yet-run target's cache); one `cleanup_old_contexts()` at the very end
+   applies the `max_contexts` bound.  Targets are now processed in stable session
+   order (deduped) rather than arbitrary `set` order.
 3. ✅ **CLI handler** in `ProcessingView._on_event` (`EVENT_PREFLIGHT_FINISHED`).
 4. ✅ **GUI handler** in `ProcessingPage._on_preflight_finished`.
 5. ✅ **Memory bank** update (`activeContext.md`) referencing this plan.
@@ -227,11 +230,21 @@ Two details worth calling out:
   guard, a selection with no light frames would compute an empty `needed` set and
   drop *every* master run from the displayed tree — the masters did run, so they
   must stay visible.
-* **Each target's processing dir is shed immediately.** Instead of relying on a
-  prune between targets (which could delete a dir that has not run yet), the run
-  loop calls `ProcessedTarget.remove_processing_dir()` right after that target's
-  run, then prunes once at the very end. This is what keeps the `.cache` tree
-  from accumulating one per-target copy while still bounding it normally.
+* **Each target's processing dir is *kept* — it is the reuse cache.**
+  *(Corrected after the first implementation deleted it.)* The run loop
+  originally called `ProcessedTarget.remove_processing_dir()` right after each
+  target's run, to stop the `.cache` processing tree accumulating one copy per
+  target. That was wrong: a named target's processing dir is exactly what
+  `ProcessedTarget._init_processing_dir()` **reuses** on the next run, so deleting
+  it discarded every intermediate (`bkg_pp_light_*.seq`, …) and made the next
+  `sb process` redo the whole pipeline from scratch — including the expensive
+  parts (a single stack was ~27 min in testing). The method is gone; no mid-run
+  prune happens (`prune=False`) and the single end-of-run
+  `cleanup_old_contexts()` applies the user's `max_contexts` (default 2; the
+  reference config uses 80 precisely so every target's cache survives).
+  Regression tests:
+  `TestRunAllStagesPreflight::test_target_processing_dir_is_kept_after_run` and
+  `TestProcessedTarget::test_named_processing_dir_is_a_reuse_cache`.
 
 ### Where the tests live
 

@@ -341,11 +341,12 @@ class Processing(ProcessingLike):
         Args:
             tasks: The doit task dictionaries to execute.
             prune: When true (the default) shed the oldest processing contexts
-                once the batch finishes.  The auto pipeline passes ``False``
-                while running pre-built targets: their processing directories
-                are created up front, so pruning mid-run could delete a not-yet
-                run target's directory.  That caller removes each target's
-                directory as soon as it finishes, and prunes once at the end.
+                once the batch finishes, honouring ``max_contexts``.  The auto
+                pipeline passes ``False`` while running pre-built targets: the
+                preflight phase created every target's processing directory up
+                front, so a mid-run prune could delete the (reusable) cache of a
+                target that has not run yet.  That caller prunes once at the end
+                of the whole run instead.
         """
         self.doit.set_tasks(tasks)
         self.results.clear()
@@ -442,8 +443,12 @@ class Processing(ProcessingLike):
            tool.  This resolves each target's recipes and input ``requires``,
            creates its processing/output directories and writes its config, and
            tells us which master runs nothing actually needs.
-        3. **Run** — execute the pre-built target tasks, removing each target's
-           (potentially huge) processing directory as soon as it finishes.
+        3. **Run** — execute the pre-built target tasks.  Each target keeps its
+           processing directory: that directory is the *reuse cache* (see
+           ``ProcessedTarget._init_processing_dir``), so deleting it after a run
+           would make the next run redo every stage from scratch.  The cache is
+           bounded instead by a single ``cleanup_old_contexts()`` at the very end
+           of the run, which honours ``max_contexts``.
 
         """
         sessions = self.sb.search_session()
@@ -471,8 +476,9 @@ class Processing(ProcessingLike):
         progress_task = self.progress.add_task("Processing targets...", total=len(targets_list))
 
         # --- preflight: build the task graph for every target, run nothing ---
-        # We deliberately do *not* run every target in one big doit run, because
-        # we want to shed each target's processing dir as soon as it is done.
+        # Targets run one at a time (rather than as one big doit run) so each gets
+        # its own run boundary (run.started / run.finished) and the cull can be
+        # published before any target task starts.
         prebuilt: dict[str | None, list[TaskDict]] = {}
         try:
             for index, t in enumerate(targets_list, start=1):
@@ -502,25 +508,22 @@ class Processing(ProcessingLike):
                     {"target": t or "masters", "total": len(targets_list)},
                 )
                 tasks = prebuilt.get(t) or self._create_tasks(sessions, [t])
-                pt = self._processed_target_of(tasks)
-                self.processed_target = pt
-                # Don't prune mid-run: every target's processing dir was created
-                # up front, so pruning could delete one we have not run yet.
+                self.processed_target = self._processed_target_of(tasks)
+                # Don't prune mid-run: preflight created every target's processing
+                # dir up front, so a prune here could delete the reusable cache of
+                # a target we have not run yet.  One prune at the end of the run
+                # applies the max_contexts bound instead.
                 target_results = self._run_all_tasks(tasks, prune=False)
                 results.extend(target_results)
                 self._finish_runs(target_results)
-                # The scratch tree can be hundreds of GB; drop it now instead of
-                # letting one accumulate per target until the next prune.
-                if pt is not None:
-                    pt.remove_processing_dir()
                 self.processed_target = None
         finally:
             # we manually created this task, so we manually need to remove it
             self.progress.remove_task(progress_task)
             self.processed_target = None
-            # Re-apply the normal cache bound now that the whole run is over.  This
-            # runs even if a target failed, so an interrupted run cannot leave an
-            # unbounded scratch tree behind (completed targets were already shed).
+            # Apply the normal cache bound now that the whole run is over (this is
+            # the run's only prune).  Runs even if a target failed, so an
+            # interrupted run still bounds the cache afterwards.
             cleanup_old_contexts()
 
         return results

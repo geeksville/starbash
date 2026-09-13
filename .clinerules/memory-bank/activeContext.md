@@ -386,10 +386,18 @@ Open tabs / files being touched suggest active work in:
   `Processing.run_all_stages()` now (1) runs masters, (2) builds **every** target's
   tasks without running anything, computes needed masters with
   `masters_needed_by()` and publishes `events.EVENT_PREFLIGHT_FINISHED`
-  (`{"drop": [labels]}`), then (3) runs the prebuilt tasks with `prune=False`,
-  deleting each target's `.cache` processing dir via
-  `ProcessedTarget.remove_processing_dir()` immediately after its run and pruning
-  once at the end. Front-ends: `ProcessingView` (CLI) and
+  (`{"drop": [labels]}`), then (3) runs the prebuilt tasks with `prune=False` and
+  prunes once at the end (`cleanup_old_contexts()`).
+  **Correction (after an in-the-field regression):** a named target's
+  `~/.cache/starbash/processing/<target>` dir is the *reuse cache* — deleting it
+  after the run made the next `sb process` redo every stage from scratch. The
+  initial implementation did exactly that via a since-removed
+  `ProcessedTarget.remove_processing_dir()`; targets now keep their processing
+  dir, and the single end-of-run prune honours `max_contexts` (the reference
+  user config sets `80` so every target's cache survives). Regression tests:
+  `TestRunAllStagesPreflight::test_target_processing_dir_is_kept_after_run`,
+  `TestProcessedTarget::test_named_processing_dir_is_a_reuse_cache`.
+  Front-ends: `ProcessingView` (CLI) and
   `ProcessingPage._on_preflight_finished` (GUI). Targets now run in stable
   session order (deduped dict, not a `set`). The full `tests/unit` suite passes.
 - Complete the R3 migration: route all three OSC stacking variants through `report_registration.toml` stages, remove `_update_ha_registration_metrics()` from `src/starbash/recipes/osc.py`, and verify `.seq` basenames per stack variant (Phase 0 in `doc/design/report.md`).

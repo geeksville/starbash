@@ -395,14 +395,16 @@ class ProcessedTarget:
         """Release this job's processing directory.
 
         Only *temporary* (master) directories are removed here; a real target's
-        processing dir is left in place because it may still be used later.
+        processing dir is left in place because it is the *reuse cache* — a later
+        run reuses it instead of redoing every stage from scratch.
 
         Note: we deliberately do **not** prune older contexts here.  This method
         runs at *build* time (see ``_job_to_tasks``), and a planning pass builds
         every target before anything runs — pruning then would delete the
-        processing dirs that phase 2 is about to use.  The cache is instead
-        bounded by ``Processing._run_all_tasks()``, which calls
-        ``cleanup_old_contexts()`` once per completed run.
+        processing dirs that phase 2 is about to use.  The cache is bounded by
+        ``cleanup_old_contexts()`` instead: after each executed batch (see
+        ``Processing._run_all_tasks``) and once at the end of
+        ``Processing.run_all_stages()``.
         """
         logging.debug(f"Cleaning up processing context at {self.name}")
 
@@ -412,19 +414,6 @@ class ProcessedTarget:
         # Delete temporary directories
         if self.is_temp and self.name.exists():
             logging.debug(f"Removing temporary processing directory: {self.name}")
-            shutil.rmtree(self.name, ignore_errors=True)
-
-    def remove_processing_dir(self) -> None:
-        """Delete this job's processing directory.
-
-        Unlike :meth:`_cleanup_processing_dir`, this removes the directory even
-        for a *real* target: it is called once a target's run has finished, so
-        the (potentially hundreds-of-GB) ``.cache`` scratch tree is freed
-        immediately rather than accumulating until the next prune.
-        """
-        self.p.context.pop("process_dir", None)
-        if self.name.exists():
-            logging.debug(f"Removing processing directory: {self.name}")
             shutil.rmtree(self.name, ignore_errors=True)
 
     def _set_default_stages(self) -> None:

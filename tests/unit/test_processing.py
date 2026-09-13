@@ -1224,10 +1224,6 @@ class TestRunAllStagesPreflight:
         class FakePt:
             def __init__(self, name: str) -> None:
                 self.name = name
-                self.removed = False
-
-            def remove_processing_dir(self) -> None:
-                self.removed = True
 
         proc.sb = FakeSb()
         proc.progress = FakeProgress()
@@ -1244,19 +1240,12 @@ class TestRunAllStagesPreflight:
 
         sequence: list[tuple[str, str]] = []
         prune_flags: list[bool] = []
+        prune_calls: list[int] = []
 
         def fake_create(sessions, targets):
             target = targets[0]
             sequence.append(("create", target))
-            pt = FakePt(target)
-            orig = pt.remove_processing_dir
-
-            def fake_remove() -> None:
-                sequence.append(("remove", target))
-                orig()
-
-            pt.remove_processing_dir = fake_remove
-            return [{"meta": {"processed_target": pt}}]
+            return [{"meta": {"processed_target": FakePt(target)}}]
 
         def fake_run(tasks, prune: bool = True):
             target = tasks[0]["meta"]["processed_target"].name
@@ -1268,7 +1257,7 @@ class TestRunAllStagesPreflight:
         proc._run_all_tasks = fake_run
         proc._finish_runs = lambda results: None
         proc._publish_master_cull = lambda results, tasks: []
-        monkeypatch.setattr(processing_mod, "cleanup_old_contexts", lambda: None)
+        monkeypatch.setattr(processing_mod, "cleanup_old_contexts", lambda: prune_calls.append(1))
 
         proc.run_all_stages()
 
@@ -1279,11 +1268,43 @@ class TestRunAllStagesPreflight:
         # Targets are processed in stable selection order (deduped)...
         assert [t for kind, t in sequence if kind == "create"] == ["m42", "m31"]
         assert [t for kind, t in sequence if kind == "run"] == ["m42", "m31"]
-        # Mid-run pruning is disabled (the dirs are shed per target instead)...
+        # Mid-run pruning is disabled: preflight created every target's processing
+        # dir up front, so pruning here could delete a not-yet-run target's cache.
         assert prune_flags == [False, False]
-        # ...and each target's scratch dir is removed right after it runs.
-        assert {t for kind, t in sequence if kind == "remove"} == {"m42", "m31"}
+        # The cache bound is applied exactly once, after the whole run.
+        assert prune_calls == [1]
         assert proc.processed_target is None
+
+    def test_target_processing_dir_is_kept_after_run(self, monkeypatch):
+        """A target's processing dir is a reuse cache and must survive its run.
+
+        Regression: the run loop used to call
+        ``ProcessedTarget.remove_processing_dir()`` after each target, deleting the
+        ``~/.cache/starbash/processing/<target>`` tree and making the next run redo
+        every stage from scratch.
+        """
+        import starbash
+        from starbash import processing as processing_mod
+
+        monkeypatch.setattr(starbash, "process_masters", False, raising=False)
+        proc, FakePt = self._fake_processing(["M42"])
+
+        removed: list[str] = []
+
+        def fake_create(sessions, targets):
+            pt = FakePt(targets[0])
+            pt.remove_processing_dir = lambda: removed.append(pt.name)
+            return [{"meta": {"processed_target": pt}}]
+
+        proc._create_tasks = fake_create
+        proc._run_all_tasks = lambda tasks, prune=True: []
+        proc._finish_runs = lambda results: None
+        proc._publish_master_cull = lambda results, tasks: []
+        monkeypatch.setattr(processing_mod, "cleanup_old_contexts", lambda: None)
+
+        proc.run_all_stages()
+
+        assert removed == []
 
     def test_master_cull_sees_every_targets_tasks(self, monkeypatch):
         """The cull is computed from all targets' tasks, not just the first."""

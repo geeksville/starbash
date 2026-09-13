@@ -536,15 +536,15 @@ class TestProcessedTargetCleanup:
             assert target_dir.exists()
             assert "process_dir" not in mock_processing_like.context
 
-    def test_remove_processing_dir_frees_named_scratch_only(
-        self, mock_processing_like, temp_processing_dir
-    ):
-        """remove_processing_dir() frees a named target's scratch tree only.
+    def test_named_processing_dir_is_a_reuse_cache(self, mock_processing_like, temp_processing_dir):
+        """A named target's processing dir must survive, so re-runs are incremental.
 
         A named target's ``self.name`` is its *cache* processing dir (the
         potentially huge ``.cache/.../processing/<target>`` tree); its processed
-        output lives elsewhere (``context["output"].base``).  Dropping the scratch
-        tree after the run must therefore never touch the output directory.
+        output lives elsewhere (``context["output"].base``).  Regression: the auto
+        pipeline used to delete the cache dir after each target finished, which
+        threw away every intermediate the next run could have reused
+        (``_init_processing_dir`` reuses it on purpose).
         """
         target = "M42"
 
@@ -561,36 +561,23 @@ class TestProcessedTargetCleanup:
             scratch_dir = pt.name
             output_dir = Path(mock_processing_like.context["output"].base)
 
-            # Sanity: the scratch tree and the processed output are different places.
+            # The scratch tree and the processed output are different places.
             assert scratch_dir != output_dir
             scratch_dir.mkdir(parents=True, exist_ok=True)
             (scratch_dir / "intermediate.fit").write_text("scratch")
             output_dir.mkdir(parents=True, exist_ok=True)
             (output_dir / "final.fit").write_text("keep me")
 
-            pt.remove_processing_dir()
+            pt._cleanup_processing_dir()
 
-            assert not scratch_dir.exists()
+            # The intermediate survives for a later run to reuse...
+            assert (scratch_dir / "intermediate.fit").read_text() == "scratch"
             assert "process_dir" not in mock_processing_like.context
-            # The processed output is untouched.
+            # ...and the processed output is untouched.
             assert (output_dir / "final.fit").read_text() == "keep me"
 
-    def test_remove_processing_dir_is_idempotent(self, mock_processing_like, temp_processing_dir):
-        """Calling remove_processing_dir() on an already-gone dir is harmless."""
-        with (
-            patch("starbash.processed_target.toml_from_template") as mock_template,
-            patch("starbash.processed_target.Repo") as mock_repo_class,
-        ):
-            mock_template.return_value = {}
-            mock_repo = MagicMock()
-            mock_repo.get.return_value = {}
-            mock_repo_class.return_value = mock_repo
-
-            pt = ProcessedTarget(mock_processing_like, "M42")
-            pt.remove_processing_dir()
-            pt.remove_processing_dir()  # must not raise
-
-            assert not pt.name.exists()
+            # There is no API for dropping a live target's cache.
+            assert not hasattr(pt, "remove_processing_dir")
 
     def test_close_writes_config_when_valid(self, mock_processing_like, temp_processing_dir):
         """Test that close writes config when valid."""
