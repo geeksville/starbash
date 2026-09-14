@@ -5,6 +5,11 @@ payloads observed by a subscriber rather than on a mock "was called".
 """
 
 import io
+import logging
+import sys
+import types
+from pathlib import Path
+from typing import Any
 
 import pytest
 from doit.task import Task
@@ -31,6 +36,30 @@ def recorder():
 
 def _kinds(captured: list[events.Event]) -> list[str]:
     return [event.kind for event in captured]
+
+
+def _tool_log_record(pathname: Path, message: str, level: int = logging.INFO) -> logging.LogRecord:
+    """Build a log record that looks like it came from the file ``pathname``.
+
+    A built-in tool logs with the module-level helpers (``logging.info``, as
+    GraXpert does), which creates its records *on the root logger* - so the
+    emitting file is the only thing that says "this is the tool's output", which
+    is what ``tool_run_in_process`` matches on.
+    """
+    return logging.LogRecord(
+        name="root",
+        level=level,
+        pathname=str(pathname),
+        lineno=1,
+        msg=message,
+        args=(),
+        exc_info=None,
+    )
+
+
+def _emit(record: logging.LogRecord) -> None:
+    """Deliver a synthetic record to the root logger's handlers."""
+    logging.getLogger().handle(record)
 
 
 def test_tool_run_streaming_publishes_lifecycle_output_and_progress(tmp_path, recorder):
@@ -220,6 +249,240 @@ def test_tool_run_streaming_leaves_plain_stdout_untagged(tmp_path, recorder):
 
     streams = [event.data["stream"] for event in recorder if event.kind == events.EVENT_TOOL_OUTPUT]
     assert streams == ["stdout"]
+
+
+def _tool_source(tmp_path: Path) -> tuple[Path, Path]:
+    """Create a fake built-in tool package; return its directory and a module in it."""
+    package_dir = tmp_path / "faketool"
+    package_dir.mkdir()
+    return package_dir, package_dir / "worker.py"
+
+
+def test_tool_run_in_process_publishes_lifecycle_output_and_progress(tmp_path, recorder):
+    """A built-in tool's log records reach observers as tool output events.
+
+    The in-process counterpart of the streaming path: GraXpert's ``api_run`` logs
+    through Python's ``logging``, so without this its output never reached the
+    bus at all.
+    """
+    from starbash.tool.base import tool_run_in_process
+
+    package_dir, source_file = _tool_source(tmp_path)
+    log_path = tmp_path / "tool.log"
+
+    with log_path.open("w") as log_out:
+        with tool_run_in_process(
+            "faketool -cmd go", source=str(package_dir), cwd=str(tmp_path), log_out=log_out
+        ):
+            _emit(_tool_log_record(source_file, "Starting faketool"))
+            _emit(_tool_log_record(source_file, "Progress: 42%"))
+
+    started = next(event for event in recorder if event.kind == events.EVENT_TOOL_STARTED)
+    assert started.data["cmd"] == "faketool -cmd go"
+    assert started.data["cwd"] == str(tmp_path)
+
+    outputs = [event for event in recorder if event.kind == events.EVENT_TOOL_OUTPUT]
+    assert [event.data["line"] for event in outputs] == ["Starting faketool", "Progress: 42%"]
+    assert [event.data["stream"] for event in outputs] == ["stdout", "stdout"]
+
+    progress = [event for event in recorder if event.kind == events.EVENT_TOOL_PROGRESS]
+    assert [event.data["percent"] for event in progress] == [42]
+
+    finished = next(event for event in recorder if event.kind == events.EVENT_TOOL_FINISHED)
+    assert finished.data["success"] is True
+    assert finished.data["returncode"] == 0
+
+    # The raw lines are saved for the target's log file, exactly as an external
+    # tool's captured stdout is.
+    assert log_path.read_text().splitlines() == ["Starting faketool", "Progress: 42%"]
+
+
+def test_tool_run_in_process_tags_warnings_as_stderr(tmp_path, recorder):
+    """Warnings and errors are the tool's stderr, so the log panes colour them red."""
+    from starbash.tool.base import tool_run_in_process
+
+    package_dir, source_file = _tool_source(tmp_path)
+
+    with tool_run_in_process("faketool", source=str(package_dir)):
+        _emit(_tool_log_record(source_file, "something went wrong", logging.WARNING))
+
+    streams = [event.data["stream"] for event in recorder if event.kind == events.EVENT_TOOL_OUTPUT]
+    assert streams == ["stderr"]
+
+
+def test_tool_run_in_process_reports_a_failure(tmp_path, recorder):
+    """A tool that raises is announced as failed, and the error still propagates."""
+    from starbash.tool.base import tool_run_in_process
+
+    with pytest.raises(RuntimeError, match="boom"):
+        with tool_run_in_process("faketool", source=str(tmp_path / "missing")):
+            raise RuntimeError("boom")
+
+    finished = next(event for event in recorder if event.kind == events.EVENT_TOOL_FINISHED)
+    assert finished.data["success"] is False
+    assert finished.data["returncode"] != 0
+
+
+def test_tool_run_in_process_keeps_the_tools_lines_off_the_console(tmp_path, recorder, caplog):
+    """Only the tool's *own* records are rerouted, and Starbash's keep their handlers.
+
+    Drawing the tool's lines on the console would fight the live run display the
+    observer owns (see ``doc/plans/cli-live-display.md``), so they are rendered
+    from the bus instead - while Starbash's own log messages are untouched.
+    """
+    from starbash.tool.base import tool_run_in_process
+
+    package_dir, source_file = _tool_source(tmp_path)
+
+    with caplog.at_level(logging.INFO):
+        with tool_run_in_process("faketool", source=str(package_dir)):
+            _emit(_tool_log_record(source_file, "from the tool"))
+            _emit(_tool_log_record(Path(__file__), "from starbash"))
+
+    console_lines = [record.message for record in caplog.records]
+    assert "from starbash" in console_lines
+    assert "from the tool" not in console_lines
+
+    republished = [
+        event.data["line"] for event in recorder if event.kind == events.EVENT_TOOL_OUTPUT
+    ]
+    assert republished == ["from the tool"]
+
+
+def test_tool_run_in_process_restores_the_root_handlers(tmp_path, caplog):
+    """The forwarder is removed again, so logging is normal once the tool returns."""
+    from starbash.tool.base import tool_run_in_process
+
+    package_dir, source_file = _tool_source(tmp_path)
+    root = logging.getLogger()
+    handlers_before = list(root.handlers)
+
+    with tool_run_in_process("faketool", source=str(package_dir)):
+        assert list(root.handlers) != handlers_before  # the forwarder is installed
+
+    assert list(root.handlers) == handlers_before
+
+    # ...and a record from that tool is back on the console's own handlers.
+    with caplog.at_level(logging.INFO):
+        _emit(_tool_log_record(source_file, "after the call"))
+    assert "after the call" in [record.message for record in caplog.records]
+
+
+def test_builtin_graxpert_publishes_its_log_output(monkeypatch, tmp_path, recorder):
+    """The in-process GraXpert tool reports like any other tool.
+
+    Its ``api_run`` runs inside Starbash (no subprocess), so the wrapper is what
+    turns its log records into the same events an external tool's stdout would.
+    """
+    from starbash.tool.graxpert import GraxpertBuiltinTool
+
+    package_dir = tmp_path / "graxpert"
+    package_dir.mkdir()
+    api_file = package_dir / "api.py"
+    calls: list[tuple[list[str], dict[str, Any]]] = []
+
+    def fake_api_run(argv: list[str], json_prefs: dict[str, Any]) -> None:
+        calls.append((argv, json_prefs))
+        _emit(_tool_log_record(api_file, "Executing deconvolution"))
+
+    stub = types.ModuleType("graxpert")
+    stub.__file__ = str(package_dir / "__init__.py")
+    setattr(stub, "api_run", fake_api_run)  # noqa: B010 - a stub module, not a real import
+    monkeypatch.setitem(sys.modules, "graxpert", stub)
+
+    commands = ["-cmd", "deconv-obj", "-output", "out.fits", "in.fits"]
+    GraxpertBuiltinTool().run(commands, context={}, cwd=str(tmp_path), ai_version="1.0.1")
+
+    # The tool parameters (recipe ``tool.parameters``) still arrive as prefs.
+    assert calls == [(commands, {"ai_version": "1.0.1"})]
+
+    started = next(event for event in recorder if event.kind == events.EVENT_TOOL_STARTED)
+    assert started.data["cmd"] == "graxpert -cmd deconv-obj -output out.fits in.fits"
+
+    outputs = [event.data["line"] for event in recorder if event.kind == events.EVENT_TOOL_OUTPUT]
+    assert outputs == ["Executing deconvolution"]
+
+    finished = next(event for event in recorder if event.kind == events.EVENT_TOOL_FINISHED)
+    assert finished.data["success"] is True
+
+
+def test_tool_run_in_process_without_a_source_reroutes_everything(tmp_path, recorder, caplog):
+    """A tool whose output is emitted by Starbash's own modules has no source dir.
+
+    The python sandbox logs a script's ``print`` from ``starbash.tool.context``
+    (and Siril commands from ``starbash.sim_siril``), so nothing about such a
+    record says "this is the tool" - for that call, every record is its output.
+    """
+    from starbash.tool.base import tool_run_in_process
+
+    with caplog.at_level(logging.INFO):
+        with tool_run_in_process("faketool", source=None):
+            _emit(_tool_log_record(Path(__file__), "a line from anywhere"))
+
+    assert "a line from anywhere" not in [record.message for record in caplog.records]
+    outputs = [event.data["line"] for event in recorder if event.kind == events.EVENT_TOOL_OUTPUT]
+    assert outputs == ["a line from anywhere"]
+
+
+def test_tool_run_in_process_nested_runs_publish_each_line_once(tmp_path, recorder):
+    """A tool run *inside* another does not send its lines through both.
+
+    The outer call republishes everything (``source=None``), so each line would be
+    published twice unless the inner run takes ownership of its own records.
+    """
+    from starbash.tool.base import tool_run_in_process
+
+    (tmp_path / "outer").mkdir()
+    (tmp_path / "inner").mkdir()
+    _, outer_file = _tool_source(tmp_path / "outer")
+    inner_dir, inner_file = _tool_source(tmp_path / "inner")
+
+    with tool_run_in_process("outer", source=None):
+        _emit(_tool_log_record(outer_file, "outer line"))
+        with tool_run_in_process("inner", source=str(inner_dir)):
+            _emit(_tool_log_record(inner_file, "inner line"))
+        _emit(_tool_log_record(inner_file, "outer line about the inner tool"))
+
+    published = [
+        (event.data["cmd"], event.data["line"])
+        for event in recorder
+        if event.kind == events.EVENT_TOOL_OUTPUT
+    ]
+    assert published == [
+        ("outer", "outer line"),
+        ("inner", "inner line"),
+        ("outer", "outer line about the inner tool"),
+    ]
+
+
+def test_builtin_python_tool_publishes_its_script_output(tmp_path, recorder, caplog):
+    """A recipe stage written in python reports its output like any other tool.
+
+    Both ways a script can talk - ``print``, which the sandbox turns into a log
+    record via ``MyPrinter``, and the injected ``logger`` - arrive as tool output,
+    so the CLI's run tree and the GUI show a python stage's work as it happens.
+    """
+    from starbash.tool.python import PythonTool
+
+    script = 'print("hello from the script")\nlogger.info("logging from the script")\n'
+    with caplog.at_level(logging.INFO):
+        PythonTool().run(script, context={}, cwd=str(tmp_path), script_file="demo.py")
+
+    started = next(event for event in recorder if event.kind == events.EVENT_TOOL_STARTED)
+    assert started.data["cmd"] == "python demo.py"
+
+    outputs = [event.data["line"] for event in recorder if event.kind == events.EVENT_TOOL_OUTPUT]
+    assert "Script print: hello from the script" in outputs
+    assert "logging from the script" in outputs
+    # The tool's own line is part of that output rather than a console draw, so the
+    # CLI's live display is never torn by a record rendered beside it.
+    assert all("Executing python script" not in record.message for record in caplog.records)
+    assert (
+        next(event for event in recorder if event.kind == events.EVENT_TOOL_FINISHED).data[
+            "success"
+        ]
+        is True
+    )
 
 
 def test_rc_astro_declares_its_stdout_is_json(monkeypatch, tmp_path):

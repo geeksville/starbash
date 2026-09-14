@@ -351,8 +351,8 @@ class TestRecipeRoles:
         assert deconv["role"] == "deblur"
         assert deconv["priority"] == 300
 
-        denoise = _recipe("graxpert/denoise.toml")["stages"][0]
-        assert denoise["name"] == "denoise"  # same as the role name, deliberately
+        denoise = _recipe("graxpert/grax-denoise.toml")["stages"][0]
+        assert denoise["name"] == "grax-denoise"  # same as the role name, deliberately
         assert denoise["role"] == "denoise"
         assert denoise["priority"] == 300
 
@@ -364,7 +364,7 @@ class TestRecipeRoles:
 
         noise = _recipe("rc-astro/noise-exterminator.toml")["stages"][0]
         assert noise["role"] == "denoise"
-        assert noise["priority"] > _recipe("graxpert/denoise.toml")["stages"][0]["priority"]
+        assert noise["priority"] > _recipe("graxpert/grax-denoise.toml")["stages"][0]["priority"]
 
     def test_no_recipe_uses_exclude_by_default_any_more(self):
         """Roles subsume the flag (doc/plans/stage-roles.md §3.4)."""
@@ -398,7 +398,7 @@ class TestRoleFallbackPipeline:
         stages: list[dict[str, Any]] = []
         for relative in (
             "graxpert/deconv-obj.toml",
-            "graxpert/denoise.toml",
+            "graxpert/grax-denoise.toml",
             "rc-astro/blur-exterminator.toml",
             "rc-astro/noise-exterminator.toml",
             "palette/broadband.toml",
@@ -424,9 +424,9 @@ class TestRoleFallbackPipeline:
         selection = select_stages(self._catalog(), is_available=_available("graxpert", "siril"))
         assert [s["name"] for s in selection.stages] == [
             "deconv-obj",
-            "denoise",
+            "grax-denoise",
             "palette_broadband",
         ]
         ordered = [s["name"] for s in sort_stages(selection.stages, resolve=selection.resolve)]
-        assert ordered.index("deconv-obj") < ordered.index("denoise")
-        assert ordered.index("denoise") < ordered.index("palette_broadband")
+        assert ordered.index("deconv-obj") < ordered.index("grax-denoise")
+        assert ordered.index("grax-denoise") < ordered.index("palette_broadband")

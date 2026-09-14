@@ -108,7 +108,7 @@ class RCAstroTool(ExternalTool):
         commands: str | list[str],
         context: dict = {},
         log_out: io.TextIOWrapper | None = None,
-        **kwargs: dict[str, Any],
+        **kwargs: Any,
     ) -> None:
         """Execute rc-astro with the specified command line arguments.
 

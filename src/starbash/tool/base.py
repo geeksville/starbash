@@ -1,5 +1,6 @@
 """Base tool classes for stage execution."""
 
+import contextlib
 import enum
 import io
 import logging
@@ -10,7 +11,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -29,6 +30,7 @@ __all__ = [
     "plain_message",
     "tool_run",
     "tool_run_streaming",
+    "tool_run_in_process",
     "publish_tool_progress",
 ]
 
@@ -375,6 +377,167 @@ def tool_run_streaming(
         logger.debug("Tool command successful.")
 
 
+class _ToolSourceFilter(logging.Filter):
+    """Accept - or reject - records emitted by a built-in tool's own modules.
+
+    An in-process tool logs through Python's ``logging`` from inside its own
+    package, so ``record.pathname`` names the file that made the call.  That is
+    what tells the tool's messages apart from Starbash's own, which matters
+    because a tool that logs with the module-level helpers (``logging.info``, as
+    GraXpert does) creates its records *on the root logger* - so a logger name
+    cannot be matched on, and the emitting file is the only reliable signal.
+
+    ``source=None`` means "every record is the tool's own" (and, inverted, accepts
+    nothing).  That is the right reading for a tool whose output comes from
+    Starbash's *own* modules - the python sandbox logs a script's ``print`` from
+    ``starbash.tool.context`` and its ``sim_siril`` calls from
+    ``starbash.sim_siril`` - where no directory can be named as the origin.
+    """
+
+    def __init__(self, source: str | None, *, invert: bool = False) -> None:
+        super().__init__()
+        self.prefix: str | None = _source_prefix(source)
+        self.invert = invert
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        from_tool = self.prefix is None or os.path.abspath(record.pathname).startswith(self.prefix)
+        return not from_tool if self.invert else from_tool
+
+
+def _source_prefix(source: str | None) -> str | None:
+    """Directory prefix marking a record as a built-in tool's, or ``None`` for all."""
+    if source is None:
+        return None
+    prefix = os.path.abspath(source)
+    # A trailing separator keeps ".../graxpertish" from matching ".../graxpert".
+    return prefix if prefix.endswith(os.sep) else prefix + os.sep
+
+
+#: Installed forwarders, outermost first (see :meth:`_ToolLogForwarder.emit`).
+_active_forwarders: list["_ToolLogForwarder"] = []
+
+
+class _ToolLogForwarder(logging.Handler):
+    """Republish a built-in tool's log records as tool output events.
+
+    The in-process counterpart of the reader threads in
+    :func:`tool_run_streaming`: one log record becomes one
+    :data:`~starbash.events.EVENT_TOOL_OUTPUT` line (plus a progress event if the
+    line carries a percentage), and the raw line is appended to ``log_out``.
+    """
+
+    def __init__(self, cmd: str, log_out: io.TextIOWrapper | None, source: str | None) -> None:
+        super().__init__()
+        self.cmd = cmd
+        self.log_out = log_out
+        # Kept by name (rather than read back from ``self.filters``) so ``accepts``
+        # can ask it directly whether a record is this tool's.
+        self.source = _ToolSourceFilter(source)
+        self.addFilter(self.source)
+
+    def accepts(self, record: logging.LogRecord) -> bool:
+        """Whether this forwarder would republish ``record``."""
+        return self.source.filter(record)
+
+    def _owned_by_an_inner_run(self, record: logging.LogRecord) -> bool:
+        """True when a tool started *inside* this one already republishes ``record``.
+
+        A nested in-process tool installs its forwarder later, so without this the
+        outer run would publish the inner tool's lines a second time.
+        """
+        try:
+            index = _active_forwarders.index(self)
+        except ValueError:  # not registered (any more): nothing to defer to
+            return False
+        return any(inner.accepts(record) for inner in _active_forwarders[index + 1 :])
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if self._owned_by_an_inner_run(record):
+            return
+        try:
+            line = record.getMessage()
+        except Exception:  # noqa: BLE001 - a broken record must not kill the tool
+            self.handleError(record)
+            return
+        # Warnings and errors are the tool's stderr, so the log panes colour them red.
+        stream = "stderr" if record.levelno >= logging.WARNING else "stdout"
+        if self.log_out:
+            self.log_out.write(line + "\n")
+            self.log_out.flush()  # Just in case the user is 'tailing' the file
+        _publish_tool_line(self.cmd, stream, line)
+
+
+@contextlib.contextmanager
+def tool_run_in_process(
+    cmd: str,
+    *,
+    source: str | None,
+    cwd: str | None = None,
+    log_out: io.TextIOWrapper | None = None,
+) -> Iterator[None]:
+    """Run a built-in tool's work while its own log output is published as events.
+
+    An external tool has its stdout/stderr captured and streamed by
+    :func:`tool_run_streaming`; a tool implemented as Python code inside Starbash
+    (GraXpert's ``api_run``) instead logs through Python's ``logging``, and that
+    output used to reach the root logger's handler and be drawn *straight onto the
+    console* - over the live run display the observer owns, so the user saw the
+    lines dumped around the live tree instead of in it, and the GUI saw none at
+    all (see ``doc/plans/cli-live-display.md``).
+
+    This makes the in-process path look identical to the external one from an
+    observer's point of view: ``tool.started`` / ``tool.output`` /
+    ``tool.progress`` / ``tool.finished`` events plus the raw lines in
+    ``log_out``.  The CLI's run tree and the GUI therefore show the tool's output
+    as it happens, exactly as they do for Siril or rc-astro.
+
+    Args:
+        cmd: Command-line-style label for the events - what the UIs show as "the
+            tool" (mirrors the ``cmd`` an external tool would report).
+        source: Directory the tool's own modules live in, i.e.
+            ``os.path.dirname(<package>.__file__)``.  Only records emitted from
+            files under it are republished, so Starbash's own log messages keep
+            their usual handling.  Pass ``None`` when the output is emitted by
+            Starbash's own modules instead - the python sandbox logs a script's
+            ``print`` from ``starbash.tool.context`` - which makes *every* record
+            emitted during the call part of the tool's output.
+        cwd: Working directory, reported in the ``tool.started`` payload.
+        log_out: Raw log file; receives every republished line, verbatim.
+
+    Nested calls are safe: each forwarder defers to one started inside it, so a
+    line is republished exactly once, and an inner call's silencer also keeps it
+    away from the outer call's handlers.
+    """
+    events.publish(events.EVENT_TOOL_STARTED, {"cmd": cmd, "cwd": cwd})
+
+    root = logging.getLogger()
+    forwarder = _ToolLogForwarder(cmd, log_out, source)
+    # Keep the tool's own lines away from the console's usual handlers: observers
+    # render them from the bus, and a second, direct draw would fight the CLI's
+    # live display (the tear described in doc/plans/cli-live-display.md).
+    silencers = [(handler, _ToolSourceFilter(source, invert=True)) for handler in root.handlers]
+    for handler, silencer in silencers:
+        handler.addFilter(silencer)
+    root.addHandler(forwarder)
+    _active_forwarders.append(forwarder)
+
+    success = True
+    try:
+        yield
+    except BaseException:
+        success = False
+        raise
+    finally:
+        _active_forwarders.remove(forwarder)
+        root.removeHandler(forwarder)
+        for handler, silencer in silencers:
+            handler.removeFilter(silencer)
+        events.publish(
+            events.EVENT_TOOL_FINISHED,
+            {"cmd": cmd, "returncode": 0 if success else 1, "success": success},
+        )
+
+
 #: Matches the one piece of Rich markup our tool messages use for a link.
 _LINK_MARKUP = re.compile(r"\[link=([^\]]*)\](.*?)\[/link\]")
 
@@ -555,7 +718,7 @@ class Tool:
         context: dict = {},
         cwd: str | None = None,
         log_out: io.TextIOWrapper | None = None,
-        **kwargs: dict[str, Any],
+        **kwargs: Any,
     ) -> None:
         """Run commands inside this tool
 
@@ -595,7 +758,7 @@ class Tool:
         commands: str | list[str],
         context: dict = {},
         log_out: io.TextIOWrapper | None = None,
-        **kwargs: dict[str, Any],
+        **kwargs: Any,
     ) -> None:
         """Run commands inside this tool (with cwd pointing to the specified directory)"""
         raise NotImplementedError()

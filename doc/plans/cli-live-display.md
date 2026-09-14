@@ -283,6 +283,72 @@ their own, because they leaned on the `track()` bar, so they get one:
   matching), and `Live` nests `console.print` output correctly only because the view
   draws on the same console it owns.
 
+## Fix 6: a built-in tool's own log lines bypassed the bus (GraXpert, python stages)
+
+### Problem
+
+The observers above all render from `starbash.events`, and an *external* tool's output
+reaches them because `tool_run_streaming` captures its stdout/stderr.  A tool implemented
+as Python *inside* Starbash had no such capture: GraXpert's built-in `api_run` logs with
+the module-level helpers (`logging.info`, so its records land on the **root logger**),
+which meant the GUI showed nothing — and the root logger's `RichHandler` drew every line
+*straight onto the console*, i.e. over the live display the observer owns.  The same was
+true of a `tool.name = "python"` stage (used by `crop`, `report_registration`,
+`stack_dual_duo`, `stack_single_duo`, …).
+
+Measured live under a PTY (real `ProcessingView` + `setup_logging`), a python stage gave
+`tool events published: NONE`, and the script's line arrived as a frame drawn by the root
+handler — the tear Fix 3 had removed for external tools.
+
+### Approach — `tool_run_in_process()`
+
+`src/starbash/tool/base.py` gains a context manager that makes an in-process tool look
+exactly like a streamed one: `tool.started` / `tool.output` / `tool.progress` /
+`tool.finished` on the bus, plus the raw lines in `log_out`.  It installs
+
+* a `_ToolLogForwarder` (a `logging.Handler` on the root logger) that republishes each
+  record as one `tool.output` line (parsing a percentage into `tool.progress`, tagging
+  `WARNING`+ as `stderr` so the panes colour it), and
+* a `_ToolSourceFilter(invert=True)` silencer on every *existing* root handler, so the
+  same lines cannot also be drawn directly beside the live display.
+
+Which records count as "the tool's" is the one real design question, and the answer
+differs per tool:
+
+* **GraXpert** logs from its own package, so `source=os.path.dirname(graxpert.__file__)`
+  matches on `record.pathname`.  A logger *name* cannot be used — the module-level
+  `logging.info` helper creates the record on the root logger.
+* **A python stage** emits from Starbash's own modules — the sandbox's `print` goes
+  through `MyPrinter.write` → `logger.info("Script print: …")` in
+  `starbash.tool.context`, and Siril commands log from `starbash.sim_siril` — so there is
+  no directory to name.  `source=None` therefore means "every record emitted during this
+  call is the tool's output", which also picks up the tool's own
+  `Executing python script …` line (it is what the stage is doing).
+
+Because `print` already funnels into a log record, nothing needed to change in the sandbox
+or `MyPrinter`: hooking the *record* stream covers prints, the injected `logger`,
+`sim_siril` and Starbash's own line in one place — a `print` hook would have seen only the
+first, and would also have fired on the TOML-expression path (`expand_context_unsafe`
+calls the same `make_safe_globals`).
+
+Nested runs are safe: each forwarder defers to one installed inside it
+(`_owned_by_an_inner_run`), so a line is republished exactly once even when the outer call
+reroutes everything.
+
+### Verification
+
+* Unit tests in `tests/unit/test_emit_hooks.py` (lifecycle/output/progress, stderr
+  tagging, failure, "keeps the tool's lines off the console", handler restore, built-in
+  GraXpert publishes its output, `source=None` reroutes everything, nested runs publish
+  once, a python stage publishes both a `print` and a `logger` line).
+* Falsified both halves by temporarily reverting the wrapper, then the silencer: the
+  python-stage test reports `tool.output lines=0 drawn-on-console=4` without the fix and
+  `lines=4 drawn=0` with it.
+* Live under a PTY: `tool.started` + 4 × `tool.output` + `tool.finished`, **0** frames
+  drawn by the root handler (was 3), with the script's line still on screen — drawn by
+  `ProcessingView` from the bus.  GraXpert under the same harness reaches the live pane
+  promptly, root handler draws **0**.
+
 ## Files
 
 * `src/starbash/tool/base.py` — drop `ToolLiveDisplay`, `Tool._active_display`,
@@ -316,6 +382,13 @@ their own, because they leaned on the `track()` bar, so they get one:
   stays on the first row with 200 runs).  Fix 5 adds
   `tests/unit/test_reindex_view.py` and the two reindex tests in
   `tests/unit/test_app.py`.
+* `src/starbash/tool/base.py` (Fix 6) — `tool_run_in_process()`, `_ToolSourceFilter`,
+  `_ToolLogForwarder` and the `_active_forwarders` nesting rule.
+* `src/starbash/tool/graxpert.py` (Fix 6) — the built-in `api_run` runs inside
+  `tool_run_in_process(..., source=<the graxpert package>)`.
+* `src/starbash/tool/python.py` (Fix 6) — `_run` wraps the sandbox in
+  `tool_run_in_process(f"python {script_filename}", source=None, log_out=log_out)`,
+  which also honours the `log_out` that the old FIXME comment said it ignored.
 
 ## Risks / notes
 
@@ -326,3 +399,10 @@ their own, because they leaned on the `track()` bar, so they get one:
 * The live region is now exactly terminal-sized, so Rich scrolls the terminal one
   row per frame (its standard fullscreen-`Layout`-in-`Live` behaviour).  This is
   stable — the shape does not vary frame to frame — unlike the previous growth.
+* **Fix 6 reroutes a *window*, not a message pattern.**  For a python stage every
+  record emitted while the script runs (including Starbash's own) becomes tool output and
+  stops reaching the existing root handlers.  That is deliberate — it is what makes the
+  stage legible in the run tree — and the only root handler in a CLI run is the console
+  `RichHandler` (there is no file handler that could lose lines); `log_out` still receives
+  them, so the stage's log file is complete.  GraXpert keeps the narrower
+  directory-scoped match, so Starbash's own messages are unaffected there.

@@ -20,7 +20,7 @@ from RestrictedPython.transformer import (
 
 from starbash.exception import UserHandledError
 from starbash.sim_siril.connection import SirilInterface
-from starbash.tool.base import Tool
+from starbash.tool.base import Tool, tool_run_in_process
 from starbash.tool.context import make_safe_globals
 
 logger = logging.getLogger(__name__)
@@ -171,50 +171,63 @@ class PythonTool(Tool):
         commands: str | list[str],
         context: dict = {},
         log_out: io.TextIOWrapper | None = None,
-        **kwargs: dict[str, Any],
+        **kwargs: Any,
     ) -> None:
         assert isinstance(commands, str), "Python tool requires commands as a string, not a list"
+
+        # Hopefully the user provided a filepath
+        script_filename = kwargs.get("script_file", "<python script>")
+        assert isinstance(script_filename, str)
+
         original_cwd = os.getcwd()
         try:
             os.chdir(cwd)  # cd to where this script expects to run
 
-            # FIXME, we currently ignore log_out because python is by default printing to our log anyways
-            logger.info(f"Executing python script in {cwd} using RestrictedPython")
-            try:
-                # Hopefully the user provided a filepath
-                script_filename = kwargs.get("script_file", "<python script>")
-                assert isinstance(script_filename, str)
-
-                # Cache the source code so tracebacks show proper line numbers
-                lines = commands.splitlines(keepends=True)
-                linecache.cache[script_filename] = (len(commands), None, lines, script_filename)
-
-                with warnings.catch_warnings():
-                    warnings.simplefilter("default")
-                    warnings.filterwarnings(
-                        "ignore",
-                        message=r"Line .*: Prints, but never reads 'printed' variable\.",
-                        category=SyntaxWarning,
+            # Unlike an external tool, a python stage has no stdout to stream: the
+            # sandbox turns the script's ``print`` into a log record (MyPrinter) and
+            # scripts log through the injected ``logger``, so republishing the log
+            # records is what puts its output in the run tree, the GUI and (as
+            # ``log_out``) the stage's log file.  ``source=None`` because those
+            # records come from Starbash's own modules - ``starbash.tool.context``
+            # for prints, ``starbash.sim_siril`` for Siril commands.
+            with tool_run_in_process(f"python {script_filename}", source=None, log_out=log_out):
+                logger.info(f"Executing python script in {cwd} using RestrictedPython")
+                try:
+                    # Cache the source code so tracebacks show proper line numbers
+                    lines = commands.splitlines(keepends=True)
+                    linecache.cache[script_filename] = (
+                        len(commands),
+                        None,
+                        lines,
+                        script_filename,
                     )
-                    byte_code = compile_restricted(
-                        commands,
-                        filename=script_filename,
-                        mode="exec",
-                        policy=PermissiveNodeTransformer,
-                    )
-                # No locals yet
-                execution_locals = None
-                globals = {"context": context}
 
-                # Tell our sim Siril interface about the context too
-                SirilInterface.Context = context
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("default")
+                        warnings.filterwarnings(
+                            "ignore",
+                            message=r"Line .*: Prints, but never reads 'printed' variable\.",
+                            category=SyntaxWarning,
+                        )
+                        byte_code = compile_restricted(
+                            commands,
+                            filename=script_filename,
+                            mode="exec",
+                            policy=PermissiveNodeTransformer,
+                        )
+                    # No locals yet
+                    execution_locals = None
+                    globals = {"context": context}
 
-                exec(byte_code, make_safe_globals(globals), execution_locals)
-            except SyntaxError as e:
-                raise PythonScriptError(f"[red]Script syntax error[/red]: {e}") from e
-            except UserHandledError:
-                raise  # No need to wrap this - just pass it through for user handling
-            except Exception as e:
-                raise PythonScriptError(f"[red]Python script error[/red]: {e}") from e
+                    # Tell our sim Siril interface about the context too
+                    SirilInterface.Context = context
+
+                    exec(byte_code, make_safe_globals(globals), execution_locals)
+                except SyntaxError as e:
+                    raise PythonScriptError(f"[red]Script syntax error[/red]: {e}") from e
+                except UserHandledError:
+                    raise  # No need to wrap this - just pass it through for user handling
+                except Exception as e:
+                    raise PythonScriptError(f"[red]Python script error[/red]: {e}") from e
         finally:
             os.chdir(original_cwd)

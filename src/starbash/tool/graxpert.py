@@ -2,9 +2,16 @@
 
 import io
 import logging
+import os
 from typing import Any
 
-from starbash.tool.base import ExternalTool, Tool, ToolSeverity, tool_run
+from starbash.tool.base import (
+    ExternalTool,
+    Tool,
+    ToolSeverity,
+    tool_run,
+    tool_run_in_process,
+)
 from starbash.tool.context import expand_context_list, expand_context_unsafe
 
 logger = logging.getLogger(__name__)
@@ -28,9 +35,16 @@ class GraxpertBuiltinTool(Tool):
         commands: str | list[str],
         context: dict = {},
         log_out: io.TextIOWrapper | None = None,
-        **kwargs: dict[str, Any],
+        **kwargs: Any,
     ) -> None:
-        """Executes Graxpert with the specified command line arguments"""
+        """Executes Graxpert with the specified command line arguments
+
+        GraXpert runs *in process* (we call its ``api_run`` rather than a
+        subprocess), so its log output would otherwise go straight to the root
+        logger's handler and be drawn over the CLI's live run display.  Wrap the
+        call so those lines are published as tool output events - the same way an
+        external tool's stdout/stderr is streamed - and land in ``log_out``.
+        """
 
         expanded_args = None
         if isinstance(commands, list):
@@ -41,9 +55,21 @@ class GraxpertBuiltinTool(Tool):
 
         # it is very important that we import graxpert.api_run here and not at the top level, we don't want to pull in graxpert unless user
         # is using it.
+        import graxpert
         from graxpert import api_run
 
-        api_run(expanded_args, kwargs)
+        package_file = graxpert.__file__
+        assert package_file is not None, "graxpert is a real package, so __file__ is set"
+
+        with tool_run_in_process(
+            f"graxpert {' '.join(expanded_args)}",
+            # Only GraXpert's own modules are republished; Starbash's log lines keep
+            # their usual handling (see tool_run_in_process).
+            source=os.path.dirname(package_file),
+            cwd=cwd,
+            log_out=log_out,
+        ):
+            api_run(expanded_args, kwargs)
 
 
 class GraxpertExternalTool(ExternalTool):
@@ -62,7 +88,7 @@ class GraxpertExternalTool(ExternalTool):
         commands: str | list[str],
         context: dict = {},
         log_out: io.TextIOWrapper | None = None,
-        **kwargs: dict[str, Any],
+        **kwargs: Any,
     ) -> None:
         """Executes Graxpert with the specified command line arguments"""
 

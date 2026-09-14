@@ -11,6 +11,7 @@ from starbash.tool.base import (
     ToolStatus,
     plain_message,
     tool_run,
+    tool_run_in_process,
 )
 from starbash.tool.context import (
     _SafeFormatter,
@@ -35,6 +36,7 @@ __all__ = [
     "ToolStatus",
     "plain_message",
     "tool_run",
+    "tool_run_in_process",
     "_SafeFormatter",
     "expand_context",
     "expand_context_unsafe",

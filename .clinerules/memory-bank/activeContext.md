@@ -583,6 +583,31 @@ the CLI now has **exactly one** live display, driven only by `starbash.events`.
   `/tmp/sb_e2e_child.py` (feeds the real producer path) + `/tmp/sb_e2e_pty.py`
   (runs it under a PTY and counts `⏳`/`✓`/tracebacks).
 
+- **Fix 6 — a built-in tool's own lines never reached the bus (the last tear).**
+  `tool_run_streaming` streams an *external* tool, but a tool implemented in Python
+  inside Starbash logs through `logging` instead: GraXpert's built-in `api_run` uses the
+  module-level helpers (so its records land on the **root logger**), which meant the GUI
+  saw nothing and the root `RichHandler` drew the lines *beside* the live display.  Fix:
+  **`tool_run_in_process(cmd, *, source, cwd, log_out)`** in `tool/base.py` — publishes
+  `tool.started/finished`, installs a `_ToolLogForwarder` (root-logger handler) that
+  republishes each record as `tool.output` (plus `tool.progress` for a percentage, and
+  `stderr` for `WARNING`+), and silences the *existing* root handlers with an inverted
+  `_ToolSourceFilter`.  `source` is the tool package's directory (GraXpert matching on
+  `record.pathname` — a logger name is useless, the record is on root); **`source=None`
+  means "every record in this window"**, which is what a `tool.name = "python"` stage
+  needs because its output comes from *Starbash's own* modules (the sandbox's `print`
+  goes through `MyPrinter` → `logger.info` in `starbash.tool.context`, and Siril commands
+  log from `sim_siril`).  Hooking `print`/`MyPrinter` was therefore rejected: it would see
+  only prints (missing the injected `logger` and `sim_siril`), fire on the TOML-expression
+  path (`expand_context_unsafe` uses the same `make_safe_globals`), and duplicate what the
+  record hook already covers.  Nested runs de-duplicate via `_active_forwarders` +
+  `_owned_by_an_inner_run()`.  `python.py::_run` now wraps the sandbox (honouring the
+  `log_out` its FIXME said it ignored) and `graxpert.py` wraps `api_run`.  Nine tests in
+  `test_emit_hooks.py`, each half falsified by reverting it: a python stage goes from
+  `tool.output lines=0, drawn-on-console=4` to `lines=4, drawn=0`, and live under a PTY
+  the stage publishes `tool.started` + 4 × `tool.output` + `tool.finished` with
+  root-handler frames `3 → 0` (GraXpert likewise: prompt pane lines, root draws `0`).
+
 ## Current work focus — `ProcessedTarget` model + live run tree
 
 Implementing [`doc/plans/processed-target-model.md`](../../doc/plans/processed-target-model.md):

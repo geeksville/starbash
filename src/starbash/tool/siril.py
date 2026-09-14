@@ -76,7 +76,7 @@ class SirilTool(ExternalTool):
         commands: str | list[str],
         context: dict = {},
         log_out: io.TextIOWrapper | None = None,
-        **kwargs: dict[str, Any],
+        **kwargs: Any,
     ) -> None:
         """Executes Siril with a script of commands in a given working directory."""
 
