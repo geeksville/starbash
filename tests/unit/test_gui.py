@@ -1342,3 +1342,48 @@ def test_settings_page_shows_analytics_defaults(qtbot, app_context):
 
     assert page._analytics.isChecked() is True
     assert page._include_email.isChecked() is False
+    # ...and about indexing before a run, which is on unless opted out.
+    assert page._auto_reindex.isChecked() is True
+
+
+def test_settings_page_persists_the_reindex_preference(qtbot, app_context):
+    """Turning the pre-run scan off is written as `reindex.auto`."""
+    from starbash.preferences import auto_reindex_enabled
+    from starbash.ui.qt.pages.settings import SettingsPage
+
+    page = SettingsPage(app_context)
+    qtbot.addWidget(page)
+    page.refresh()
+
+    page._auto_reindex.setChecked(False)
+    page._on_save()
+
+    assert app_context.user_repo.get("reindex.auto") is False
+    assert auto_reindex_enabled(app_context.user_repo) is False
+
+
+def test_processing_page_reports_the_pre_run_index_pass(qtbot, app_context, bus):
+    """Indexing progress reaches the page's bar and caption, then gives way."""
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    events.publish(
+        events.EVENT_REINDEX_PROGRESS,
+        {"repo": "file:///tmp/img", "done": 3, "total": 10},
+    )
+    assert page._progress.maximum() == 10
+    assert page._progress.value() == 3
+    assert "file:///tmp/img" in page._caption.text()
+
+    events.publish(
+        events.EVENT_REINDEX_FINISHED,
+        {"repo": "file:///tmp/img", "indexed": 10},
+    )
+    assert "Indexed 10" in page._caption.text()
+
+    # A target starting takes the bar back to indeterminate: the scan is over and
+    # the run has not reported a percentage yet.
+    events.publish(events.EVENT_PROCESS_TARGET, {"target": "M31", "index": 1, "total": 2})
+    assert page._progress.maximum() == 0

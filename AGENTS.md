@@ -43,6 +43,16 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   `save_master_selections()` read/write it, and `Processing._resolve_input_master()` **honours a
   `selected_by = "user"` pick on the next run** (falling back to the top scorer if that master
   is gone). Legacy `used`/`excluded` string arrays still parse. See `doc/plans/session-masters.md`.
+- **Auto re-index before a run**: `Processing.reindex_if_needed()` is called by
+  `sb process auto` / `sb process masters` and the GUI's `process_job` before any planning,
+  so frames added since the last run are picked up. It honours the `reindex.auto` user
+  preference (default true; helper + default in `src/starbash/preferences.py`, checkbox on
+  the GUI Settings page) and the scan then emits the same `EVENT_REINDEX_PROGRESS` /
+  `EVENT_REINDEX_FINISHED` events as `sb repo reindex`, which every front end renders
+  (the run's own view/page, the GUI Repositories page, and `ui/cli.py::ReindexView` for
+  `sb repo reindex` / `sb repo add`). The core owns no display at all: `reindex_repos()`
+  reports through the bus and nothing else, so a run's live view cannot be torn by a
+  second `track()` bar (see `doc/plans/cli-live-display.md`).
 - **Tools**: `src/starbash/tool/` — runners for Siril (Flatpak, stdin script), GraXpert (CLI),
   Python (RestrictedPython sandbox), and rc-astro (BlurXTerminator `bxt` + NoiseXTerminator `nxt`
   CLI; always passes `--json` and streams JSON progress events onto the event bus via
@@ -74,6 +84,8 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   prompts go through `get_interaction()` rather than reading stdin directly.
 - **GUI**: `src/starbash/ui/qt/**` — the PySide6 desktop app, launched by
   `sb gui`. Never imported by the CLI unless the command is used.
+  `src/starbash/ui/cli.py` is the CLI's counterpart: the terminal views that
+  observe the event bus (`ReindexView`, used by `sb repo reindex` / `sb repo add`).
 
 ## Stage exclusion flow (common source of bugs)
 

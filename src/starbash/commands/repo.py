@@ -10,6 +10,7 @@ import starbash
 from starbash import console
 from starbash.app import Starbash
 from starbash.paths import get_user_documents_dir
+from starbash.ui.cli import ReindexView
 
 app = typer.Typer(invoke_without_command=True)
 
@@ -115,7 +116,12 @@ def add(
             )
             raise typer.Exit(1)
 
-        sb.add_local_repo(path, repo_type=repo_type)
+        # Adding indexes the folder, which on a populated one takes minutes: the
+        # core only reports that through the bus, so this command shows it.  The
+        # view draws on the console Starbash just installed -- the same one
+        # add_local_repo() itself prints to, so its lines land above the bar.
+        with ReindexView(f"Indexing {path}", starbash.console):
+            sb.add_local_repo(path, repo_type=repo_type)
 
 
 def repo_url_to_repo(sb: Starbash, repo_url: str | None) -> Repo | None:
@@ -190,14 +196,19 @@ def reindex(
     Use 'starbash repo' to see the repository numbers.
     """
     with Starbash("repo.reindex") as sb:
+        # starbash.console is the console Starbash just installed (the module-level
+        # one in this file is the placeholder from starbash.__init__).  The view
+        # must draw on the console the scan's own logging goes to.
         repo_to_reindex = repo_url_to_repo(sb, repo_url)
 
         if repo_to_reindex is None:
-            sb.reindex_repos()
+            with ReindexView("Re-indexing repositories", starbash.console):
+                sb.reindex_repos()
         else:
             # Get the repo to reindex
             console.print(f"Reindexing repository: {repo_to_reindex.url}")
-            sb.reindex_repo(repo_to_reindex)
+            with ReindexView(f"Re-indexing {repo_to_reindex.url}", starbash.console):
+                sb.reindex_repo(repo_to_reindex)
             console.print(f"[green]Successfully reindexed repository {repo_to_reindex}[/green]")
 
 

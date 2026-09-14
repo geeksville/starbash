@@ -45,6 +45,7 @@ from starbash.exception import (
     raise_missing_repo,
 )
 from starbash.filtering import FallbackToImageException, filter_by_requires
+from starbash.preferences import auto_reindex_enabled
 from starbash.processed_target import ProcessedTarget
 from starbash.processing_like import ProcessingLike
 from starbash.rich import to_rich_string, to_tree
@@ -472,6 +473,28 @@ class Processing(ProcessingLike):
         """Remove sessions from 'sessions' that are already in 'to_check' based on session ID."""
         existing_ids = {s.get("id") for s in to_check if s.get("id") is not None}
         sessions[:] = [s for s in sessions if s.get("id") not in existing_ids]
+
+    def reindex_if_needed(self) -> bool:
+        """Re-index every repo before this run, unless the user turned that off.
+
+        Frames added to an image folder since the last index pass are invisible to
+        ``search_session()``, so a stale index quietly drops a session's newest
+        lights.  The ``reindex.auto`` user preference (on by default) decides
+        whether a run pays for that scan.  The scan only *reports* what it is
+        doing (``EVENT_REINDEX_PROGRESS`` / ``EVENT_REINDEX_FINISHED``, published
+        by :meth:`Starbash.reindex_repos`) and this run's live view (CLI) or page
+        (GUI) renders it, so no second Rich display is involved.
+
+        Returns:
+            True when an index pass ran.
+        """
+        if not auto_reindex_enabled(self.sb.user_repo):
+            logging.debug("Skipping the pre-run re-index (reindex.auto = false).")
+            return False
+
+        logging.info("Re-indexing image folders before processing...")
+        self.sb.reindex_repos()
+        return True
 
     def run_all_stages(self) -> list[ProcessingResult]:
         """On the currently active session, run all processing stages

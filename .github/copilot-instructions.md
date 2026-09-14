@@ -92,6 +92,20 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
   - Uses Python `str.format_map` with `_SafeFormatter` that preserves unexpanded `{vars}`
   - Iterative expansion (max 10 iterations) for nested placeholders
   - Raises `KeyError` if variables remain unexpanded after processing
+- **Pre-run re-index**: a processing run (`sb process auto`, `sb process masters`, the GUI's
+  *Run auto pipeline*) re-indexes the user's image folders *before* it plans anything, so
+  frames added since the last run are not silently dropped. `Processing.reindex_if_needed()`
+  gates that on the `reindex.auto` user preference (default **true**;
+  `src/starbash/preferences.py::auto_reindex_enabled`, toggled on the GUI Settings page) and
+  then calls `Starbash.reindex_repos()`. That scan *reports* rather than *draws*: it
+  publishes `reindex.progress` / `reindex.finished` and nothing in the core opens a Rich
+  display (a `track()` bar would render on Rich's *global* console while the CLI's live view
+  runs on `starbash.console` — two consoles on one terminal — and the GUI's re-index job
+  would draw onto the process's stdout from a worker thread). Observers render the events:
+  the run's view/page (`commands/process.py::ProcessingView`,
+  `ui/qt/pages/processing.py`), the GUI's `ui/qt/pages/repositories.py`, and
+  `ui/cli.py::ReindexView` for a bare `sb repo reindex` / `sb repo add`. See
+  `doc/plans/cli-live-display.md` (Fix 5).
 - **Python tool**: RestrictedPython sandbox with globals: `context`, `logger`, builtins (list, dict, str, int, all)
 
 ## External tool integration

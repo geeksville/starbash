@@ -460,6 +460,15 @@ class ProcessingView:
                 self._note = str(message)
         elif kind == events.EVENT_TOOL_FINISHED:
             self._clear_tool()
+        elif kind == events.EVENT_REINDEX_PROGRESS:
+            # The pre-run index pass (see Processing.reindex_if_needed) reports the
+            # same events as `sb repo reindex`, so the caption shows whose files are
+            # being scanned rather than a bare "starting up" pause.
+            done = int(data.get("done") or 0)
+            total = int(data.get("total") or 0)
+            self._set_status(f"Indexing {data.get('repo') or ''} — {done}/{total}")
+        elif kind == events.EVENT_REINDEX_FINISHED:
+            self._set_status(f"Indexed {data.get('indexed') or 0} file(s)")
 
     def _note_run(self, data: dict) -> None:
         """Fold a payload's run/target labels into the rendered tree."""
@@ -709,6 +718,7 @@ def auto(
                     f"[red]Session number base filtering not yet implemented: {session_num}...[/red]"
                 )
             else:
+                proc.reindex_if_needed()
                 proc.run_all_stages()
                 view.finish()
 
@@ -750,6 +760,7 @@ def masters() -> None:
 
         view = ProcessingView("Generating master frames", console)
         with view, Processing(sb, progress=view.progress) as proc:
+            proc.reindex_if_needed()
             proc.run_master_stages()
             view.finish()
 

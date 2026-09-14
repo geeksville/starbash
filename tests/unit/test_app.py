@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, Mock, call, patch
 import pytest
 import typer
 
-from starbash import paths
+from starbash import events, paths
 from starbash.app import Starbash, copy_images_to_dir, create_user, setup_logging
 from starbash.database import Database, get_column_name
 from starbash.selection import Selection
@@ -914,3 +914,39 @@ class TestReindexRepos:
 
                 # Should call reindex_repo for each repo
                 assert mock_reindex.call_count == len(app.repo_manager.repos)
+
+    def test_reindex_repos_reports_progress_on_the_event_bus(
+        self, setup_test_environment, mock_analytics, monkeypatch
+    ):
+        """The scan says what it is doing; the front ends draw it.
+
+        The core owns no display (see ``doc/plans/cli-live-display.md``): it
+        publishes ``reindex.progress`` / ``reindex.finished`` per repo, and the
+        CLI's :class:`~starbash.ui.cli.ReindexView` or the GUI's Repositories
+        page renders them.
+        """
+        published: list[tuple[str, dict | None]] = []
+        monkeypatch.setattr(
+            events, "publish", lambda kind, data=None: published.append((kind, data))
+        )
+
+        with Starbash() as app:
+            app.reindex_repos()
+
+        finished = [data for kind, data in published if kind == events.EVENT_REINDEX_FINISHED]
+        assert finished, "every scanned repo must report that it finished"
+        assert {data["indexed"] for data in finished if data} == {0}  # empty test dirs
+        assert any(kind == events.EVENT_REINDEX_PROGRESS for kind, _ in published)
+
+    def test_the_core_draws_no_progress_bar(self, setup_test_environment, mock_analytics, capsys):
+        """Nothing in the core opens a Rich display any more.
+
+        A bar drawn from here renders on Rich's *global* console while the run's
+        own view lives on ``starbash.console``, and two displays on one terminal
+        tear each other apart.  ``track()`` on a non-terminal console (this one)
+        still prints its final line, so a stray bar is caught by its glyph.
+        """
+        with Starbash() as app:
+            app.reindex_repos()
+
+        assert "━" not in capsys.readouterr().out

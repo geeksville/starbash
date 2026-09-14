@@ -206,6 +206,10 @@ class ProcessingPage(Page):
         if kind == events.EVENT_PROCESS_TARGET:
             label = data.get("target") or "masters"
             self._caption.setText(f"Target {data.get('index')}/{data.get('total')}: {label}")
+            # A new target starts its own progress: the pre-run index pass (see
+            # Processing.reindex_if_needed) may have left the bar full, and a stage
+            # that reports no percentage must not then look finished.
+            self._progress.setRange(0, 0)
         elif kind == events.EVENT_RUN_STARTED:
             self._ensure_target(str(data.get("target") or "masters")).setExpanded(True)
         elif kind == events.EVENT_TASK_STARTED:
@@ -227,6 +231,17 @@ class ProcessingPage(Page):
                 self._caption.setText(str(notes))
         elif kind == events.EVENT_PREFLIGHT_FINISHED:
             self._on_preflight_finished(data)
+        elif kind == events.EVENT_REINDEX_PROGRESS:
+            # The pre-run index pass (see Processing.reindex_if_needed) reports the
+            # same events as the Repositories page's re-index button.
+            done = int(data.get("done") or 0)
+            total = int(data.get("total") or 0)
+            if total:
+                self._progress.setRange(0, total)
+                self._progress.setValue(done)
+            self._caption.setText(f"Indexing {data.get('repo') or ''} — {done}/{total}")
+        elif kind == events.EVENT_REINDEX_FINISHED:
+            self._caption.setText(f"Indexed {data.get('indexed') or 0} file(s).")
 
     def _on_tool_progress(self, data: dict) -> None:
         """Reflect a tool's streamed progress (and phase message) live.

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from starbash.analytics import analytics_enabled, analytics_include_user
 from starbash.paths import get_user_config_path, get_user_data_dir, get_user_documents_dir
+from starbash.preferences import auto_reindex_enabled
 from starbash.ui.qt.pages.base import Page
 
 __all__ = ["SettingsPage"]
@@ -23,7 +24,9 @@ class SettingsPage(Page):
     """Edit the same user settings as ``sb user ...``."""
 
     nav_title = "Settings"
-    subtitle = "Your name, email, analytics preference and where Starbash keeps data."
+    subtitle = (
+        "Your name, email, indexing and analytics preferences, and where Starbash keeps data."
+    )
 
     def _build(self) -> None:
         layout = QVBoxLayout(self)
@@ -33,12 +36,14 @@ class SettingsPage(Page):
         self._name.setPlaceholderText("Used for attribution in generated images")
         self._email = QLineEdit()
         self._email.setPlaceholderText("Optional, for attribution and support")
+        self._auto_reindex = QCheckBox("Scan my image folders before each processing run")
         self._analytics = QCheckBox("Send anonymous crash reports and usage data")
         self._include_email = QCheckBox("Include my email with crash reports")
 
         form = QFormLayout()
         form.addRow("Name", self._name)
         form.addRow("Email", self._email)
+        form.addRow("Indexing", self._auto_reindex)
         form.addRow("Analytics", self._analytics)
         form.addRow("", self._include_email)
         layout.addLayout(form)
@@ -67,6 +72,7 @@ class SettingsPage(Page):
         repo = self.sb.user_repo
         self._name.setText(str(repo.get("user.name", "") or ""))
         self._email.setText(str(repo.get("user.email", "") or ""))
+        self._auto_reindex.setChecked(auto_reindex_enabled(repo))
         self._analytics.setChecked(analytics_enabled(repo))
         self._include_email.setChecked(analytics_include_user(repo))
 
@@ -74,6 +80,7 @@ class SettingsPage(Page):
         repo = self.sb.user_repo
         repo.set("user.name", self._name.text().strip())
         repo.set("user.email", self._email.text().strip())
+        repo.set("reindex.auto", self._auto_reindex.isChecked())
         repo.set("analytics.enabled", self._analytics.isChecked())
         repo.set("analytics.include_user", self._include_email.isChecked())
         try:

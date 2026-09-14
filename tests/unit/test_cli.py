@@ -1,6 +1,9 @@
 """Tests for CLI commands to ensure they don't crash on invocation."""
 
+import re
+
 import pytest
+from rich.text import Text
 from typer.testing import CliRunner
 
 from starbash import paths
@@ -66,6 +69,24 @@ def test_repo_list_command(setup_test_environment):
     result = runner.invoke(app, ["repo"])
     assert result.exit_code == 0
     # Should list at least the default repos
+
+
+def test_repo_reindex_reports_each_repo(setup_test_environment):
+    """`sb repo reindex` renders the scan it drives.
+
+    The core only publishes ``reindex.*`` events, so `commands/repo.py` wraps the
+    scan in the CLI's ``ReindexView``.  On this non-terminal sink the view skips the
+    live bar and prints one plain line per repo -- the output a log scraper keeps.
+    """
+    result = runner.invoke(app, ["repo", "reindex"])
+
+    assert result.exit_code == 0
+    # Rich's default highlighter styles the number and the URL, so match on the
+    # ANSI-free text rather than the raw stream.
+    plain = Text.from_ansi(result.output).plain
+    lines = [line for line in plain.splitlines() if line.startswith("Indexed ")]
+    assert lines, f"expected a result line per indexed repo, got: {result.output!r}"
+    assert all(re.fullmatch(r"Indexed \d+ file\(s\) in file://\S+", line) for line in lines)
 
 
 def test_repo_list_non_verbose(setup_test_environment):

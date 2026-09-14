@@ -78,6 +78,10 @@ def process_job(
     # checker (correctly) can't prove the body ran.
     results: list[Any] = []
     with Starbash("gui.process") as sb, Processing(sb) as proc:
+        # Pick up frames added since the last run (unless the user opted out with
+        # the `reindex.auto` preference); the page draws its progress from events.
+        proc.reindex_if_needed()
+        token.raise_if_cancelled()
         results = proc.run_all_stages()
 
     succeeded = sum(1 for r in results if getattr(r, "success", None))

@@ -222,6 +222,67 @@ stage.result  →  {..., "run": <snapshot after record_result>}   ← nothing ru
   `test_one_run_taller_than_its_region_still_renders` now asserts the anchored row
   rather than the root.
 
+## Fix 5: the last core-side display (`Starbash.reindex_repo`)
+
+Fix 1 removed the *tool's* Rich displays, but `Starbash.reindex_repo()` /
+`reindex_repos()` still drew their own `rich.progress.track()` bars.  Those render on
+Rich's **global** console while a run's `ProcessingView` lives on `starbash.console`,
+and Rich only nests `Live`s that share one console — so the pre-run re-index had to be
+passed a `show_progress=False` flag to keep quiet during a run.
+
+That flag was scaffolding around a core that draws to the terminal, and it did not even
+hold for the GUI: *Re-index* and *Add repository* call the same methods with the default
+`show_progress=True`, so a worker thread opened a Rich display on the process's stdout
+while the Repositories page was already drawing the very same scan from the events.
+
+### Approach
+
+Delete the bars *and* the flag.  The events were already there — `reindex.progress` per
+repo (a first `0/N`, then one every 25 files) and `reindex.finished` per repo — and three
+observers already rendered them (the CLI's `ProcessingView`, the GUI's processing page,
+the GUI's Repositories page).  Only `sb repo reindex` and `sb repo add` had no observer of
+their own, because they leaned on the `track()` bar, so they get one:
+`src/starbash/ui/cli.py::ReindexView`.
+
+* `Starbash.reindex_repo()` / `reindex_repos()` — plain loops that only publish; no
+  `rich.progress` import left in `app.py`.
+* `ReindexView` — one `Live` (the console's only one) plus a determinate `Progress` task
+  per repo, dropped and re-added as each repo's first event arrives so folders of very
+  different sizes are not summed into one meaningless total.  Each finished repo leaves a
+  plain `Indexed N file(s) in <repo>` line, printed as it happens.  On a pipe, a redirect
+  or a dumb terminal it creates no `Live` at all, so those lines are the whole output —
+  the fallback `ProcessingView` makes via `supports_live_display()`.
+* `commands/repo.py` — `reindex` (all repos and one repo) and `add` wrap their scan in the
+  view, drawing on `starbash.console` (the console `Starbash.__init__` installs, the same
+  one `add_local_repo()` prints to, so its lines land above the bar).
+* `Processing.reindex_if_needed()` — just calls `reindex_repos()`.
+
+### Verification
+
+* `tests/unit/test_reindex_view.py` (7 tests) — the bar follows the events and shows the
+  current repo, it resets per repo (the finished repo's task is gone, not left at 100%),
+  each finished repo leaves its line, a pipe gets exactly those lines and no escape codes,
+  `finish()` replaces the bar with the totals, unrelated events are ignored, and the view
+  stops observing after its block.
+* `test_app.py::test_the_core_draws_no_progress_bar` — captures stdout across a real
+  `reindex_repos()` and fails on the `━` glyph, so a core-side `track()` cannot come back.
+  Checked to have teeth: a direct `track()` under the same capture writes
+  `Indexing … ━━━ 100%`.
+* `test_app.py::test_reindex_repos_reports_progress_on_the_event_bus` — asserts the
+  progress/finished events the observers depend on really are published (replaces the two
+  tests that mocked `track()` to check the `disable` flag).
+* Trade-off: on a terminal `sb repo reindex` looks the same as before (a bar, plus a
+  result line per repo); on a pipe the old single flat `track()` line per repo becomes
+  `Indexed N file(s) in <repo>`, which is the wording the GUI already shows.
+* Verified live under a PTY (not just asserted through a string console): the result
+  lines print *above* the frame, the two-line bar frame is erased
+  (`\r\x1b[2K\x1b[1A\x1b[2K`) and succeeded by the one-line totals frame, the cursor is
+  restored and no bar is left behind.  Two things that only show up in a *rendered*
+  run: the per-repo line's number and URL carry Rich's highlighter codes (so the
+  no-`track()` test asserts on the `━` glyph, and the CLI test strips ANSI before
+  matching), and `Live` nests `console.print` output correctly only because the view
+  draws on the same console it owns.
+
 ## Files
 
 * `src/starbash/tool/base.py` — drop `ToolLiveDisplay`, `Tool._active_display`,
@@ -243,10 +304,18 @@ stage.result  →  {..., "run": <snapshot after record_result>}   ← nothing ru
   line containing `[` cannot raise `MarkupError` inside the live refresh thread
   (which would freeze the display); `log_line_to_text()` (Fix 3) reuses that
   hardening for the log pane, adding the stderr/`BAD_WORDS` red styling.
+* `src/starbash/app.py` — Fix 5: `reindex_repo()` / `reindex_repos()` only *publish*
+  (`reindex.progress` / `reindex.finished`) any more; the `track()` bars and the
+  `show_progress` flag that silenced them are gone.
+* `src/starbash/ui/cli.py` (Fix 5) — `ReindexView`, the CLI's observer for a bare repo
+  scan (a per-repo `Live` bar; plain per-repo lines when the sink cannot animate), used
+  by `sb repo reindex` and `sb repo add` in `src/starbash/commands/repo.py`.
 * Tests: `tests/unit/test_run_tree_rich.py` (`TestLiveStatusLine` for fix 1,
   `TestLiveLayout` for fix 2 — it renders at a given terminal size and asserts
   the row count never exceeds it, that no `...` is drawn and that the status
-  stays on the first row with 200 runs).
+  stays on the first row with 200 runs).  Fix 5 adds
+  `tests/unit/test_reindex_view.py` and the two reindex tests in
+  `tests/unit/test_app.py`.
 
 ## Risks / notes
 

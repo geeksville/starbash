@@ -371,6 +371,23 @@ class TestLiveStatusLine:
         assert "Failed: Calibrate" in text
         assert "done" not in text
 
+    def test_shows_the_pre_run_index_pass(self):
+        """The status line names the repo being scanned before a run begins."""
+        view = self._view()
+        view._on_event(
+            events.Event(
+                events.EVENT_REINDEX_PROGRESS,
+                {"repo": "file:///img", "done": 12, "total": 40},
+            )
+        )
+
+        assert "Indexing file:///img" in _render(view._render())
+
+        view._on_event(
+            events.Event(events.EVENT_REINDEX_FINISHED, {"repo": "file:///img", "indexed": 40})
+        )
+        assert "Indexed 40 file(s)" in _render(view._render())
+
 
 class TestLiveLayout:
     """The status region must survive a run tree that is hundreds of lines tall.

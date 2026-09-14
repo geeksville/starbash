@@ -11,7 +11,6 @@ from typing import Any
 import rich.console
 import typer
 from rich.logging import RichHandler
-from rich.progress import track
 from toml_repo import Repo, RepoManager, get_config_suffix
 
 import starbash
@@ -802,7 +801,21 @@ class Starbash:
             self._add_session(headers)
 
     def reindex_repo(self, repo: Repo, subdir: str | None = None) -> None:
-        """Reindex all repositories managed by the RepoManager."""
+        """Scan one repo's files into the database.
+
+        Progress is *reported*, never drawn: the scan publishes
+        ``reindex.progress`` / ``reindex.finished`` per repo (see
+        :mod:`starbash.events`) and the front ends render those -- the CLI's
+        :class:`~starbash.ui.cli.ReindexView`, a processing run's own live view,
+        or the GUI's Repositories page.  A ``rich`` bar drawn from here would be a
+        *second* display racing the run's live view on the terminal, which is the
+        problem ``doc/plans/cli-live-display.md`` already removed from
+        ``starbash.tool``.
+
+        Args:
+            repo: the repo to scan.
+            subdir: scan only this subdirectory of the repo (for debugging).
+        """
 
         # make sure this new repo is listed in the repos table
         self.repo_db_update()  # not really ideal, a more optimal version would just add the new repo
@@ -824,13 +837,7 @@ class Starbash:
                 events.EVENT_REINDEX_PROGRESS,
                 {"repo": repo.url, "done": 0, "total": total_files},
             )
-            for index, f in enumerate(
-                track(
-                    all_files,
-                    description=f"Indexing {repo.url}...",
-                ),
-                start=1,
-            ):
+            for index, f in enumerate(all_files, start=1):
                 # Throttle progress events: a repo can hold tens of thousands of
                 # frames and we don't want to flood the event bus / GUI.
                 if index % 25 == 0 or index == total_files:
@@ -860,10 +867,13 @@ class Starbash:
             )
 
     def reindex_repos(self) -> None:
-        """Reindex all repositories managed by the RepoManager."""
+        """Reindex all repositories managed by the RepoManager.
+
+        Reports progress through the event bus only -- see :meth:`reindex_repo`.
+        """
         logging.debug("Reindexing all repositories...")
 
-        for repo in track(self.repo_manager.repos, description="Reindexing repos..."):
+        for repo in self.repo_manager.repos:
             self.reindex_repo(repo)
 
     def get_recipes(self) -> list[Repo]:

@@ -1192,6 +1192,99 @@ class TestPublishMasterCull:
         assert published == []
 
 
+class TestAutoReindex:
+    """A run re-indexes every repo first, unless the user turned that off."""
+
+    @staticmethod
+    def _processing(prefs: dict[str, object]) -> tuple[Any, list[bool]]:
+        """A Processing carrying only what the pre-run scan touches.
+
+        Returns the processing and one entry per ``reindex_repos()`` call, so a
+        test can prove the scan happened (the core draws nothing itself: it
+        reports through the event bus).
+        """
+        from starbash.processing import Processing
+
+        scans: list[bool] = []
+
+        class FakeRepo:
+            def get(self, key: str, default: object = None) -> object:
+                return prefs.get(key, default)
+
+        class FakeSb:
+            user_repo = FakeRepo()
+
+            def reindex_repos(self) -> None:
+                scans.append(True)
+
+        proc: Any = Processing.__new__(Processing)
+        proc.sb = FakeSb()
+        return proc, scans
+
+    def test_unset_preference_reindexes_before_the_run(self):
+        proc, scans = self._processing({})
+        assert proc.reindex_if_needed() is True
+        assert scans == [True]
+
+    def test_user_can_turn_the_scan_off(self):
+        proc, scans = self._processing({"reindex.auto": False})
+        assert proc.reindex_if_needed() is False
+        assert scans == []
+
+    def test_explicit_true_still_reindexes(self):
+        proc, scans = self._processing({"reindex.auto": True})
+        assert proc.reindex_if_needed() is True
+        assert scans == [True]
+
+
+class TestAutoReindexIntegration:
+    """The preference is read from the real user config, on a real Starbash.
+
+    ``TestAutoReindex`` stands in for the app with fakes; these prove the wiring
+    those fakes assume really holds - ``Starbash.user_repo`` carries the
+    preference and the scan itself is what runs (here over the empty test dirs).
+    """
+
+    def test_unset_preference_scans_the_repos(
+        self, setup_test_environment, mock_analytics, monkeypatch
+    ):
+        from starbash.app import Starbash
+        from starbash.processing import Processing
+
+        with Starbash() as sb:
+            scans: list[bool] = []
+            real = sb.reindex_repos
+
+            def spy() -> None:
+                scans.append(True)
+                real()
+
+            monkeypatch.setattr(sb, "reindex_repos", spy)
+
+            with Processing(sb) as proc:
+                assert proc.reindex_if_needed() is True
+
+            # The real scan ran (over the empty test dirs).
+            assert scans == [True]
+
+    def test_opt_out_in_the_user_config_scans_nothing(
+        self, setup_test_environment, mock_analytics, monkeypatch
+    ):
+        from starbash.app import Starbash
+        from starbash.processing import Processing
+
+        scanned: list[bool] = []
+
+        with Starbash() as sb:
+            sb.user_repo.set("reindex.auto", False)
+            monkeypatch.setattr(sb, "reindex_repos", lambda: scanned.append(True))
+
+            with Processing(sb) as proc:
+                assert proc.reindex_if_needed() is False
+
+        assert scanned == []
+
+
 class TestRunAllStagesPreflight:
     """The auto pipeline builds every target before running any of them."""
 

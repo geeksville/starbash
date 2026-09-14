@@ -1,5 +1,50 @@
 # Active Context
 
+## Current work focus — auto re-index before each processing run
+
+A run now scans the user's image folders first, so frames added since the last run
+are not silently dropped by `search_session()`. It is a **user preference, on by
+default**, and there is a GUI checkbox for it.
+
+- **Core**: `src/starbash/preferences.py` (new) holds `DEFAULT_AUTO_REINDEX = True`
+  and `auto_reindex_enabled(repo)` (reads `reindex.auto`), mirroring
+  `analytics.py`'s canonical-defaults pattern. `Processing.reindex_if_needed()`
+  (`processing.py`) consults it and calls `Starbash.reindex_repos()`, returning
+  whether a pass ran. Documented as a commented `[reindex] auto = true` line in
+  `templates/userconfig.toml`.
+- **Call sites**: `sb process auto` (the non-`session_num` branch) and
+  `sb process masters` call it inside the `with view, Processing(...)` block;
+  the GUI calls it at the top of `jobs.process_job` (before
+  `token.raise_if_cancelled()` / `run_all_stages()`).
+- **Progress**: no new events — the pass reuses `reindex.progress` /
+  `reindex.finished`, already published by `Starbash.reindex_repos()`, and every
+  front end now renders them: `ProcessingView._on_event` (caption
+  `Indexing <repo> — done/total`), `ProcessingPage._on_event` (bar range/value +
+  caption) and the GUI's Repositories page. `ProcessingPage` also resets the bar to
+  indeterminate on `EVENT_PROCESS_TARGET`, so a finished scan cannot leave a full
+  bar looking done.
+- **The core draws nothing** (follow-up to the tool migration in
+  `doc/plans/cli-live-display.md`): `reindex_repos()` / `reindex_repo()` lost their
+  `rich.progress.track()` bars *and* the `show_progress` flag that had been added to
+  silence them, because a bar drawn from the core renders on Rich's *global* console
+  while the CLI's live view runs on the separate `starbash.console` — and the GUI's
+  re-index/add jobs were opening a display from a worker thread onto the process's
+  stdout even though the page already drew the scan. `sb repo reindex` and
+  `sb repo add` needed a replacement observer, so `ui/cli.py::ReindexView` (new) is
+  it: a `Live` + a per-repo bar, plain `Indexed N file(s) in <repo>` lines when the
+  sink cannot animate, and no `Live` at all on a pipe.
+- **GUI settings**: `SettingsPage` gained `_auto_reindex` ("Scan my image folders
+  before each processing run", form row *Indexing*), read in `refresh()` through
+  `auto_reindex_enabled()` and written on save as `reindex.auto`.
+- **Tests**: `tests/unit/test_preferences.py` (new), `TestAutoReindex` /
+  `TestAutoReindexIntegration` in `test_processing.py` (default-on, opt-out,
+  explicit-true; the integration pair drives a real `Starbash` so the preference is
+  read from the real user config), `tests/unit/test_reindex_view.py` (new, 7 tests
+  for the CLI view), the core's event-reporting test plus
+  `test_the_core_draws_no_progress_bar` in `test_app.py` (replaces two tests that
+  mocked `track()`), the reindex branches in `test_run_tree_rich.py` and the
+  settings/processing-page cases in `test_gui.py`.
+
 ## Current work focus — Targets explorer + structured session masters
 
 Implemented the Targets-screen redesign and the structured `sessions.masters`
@@ -684,6 +729,10 @@ Open tabs / files being touched suggest active work in:
 - `doc/design/report.md` — the end-to-end design covering target report metadata (R1), Jekyll publishing (R2), and per-frame registration TOML stages (R3).
 
 ## Recent changes
+- **Auto re-index preference** (default true) + GUI checkbox — see the section at
+  the top of this file: runs now call `Processing.reindex_if_needed()` before
+  planning, gated on `reindex.auto`, and both front ends render the existing
+  `reindex.progress` / `reindex.finished` events (`preferences.py` is new).
 - **Fixed the frozen run-tree pane in `sb process auto`** (fix 4 of
   [`doc/plans/cli-live-display.md`](../../doc/plans/cli-live-display.md)): the pane
   "filled the screen once and never changed again" because no event ever carried a
@@ -837,6 +886,28 @@ Open tabs / files being touched suggest active work in:
 
 ## Next steps
 
+- Done (this session): **the core owns no display at all** — the follow-up to
+  `doc/plans/cli-live-display.md`, now written up there as *Fix 5*.
+  `Starbash.reindex_repo()` / `reindex_repos()` lost their `rich.progress.track()`
+  bars *and* the `show_progress` flag that had been added to quiet them, so the scan
+  only publishes `reindex.progress` / `reindex.finished`. `sb repo reindex` would
+  then have had no observer, so `src/starbash/ui/cli.py::ReindexView` (new) is it: one
+  `Live` + a bar that resets per repo, `Indexed N file(s) in <repo>` lines kept as each
+  repo finishes, and no `Live` at all on a pipe/redirect/dumb terminal (that mode is the
+  whole output). Wired into both `sb repo reindex` branches and `sb repo add` in
+  `commands/repo.py`, drawing on the console `Starbash.__init__` installs.  The GUI's
+  re-index/add jobs (`ui/qt/jobs.py`, default `show_progress=True`) were opening a Rich
+  display from a worker thread onto process stdout while the page drew the same scan —
+  that class of bug is gone with the flag.
+  Validated end-to-end under a PTY (120×N): result lines print *above* the live frame,
+  the two-line bar frame is erased (`\r\x1b[2K\x1b[1A\x1b[2K`) and replaced by the
+  single-line totals frame, cursor restored, no stray bar.  Note for prose: `console.print`
+  applies Rich's default *highlighting*, so ANSI sits inside the URL/number —
+  `test_the_core_draws_no_progress_bar` therefore asserts on the `━` glyph, not on a
+  literal line.  Tests: `tests/unit/test_reindex_view.py` (7), the event-reporting +
+  no-bar tests in `test_app.py`, and `test_cli.py::test_repo_reindex_reports_each_repo`
+  (the output contract of the all-repos path, which the older smoke test only asserted
+  as "exit code 0").  `just lint` clean; full suite **1084 passed**.
 - Done: [`doc/plans/master-cull.md`](../../doc/plans/master-cull.md) — after
   phase 1 (master regeneration) cull the displayed master runs that no selected
   target depends on, via an explicit **preflight** (plan) phase. Approach **A** is
