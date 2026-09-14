@@ -24,8 +24,12 @@ from typing import Any
 from starbash.app import Starbash
 from starbash.database import Database, get_column_name
 from starbash.processed_target import (
+    MasterCandidate,
+    MasterSelectionEdit,
     ParameterOption,
     ProcessedTarget,
+    SessionMasterOption,
+    SessionOption,
     StageOption,
     coerce_override,
     stage_declarations,
@@ -34,17 +38,24 @@ from starbash.url import make_file_url
 
 __all__ = [
     "TARGET_CONFIG_NAME",
+    "MasterCandidate",
+    "MasterSelectionEdit",
     "ParameterOption",
+    "SessionMasterOption",
+    "SessionOption",
     "StageOption",
     "coerce_override",
     "image_basename",
     "load_sessions",
     "load_session_images",
+    "load_session_options",
     "load_repos",
     "load_masters",
+    "master_url",
     "load_targets",
     "load_stage_options",
     "save_stage_options",
+    "save_master_selections",
     "preferred_target",
     "load_selection",
     "dashboard_stats",
@@ -52,6 +63,8 @@ __all__ = [
 
 #: Path (relative to a target's output dir) of its processed-target config.
 TARGET_CONFIG_NAME = Path(".starbash") / "main.toml"
+#: Path (relative to a target's output dir) of its per-session metadata/masters.
+SESSIONS_CONFIG_NAME = Path(".starbash") / "sessions.toml"
 
 
 def image_basename(image: dict[str, Any]) -> str:
@@ -133,6 +146,29 @@ def load_masters(sb: Starbash) -> list[dict[str, Any]]:
     return rows
 
 
+def master_url(sb: Starbash, path: str | None) -> str | None:
+    """Absolute file URL for a master frame recorded relative to the master repo.
+
+    ``sessions.toml`` stores calibration masters as repo-relative paths (the same
+    strings ``Processing`` writes), so anything that wants to *preview* or *open*
+    one needs the master repo's directory on top of them.
+
+    Returns ``None`` when there is no master repo, it is not a local one, or the
+    frame is not on disk - a preview needs a real file, and a link that goes
+    nowhere is worse than plain text.
+    """
+    if not path:
+        return None
+    repo = sb.repo_manager.get_repo_by_kind("master")
+    if repo is None:
+        return None
+    try:
+        resolved = repo.resolve_path(path)
+    except (OSError, ValueError):  # a non-local repo cannot resolve a filepath
+        return None
+    return make_file_url(resolved) if resolved.is_file() else None
+
+
 def load_targets(sb: Starbash) -> list[dict[str, Any]]:
     """Enumerate processed targets by scanning the processed output repository."""
     rows: list[dict[str, Any]] = []
@@ -181,6 +217,27 @@ def save_stage_options(target_path: str, stages: list[StageOption]) -> None:
     saves stay stable and hand-editable.
     """
     ProcessedTarget.open(target_path).save_stage_options(stages)
+
+
+def load_session_options(target_path: str) -> list[SessionOption]:
+    """Load the per-session master selections recorded in ``sessions.toml``.
+
+    This is a file-only read (no SQLite), so callers may run it on a worker
+    thread: ``sessions.toml`` carries every frame's metadata and can be large.
+    Returns an empty list for a target with no recorded calibration.
+    """
+    if not (Path(target_path) / SESSIONS_CONFIG_NAME).exists():
+        return []
+    return ProcessedTarget.open(target_path).session_options()
+
+
+def save_master_selections(target_path: str, edits: list[MasterSelectionEdit]) -> None:
+    """Record explicit (user) master choices back to the target's ``sessions.toml``.
+
+    ``edits`` is a batch of ``(session_key, master_type, path)``; each is written
+    with ``selected_by = "user"`` so a later processing run honours it.
+    """
+    ProcessedTarget.open(target_path).save_master_selections(edits)
 
 
 def load_selection(sb: Starbash) -> dict[str, Any]:

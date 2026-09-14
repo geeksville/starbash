@@ -12,7 +12,8 @@ task's output file, a target's output folder.  Marking a cell with
 :class:`LinkDecorator` wires both behaviours onto a view in one call, so the
 Processing and Targets pages share exactly the same link handling.  Table models
 (see :class:`~starbash.ui.qt.models.DictTableModel`) mark cells via
-``Column.link_key``, while tree pages call :func:`set_link`.
+``Column.link_key``, while item-based views (trees, and the master picker's
+``QTableWidget``) call :func:`set_link`.
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from typing import Literal
 
 from PySide6.QtCore import QObject, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QTreeWidgetItem
+from PySide6.QtWidgets import QTableWidgetItem, QTreeWidgetItem
 
 from starbash.ui.qt.models import LINK_ROLE
 from starbash.ui.qt.widgets.hover_preview import HoverPreview
@@ -39,20 +40,34 @@ __all__ = ["LINK_ROLE", "set_link", "open_link", "open_with_status", "LinkDecora
 OpenOn = Literal["clicked", "activated"]
 
 
-def set_link(item: QTreeWidgetItem, column: int, url: object) -> None:
-    """Mark a tree cell as a link: underlined, clickable and hover-previewable.
+def set_link(item: QTreeWidgetItem | QTableWidgetItem, column: int, url: object) -> None:
+    """Mark an item-view cell as a link: underlined, clickable and hover-previewable.
 
-    A URL we cannot preview locally (e.g. an ``https://`` recipe) also gets a
-    native tooltip, so its destination is discoverable without clicking.
+    Handles both item classes, so tree pages (:class:`QTreeWidgetItem`) and the
+    master picker's table share one call.  ``column`` names the cell for a tree item;
+    a :class:`QTableWidgetItem` *is* a single cell, and its font/tooltip methods take
+    no column.  A URL we cannot preview locally (e.g. an ``https://`` recipe) also
+    gets a native tooltip, so its destination is discoverable without clicking.
     """
     if not url:
         return
     text = str(url)
+    web = QUrl(text).scheme() in ("http", "https")
+
+    if isinstance(item, QTableWidgetItem):
+        item.setData(LINK_ROLE, text)
+        font = item.font()
+        font.setUnderline(True)
+        item.setFont(font)
+        if web:
+            item.setToolTip(text)
+        return
+
     item.setData(column, LINK_ROLE, text)
     font = item.font(column)
     font.setUnderline(True)
     item.setFont(column, font)
-    if QUrl(text).scheme() in ("http", "https"):
+    if web:
         item.setToolTip(column, text)
 
 

@@ -6,9 +6,11 @@ import logging
 import os
 import textwrap
 import types
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+import tomlkit
 from doit.tools import config_changed
 from multidict import MultiDict
 from rich.progress import Progress
@@ -47,7 +49,7 @@ from starbash.processed_target import ProcessedTarget
 from starbash.processing_like import ProcessingLike
 from starbash.rich import to_rich_string, to_tree
 from starbash.safety import get_list_of_strings, get_safe
-from starbash.score import score_candidates
+from starbash.score import ScoredCandidate, score_candidates
 from starbash.stages import (
     create_default_task,
     inputs_by_kind,
@@ -63,7 +65,6 @@ from starbash.stages import (
     task_to_stage,
     tasks_to_stages,
 )
-from starbash.toml import toml_from_list
 from starbash.tool import tools
 from starbash.tool.context import expand_context_dict, expand_context_list, expand_context_unsafe
 
@@ -74,6 +75,57 @@ __all__ = [
 
 class NoPriorTaskException(NonFatalException):
     """Exception raised when a prior task specified in 'after' cannot be found."""
+
+
+def _prior_master_selection(session: Any, imagetyp: str) -> Mapping[str, Any] | None:
+    """Return the prior ``[sessions.masters.<type>]`` entry for a session, if any."""
+    masters = session.get("masters") if session else None
+    if not isinstance(masters, Mapping):
+        return None
+    entry = masters.get(imagetyp)
+    return entry if isinstance(entry, Mapping) else None
+
+
+def _pick_master(
+    imagetyp: str, scored: list[ScoredCandidate], session: Any
+) -> tuple[ScoredCandidate, str]:
+    """Pick the master to use, honouring a prior explicit (``user``) choice.
+
+    A selection recorded with ``selected_by = "user"`` (e.g. from the GUI, see
+    ``doc/plans/session-masters.md``) is authoritative as long as that master is
+    still among the candidates.  Otherwise the highest-scoring candidate wins.
+    """
+    prior = _prior_master_selection(session, imagetyp)
+    if prior is not None and str(prior.get("selected_by") or "auto") == "user":
+        wanted = str(prior.get("selected") or "")
+        for candidate in scored:
+            if str(candidate.candidate.get("path") or "") == wanted:
+                return candidate, "user"
+        logging.warning(
+            "User-selected %s master %s is no longer a candidate; using the best match instead",
+            imagetyp,
+            wanted,
+        )
+    return scored[0], "auto"
+
+
+def _master_selection_table(
+    chosen: ScoredCandidate, chosen_by: str, scored: list[ScoredCandidate]
+) -> Any:
+    """Build the structured ``[sessions.masters.<type>]`` table for ``sessions.toml``.
+
+    See ``doc/plans/session-masters.md``: ``selected``/``selected_by`` name the pick
+    and one ``[[…candidates]]`` table per scored candidate carries the structured
+    evidence (no comment-scraping required).
+    """
+    table = tomlkit.table()
+    table["selected"] = str(chosen.candidate.get("path", ""))
+    table["selected_by"] = chosen_by
+    candidates = tomlkit.aot()
+    for candidate in scored:
+        candidates.append(candidate.to_toml_table())
+    table["candidates"] = candidates
+    return table
 
 
 def _clone_context(context: dict[str, Any]) -> dict[str, Any]:
@@ -1595,41 +1647,29 @@ class Processing(ProcessingLike):
             # Try to rank the images by desirability
             scored_masters = score_candidates(masters, self.session)
 
-            # FIXME - do reporting and use the user selected master if specified
-            # FIXME make a special doit task that just provides a very large set of possible masters - so that doit can do the resolution
-            # /selection of inputs?  The INPUT for a master kind would just make its choice based on the toml user preferences (or pick the first
-            # if no other specified).  Perhaps no need for a special master task, just use the regular depdency mechanism and port over the
-            # master scripts as well!!!
-            # Use the ScoredCandidate data during the cullling!  In fact, delay DOING the scoring until that step.
-            #
-            # session_masters = session.setdefault("masters", {})
-            # session_masters[master_type] = scored_masters  # for reporting purposes
-
             if len(scored_masters) == 0:
                 raise NoSuitableMastersException(imagetyp)
 
-            used_candidates = [scored_masters[0]]  # FIXME, for now we just pick the top one
-            excluded_candidates = scored_masters[1:]
+            # Honour a prior explicit (user) choice; otherwise take the top scorer.
+            chosen, chosen_by = _pick_master(imagetyp, scored_masters, self.session)
 
             self.sb._add_image_abspath(
-                used_candidates[0].candidate
+                chosen.candidate
             )  # make sure abspath is populated, we need it
 
-            selected = used_candidates[0].candidate
+            selected = chosen.candidate
             selected_master = selected["abspath"]
             path = Path(selected["path"])  # to get just the filename portion
             logging.debug(
-                f"For master '{imagetyp}', using: {path.name} (score={used_candidates[0].score:.1f}, {used_candidates[0].reason})"
+                f"For master '{imagetyp}', using: {path.name} (score={chosen.score:.1f}, {chosen.reason})"
             )
 
             # so scripts can find input["bias"].base etc...
             info = FileInfo(full=selected_master, definition=input)
-            # Store the canidates we considered so they eventually end up in the toml fole
+            # Store the candidates we considered as structured data in sessions.toml
+            # (see doc/plans/session-masters.md).
             session_masters = self.session.setdefault("masters", {})
-            session_masters[imagetyp] = {
-                "used": toml_from_list(used_candidates),  # To have nice comments in the toml
-                "excluded": toml_from_list(excluded_candidates),
-            }
+            session_masters[imagetyp] = _master_selection_table(chosen, chosen_by, scored_masters)
             ci[imagetyp] = info
 
         resolvers = {

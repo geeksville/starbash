@@ -23,22 +23,37 @@ try:  # Probe Qt startup once, so an unusable Qt skips rather than erroring.
 except Exception as _qt_error:  # pragma: no cover - environment dependent
     pytest.skip(f"Qt cannot start here: {_qt_error}", allow_module_level=True)
 
-from PySide6.QtCore import QRect, Qt  # noqa: E402
-from PySide6.QtGui import QGuiApplication, QImage  # noqa: E402
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, QSize, Qt  # noqa: E402
+from PySide6.QtGui import QGuiApplication, QImage, QMouseEvent  # noqa: E402
 from PySide6.QtWidgets import (  # noqa: E402
+    QApplication,
     QLabel,
     QPlainTextEdit,
+    QTableWidget,
+    QTableWidgetItem,
     QTreeWidget,
     QTreeWidgetItem,
     QWidget,
 )
 
+from starbash.ui.qt.models import LINK_ROLE  # noqa: E402
 from starbash.ui.qt.widgets import hover_preview as hp  # noqa: E402
+from starbash.ui.qt.widgets.file_links import set_link  # noqa: E402
 
 pytestmark = pytest.mark.gui
 
 #: An arbitrary item-data role, as a page would use.
 URL_ROLE = Qt.ItemDataRole.UserRole + 9
+
+
+@pytest.fixture(autouse=True)
+def _forget_the_remembered_preview_size():
+    """Keep a *process-wide* user preview size (see ``_PreviewPopup._user_size``)
+    from leaking between tests: one test dragging the popup bigger would otherwise
+    resize every later test's popup."""
+    hp._PreviewPopup._user_size = None
+    yield
+    hp._PreviewPopup._user_size = None
 
 
 def _top(tree: QTreeWidget, index: int = 0) -> QTreeWidgetItem:
@@ -219,6 +234,110 @@ def test_popup_reports_an_unreadable_file(qtbot, tmp_path, monkeypatch):
     )
 
 
+# --- popup resize (the user's own size) ------------------------------------
+
+
+def _grip_drag(grip: QWidget, delta: QPoint) -> None:
+    """Drag ``grip`` by ``delta`` using synthetic events.
+
+    ``QTest.mouseMove`` needs a real cursor position, which the offscreen platform
+    the suite runs on has none of, so press/move/release are posted directly.
+    """
+    left = Qt.MouseButton.LeftButton
+    modifiers = Qt.KeyboardModifier.NoModifier
+    start = QPointF(hp.GRIP_SIZE / 2, hp.GRIP_SIZE / 2)
+    end = QPointF(start.x() + delta.x(), start.y() + delta.y())
+    for event in (
+        QMouseEvent(QEvent.Type.MouseButtonPress, start, start, left, left, modifiers),
+        QMouseEvent(QEvent.Type.MouseMove, end, end, Qt.MouseButton.NoButton, left, modifiers),
+        QMouseEvent(
+            QEvent.Type.MouseButtonRelease, end, end, left, Qt.MouseButton.NoButton, modifiers
+        ),
+    ):
+        QApplication.sendEvent(grip, event)
+
+
+def _text_popup(qtbot, tmp_path: Path) -> tuple[hp._PreviewPopup, QWidget]:
+    """A shown popup rendering a text preview, with its owning window."""
+    parent = _parent(qtbot)
+    popup = hp._PreviewPopup()  # unparented so qtbot can own its teardown
+    qtbot.addWidget(popup)
+    popup.preview(_text_file(tmp_path).as_uri(), QRect(100, 100, 200, 20), parent)
+    qtbot.waitUntil(lambda: isinstance(popup._content, QPlainTextEdit), timeout=5000)
+    return popup, parent
+
+
+def test_dragging_the_grip_resizes_the_popup_and_is_remembered(qtbot, tmp_path):
+    """A preview is user-resizable, and the size the user chose sticks for the next."""
+    popup, parent = _text_popup(qtbot, tmp_path)
+
+    # The handle sits inside the card's bottom-right corner.
+    assert popup._grip.parent() is popup._card
+    assert popup._card.rect().contains(popup._grip.geometry())
+
+    before = popup.size()
+    _grip_drag(popup._grip, QPoint(120, 90))
+
+    assert popup.width() > before.width()
+    assert popup.height() > before.height()
+    assert hp._PreviewPopup._user_size == popup.size()
+
+    # The choice is remembered process-wide, so the *next* preview opens at it
+    # rather than back at the automatic quarter-of-the-window size.
+    popup.preview(_text_file(tmp_path, "b.txt").as_uri(), QRect(100, 100, 200, 20), parent)
+    assert popup.size() == hp._PreviewPopup._user_size
+    assert popup.width() > hp._PreviewPopup._target_size(parent).width()
+
+
+def test_dragging_the_grip_inwards_stops_at_the_minimums(qtbot, tmp_path):
+    """A preview cannot be dragged away to nothing."""
+    popup, _parent_window = _text_popup(qtbot, tmp_path)
+
+    _grip_drag(popup._grip, QPoint(-4000, -4000))
+
+    assert popup.size() == QSize(hp.MIN_WIDTH, hp.MIN_HEIGHT)
+    assert hp._PreviewPopup._user_size == QSize(hp.MIN_WIDTH, hp.MIN_HEIGHT)
+
+
+def test_a_user_sized_preview_is_not_shrunk_to_hug_a_small_image(qtbot, tmp_path):
+    """Hugging is skipped once the user owns the size, so their choice is not undone.
+
+    Without that, the next hover of a small thumbnail would shrink the window back
+    down and silently discard the size the user had dragged out.
+    """
+    path = _png(tmp_path, width=80, height=60)  # far smaller than the chosen size
+    parent = _parent(qtbot)
+    hp._PreviewPopup._user_size = QSize(420, 340)
+    popup = hp._PreviewPopup()
+    qtbot.addWidget(popup)
+
+    popup.preview(path.as_uri(), QRect(100, 100, 200, 20), parent)
+    qtbot.waitUntil(lambda: isinstance(popup._content, QLabel), timeout=5000)
+
+    assert popup.size() == QSize(420, 340)
+
+
+def test_resizing_re_scales_the_previewed_image(qtbot, tmp_path):
+    """Making the window bigger re-renders the image larger, from the source frame."""
+    path = _png(tmp_path, width=800, height=600)
+    parent = _parent(qtbot)
+    popup = hp._PreviewPopup()
+    qtbot.addWidget(popup)
+
+    popup.preview(path.as_uri(), QRect(100, 100, 200, 20), parent)
+    qtbot.waitUntil(lambda: isinstance(popup._content, QLabel), timeout=5000)
+
+    content = popup._content
+    assert isinstance(content, QLabel)
+    before = content.pixmap().width()
+    assert popup._source is not None
+
+    popup.resize(600, 520)  # what a grip drag ends up doing
+
+    # Re-scaling is debounced, so wait for it rather than racing the timer.
+    qtbot.waitUntil(lambda: content.pixmap().width() > before, timeout=2000)
+
+
 # --- popup close / single window -------------------------------------------
 
 
@@ -321,6 +440,34 @@ def test_engine_replaces_the_preview_for_a_new_link(qtbot, tmp_path):
     engine._show_preview()
 
     assert engine._shown_url == second.as_uri()
+    assert engine._popup.isVisible()
+
+
+def test_engine_previews_a_link_set_on_a_table_item(qtbot, tmp_path):
+    """``set_link`` also works on a QTableWidgetItem, which the master picker uses.
+
+    The engine itself is view-agnostic, but the picker's cells are widget-backed
+    items rather than model indices, so the link role has to survive that path.
+    """
+    path = _text_file(tmp_path)
+    table = QTableWidget(1, 1)
+    qtbot.addWidget(table)
+    table.verticalHeader().setVisible(False)
+    item = QTableWidgetItem("master_bias_gain100.fit")
+    set_link(item, 0, path.as_uri())
+    table.setItem(0, 0, item)
+    table.resize(400, 200)
+    table.show()
+    qtbot.waitExposed(table)
+
+    engine = hp.HoverPreview(table, url_role=LINK_ROLE, parent=table)
+
+    assert item.data(LINK_ROLE) == path.as_uri()
+    assert item.font().underline() is True
+
+    engine._on_mouse_move(table.visualItemRect(item).center())
+    assert engine._pending_url == path.as_uri()
+    engine._show_preview()
     assert engine._popup.isVisible()
 
 

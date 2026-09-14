@@ -25,3 +25,9 @@ Implementation and design plans live in `doc/plans/*.md` and are tracked in git.
   for a target's `.starbash` files + the live run tree.
 - `doc/plans/master-cull.md` — cull unneeded master runs from the displayed
   pipeline before phase 2.
+- `doc/plans/session-masters.md` — structured, machine-parseable per-session
+  master selection in `sessions.toml` (replaces the comment-carried reasons),
+  consumed by the GUI Targets screen.
+- `doc/plans/targets-redesign.md` — the sequenced execution plan for the Targets
+  screen redesign (narrow target picker + grouped explorer tree + session/master
+  detail pane); implemented, kept as the build record. Design: `gui.md` §5.5.

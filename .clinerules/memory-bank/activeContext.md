@@ -1,6 +1,81 @@
 # Active Context
 
-## Current work focus — GUI "Publish to GitHub"
+## Current work focus — Targets explorer + structured session masters
+
+Implemented the Targets-screen redesign and the structured `sessions.masters`
+schema (see `doc/plans/gui.md` §5.5 and the new `doc/plans/session-masters.md`;
+the sequenced build order is recorded in `doc/plans/targets-redesign.md`).
+
+- **Targets page** (`ui/qt/pages/targets.py`): the left list is now a **narrow
+  picker** (`TARGET_COLUMNS` = Target only, `_TARGET_LIST_SHARE = 0.22`); the
+  right pane is one tree with two top-level groups — `Stages` (unchanged
+  checkable stage/param tree) and `Sessions` (only when `sessions.toml` records
+  masters). Under each session are `Bias`/`Dark`/`Flat` rows showing the chosen
+  master + `auto`/`user`. The detail pane is a `QStackedWidget` swapping the
+  existing option editor with a new `MasterPicker`
+  (`ui/qt/widgets/master_picker.py`): a radio list of scored candidates with
+  score + reason, and *Reset to automatic*.
+- **Async sessions load**: `services.load_session_options` parses the (possibly
+  multi-MB) `sessions.toml` through `workers.run_async` with a `BusyIndicator`
+  over the tree; a stale result is dropped by comparing the path. Stage-only
+  edits never rewrite `sessions.toml`.
+- **New `sessions.masters` schema**: `[sessions.masters.<type>]` now carries
+  `selected` + `selected_by` (`"auto"`/`"user"`) and one `[[…candidates]]`
+  table per scored candidate with structured evidence (`gain_match`,
+  `temp_delta_c`, `time_delta_days`, `in_future`, `instrument_match`,
+  `camera_match`, `dimensions_match`, `filter_match`, `reasons`). Legacy
+  `used`/`excluded` string arrays still load — tomlkit drops inline-array
+  comments, so legacy entries carry no `reasons`.
+- **Processing honours a user pick**: `_resolve_input_master()` uses
+  `_pick_master()` — a prior `selected_by = "user"` entry wins as long as that
+  master is still a candidate, otherwise the top scorer — and writes the new
+  shape via `_master_selection_table()`.
+- Model accessors: `ProcessedTarget.session_options()` /
+  `save_master_selections()` (+ `_parse_master_entry`), re-exported by
+  `ui/qt/services.py`. `score.py`'s `ScoredCandidate` gained `reasons`/`details`
+  and `to_toml_table()`.
+- **Polish (2026-09-14)** — four follow-ups on the explorer:
+  - **Sessions are listed above Stages** (`_rebuild_tree` calls
+    `_build_sessions_group()` before building the stage group), because picking a
+    session's calibration master is the more common edit and the stage list is long.
+  - **The one-column target picker stretches** (`setStretchLastSection(True)` on
+    `_table`): `make_table` deliberately leaves the last section fixed (right for the
+    multi-column tables, where stretching gave a bare number a huge empty cell),
+    which left the 180px Target column stranded ~40px short of the scrollbar.
+  - **Master names are links** — in the tree (the *value* cell of a `Bias`/`Dark`
+    row; the type cell is not a file) and in every `MasterPicker` row (its Master
+    cell): hovering previews the frame, activating opens it. A plain click in the
+    picker still only *chooses*, so the picker's `LinkDecorator` uses
+    `open_on="activated"`. `services.master_url(sb, path)` resolves a recorded
+    repo-relative master via `repo.resolve_path()` and returns `None` when there is
+    no local master repo or no real file — so a dead name is never underlined.
+    `widgets/file_links.set_link()` now takes a `QTableWidgetItem` too; the two Qt
+    item APIs differ (a table item *is* one cell and takes no column argument).
+  - **Hover previews are user-resizable**: `_PreviewGrip` is a small painted handle
+    at the card's bottom-right that resizes the popup by hand — `QSizeGrip`
+    asks the platform to run a resize loop, which a frameless `Qt.Tool` window does
+    not reliably get (and the offscreen test platform has no equivalent for). It sits
+    in its **own right-aligned layout row** below the body, not overlaid on the body's
+    corner: an overlay swallowed the corner of the text view's own scrollbar (its
+    down-arrow became undraggable), so `_CHROME_H` budgets the extra row instead.
+    The dragged size is remembered process-wide (`_PreviewPopup._user_size`), clamped to
+    `MIN_WIDTH`/`MIN_HEIGHT` and to the screen, re-placed beside the hovered cell,
+    and a previewed image is re-scaled to the new size (debounced by
+    `RESCALE_DELAY_MS`, re-rendered from the kept source `QImage` so growing stays
+    sharp). Hugging is skipped once the user owns the size, so the next hover of a
+    small thumbnail cannot shrink their window back down. Because `_user_size` is
+    class-level state, `test_hover_preview.py` has an autouse fixture that resets it.
+- **Latent test bug exposed and fixed**: `test_targets_page.py`
+  ::`test_master_picker_is_exclusive_and_resettable` constructed a `QWidget` with no
+  `QApplication` alive and only passed when the xdist worker happened to run another
+  Qt test first (Qt *aborts* — not raises — in that case). It now takes `qapp`;
+  adding tests shifted xdist's load balancing and made the crash reproducible.
+- Tests: `tests/unit/test_processed_target_sessions.py`,
+  `tests/unit/test_processing_masters.py`, extended `test_score.py` and
+  `test_targets_page.py`. Full suite **1049 passed**; `just lint` clean
+  (0 basedpyright errors).
+
+## Previous focus — GUI "Publish to GitHub"
 
 Implemented [`doc/plans/gui-github-publish.md`](../../doc/plans/gui-github-publish.md):
 the GUI Publish page can now publish for real, including the first-run sign-in +
@@ -502,6 +577,10 @@ Targets page specifics (recent tweak round):
   factors 2:1 then keep that ratio on resize). `test_targets_page.py`
   ::`test_target_list_defaults_to_two_thirds_of_the_width` locks this in — without
   the `setSizes` call the measured share was 0.57.
+  **Superseded (2026-09-13, Targets redesign):** the list is now a narrow picker —
+  `_TARGET_LIST_SHARE = 0.22` with the Output link moved to the right pane's path
+  label, and `test_target_list_is_a_narrow_picker` replaced the 2/3 test. The
+  `setSizes`-plus-stretch-factor subtlety above still applies.
 - **Image previews are asynchronous.** `widgets/image_viewer.py` decodes on a worker
   thread via `workers.run_async` and shows `widgets/busy_indicator.py`
   (`BusyIndicator` — a self-centring rotating arc + caption) over the image pane
@@ -735,6 +814,9 @@ Open tabs / files being touched suggest active work in:
   target list now starts at ~2/3 of the page width via `_TARGET_LIST_SHARE = 0.66`
   plus an explicit `QSplitter.setSizes(...)` (stretch factors 2:1). Regression
   covered by `tests/unit/test_targets_page.py`.
+  *Superseded 2026-09-13 by the Targets redesign: `_TARGET_LIST_SHARE` is 0.22 (a
+  narrow picker), and 2026-09-14 the picker's single column was made to stretch to
+  the scrollbar.*
 - **Analytics preference defaults centralized** (`src/starbash/analytics.py`): `DEFAULT_ANALYTICS_ENABLED = True` / `DEFAULT_ANALYTICS_INCLUDE_USER = False` plus `analytics_enabled(repo)` / `analytics_include_user(repo)` helpers. The core (`app.py`), GUI Settings page, first-run wizard and `sb user setup` all read through these now, so an unset preference is consistent. Fixes the GUI showing analytics *off* while the backend treated it as *on*.
 - Split processed-target metadata into three files under `.starbash/`: `main.toml` (config/stages/masters/overrides), `about.toml` (generated report), `sessions.toml` (per-session processing state). See `src/starbash/processed_target.py`.
 - Added `about.generated_at` / `schema_version` report metadata and `DATE-OBS` to persisted frame metadata (for publishing charts).

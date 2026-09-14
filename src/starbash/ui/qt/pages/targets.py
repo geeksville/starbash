@@ -1,20 +1,38 @@
-"""Review processed targets: pick stages, and tune their overridable options.
+"""Review processed targets: pick stages, tune options, and choose calibration masters.
 
-The stage list is a tree: each top-level item is a stage (ticked = active) and its
-children are the parameters the recipe declares, showing either the recipe default
-or the value the user overrode.  Selecting a parameter reveals an editor below the
-tree with its description, default and an override switch; with nothing selected
-the editor pane is hidden entirely.
+The page is a narrow target list on the left and a **target explorer** on the
+right.  The explorer is a tree of two groups:
+
+``Sessions``
+    One row per session that recorded calibration masters (from the prior run's
+    ``sessions.toml``), with a child row per calibration type (``Bias``/``Dark``/
+    ``Flat``).  Listed **first**, because choosing the calibration master is what
+    this screen is most often used for.
+
+``Stages``
+    Each top-level row is a stage (ticked = active) and its children are the
+    parameters the recipe declares.
+
+Selecting a parameter reveals the option editor below the tree; selecting a
+calibration type reveals a :class:`~starbash.ui.qt.widgets.master_picker.MasterPicker`
+instead.  With nothing selected the detail pane is hidden entirely.
 
 Edits live in memory and are only written by **Save options**; **Undo changes**
 discards them.  Leaving the page (or picking another target) with unsaved edits
-prompts the user via :meth:`TargetsPage.can_leave`.
+prompts the user via :meth:`TargetsPage.can_leave`.  A user-picked master is saved
+with ``selected_by = "user"``, which processing honours on the next run — see
+``doc/plans/session-masters.md``.
+
+Master names are links (as are stage/option names): hovering one previews the file
+and activating the row opens it — see
+:mod:`starbash.ui.qt.widgets.hover_preview`.
 """
 
 from __future__ import annotations
 
 import copy
 from enum import StrEnum
+from functools import partial
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -30,6 +48,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QSplitter,
+    QStackedWidget,
     QTabWidget,
     QTreeWidget,
     QTreeWidgetItem,
@@ -42,15 +61,23 @@ from starbash.ui.qt.models import TARGET_COLUMNS, DictTableModel
 from starbash.ui.qt.pages.base import Page
 from starbash.ui.qt.services import (
     ParameterOption,
+    SessionMasterOption,
+    SessionOption,
     StageOption,
     coerce_override,
+    load_session_options,
     load_stage_options,
     load_targets,
+    master_url,
     preferred_target,
+    save_master_selections,
     save_stage_options,
 )
 from starbash.ui.qt.theme import ACCENT
+from starbash.ui.qt.widgets.busy_indicator import BusyIndicator
 from starbash.ui.qt.widgets.file_links import LinkDecorator, open_with_status, set_link
+from starbash.ui.qt.widgets.master_picker import MasterPicker
+from starbash.ui.qt.workers import run_async
 from starbash.url import make_file_url
 
 __all__ = ["TargetsPage", "UnsavedChoice"]
@@ -61,13 +88,23 @@ _OVERRIDE_COLOR = QColor("#ffd75f")
 _DEFAULT_COLOR = QColor("#7f8c9b")
 #: Smallest height that fits the option editor's title, description and tab pane.
 _EDITOR_MIN_HEIGHT = 200
-#: Horizontal gap between the target list and the stages column, so the right pane
-#: does not sit flush against the left table's scrollbar (the splitter handle alone
-#: is only a few pixels wide).
+#: Horizontal gap between the target list and the target explorer, so the right
+#: pane does not sit flush against the left table's scrollbar (the splitter handle
+#: alone is only a few pixels wide).
 _COLUMN_GAP = 12
-#: Default share of the page width given to the target list; the stages column
-#: (tree + option editor) takes the rest.
-_TARGET_LIST_SHARE = 0.66
+#: Default share of the page width given to the target list.  It is a narrow
+#: picker now: the selected target's details take the rest of the page.
+_TARGET_LIST_SHARE = 0.22
+#: Labels of the two top-level tree groups in the target explorer.
+_STAGES_GROUP_LABEL = "Stages"
+_SESSIONS_GROUP_LABEL = "Sessions"
+#: Smallest height that lets the master picker show its title, hint and a few rows.
+_MASTER_PICKER_MIN_HEIGHT = 220
+
+
+def _load_session_options_job(_report: Any, _token: Any, *, path: str) -> list[SessionOption]:
+    """Worker adapter: :func:`run_async` calls jobs as ``job(report, token)``."""
+    return load_session_options(path)
 
 
 class UnsavedChoice(StrEnum):
@@ -92,6 +129,16 @@ class TargetsPage(Page):
         self._stage_items: dict[str, QTreeWidgetItem] = {}
         self._param_items: dict[tuple[str, str], QTreeWidgetItem] = {}
         self._editing: tuple[str, str] | None = None
+        #: Per-session master selections, as loaded from disk and as currently edited.
+        self._sessions_original: list[SessionOption] = []
+        self._sessions_current: list[SessionOption] = []
+        self._session_items: dict[tuple[str, ...], QTreeWidgetItem] = {}
+        self._master_items: dict[tuple[tuple[str, ...], str], QTreeWidgetItem] = {}
+        #: The top-level ``Stages``/``Sessions`` group items (rebuilt per target).
+        self._stages_group: QTreeWidgetItem | None = None
+        self._sessions_group: QTreeWidgetItem | None = None
+        #: Path whose ``sessions.toml`` is being parsed off-thread (None when idle).
+        self._pending_sessions_path: str | None = None
         #: Target whose options are loaded, and its on-disk directory.
         self._loaded_target: str | None = None
         self._loaded_path: str | None = None
@@ -105,9 +152,13 @@ class TargetsPage(Page):
 
         self._model = DictTableModel(TARGET_COLUMNS)
         self._table = self.make_table(self._model)
+        # A one-column picker should fill its pane: make_table deliberately leaves
+        # the last section un-stretched (right for the multi-column tables, where
+        # stretching gave a bare number a huge empty column), which here left the
+        # 180px Target column stranded in a wider pane - a bare strip of table with
+        # a scrollbar at its far edge.
+        self._table.horizontalHeader().setStretchLastSection(True)
         self._table.selectionModel().selectionChanged.connect(self._on_target_selected)
-        #: The Output column is a link to the target's output folder.
-        self._table_links = LinkDecorator(self._table, parent=self, on_status=self.status.emit)
 
         right = QWidget()
         self._right = right
@@ -116,29 +167,49 @@ class TargetsPage(Page):
         # scrollbar; the bottom margin keeps the path box off the pane edge.
         right_layout.setContentsMargins(_COLUMN_GAP, 0, 0, 8)
 
-        hint = QLabel("Stages — ticked = active. Expand a stage to edit its options.")
+        hint = QLabel(
+            "Sessions — pick which calibration master each session uses. "
+            "Stages — ticked = active. Expand to edit options."
+        )
         hint.setObjectName("PageSubtitle")
         # Wrap so a long hint can't dictate a wide minimum for this column (which
-        # would push the splitter off the target list's 66/34 default).
+        # would push the splitter off the target list's narrow default).
         hint.setWordWrap(True)
         right_layout.addWidget(hint)
 
         self._tree = QTreeWidget()
-        self._tree.setHeaderLabels(["Stage / option", "Value"])
+        self._tree.setHeaderLabels(["Target / stage / session", "Value"])
         self._tree.setAlternatingRowColors(True)
-        self._tree.setColumnWidth(0, 200)
+        self._tree.setColumnWidth(0, 240)
         self._tree.itemChanged.connect(self._on_item_changed)
         self._tree.itemSelectionChanged.connect(self._on_tree_selection_changed)
         right_layout.addWidget(self._tree, 1)
 
-        #: A Stage/option cell previews its recipe on hover and opens it when the row
-        #: is *activated* (double-click / Enter) - a plain click still selects, so it
-        #: never fights the stage checkbox or the option editor.
+        #: A stage/session cell previews its recipe on hover and opens it when the
+        #: row is *activated* (double-click / Enter) - a plain click still selects,
+        #: so it never fights the stage checkbox or the detail pane.
         self._links = LinkDecorator(
             self._tree, parent=self, on_status=self.status.emit, open_on="activated"
         )
 
-        right_layout.addWidget(self._build_editor())
+        #: The detail pane swaps between the stage-option editor and the master
+        #: picker; it hides entirely when neither applies.
+        self._detail = QStackedWidget()
+        self._detail.addWidget(self._build_editor())
+
+        self._master_picker = MasterPicker()
+        self._master_picker.setMinimumHeight(_MASTER_PICKER_MIN_HEIGHT)
+        self._master_picker.selectionChanged.connect(self._on_master_selection_changed)
+        self._detail.addWidget(self._master_picker)
+
+        right_layout.addWidget(self._detail)
+
+        #: Overlays the tree while a large ``sessions.toml`` is parsed off-thread.
+        self._busy = BusyIndicator(self._tree, "Reading sessions…")
+
+        # Nothing is selected yet: keep the detail pane out of the way until there
+        # is something to edit (see _clear_editor / _show_master_picker).
+        self._detail.setVisible(False)
 
         self._save_button = QPushButton("Save options")
         self._save_button.setObjectName("Primary")
@@ -155,8 +226,8 @@ class TargetsPage(Page):
         self._path = QLabel("")
         self._path.setObjectName("PathLabel")
         self._path.setWordWrap(True)
-        # A long output path must never dictate the stages column's minimum width:
-        # otherwise the splitter is pushed off its 66/34 default (and the target
+        # A long output path must never dictate the explorer column's minimum width:
+        # otherwise the splitter is pushed off its narrow default (and the target
         # list's share shrinks).  Ignored lets the label wrap into whatever width
         # the layout has, however long the path is.
         self._path.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -171,8 +242,9 @@ class TargetsPage(Page):
         splitter.addWidget(right)
         # Stretch factors only govern how *extra* space is divided once the panes
         # have their initial sizes, so the default proportion is set explicitly:
-        # the target list gets the lion's share, the stages column the rest.
-        splitter.setStretchFactor(0, 2)
+        # the target list is a narrow picker, the explorer takes the rest (and all
+        # of any extra width when the window grows).
+        splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         splitter.setSizes(
             [
@@ -227,21 +299,33 @@ class TargetsPage(Page):
         editor_layout.addWidget(self._tabs)
 
         self._editor.setEnabled(False)
-        # Nothing is selected yet, so the pane stays out of the way until there is
-        # something to edit (see _clear_editor / _load_editor).
-        self._editor.setVisible(False)
         return self._editor
 
     # --- tree -----------------------------------------------------------------
     def _rebuild_tree(self) -> None:
-        """Rebuild the whole tree from the working model."""
+        """Rebuild the whole explorer from the working models."""
         self._links.dismiss()
         self._guard = True
         try:
             self._tree.clear()
             self._stage_items.clear()
             self._param_items.clear()
+            self._session_items.clear()
+            self._master_items.clear()
             self._editing = None
+            self._stages_group = None
+            self._sessions_group = None
+
+            # Sessions lead the explorer: choosing each session's calibration master
+            # is what this screen is most often opened for, and its rows are much
+            # shorter than the stage list below it.
+            self._build_sessions_group()
+
+            if self._current:
+                group = QTreeWidgetItem([_STAGES_GROUP_LABEL, ""])
+                group.setFirstColumnSpanned(True)
+                self._tree.addTopLevelItem(group)
+                self._stages_group = group
 
             for stage in self._current:
                 item = QTreeWidgetItem([stage.name, self._stage_value_text(stage)])
@@ -249,13 +333,13 @@ class TargetsPage(Page):
                 item.setCheckState(
                     0, Qt.CheckState.Unchecked if stage.excluded else Qt.CheckState.Checked
                 )
-                # The Stage/option cell links to the recipe that declares the stage:
+                # The stage cell links to the recipe that declares the stage:
                 # hovering previews it, activating opens it.  Set the link first so
                 # the stage's description keeps the tooltip slot.
                 set_link(item, 0, stage.recipe_url)
                 if stage.description:
                     item.setToolTip(0, stage.description)
-                self._tree.addTopLevelItem(item)
+                self._add_stage_item(item)
                 self._stage_items[stage.name] = item
 
                 for parameter in stage.parameters:
@@ -268,10 +352,69 @@ class TargetsPage(Page):
                     item.addChild(child)
                     self._param_items[(stage.name, parameter.name)] = child
                     self._apply_param_style(stage.name, parameter.name)
+
+            if self._stages_group is not None:
+                self._stages_group.setExpanded(True)
         finally:
             self._guard = False
 
         self._clear_editor()
+
+    def _add_stage_item(self, item: QTreeWidgetItem) -> None:
+        """Attach a stage row under the Stages group (or at top level if absent)."""
+        if self._stages_group is not None:
+            self._stages_group.addChild(item)
+        else:
+            self._tree.addTopLevelItem(item)
+
+    def _build_sessions_group(self) -> None:
+        """Add the Sessions group — only when sessions recorded master choices.
+
+        Listed above the Stages group (the caller builds it first): the master choice
+        is the more common edit, and the group's rows are short.
+        """
+        if not self._sessions_current:
+            return
+        group = QTreeWidgetItem([_SESSIONS_GROUP_LABEL, ""])
+        group.setFirstColumnSpanned(True)
+        self._tree.addTopLevelItem(group)
+        self._sessions_group = group
+
+        for option in self._sessions_current:
+            session_item = QTreeWidgetItem([option.label, ""])
+            session_item.setFirstColumnSpanned(True)
+            session_item.setToolTip(0, f"Session {option.label}")
+            group.addChild(session_item)
+            self._session_items[option.key] = session_item
+
+            for master in option.masters:
+                master_item = QTreeWidgetItem(
+                    [master.type.title(), self._master_selection_text(master)]
+                )
+                # The value cell holds the master's file name, so that is the cell
+                # that previews on hover and opens on activate.  The type cell stays
+                # plain text - it names a calibration type, not a file.
+                set_link(master_item, 1, master_url(self.sb, master.selected))
+                master_item.setToolTip(0, self._master_selection_tooltip(master))
+                session_item.addChild(master_item)
+                self._master_items[(option.key, master.type)] = master_item
+
+        group.setExpanded(True)
+
+    @staticmethod
+    def _master_selection_text(master: SessionMasterOption) -> str:
+        """Row text for a calibration type: the chosen master's name + who chose it."""
+        if not master.selected:
+            return "(no master selected)"
+        return f"{Path(master.selected).name}  ({master.selected_by})"
+
+    @staticmethod
+    def _master_selection_tooltip(master: SessionMasterOption) -> str:
+        """Tooltip for a calibration row: the full path plus the alternatives count."""
+        lines = [master.selected or "(no master selected)"]
+        lines.append(f"Chosen by: {master.selected_by}")
+        lines.append(f"{len(master.candidates)} candidate(s) considered")
+        return "\n".join(lines)
 
     def _apply_param_style(self, stage_name: str, param_name: str) -> None:
         """Colour a parameter row: overrides stand out, defaults stay muted."""
@@ -355,7 +498,7 @@ class TargetsPage(Page):
         self._mark_dirty()
 
     def _on_tree_selection_changed(self) -> None:
-        """Load the editor for the selected parameter row, if any."""
+        """Show the option editor or master picker for the selected row, if any."""
         if self._guard:
             return
         items = self._tree.selectedItems()
@@ -364,8 +507,13 @@ class TargetsPage(Page):
             return
 
         item = items[0]
+        if item is self._stages_group or item is self._sessions_group:
+            # A group header carries no detail of its own.
+            self._clear_editor()
+            return
+
         parent = item.parent()
-        if parent is None:
+        if parent is self._stages_group:
             # A stage row: show its description rather than an editor.
             stage = self._stage(item.text(0))
             self._clear_editor()
@@ -373,11 +521,104 @@ class TargetsPage(Page):
             self._param_desc.setText(
                 (stage.description if stage else None) or "Expand to see this stage's options."
             )
-            self._editor.setVisible(True)
+            self._show_editor()
             self._sync_editor_height()
             return
 
-        self._load_editor(parent.text(0), item.text(0))
+        master = self._master_for_item(item)
+        if master is not None:
+            option, chosen = master
+            self._show_master_picker(option, chosen)
+            return
+
+        if parent is not None:
+            # A parameter row: its parent is a stage item.
+            self._load_editor(parent.text(0), item.text(0))
+            return
+
+        self._clear_editor()
+
+    def _master_for_item(
+        self, item: QTreeWidgetItem
+    ) -> tuple[SessionOption, SessionMasterOption] | None:
+        """Return the ``(session, master)`` a tree item represents, if it is a master row."""
+        for (key, master_type), candidate_item in self._master_items.items():
+            if candidate_item is not item:
+                continue
+            option = next((o for o in self._sessions_current if o.key == key), None)
+            master = (
+                next((m for m in option.masters if m.type == master_type), None)
+                if option is not None
+                else None
+            )
+            if option is not None and master is not None:
+                return option, master
+        return None
+
+    def _show_editor(self) -> None:
+        """Show the stage-option editor in the detail pane."""
+        self._detail.setCurrentWidget(self._editor)
+        self._detail.setVisible(True)
+
+    def _show_master_picker(self, option: SessionOption, master: SessionMasterOption) -> None:
+        """Show the master picker for one session + calibration type."""
+        self._editing = None
+        self._master_picker.set_context(
+            option.label,
+            option.key,
+            master,
+            # Candidate paths are relative to the master repo; resolving them here
+            # makes each row previewable (hover) and openable (activate) rather
+            # than a dead name.
+            resolve_url=partial(master_url, self.sb),
+        )
+        self._detail.setCurrentWidget(self._master_picker)
+        self._detail.setVisible(True)
+
+    def _hide_detail(self) -> None:
+        """Hide the detail pane entirely (nothing selected to edit)."""
+        self._detail.setVisible(False)
+
+    def _on_master_selection_changed(self, selection: object) -> None:
+        """Apply a picker choice to the working model and mark the page dirty."""
+        if self._guard:
+            return
+        key, master_type, path = selection  # type: ignore[misc]
+        if path is None:
+            return
+        option = next((o for o in self._sessions_current if o.key == key), None)
+        master = (
+            next((m for m in option.masters if m.type == master_type), None)
+            if option is not None
+            else None
+        )
+        if master is None:
+            return
+        if master.selected == path and master.selected_by == "user":
+            return
+        master.selected = path
+        master.selected_by = "user"
+        for candidate in master.candidates:
+            candidate.selected = candidate.path == path
+        self._refresh_master_row(key, master_type)
+        self._mark_dirty()
+
+    def _refresh_master_row(self, key: tuple[str, ...], master_type: str) -> None:
+        """Re-render a calibration row after its selection changed."""
+        item = self._master_items.get((key, master_type))
+        option = next((o for o in self._sessions_current if o.key == key), None)
+        master = (
+            next((m for m in option.masters if m.type == master_type), None)
+            if option is not None
+            else None
+        )
+        if item is None or master is None:
+            return
+        self._guard = True
+        try:
+            item.setText(1, self._master_selection_text(master))
+        finally:
+            self._guard = False
 
     def _load_editor(self, stage_name: str, param_name: str) -> None:
         """Populate the editor for one parameter."""
@@ -401,7 +642,7 @@ class TargetsPage(Page):
             # A long description wraps and grows the editor; make sure the taller
             # layout is allowed rather than clipped.
             self._sync_editor_height()
-            self._editor.setVisible(True)
+            self._show_editor()
         finally:
             self._guard = False
 
@@ -423,7 +664,7 @@ class TargetsPage(Page):
             self._default_label.setText("")
             # No option (or no valid row) selected: hide the whole pane rather than
             # showing an inert editor taking up half the page.
-            self._editor.setVisible(False)
+            self._hide_detail()
         finally:
             self._guard = False
 
@@ -474,8 +715,8 @@ class TargetsPage(Page):
 
     # --- dirty state, save and undo -------------------------------------------
     def _is_dirty(self) -> bool:
-        """True when the working model differs from what is on disk."""
-        return self._current != self._original
+        """True when the working model (stages or master choices) differs from disk."""
+        return self._current != self._original or self._sessions_current != self._sessions_original
 
     def _mark_dirty(self) -> None:
         """Show Save/Undo only when there is something to save or discard."""
@@ -489,6 +730,27 @@ class TargetsPage(Page):
     def _on_undo_clicked(self) -> None:
         self._undo()
 
+    def _pending_master_edits(self) -> list[tuple[tuple[str, ...], str, str]]:
+        """The user-selected masters that differ from what is on disk."""
+        edits: list[tuple[tuple[str, ...], str, str]] = []
+        for option in self._sessions_current:
+            original = next((o for o in self._sessions_original if o.key == option.key), None)
+            for master in option.masters:
+                if master.selected is None:
+                    continue
+                prior = (
+                    next((m for m in original.masters if m.type == master.type), None)
+                    if original is not None
+                    else None
+                )
+                if (
+                    prior is None
+                    or prior.selected != master.selected
+                    or prior.selected_by != master.selected_by
+                ):
+                    edits.append((option.key, master.type, master.selected))
+        return edits
+
     def _save(self) -> bool:
         """Write the working model to disk. Returns True on success."""
         if self._loaded_target is None or self._loaded_path is None:
@@ -499,7 +761,21 @@ class TargetsPage(Page):
             self.show_error(f"Could not save options for {self._loaded_target}: {exc}")
             return False
 
+        # Only rewrite the (large) sessions.toml when a master choice actually
+        # changed; stage-only edits never touch it.
+        if self._sessions_current != self._sessions_original:
+            edits = self._pending_master_edits()
+            if edits:
+                try:
+                    save_master_selections(self._loaded_path, edits)
+                except Exception as exc:  # noqa: BLE001 - report, never crash the page
+                    self.show_error(
+                        f"Could not save master choices for {self._loaded_target}: {exc}"
+                    )
+                    return False
+
         self._original = copy.deepcopy(self._current)
+        self._sessions_original = copy.deepcopy(self._sessions_current)
         self._mark_dirty()
         self.status.emit(f"Saved options for {self._loaded_target}.")
         return True
@@ -507,6 +783,7 @@ class TargetsPage(Page):
     def _undo(self) -> None:
         """Discard in-memory edits and restore what is on disk."""
         self._current = copy.deepcopy(self._original)
+        self._sessions_current = copy.deepcopy(self._sessions_original)
         self._rebuild_tree()
         self._mark_dirty()
         self.status.emit("Discarded option changes.")
@@ -598,12 +875,16 @@ class TargetsPage(Page):
         self._load_target(row)
 
     def _load_target(self, row: dict[str, Any] | None) -> None:
-        """Load stage options for ``row`` (or clear the panel when None)."""
+        """Load stage options and session masters for ``row`` (or clear when None)."""
         if row is None:
             self._loaded_target = None
             self._loaded_path = None
             self._original = []
             self._current = []
+            self._sessions_original = []
+            self._sessions_current = []
+            self._pending_sessions_path = None
+            self._busy.stop()
             self._rebuild_tree()
             self._mark_dirty()
             self._path.setText("")
@@ -621,10 +902,47 @@ class TargetsPage(Page):
         self._loaded_path = path
         self._original = stages
         self._current = copy.deepcopy(stages)
+        # Master choices arrive asynchronously (sessions.toml can be large); show
+        # the stages immediately and add the Sessions group when they land.
+        self._sessions_original = []
+        self._sessions_current = []
         self._rebuild_tree()
         self._mark_dirty()
         self._path.setText(self._path_link(path))
         self.status.emit(f"{len(stages)} stage(s) for {target}.")
+        self._request_sessions(path)
+
+    def _request_sessions(self, path: str) -> None:
+        """Parse a target's per-session master choices off the GUI thread."""
+        self._pending_sessions_path = path
+        self._busy.start()
+        run_async(
+            partial(_load_session_options_job, path=path),
+            on_finished=partial(self._on_sessions_loaded, path),
+            on_failed=partial(self._on_sessions_failed, path),
+        )
+
+    def _on_sessions_loaded(self, path: str, options: list[SessionOption]) -> None:
+        """Apply freshly parsed session masters, dropping a stale result."""
+        if path != self._loaded_path:
+            return
+        self._pending_sessions_path = None
+        self._busy.stop()
+        self._sessions_original = options
+        self._sessions_current = copy.deepcopy(options)
+        self._rebuild_tree()
+        self._mark_dirty()
+        if options:
+            sessions = len(options)
+            self.status.emit(f"{sessions} session(s) with recorded calibration for this target.")
+
+    def _on_sessions_failed(self, path: str, message: str) -> None:
+        """A failed sessions read must not break the stage editor; just report it."""
+        if path != self._loaded_path:
+            return
+        self._pending_sessions_path = None
+        self._busy.stop()
+        self.status.emit(f"Could not read session master choices: {message}")
 
     @staticmethod
     def _path_link(path: str) -> str:

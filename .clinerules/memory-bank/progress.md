@@ -15,10 +15,20 @@
 - **Publishing**: `sb publish` generates a GitHub Pages-compatible Jekyll site (Jinja2 + Pygal charts), and `sb publish github` uploads to `starbash-public`.  The upload sequence (sign in via device flow → check the Starbash GitHub App → create/verify the repo → upload blobs → commit → configure Pages) lives in the front-end-agnostic `src/starbash/publish/github_publish.py`; the CLI renders its `StepReporter` with Rich and the GUI drives a progress bar and a step-by-step setup dialog from it (`doc/plans/gui-github-publish.md`).  The GUI's *Publish to GitHub* handles the two first-run states itself — `needs_sign_in` / `needs_install` come back as *results*, the page runs the setup dialog, then re-runs the publish.  The GUI Publish page has no username field to fill in: the account is GitHub's (`GitHubCredential.login`, recorded at install/publish time and read back by `github_identity_job`) and *Open in browser* only lights up after a publish returns the `https://<owner>.github.io/starbash-public/` Pages URL.
 - **External tools**: Siril (Flatpak stdin script), GraXpert (CLI), Starnet2, rc-astro (`bxt`/`nxt` with JSON progress streaming), Python (RestrictedPython sandbox).
 - **Missing-tool warnings with severity + ignore** (`doc/plans/tool-warnings.md`): `ToolSeverity` / `ToolStatus` / `missing_tool_statuses()` in `src/starbash/tool/` drive a severity-matched startup log line in the CLI (`Tool.preflight()`) and dismissible per-tool bars in the GUI (`ui/qt/widgets/tool_warning.py`), whose *Ignore* button persists `tool.<key>.ignored = true` to the user config (and therefore silences the CLI too). StarNet detection also validates the configured `starnet_exe` (a dangling path counts as missing) — a non-empty Siril setting alone used to report StarNet as available, so removing `starnet2` warned nobody.
-- **Desktop GUI** (`sb gui`, `feat-gui` branch): PySide6 app providing Dashboard, Sessions (filter/browse/export + FITS & raster preview), Masters, Targets (per-target options tree: stage toggles + overridable recipe parameters, with unsaved-change protection, a target list that defaults to ~2/3 of the page width, and clickable recipe/folder links), live Processing (task tree with per-task collapsible Log/Out nodes, underlined file/recipe links, closable hover previews + streamed log + progress), Repositories (add/remove/re-index with live progress), Publish (local site) and Settings + first-run wizard. PySide6 is a normal dependency; the CLI never imports Qt. Backed by the new `starbash.events` bus and `starbash.interaction` protocol.
+- **Desktop GUI** (`sb gui`, `feat-gui` branch): PySide6 app providing Dashboard, Sessions (filter/browse/export + FITS & raster preview), Masters, Targets (narrow target picker whose single column stretches to the scrollbar + a `Sessions`-then-`Stages` explorer tree of stage toggles, overridable recipe parameters and per-session calibration-master selection via a radio `MasterPicker`, with unsaved-change protection and clickable recipe/folder links plus hover-previewable master frames), live Processing (task tree with per-task collapsible Log/Out nodes, underlined file/recipe links, closable and user-resizable hover previews + streamed log + progress), Repositories (add/remove/re-index with live progress), Publish (local site) and Settings + first-run wizard. PySide6 is a normal dependency; the CLI never imports Qt. Backed by the new `starbash.events` bus and `starbash.interaction` protocol.
 - Image previews decode on a worker thread and show a rotating-arc `BusyIndicator`
   (`ui/qt/widgets/busy_indicator.py`) over the pane while loading, so selecting a big
   FITS frame no longer freezes the window.
+- **Structured per-session master selection** (`doc/plans/session-masters.md`):
+  `sessions.toml` records `[sessions.masters.<type>]` as `selected` +
+  `selected_by` (`"auto"`/`"user"`) plus a `[[…candidates]]` table per scored
+  master, carrying typed evidence (gain/temp/time/instrument/camera/dimensions/
+  filter match flags and deltas) instead of a `# reason` comment. `score.py`'s
+  `ScoredCandidate` emits it (`details` + `to_toml_table()`);
+  `ProcessedTarget.session_options()` / `save_master_selections()` read/write it
+  (legacy `used`/`excluded` arrays still parse); and
+  `Processing._resolve_input_master()` honours a `selected_by = "user"` pick on
+  the next run, falling back to the top scorer if that master is gone.
 - **Type checking covers `src/` *and* `tests/`**: `just lint` runs `ruff check --fix`,
   `ruff format` and `basedpyright` over both trees (0 errors).  `Starbash.__exit__`
   propagates exceptions under pytest (a mocked `analytics_exception` used to suppress
@@ -38,13 +48,14 @@
 
 ## Current Status
 
-Alpha `v0.3.1` (tag `90529fe`, 2026-08-31). `main` is now at `46f28a5` — the GUI work
-(including the split live display: tool log pane + run tree), the debug hints, and
-"docs: remove code search guidance from AGENTS.md". OSC workflows are the supported
-path; the most recently landed work is the missing-tool warning model
-(`doc/plans/tool-warnings.md`) alongside the R3 per-frame registration reporting
-generalization. The Memory Bank was initialized on top of `21dac19` and extended
-since.
+Alpha `v0.3.1` (tag `90529fe`, 2026-08-31). `main` is at `d9eb338` — the GUI work
+(including the split live display: tool log pane + run tree), the missing-tool
+warning model, the real GitHub publish flow, and now the **Targets explorer**
+(narrow target picker + `Stages`/`Sessions` tree + calibration `MasterPicker`)
+with the **structured `sessions.masters` schema** that makes a user's master pick
+authoritative on re-run. OSC workflows are the supported path; the R3 per-frame
+registration reporting generalization is the other recent thread. The Memory
+Bank was initialized on top of `21dac19` and extended since.
 
 ## Known Issues
 

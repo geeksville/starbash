@@ -12,8 +12,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import tomlkit
 
 pytest.importorskip("PySide6")
+
+from PySide6.QtCore import Qt  # noqa: E402
 
 from starbash.ui.qt.pages.targets import TargetsPage, UnsavedChoice  # noqa: E402
 from starbash.ui.qt.services import (  # noqa: E402
@@ -60,6 +63,19 @@ def processed_repo(app_context, tmp_path) -> Path:
     repo_dir = tmp_path / "processed"
     repo_dir.mkdir()
     app_context.add_local_repo(str(repo_dir), repo_type="processed")
+    return repo_dir
+
+
+@pytest.fixture
+def master_repo(app_context, tmp_path) -> Path:
+    """A registered 'master' repo, so recorded master paths resolve to a real dir.
+
+    ``sessions.toml`` stores calibration masters relative to this repo (that is what
+    ``Processing`` writes), so a hover preview/open needs it to exist.
+    """
+    repo_dir = tmp_path / "masters"
+    repo_dir.mkdir()
+    app_context.add_local_repo(str(repo_dir), repo_type="master")
     return repo_dir
 
 
@@ -499,12 +515,12 @@ def test_columns_are_separated_by_a_horizontal_gap(qtbot, app_context, processed
     assert tree_left - table_right >= _COLUMN_GAP
 
 
-def test_target_list_defaults_to_two_thirds_of_the_width(qtbot, app_context, processed_repo):
-    """The target list should start out wider than the stages column.
+def test_target_list_is_a_narrow_picker(qtbot, app_context, processed_repo):
+    """The target list is a narrow picker; the explorer takes the rest.
 
     Stretch factors alone don't set the initial proportion (they only divide extra
-    space), so the page also calls ``setSizes``; without it the table got the
-    smaller share and long output paths were truncated.
+    space), so the page also calls ``setSizes``; without it the table took the
+    larger share and crowded out the selected target's details.
     """
     from starbash.ui.qt.pages.targets import _TARGET_LIST_SHARE
 
@@ -522,24 +538,17 @@ def test_target_list_defaults_to_two_thirds_of_the_width(qtbot, app_context, pro
     def _share() -> float:
         return page._table.width() / max(1, splitter.width())
 
-    # The initial `setSizes` lands during the first layout pass, so wait for the
-    # splitter to settle rather than racing a fixed sleep.
     # `setSizes` lands during the first layout pass, so wait for the splitter to
     # settle instead of racing a fixed sleep.
     qtbot.waitUntil(lambda: abs(_share() - _TARGET_LIST_SHARE) < 0.05, timeout=2000)
 
     total = splitter.width()
     assert total > 0
-    share = _share()
-
-    total = splitter.width()
-    assert total > 0
-    share = _share()
 
     # The splitter handle eats a few pixels, so allow a small tolerance.
-    assert abs(share - _TARGET_LIST_SHARE) < 0.05
-    # ...and the stages column is still usable rather than collapsed.
-    assert page._right.width() > 200
+    assert abs(_share() - _TARGET_LIST_SHARE) < 0.05
+    # ...and the explorer column gets the lion's share of the page.
+    assert page._right.width() > page._table.width()
 
 
 def _indicator_size() -> int:
@@ -676,14 +685,358 @@ def test_target_link_opens_on_activate_not_on_click(
     assert opened == [crop.data(0, LINK_ROLE)]
 
 
-def test_target_table_output_column_is_a_link(qtbot, app_context, processed_repo):
-    """The target list's Output cell carries the folder URL for a link."""
-    from starbash.ui.qt.models import LINK_ROLE
+# --- session master selection ---------------------------------------------
 
-    _make_target(processed_repo)
+#: A sessions.toml in the new structured shape: one session, masters per type.
+SESSIONS_TOML = """[[sessions]]
+date = "2025-08-25"
+start = "2025-08-25T04:23:18"
+end = "2025-08-25T04:50:10"
+filter = "None"
+imagetyp = "Light"
+object = "sh2126"
+telescop = "OnStep"
+
+[sessions.masters.bias]
+selected = "cam/2025-09-03_04-33-21/bias/master_bias_gain100.fit"
+selected_by = "auto"
+
+[[sessions.masters.bias.candidates]]
+path = "cam/2025-09-03_04-33-21/bias/master_bias_gain100.fit"
+score = -169472.0
+gain_match = true
+temp_delta_c = 2.2
+in_future = true
+reasons = ["gain match", "time Δ=9.0d (in future!)"]
+
+[[sessions.masters.bias.candidates]]
+path = "cam/2025-09-06_06-05-55/bias/master_bias_gain100.fit"
+score = -169500.0
+gain_match = true
+reasons = ["gain match"]
+
+[sessions.masters.dark]
+selected = "cam/2025-09-10_03-48-47/dark/master_dark_120s_gain100.fit"
+selected_by = "auto"
+
+[[sessions.masters.dark.candidates]]
+path = "cam/2025-09-10_03-48-47/dark/master_dark_120s_gain100.fit"
+score = -169490.0
+reasons = ["gain match"]
+"""
+
+
+def _write_sessions(target_dir: Path, text: str = SESSIONS_TOML) -> Path:
+    """Write a sessions.toml next to the target's main.toml."""
+    path = target_dir / ".starbash" / "sessions.toml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def _refresh_and_wait(page: Any, qtbot: Any, name: str = "sh2126") -> Any:
+    """Show the page on ``name`` and wait for the async sessions load."""
+    page.sb.selection.set_targets([name])
+    page.resize(1000, 800)
+    page.show()
+    page.refresh()
+    qtbot.waitExposed(page)
+    qtbot.waitUntil(lambda: page._pending_sessions_path is None, timeout=3000)
+    return page
+
+
+def test_sessions_group_lists_sessions_with_recorded_masters(qtbot, app_context, processed_repo):
+    """A target whose sessions.toml records masters grows a Sessions group."""
+    target_dir = _make_target(processed_repo)
+    _write_sessions(target_dir)
+
     page = TargetsPage(app_context, None)
     qtbot.addWidget(page)
-    page.refresh()
+    _refresh_and_wait(page, qtbot)
 
-    index = page._model.index(0, 1)
-    assert str(index.data(LINK_ROLE)).startswith("file://")
+    assert len(page._sessions_current) == 1
+    session = page._sessions_current[0]
+    assert session.label == "2025-08-25 · None · OnStep"
+    assert [master.type for master in session.masters] == ["bias", "dark"]
+    assert page._sessions_group is not None
+    assert {master_type for (_key, master_type) in page._master_items} == {"bias", "dark"}
+    labels: list[str] = []
+    for index in range(page._tree.topLevelItemCount()):
+        item = page._tree.topLevelItem(index)
+        assert item is not None
+        labels.append(item.text(0))
+    # Sessions lead the explorer; see test_sessions_group_is_listed_above_stages.
+    assert labels == ["Sessions", "Stages"]
+
+
+def test_sessions_group_is_listed_above_the_stages_group(qtbot, app_context, processed_repo):
+    """The Sessions group is rendered *above* Stages.
+
+    Asserted on the rendered geometry, not just the tree's index order: the position
+    the user sees is the point of the change (choosing a session's calibration master
+    is the common edit, and the stage list is long).
+    """
+    target_dir = _make_target(processed_repo)
+    _write_sessions(target_dir)
+
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    _refresh_and_wait(page, qtbot)
+    qtbot.wait(20)
+
+    assert page._sessions_group is not None
+    assert page._stages_group is not None
+    assert page._sessions_group.parent() is None  # a top-level group, not a stage
+    assert page._tree.indexOfTopLevelItem(page._sessions_group) == 0
+
+    sessions_top = page._tree.visualItemRect(page._sessions_group).top()
+    stages_top = page._tree.visualItemRect(page._stages_group).top()
+    assert sessions_top < stages_top
+
+
+def test_picking_a_master_shows_the_picker_and_marks_dirty(qtbot, app_context, processed_repo):
+    """Selecting a calibration row opens the picker; choosing a candidate dirties."""
+    target_dir = _make_target(processed_repo)
+    _write_sessions(target_dir)
+
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    _refresh_and_wait(page, qtbot)
+
+    key, master_type = next(iter(page._master_items))
+    page._tree.setCurrentItem(page._master_items[(key, master_type)])
+
+    assert page._detail.isVisible() is True
+    assert page._detail.currentWidget() is page._master_picker
+    assert page._save_button.isVisible() is False
+
+    other = "cam/2025-09-06_06-05-55/bias/master_bias_gain100.fit"
+    page._on_master_selection_changed((key, master_type, other))
+
+    assert page._save_button.isVisible() is True
+    master = page._sessions_current[0].masters[0]
+    assert master.selected == other
+    assert master.selected_by == "user"
+
+
+def test_saving_a_master_choice_writes_user_selection(qtbot, app_context, processed_repo):
+    """Save records the pick with ``selected_by = "user"`` in sessions.toml."""
+    target_dir = _make_target(processed_repo)
+    sessions_path = _write_sessions(target_dir)
+
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    _refresh_and_wait(page, qtbot)
+
+    key, master_type = next(iter(page._master_items))
+    other = "cam/2025-09-06_06-05-55/bias/master_bias_gain100.fit"
+    page._on_master_selection_changed((key, master_type, other))
+    assert page._save() is True
+
+    document: Any = tomlkit.parse(sessions_path.read_text(encoding="utf-8"))
+    session = document["sessions"][0]
+    bias = session["masters"]["bias"]
+    assert str(bias["selected"]) == other
+    assert str(bias["selected_by"]) == "user"
+    # The rest of the session (and the sibling master) is preserved.
+    assert session["date"] == "2025-08-25"
+    assert "dark" in session["masters"]
+
+
+def test_undo_restores_the_on_disk_master_choice(qtbot, app_context, processed_repo):
+    """Undo reverts a master pick without touching sessions.toml."""
+    target_dir = _make_target(processed_repo)
+    sessions_path = _write_sessions(target_dir)
+    before = sessions_path.read_text(encoding="utf-8")
+
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    _refresh_and_wait(page, qtbot)
+
+    key, master_type = next(iter(page._master_items))
+    page._on_master_selection_changed(
+        (key, master_type, "cam/2025-09-06_06-05-55/bias/master_bias_gain100.fit")
+    )
+    assert page._is_dirty() is True
+
+    page._undo()
+
+    assert page._is_dirty() is False
+    assert page._sessions_current[0].masters[0].selected_by == "auto"
+    assert sessions_path.read_text(encoding="utf-8") == before
+
+
+def test_master_picker_is_exclusive_and_resettable(qapp):
+    """The picker behaves as a radio list and can revert to the automatic pick.
+
+    ``qapp`` is required rather than implied: the picker is a ``QWidget``, and Qt
+    aborts (not raises) if one is constructed with no ``QApplication`` alive - which
+    is exactly what happens when this test lands first on an xdist worker.
+    """
+    from starbash.ui.qt.services import MasterCandidate, SessionMasterOption
+    from starbash.ui.qt.widgets.master_picker import MasterPicker
+
+    option = SessionMasterOption(
+        type="bias",
+        selected="b",
+        selected_by="user",
+        candidates=[
+            MasterCandidate(path="a", score=1.0, selected=False, reasons=[], details={}),
+            MasterCandidate(path="b", score=2.0, selected=True, reasons=[], details={}),
+        ],
+    )
+    picker = MasterPicker()
+    changes: list[Any] = []
+    picker.selectionChanged.connect(changes.append)
+    picker.set_context("2025-08-25", ("k",), option)
+
+    assert picker.selection() == (("k",), "bias", "b")
+    assert picker._checked_path() == "b"
+
+    # Choosing the other row makes it the only checked one.
+    picker._on_cell_clicked(0, 0)
+    assert picker._checked_path() == "a"
+    assert changes[-1] == (("k",), "bias", "a")
+    checked = []
+    for row in range(len(picker._paths)):
+        check_item = picker._table.item(row, 0)
+        assert check_item is not None
+        checked.append(check_item.checkState() == Qt.CheckState.Checked)
+    assert checked == [True, False]
+
+    # Reset goes back to the automatic pick recorded in the file.
+    picker._on_reset()
+    assert picker.selection() == (("k",), "bias", "b")
+
+
+# --- master names as links (hover preview / open) --------------------------
+
+
+def test_master_url_needs_a_master_repo_and_a_real_file(app_context, master_repo):
+    """`master_url` resolves repo-relative masters, and only when they exist."""
+    from starbash.ui.qt.services import master_url
+
+    # Nothing to resolve: no path at all.
+    assert master_url(app_context, None) is None
+    assert master_url(app_context, "") is None
+    # A recorded path with no frame behind it is deliberately not a link.
+    assert master_url(app_context, "cam/x/bias/master_bias.fit") is None
+
+    frame = master_repo / "cam/x/bias/master_bias.fit"
+    frame.parent.mkdir(parents=True)
+    frame.touch()
+
+    url = master_url(app_context, "cam/x/bias/master_bias.fit")
+    assert url is not None
+    assert url.startswith("file://")
+    assert url.endswith("cam/x/bias/master_bias.fit")
+
+
+def test_master_url_is_none_without_a_master_repo(app_context, processed_repo):
+    """With no master repo registered there is nothing to resolve against."""
+    from starbash.ui.qt.services import master_url
+
+    assert master_url(app_context, "cam/x/bias/master_bias.fit") is None
+
+
+def _write_master_frame(master_repo: Path, relative: str) -> Path:
+    """Create the (empty) file a recorded master path points at."""
+    frame = master_repo / relative
+    frame.parent.mkdir(parents=True, exist_ok=True)
+    frame.touch()
+    return frame
+
+
+def test_master_names_link_to_their_frame(qtbot, app_context, processed_repo, master_repo):
+    """The master name - in the tree and in the picker - previews/opens its frame.
+
+    Stage and option rows have long linked to their recipe; this is the same idea for
+    calibration masters, which is what makes the Sessions subpane worth hovering.
+    """
+    from starbash.ui.qt.models import LINK_ROLE
+    from starbash.ui.qt.services import master_url
+
+    target_dir = _make_target(processed_repo)
+    _write_sessions(target_dir)
+    selected = "cam/2025-09-03_04-33-21/bias/master_bias_gain100.fit"
+    alternative = "cam/2025-09-06_06-05-55/bias/master_bias_gain100.fit"
+    _write_master_frame(master_repo, selected)
+    _write_master_frame(master_repo, alternative)
+
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    _refresh_and_wait(page, qtbot)
+
+    key, master_type = next(iter(page._master_items))
+    assert (key, master_type) == (page._sessions_current[0].key, "bias")
+    row = page._master_items[(key, master_type)]
+
+    # The *name* cell is the link; the calibration type is not a file.
+    assert row.data(1, LINK_ROLE) == master_url(app_context, selected)
+    assert row.font(1).underline() is True
+    assert row.data(0, LINK_ROLE) is None
+
+    # Selecting the row opens the picker, whose rows link to *their own* candidate.
+    page._tree.setCurrentItem(row)
+    assert page._detail.currentWidget() is page._master_picker
+    names = [
+        page._master_picker._table.item(index, 1)
+        for index in range(page._master_picker._table.rowCount())
+    ]
+    assert [item.data(LINK_ROLE) for item in names if item is not None] == [
+        master_url(app_context, selected),
+        master_url(app_context, alternative),
+    ]
+
+
+def test_master_names_stay_plain_when_the_frame_is_missing(qtbot, app_context, processed_repo):
+    """A master we cannot resolve to a real file is left as plain text.
+
+    An underlined link that previews nothing and opens nothing would be a lie; the
+    row's tooltip still shows the full recorded path.
+    """
+    from starbash.ui.qt.models import LINK_ROLE
+
+    target_dir = _make_target(processed_repo)
+    _write_sessions(target_dir)
+
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    _refresh_and_wait(page, qtbot)
+
+    row = page._master_items[next(iter(page._master_items))]
+    assert row.data(1, LINK_ROLE) is None
+    assert row.font(1).underline() is False
+    assert row.toolTip(0)
+
+
+# --- the target picker's single column ------------------------------------
+
+
+def test_target_column_fills_the_picker_up_to_the_scrollbar(qtbot, app_context, processed_repo):
+    """A one-column table stretches, so no bare strip sits before the scrollbar.
+
+    ``make_table`` deliberately leaves the last section un-stretched (right for the
+    multi-column tables, where a stretched column gave a bare number a huge empty
+    cell), which left the 180px Target column stranded in a wider pane.
+    """
+    from starbash.ui.qt.models import TARGET_COLUMNS
+
+    _make_target(processed_repo)
+    app_context.selection.set_targets(["sh2126"])
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    page.resize(1000, 800)
+    page.show()
+    page.refresh()
+    qtbot.waitExposed(page)
+
+    header = page._table.horizontalHeader()
+    assert header.stretchLastSection() is True
+
+    # Wait for the splitter/layout to settle, then check the column really filled the
+    # viewport (which is the table minus any vertical scrollbar).
+    qtbot.waitUntil(
+        lambda: page._table.columnWidth(0) >= page._table.viewport().width() - 2, timeout=2000
+    )
+    assert page._table.columnWidth(0) > TARGET_COLUMNS[0].width

@@ -215,7 +215,7 @@ QPushButton#Danger:disabled {{
 }}
 
 /* Tables ---------------------------------------------------------------- */
-QTableView, QTreeView, QListView {{
+QTableView, QTableWidget, QTreeView, QListView {{
     background-color: #171d22;
     alternate-background-color: #1c2329;
     gridline-color: #262e36;
@@ -232,7 +232,7 @@ QHeaderView::section {{
     border-right: 1px solid #2c353d;
     border-bottom: 1px solid #2c353d;
 }}
-QTableView::item {{ padding: 3px 6px; }}
+QTableView::item, QTableWidget::item {{ padding: 3px 6px; }}
 /* Tree rows need their own vertical padding.  The stage checkbox indicator is
    {INDICATOR_SIZE}px tall (see *Checkboxes* below) while an unpadded tree row is only
    about that tall, so in the Targets page's stage list the boxes of consecutive
@@ -335,18 +335,18 @@ QLabel#ToolWarningBadge[severity="optional"] {{
    i.e. nearly invisible, so it is drawn explicitly: a visible outline when off,
    the accent with a tick when on. */
 QCheckBox, QRadioButton {{ spacing: 8px; }}
-QCheckBox::indicator, QTreeView::indicator, QListView::indicator {{
+QCheckBox::indicator, QTreeView::indicator, QListView::indicator, QTableView::indicator {{
     width: {INDICATOR_SIZE}px;
     height: {INDICATOR_SIZE}px;
     border: 1px solid #5b6a78;
     border-radius: 4px;
     background-color: #10161b;
 }}
-QCheckBox::indicator:hover, QTreeView::indicator:hover {{
+QCheckBox::indicator:hover, QTreeView::indicator:hover, QTableView::indicator:hover {{
     border-color: {ACCENT};
     background-color: #16202a;
 }}
-QCheckBox::indicator:checked, QTreeView::indicator:checked, QListView::indicator:checked {{
+QCheckBox::indicator:checked, QTreeView::indicator:checked, QListView::indicator:checked, QTableView::indicator:checked {{
     background-color: {ACCENT};
     border-color: {ACCENT};
     {_CHECK_IMAGE}

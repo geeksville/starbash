@@ -216,9 +216,10 @@ REPO_COLUMNS = [
 ]
 
 TARGET_COLUMNS = [
-    Column("Target", "target", 160),
-    # The output directory is a link: click it to open it in the file manager.
-    Column("Output", "path", 460, link_key="path_url"),
+    # The target list is deliberately a narrow picker: the selected target's
+    # details (stages, sessions, options) fill the rest of the page, and the
+    # target's output path is shown there as a clickable label.
+    Column("Target", "target", 180),
 ]
 
 MASTER_COLUMNS = [

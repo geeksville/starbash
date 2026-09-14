@@ -36,6 +36,13 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   `starbash.toml` in each target's output dir (e.g. `images/processed/<target>/starbash.toml`).
   Holds `[stages]` `used`/`excluded` lists that control which recipes run. `_init_from_toml()`
   reads them into `self.default_stages`; `remove_excluded_tasks()` (in `stages.py`) applies them.
+  The split `.starbash/{main,about,sessions}.toml` layout also carries the per-session
+  calibration choice: `[sessions.masters.<type>]` holds `selected` + `selected_by`
+  (`"auto"`/`"user"`) and a `[[…candidates]]` table per scored master with typed evidence
+  (gain/temp/time/instrument/camera/dimensions/filter). `ProcessedTarget.session_options()` /
+  `save_master_selections()` read/write it, and `Processing._resolve_input_master()` **honours a
+  `selected_by = "user"` pick on the next run** (falling back to the top scorer if that master
+  is gone). Legacy `used`/`excluded` string arrays still parse. See `doc/plans/session-masters.md`.
 - **Tools**: `src/starbash/tool/` — runners for Siril (Flatpak, stdin script), GraXpert (CLI),
   Python (RestrictedPython sandbox), and rc-astro (BlurXTerminator `bxt` + NoiseXTerminator `nxt`
   CLI; always passes `--json` and streams JSON progress events onto the event bus via

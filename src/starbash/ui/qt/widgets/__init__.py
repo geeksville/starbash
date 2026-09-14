@@ -8,6 +8,7 @@ from starbash.ui.qt.widgets.github_login import GitHubSetupDialog, run_github_se
 from starbash.ui.qt.widgets.hover_preview import HoverPreview
 from starbash.ui.qt.widgets.image_viewer import ImageViewer
 from starbash.ui.qt.widgets.log_view import LogView
+from starbash.ui.qt.widgets.master_picker import MasterPicker
 from starbash.ui.qt.widgets.selection_panel import SelectionPanel
 from starbash.ui.qt.widgets.stat_card import StatCard
 from starbash.ui.qt.widgets.tool_warning import ToolWarningBar, ToolWarningPanel
@@ -22,6 +23,7 @@ __all__ = [
     "LINK_ROLE",
     "LinkDecorator",
     "LogView",
+    "MasterPicker",
     "SelectionPanel",
     "StatCard",
     "ToolWarningBar",

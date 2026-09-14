@@ -6,6 +6,11 @@ rest there.  The popup is deliberately *transient*: it never takes focus, it is
 placed **beside** the hovered cell so it cannot cover what the user is pointing
 at, and it disappears the moment the cursor moves on.
 
+The popup is also **user-resizable**: a drag handle sits in its bottom-right
+corner, and the size the user drags to is remembered (process-wide) so their
+"make this bigger" choice applies to the next preview as well - an image is
+re-scaled to fill the new size rather than being shrink-wrapped again.
+
 Only *local* files are previewed.  A URL with no readable local path (for example
 an ``https://`` recipe) is ignored here while staying clickable in the view.
 
@@ -29,7 +34,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QSize, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QColor, QGuiApplication, QPixmap
+from PySide6.QtGui import QColor, QGuiApplication, QImage, QMouseEvent, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
@@ -102,9 +107,17 @@ MIN_HEIGHT, MAX_HEIGHT = 180, 480
 #: Gap between the hovered cell and the popup, so the popup never covers it.
 GAP = 18
 
-#: Space the card's own chrome adds around the content (margins + title row).
+#: Side of the square drag handle at the bottom-right of a preview card, in pixels.
+GRIP_SIZE = 14
+#: Debounce for re-scaling an image while the popup is resized: a drag resizes on
+#: every mouse-move, and smooth-scaling a large FITS frame each time would lag
+#: behind the pointer.
+RESCALE_DELAY_MS = 60
+
+#: Space the card's own chrome adds around the content (margins + title row + the
+#: drag handle's row).
 _CHROME_W = 12 * 2 + 10 * 2
-_CHROME_H = 12 * 2 + 8 + 10 + 22 + 6
+_CHROME_H = 12 * 2 + 8 + 10 + 22 + 6 + 6 + GRIP_SIZE
 
 _POPUP_QSS = """
 QFrame#PreviewCard {
@@ -182,19 +195,86 @@ def preview_kind(url: str | None) -> PreviewKind:
     return PreviewKind.NONE
 
 
+class _PreviewGrip(QWidget):
+    """A bottom-right drag handle that resizes its popup window.
+
+    ``QSizeGrip`` delegates to the platform's own resize loop, which a frameless
+    ``Qt.Tool`` window does not reliably get (and which the offscreen platform the
+    tests run on has no equivalent for), so the drag is done here instead: the popup
+    grows and shrinks with the pointer, with no platform help.
+    """
+
+    #: Emitted with the size the pointer has dragged out to (unclamped - the popup
+    #: knows its own floors and the screen it must fit on).
+    dragged = Signal(QSize)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        """Build the handle; it sizes itself and paints its own diagonal ticks."""
+        super().__init__(parent)
+        self.setObjectName("PreviewGrip")
+        self.setFixedSize(GRIP_SIZE, GRIP_SIZE)
+        self.setCursor(Qt.CursorShape.SizeFDiagCursor)
+        self.setToolTip("Drag to resize this preview")
+        #: Pointer position (global) and popup size when the drag started.
+        self._origin: QPoint | None = None
+        self._start = QSize()
+
+    def paintEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        """Draw the diagonal ticks that read as "drag me"."""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        pen = QPen(QColor("#8b98a5"))  # the theme's muted text colour
+        pen.setWidth(1)
+        painter.setPen(pen)
+        size = self.width()
+        for offset in (3, 7, 11):
+            painter.drawLine(size - offset, size - 1, size - 1, size - offset)
+        painter.end()
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt API
+        """Start a drag, remembering the popup's size at this moment."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._origin = event.globalPosition().toPoint()
+            self._start = self.window().size()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt API
+        """Report the size the pointer has dragged the popup out to."""
+        if self._origin is None:
+            return
+        delta = event.globalPosition().toPoint() - self._origin
+        self.dragged.emit(QSize(self._start.width() + delta.x(), self._start.height() + delta.y()))
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt API
+        """End the drag."""
+        self._origin = None
+        event.accept()
+
+
 class _PreviewPopup(QFrame):
     """A frameless, shadowed window that renders one file preview.
 
-    It is a top-level ``Qt.Tool`` window: interactive (so its scrollbars and its
-    close adornment work) yet non-activating, so hovering a link never steals
-    focus.  It stays open until the user closes it or another preview replaces it
-    (there is at most one).  Content is loaded on a worker thread (a FITS frame is
-    far too slow to read on the GUI thread), guarded by a request counter so a
-    stale load is dropped.
+    It is a top-level ``Qt.Tool`` window: interactive (so its scrollbars, its close
+    adornment and its resize handle work) yet non-activating, so hovering a link
+    never steals focus.  It stays open until the user closes it or another preview
+    replaces it (there is at most one).  Content is loaded on a worker thread (a
+    FITS frame is far too slow to read on the GUI thread), guarded by a request
+    counter so a stale load is dropped.
+
+    It opens at about a quarter of the owning window, or at whatever size the user
+    last dragged it to (see :attr:`_user_size`).
     """
 
     #: Emitted when the user closes the popup (its close adornment or Escape).
     closed = Signal()
+
+    #: Size the user dragged a preview to, shared by *every* preview so their
+    #: choice sticks for the next hover (and in the next view).  ``None`` means
+    #: "no preference yet": use the automatic ~25%-of-the-window size.  A class
+    #: attribute on purpose - this is a user preference, not per-window state.
+    _user_size: QSize | None = None
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
@@ -206,6 +286,12 @@ class _PreviewPopup(QFrame):
         self._request = 0
         self._target = QSize(MIN_WIDTH, MIN_HEIGHT)
         self._content: QWidget | None = None
+        #: Cell the popup was last placed beside, so a resize can be re-placed.
+        self._anchor = QRect()
+        #: The decoded image, kept so a resize can re-scale it to the new size.
+        self._source: QImage | None = None
+        #: The label showing that image, if the current body is one.
+        self._image_label: QLabel | None = None
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(12, 12, 12, 12)  # breathing room for the shadow
@@ -247,6 +333,19 @@ class _PreviewPopup(QFrame):
         #: Busy arc shown over the body while the file is read.
         self._busy = BusyIndicator(self._body, caption="")
 
+        #: Drag handle, in its own right-aligned row at the card's bottom.  A row
+        #: (rather than overlaying the body's corner) so it never covers the body -
+        #: an overlay would swallow the text view's own scrollbar arrow.
+        self._grip = _PreviewGrip(self._card)
+        self._grip.dragged.connect(self._on_grip_dragged)
+        card_layout.addWidget(self._grip, 0, Qt.AlignmentFlag.AlignRight)
+
+        #: Debounced re-scale of an image after the window was resized.
+        self._rescale = QTimer(self)
+        self._rescale.setSingleShot(True)
+        self._rescale.setInterval(RESCALE_DELAY_MS)
+        self._rescale.timeout.connect(self._rescale_image)
+
     # --- public API -------------------------------------------------------
     def preview(self, url: str, anchor: QRect, parent: QWidget) -> bool:
         """Show a preview of ``url`` beside ``anchor``; return whether it opened."""
@@ -263,10 +362,12 @@ class _PreviewPopup(QFrame):
 
         self._request += 1
         request = self._request
-        self._target = self._target_size(parent)
+        self._anchor = anchor
+        self._target = self._preferred_size(parent)
 
         self._title.setText(path.name)
         self._clear_body()
+        self._source = None
         self.resize(self._target)
         self._place(anchor)
         self._busy.start()
@@ -282,6 +383,7 @@ class _PreviewPopup(QFrame):
     def hide(self) -> None:  # noqa: D401 - Qt API
         """Hide the popup and abandon any load still in flight."""
         self._request += 1
+        self._rescale.stop()
         self._busy.stop()
         super().hide()
 
@@ -293,6 +395,55 @@ class _PreviewPopup(QFrame):
         """User-initiated close: hide and tell the engine it was dismissed."""
         self.hide()
         self.closed.emit()
+
+    def _preferred_size(self, parent: QWidget) -> QSize:
+        """Size to open at: the user's own drag, else ~25% of the owning window."""
+        if _PreviewPopup._user_size is not None:
+            return QSize(_PreviewPopup._user_size)
+        return self._target_size(parent)
+
+    # --- resizing ---------------------------------------------------------
+    def _on_grip_dragged(self, size: QSize) -> None:
+        """Apply a drag on the grip: keep it usable, on screen, then remember it."""
+        applied = self._clamp_to_screen(size)
+        self.resize(applied)
+        _PreviewPopup._user_size = applied
+        self._place(self._anchor)
+
+    def _clamp_to_screen(self, size: QSize) -> QSize:
+        """Floor a dragged size at the minimums and cap it to the screen."""
+        screen = QGuiApplication.screenAt(self.geometry().center())
+        if screen is None:
+            screen = QGuiApplication.primaryScreen()
+        limit = (
+            screen.availableGeometry().size()
+            if screen is not None
+            else QSize(MAX_WIDTH, MAX_HEIGHT)
+        )
+        width = max(MIN_WIDTH, min(size.width(), max(MIN_WIDTH, limit.width() - 2 * GAP)))
+        height = max(MIN_HEIGHT, min(size.height(), max(MIN_HEIGHT, limit.height() - 2 * GAP)))
+        return QSize(width, height)
+
+    def _fit_automatic(self) -> None:
+        """Shrink-wrap the popup around its content - unless the user set the size.
+
+        A preview the user dragged to their own size keeps that size for later
+        hovers too (the image is scaled to fill it instead), so their choice is not
+        undone by the next - possibly tiny - thumbnail.
+        """
+        if _PreviewPopup._user_size is not None:
+            return
+        self.adjustSize()
+        self.resize(
+            min(self.width(), self._target.width()),
+            min(self.height(), self._target.height()),
+        )
+
+    def resizeEvent(self, event: object) -> None:  # noqa: N802 - Qt API
+        """Re-scale a previewed image (debounced) after a resize."""
+        super().resizeEvent(event)  # type: ignore[arg-type]
+        if self._image_label is not None:
+            self._rescale.start()
 
     # --- events -----------------------------------------------------------
     def keyPressEvent(self, event: object) -> None:  # noqa: N802 - Qt API
@@ -372,25 +523,39 @@ class _PreviewPopup(QFrame):
             self._show_error(str(image))
             return
 
-        max_body = QSize(
-            max(1, self._target.width() - _CHROME_W),
-            max(1, self._target.height() - _CHROME_H),
-        )
-        pixmap = QPixmap.fromImage(image).scaled(
-            max_body,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
         label = QLabel()
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setPixmap(pixmap)
+        label.setPixmap(self._scaled_pixmap(image, self._image_budget(self._target)))
+        # Keep the source frame around: a later resize re-scales from it rather than
+        # from the (already reduced) pixmap, so growing the popup stays sharp.
+        self._source = image
         self._set_body(label)
+        self._image_label = label
+        self._fit_automatic()
 
-        # Hug the image, but never grow past the 25%-of-window budget.
-        self.adjustSize()
-        self.resize(
-            min(self.width(), self._target.width()),
-            min(self.height(), self._target.height()),
+    def _rescale_image(self) -> None:
+        """Re-scale the previewed image to the popup's current size (after a resize)."""
+        if self._source is None or self._image_label is None:
+            return
+        self._image_label.setPixmap(
+            self._scaled_pixmap(self._source, self._image_budget(self.size()))
+        )
+
+    @staticmethod
+    def _image_budget(size: QSize) -> QSize:
+        """Largest an image may be inside a popup of ``size``, its chrome aside."""
+        return QSize(
+            max(1, size.width() - _CHROME_W),
+            max(1, size.height() - _CHROME_H),
+        )
+
+    @staticmethod
+    def _scaled_pixmap(image: QImage, budget: QSize) -> QPixmap:
+        """The image scaled to fit ``budget`` (aspect preserved, smoothly)."""
+        return QPixmap.fromImage(image).scaled(
+            budget,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
         )
 
     # --- layout -----------------------------------------------------------
@@ -406,6 +571,9 @@ class _PreviewPopup(QFrame):
             self._content.setParent(None)
             self._content.deleteLater()
             self._content = None
+        # The image label went with it; a queued re-scale must not touch it.
+        self._image_label = None
+        self._rescale.stop()
 
     @staticmethod
     def _target_size(parent: QWidget) -> QSize:

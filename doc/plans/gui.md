@@ -254,36 +254,93 @@ Maps to `sb info` + `sb info target/telescope/filter` + quick entry to process/r
 - `Cancel` -> cooperative token; partial results preserved.
 
 ### 5.5 Targets (processed results + config) — the persistent browser
+
+**Redesigned 2026-09-13.** The left column is now a **narrow target picker**
+(Target names only — the Output link moved to the right pane's path label); the
+right ~75 % is a **target explorer**: a tree of `Stages` and `Sessions`, over a
+detail pane that swaps between the stage-option editor and a session master
+picker.
+
 ```
-+-----------+------------------------------------------------------------------+
-| # Dash    | +- Processed targets -+ +- m31 ---------------------------------+ |
-| = Sessions| | v m31      2025-10   | | +-------------+  Segmented: [R|G|B] | |
-| * Process | |   m20      2025-09   | | |             |  Zoom ---  Fit 1:1  | |
-| @ Targets | |   ic434    2025-10   | | |  thumbnail  |                     | |
-| o Repos   | |   m81      2025-07   | | |   (jpg)     |  Object M31         | |
-| ^ Publish | |   m13      2025-08   | | |             |  Scope  Vespera     | |
-| * Settings| |                     | | +-------------+  Filters Ha,Sii,OIII| |
-|           | |  [ Reprocess ]       | |  9,321 imgs - 18h 04m - recipe osc  | |
-|           | +---------------------+ +-------------------------------------+ |
-|           |                          | Stages         incl excl  note     | |
-|           |                          | [x] light_vs_dark  X           calib| |
-|           |                          | [x] stack_dual_duo X           stack| |
-|           |                          | [x] background     X           dbe  | |
-|           |                          | [ ] veralux                         | |
-|           |                          | [x] thumbnail      X           jpg  | |
-|           |                          |          [ Save & Reprocess ]       | |
-|           |                          +-------------------------------------+ |
-|           |                          | main.toml / about.toml / sessions   | |
-|           |                          | [Open folder][Open report][TOML]    | |
-|           |                          +-------------------------------------+ |
-+-----------+------------------------------------------------------------------+
-| m31 - 5 stages, 3 outputs, generated 2025-10-18 14:07                        |
-+------------------------------------------------------------------------------+
++------+---------------------------------------------------------------------+
+| Dash | Target explorer — m13                                               |
+| Sess | +----------+ v Sessions                                             |
+| Mast | | lbn354   |   v 2025-08-25 · None · OnStep                         |
+| Targ | | m100     |       Bias  master_bias_gain100.fit      (auto)        |
+| Proc | | m101     |       Dark  master_dark_120s_gain100.fit (auto)        |
+| Repo | | m13      |       Flat  master_flat_None_gain100.fit (auto)        |
+| Publ | | m20      | v Stages                                               |
+| Sett | | m31      |   [x] master_dark    blur_width=4                      |
+|      | | ...      |   [x] master_bias                                      |
+|      | +----------+   [x] stack_osc                                        |
+|      |            +------------------------------------------------------+ |
+|      |            | Bias master — 2025-08-25     [auto-selected]         | |
+|      |            | (o) master_bias_gain100.fit  -169472 gain✓ timeΔ16d  | |
+|      |            | ( ) master_bias_gain100.fit  -169500 gain✓ in future | |
+|      |            | ( ) ...          [ Reset to automatic ]              | |
+|      |            +------------------------------------------------------+ |
+|      |            | [ Save options ] [ Undo changes ]   /path/to/m13     | |
++------+---------------------------------------------------------------------+
 ```
+
+- **Left table**: `TARGET_COLUMNS` shrinks to the single **Target** column
+  (`_TARGET_LIST_SHARE ≈ 0.22`, and the one column *stretches* —
+  `setStretchLastSection(True)`, overriding `make_table`'s deliberately
+  un-stretched last section so it fills the pane right up to the scrollbar); the
+  splitter stays user-resizable. The output directory remains visible — and
+  clickable — in the right pane's path label, so nothing is lost.
+- **Right tree**: one `QTreeWidget` with two top-level groups, **`Sessions`
+  first** (the master choice is the more common edit and the stage list is long):
+  - **`Sessions`** — added only when `sessions.toml` records at least one
+    session with a `[sessions.masters.<type>]` entry (the "suitable sessions"
+    from the prior run). One child per such session (labelled
+    `date · filter · telescope`), and under it one child per calibration type
+    present (`Bias`, `Dark`, `Flat`) showing the selected master's basename and
+    whether it is `auto` or a `user` pick. That basename cell is a **link**: hover
+    previews the frame, activate (double-click/Enter) opens it.
+  - **`Stages`** — the current stage/parameter tree, unchanged in behaviour
+    (checkable stage rows whose children are the recipe-declared parameters).
+- **Master links**: `services.master_url(sb, path)` turns a recorded
+  repo-relative master into a `file://` URL via the master repo's
+  `resolve_path()`, and returns `None` when there is no local master repo or the
+  frame is not on disk — a name that could neither preview nor open stays plain
+  text rather than an underlined dead link. The picker's Master cells use it too
+  (via `set_link`, which now handles `QTableWidgetItem` as well as
+  `QTreeWidgetItem`), with `open_on="activated"` so a plain click still only
+  *chooses* a master.
+- **Hover previews are user-resizable**: the popup carries a small drag handle
+  (`_PreviewGrip`) in its own row at the card's bottom-right — a *row*, not an
+  overlay on the body's corner, which would swallow the text view's scrollbar arrow
+  — remembers the size the user dragged it
+  to across previews (`_PreviewPopup._user_size`, clamped to a floor and to the
+  screen), and re-scales a previewed image to the new size (debounced; rendered
+  from the kept source frame). Once the user owns the size, the popup no longer
+  shrink-wraps small images. See `ui/qt/widgets/hover_preview.py`.
+- **Detail pane**: a `QStackedWidget` holding (a) the existing **option editor**
+  (stage/param selection, unchanged) and (b) a new **`MasterPicker`**; it hides
+  entirely when neither applies.
+- **`MasterPicker`** (`ui/qt/widgets/master_picker.py`, new): lists the scored
+  candidates for one `(session, calibration type)`. A radio-style check column
+  marks the current selection; columns show the master's basename, its score and
+  the structured evidence (gain ✓/✗, temp Δ, time Δ / "in future",
+  instrument / camera / filter match). Clicking a row selects it (and marks the
+  page dirty); **Reset to automatic** reverts to the scorer's pick. It loads via
+  `services.load_session_options` and saves via
+  `services.save_master_selections`, which records `selected_by = "user"` — see
+  `session-masters.md` for the schema and the re-run semantics.
+- **Async load**: `sessions.toml` can be multi-MB, so `load_session_options`
+  runs through `workers.run_async` with a `BusyIndicator` over the Sessions area
+  (the `ImageViewer.show_file()` pattern); a stale result is dropped if the user
+  has since picked another target.
+- **Dirty / Save / Undo now spans both files.** `_is_dirty()` is true when the
+  stage model *or* the master selections differ from disk. Save writes
+  `main.toml` (stages) and, only when the masters changed, `sessions.toml` via a
+  single read-modify-write (`ProcessedTarget.save_master_selections`); Undo
+  restores both. The unsaved-change prompts are unchanged.
 - Reads the split `.starbash/{main,about,sessions}.toml` layout via `ProcessedTarget`.
-- Stage include/exclude toggles edit `main.toml` `[stages].used/excluded` (the known bug-prone flow — GUI gives it validation + a save that calls `write_config()`).
 - **Image viewer**: JPEG/PNG natural; FITS via astropy -> normalized `QImage` with stretch controls and SII/Ha/OIII (or R/G/B) channel toggles, zoom/pan in `QGraphicsView`.
-- "Reprocess" runs `Processing` scoped to that target.
+- **Non-goals for this pass**: per-session *stage* exclusion editing, in-app
+  TOML editor, and a "Reprocess target" button.
 
 ### 5.6 Repositories — maps to `sb repo *`
 ```
@@ -403,7 +460,7 @@ Final step shows the "add raw repo -> process auto" next-steps panel from `do_re
 13. Cancel; results links open files/folders; thumbnail preview of outputs.
 
 **Phase 5 — Targets editor**
-14. Targets page: preview + metadata from `about.toml`; stage used/excluded toggles writing `main.toml`; in-app TOML editor; "Reprocess target".
+14. Targets page: preview + metadata from `about.toml`; stage used/excluded toggles writing `main.toml`; in-app TOML editor; "Reprocess target". *(Follow-up: the 2026-09-13 redesign — narrow target list, `Stages`/`Sessions` explorer tree and the per-session master picker — see §5.5 and `session-masters.md`.)*
 
 **Phase 6 — Settings, wizard, publish**
 15. Settings tabs (Profile/Tools/Aliases/Advanced/Config) + `AliasesEditor`.
@@ -456,7 +513,7 @@ Landed on branch `feat-gui`. Phases 0–7 are implemented except where noted.
 | 2 Read-only browsing | ✅ | Dashboard, Sessions list, Repositories list, Masters; `ImageViewer` renders FITS (percentile stretch) and raster formats. |
 | 3 Selection & export | ✅ | `SelectionPanel` bound to `Selection` (apply/clear/persist, DB-suggested completion); session export via `copy_images_to_dir`. *Export-to-Siril dir tree not surfaced.* |
 | 4 Processing (live) | ✅ | Worker runs `run_all_stages`/`run_master_stages`; the event bus drives the task tree, log pane, progress bar and per-target caption. Cooperative cancel at phase boundaries. *Result links/thumbnails not added.* |
-| 5 Targets editor | ✅ | Targets list; a **tree** of stages whose child rows are the parameters the recipe declares (`[[stages.parameters]]`). Overridden values are shown bright yellow, recipe defaults dim; a stage's summary column lists its overridden values (not option counts). Selecting a param opens an editor with two tabs, **Use default** vs **Edit override**; nothing selected hides the editor pane entirely (a stage row shows just its description). Edits save to `.starbash/main.toml` via `services.load_stage_options`/`save_stage_options`; Save/Undo appear only when dirty and leaving with unsaved edits prompts (via `Page.can_leave()`). The row for the currently selected target (`sb select target …`) is pre-selected. The two columns are separated by a 12px gap (`_COLUMN_GAP`) so the stages tree/editor never sit flush against the target list's scrollbar. *In-app TOML editor and "Reprocess target" not added.* |
+| 5 Targets editor | ✅ | Targets list; a **tree** of stages whose child rows are the parameters the recipe declares (`[[stages.parameters]]`). Overridden values are shown bright yellow, recipe defaults dim; a stage's summary column lists its overridden values (not option counts). Selecting a param opens an editor with two tabs, **Use default** vs **Edit override**; nothing selected hides the editor pane entirely (a stage row shows just its description). Edits save to `.starbash/main.toml` via `services.load_stage_options`/`save_stage_options`; Save/Undo appear only when dirty and leaving with unsaved edits prompts (via `Page.can_leave()`). The row for the currently selected target (`sb select target …`) is pre-selected. The two columns are separated by a 12px gap (`_COLUMN_GAP`). *In-app TOML editor and "Reprocess target" not added.* **2026-09-13:** the §5.5 redesign landed — narrow (Target-only) target list, a `Stages`/`Sessions` explorer tree and a per-session `MasterPicker` that writes `selected_by = "user"` (see `session-masters.md`). **2026-09-14 polish:** the picker's single column stretches to the scrollbar, `Sessions` is listed above `Stages`, master names are hover-previewable/openable links in both the tree and the picker, and the hover-preview popup itself is user-resizable with a remembered size. |
 | 6 Settings, wizard, publish | ✅ partial | Settings (profile/analytics/paths) + first-run wizard. The Publish page publishes to GitHub Pages for the signed-in account (the job/dialog flow is shared with the CLI, see `gui-github-publish.md`); the account field is read-only and *Open in browser* only appears after a successful publish. *Aliases editor / Tools tab not added.* |
 | 7 Polish & docs | ✅ partial | `tests/unit/test_gui.py` (27 tests, `gui` marker), `tests/unit/test_targets_page.py` (11 tests: recipe/override merge, save round-trip + idempotency, dirty tracking, unsaved prompts, nav guard), `tests/unit/test_gui_command.py` (broken-install path), `tests/unit/test_desktop_entry.py` (`sb` desktop integration) and `tests/unit/test_cli_headless.py` (subprocess proof that `sb info` works with no display and Qt unimportable, and that the CLI never imports Qt). App icon + Linux `.desktop`/hicolor install (`src/starbash/assets/`). AGENTS.md + memory bank updated. *Command palette, shortcuts, demo GIF not added.* |
 
@@ -485,4 +542,12 @@ than an `ImportError` traceback.
 - Missing-tool warnings (the severity model, the *Ignore* preference and the
   dismissible bars above the pages) are planned and recorded separately in
   `doc/plans/tool-warnings.md`.
+- **Targets screen redesign (landed 2026-09-13).** Narrow (Target-only) left
+  list, a `Stages` + `Sessions` explorer tree over a detail pane, and a new
+  per-session master picker that writes a structured, user-authoritative
+  selection. See §5.5 and `doc/plans/session-masters.md`; §10's Phase 5 row is
+  the implementation. Follow-up polish (2026-09-14): `Sessions` above `Stages`,
+  the picker's column stretched to the scrollbar, master names as hover
+  preview/open links, and a user-resizable hover-preview popup whose size is
+  remembered.
 

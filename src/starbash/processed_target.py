@@ -4,11 +4,12 @@ import logging
 import shutil
 import tempfile
 import types
+from collections.abc import MutableMapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, TypeGuard, cast
 
 import tomlkit
 from toml_repo import Repo
@@ -45,7 +46,11 @@ from starbash.url import make_file_url
 
 __all__ = [
     "ProcessedTarget",
+    "MasterCandidate",
+    "MasterSelectionEdit",
     "ParameterOption",
+    "SessionMasterOption",
+    "SessionOption",
     "StageOption",
     "coerce_override",
     "stage_declarations",
@@ -80,6 +85,51 @@ class StageOption:
     parameters: list[ParameterOption]
     #: URL (``https://`` or ``file://``) of the recipe that declares this stage.
     recipe_url: str | None = None
+
+
+@dataclass
+class MasterCandidate:
+    """One calibration master offered for a session, with its scoring evidence.
+
+    ``score is None`` marks a candidate parsed from the legacy ``used``/``excluded``
+    string form, where only the path (and its comment) were recorded.
+    """
+
+    path: str
+    score: float | None
+    selected: bool
+    reasons: list[str]
+    #: Structured evidence (``gain_match``, ``temp_delta_c``, ...), keyed as written
+    #: to ``sessions.toml``.  Empty for legacy candidates.
+    details: dict[str, Any]
+
+
+@dataclass
+class SessionMasterOption:
+    """The calibration-master choice for one session and calibration type."""
+
+    type: str
+    selected: str | None
+    #: ``"auto"`` (the scorer's pick) or ``"user"`` (an explicit choice to honour).
+    selected_by: str
+    candidates: list[MasterCandidate]
+
+
+@dataclass
+class SessionOption:
+    """A processed session and the calibration masters recorded for it."""
+
+    label: str
+    #: Stable session identity, matching :meth:`ProcessedTarget._session_key`.
+    key: tuple[str, ...]
+    masters: list[SessionMasterOption]
+
+
+#: A pending master-selection change: ``(session_key, master_type, path)``.
+MasterSelectionEdit = tuple[tuple[str, ...], str, str]
+
+#: Preferred display order for calibration types.
+_MASTER_TYPE_ORDER = ("bias", "dark", "flat")
 
 
 def _comment_of(table: Any, key: str) -> str | None:
@@ -172,6 +222,138 @@ def stage_declarations(recipes: Any) -> dict[str, dict[str, Any]]:
                     "description": param.get("description"),
                 }
     return declarations
+
+
+def _master_type_sort_key(master_type: str) -> tuple[int, str]:
+    """Order calibration types ``bias``/``dark``/``flat`` first, then the rest."""
+    try:
+        return (_MASTER_TYPE_ORDER.index(master_type), "")
+    except ValueError:
+        return (len(_MASTER_TYPE_ORDER), master_type)
+
+
+def _is_array(node: Any) -> TypeGuard[Sequence[Any]]:
+    """True for a TOML array (a sequence that is not a string)."""
+    return isinstance(node, Sequence) and not isinstance(node, (str, bytes))
+
+
+def _array_entries(node: Any) -> list[str]:
+    """Return the master paths in a legacy ``used``/``excluded`` array.
+
+    tomlkit does **not** preserve a comment written after an inline array entry, so
+    the old ``# reason`` text cannot be recovered; legacy candidates therefore carry
+    no structured evidence — which is precisely why the schema moved to a table.
+    """
+    entries: list[str] = []
+    if not _is_array(node):
+        return entries
+    for item in node:
+        path = item.get("path") if isinstance(item, MutableMapping) else item
+        if path:
+            entries.append(str(path))
+    return entries
+
+
+def _details_from_table(table: MutableMapping[str, Any]) -> dict[str, Any]:
+    """Extract the structured scoring evidence from a candidate table.
+
+    Values are unwrapped to plain Python so callers (and dataclass equality in the
+    GUI's dirty-tracking) never have to reason about tomlkit item types.
+    """
+    reserved = {"path", "score", "reasons"}
+    values: dict[str, Any] = {}
+    for key, value in table.items():
+        name = str(key)
+        if name in reserved:
+            continue
+        unwrap = getattr(value, "unwrap", None)
+        values[name] = unwrap() if callable(unwrap) else value
+    return values
+
+
+def _legacy_candidates(
+    raw: MutableMapping[str, Any], selected: str | None
+) -> list[MasterCandidate]:
+    """Build candidates from the legacy ``used``/``excluded`` string arrays."""
+    paths = _array_entries(raw.get("used")) + _array_entries(raw.get("excluded"))
+    return [
+        MasterCandidate(path=path, score=None, selected=path == selected, reasons=[], details={})
+        for path in paths
+    ]
+
+
+def _parse_master_entry(master_type: str, raw: Any) -> SessionMasterOption | None:
+    """Parse one ``[sessions.masters.<type>]`` table, new shape or legacy.
+
+    Returns ``None`` when the entry carries no candidates.
+    """
+    if not isinstance(raw, MutableMapping):
+        return None
+
+    candidates_table = raw.get("candidates")
+    if _is_array(candidates_table) and len(candidates_table) > 0:
+        selected = str(raw["selected"]) if raw.get("selected") else None
+        selected_by = str(raw.get("selected_by") or "auto")
+        candidates: list[MasterCandidate] = []
+        for entry in candidates_table:
+            if not isinstance(entry, MutableMapping):
+                continue
+            path = str(entry.get("path") or "")
+            if not path:
+                continue
+            score = entry.get("score")
+            candidates.append(
+                MasterCandidate(
+                    path=path,
+                    score=float(score) if isinstance(score, (int, float)) else None,
+                    selected=path == selected,
+                    reasons=[str(reason) for reason in (entry.get("reasons") or [])],
+                    details=_details_from_table(entry),
+                )
+            )
+        if not candidates:
+            return None
+        return SessionMasterOption(
+            type=master_type,
+            selected=selected,
+            selected_by=selected_by,
+            candidates=candidates,
+        )
+
+    # Legacy shape: two arrays of strings whose reason lived in a comment.
+    used = _array_entries(raw.get("used"))
+    if not used and not raw.get("excluded"):
+        return None
+    selected = used[0] if used else None
+    candidates = _legacy_candidates(raw, selected)
+    if not candidates:
+        return None
+    return SessionMasterOption(
+        type=master_type, selected=selected, selected_by="auto", candidates=candidates
+    )
+
+
+def _parse_session_masters(session: MutableMapping[str, Any]) -> list[SessionMasterOption]:
+    """Parse every ``[sessions.masters.<type>]`` entry of one session."""
+    masters = session.get("masters")
+    if not isinstance(masters, MutableMapping):
+        return []
+    parsed: list[SessionMasterOption] = []
+    for master_type in sorted((str(key) for key in masters), key=_master_type_sort_key):
+        option = _parse_master_entry(master_type, masters[master_type])
+        if option is not None:
+            parsed.append(option)
+    return parsed
+
+
+def _session_label(session: MutableMapping[str, Any]) -> str:
+    """Human label for a session: ``date · filter · telescope``."""
+    parts = [
+        str(session.get("date") or ""),
+        str(session.get("filter") or "None"),
+        str(session.get("telescop") or ""),
+    ]
+    return " · ".join(part for part in parts if part)
 
 
 def _file_url(path: Any) -> str | None:
@@ -899,6 +1081,92 @@ class ProcessedTarget:
         document["stages"] = stages_aot
         config.parent.mkdir(parents=True, exist_ok=True)
         TOMLFile(config).write(document)
+
+    # --- per-session master selections (GUI / automation) -----------------
+
+    def session_options(self) -> list[SessionOption]:
+        """Return the sessions that record calibration-master choices.
+
+        Only sessions with at least one ``[sessions.masters.<type>]`` entry are
+        returned, so a target with no recorded calibration yields an empty list
+        (and the GUI shows no Sessions group).  Ordered by session start.
+        """
+        document = self.sessions
+        raw_sessions = document.get("sessions")
+        if not _is_array(raw_sessions):
+            return []
+
+        options: list[SessionOption] = []
+        for raw in raw_sessions:
+            if not isinstance(raw, MutableMapping):
+                continue
+            masters = _parse_session_masters(raw)
+            if not masters:
+                continue
+            options.append(
+                SessionOption(
+                    label=_session_label(raw),
+                    key=self._session_key(dict(raw)),
+                    masters=masters,
+                )
+            )
+        options.sort(key=lambda option: option.key[0])
+        return options
+
+    def save_master_selections(self, edits: list[MasterSelectionEdit]) -> None:
+        """Record explicit (user) master choices in ``sessions.toml``.
+
+        ``edits`` is a batch of ``(session_key, master_type, path)``.  Each entry
+        sets ``selected`` and ``selected_by = "user"`` so a later processing run
+        honours it.  The document is read and written once, preserving every other
+        key; nothing is written when ``edits`` is empty.
+        """
+        if not edits or self.sessions_path is None:
+            return
+
+        document = self.sessions
+        raw_sessions = document.get("sessions")
+        if not _is_array(raw_sessions):
+            return
+
+        for key, master_type, path in edits:
+            entry = self._find_session_entry(raw_sessions, key)
+            if entry is None:
+                logging.warning("No session matching %s; master choice not saved", key)
+                continue
+            masters = entry.get("masters")
+            if not isinstance(masters, MutableMapping):
+                masters = tomlkit.table()
+                entry["masters"] = masters
+            master = masters.get(master_type)
+            if not isinstance(master, MutableMapping):
+                master = tomlkit.table()
+                masters[master_type] = master
+            master["selected"] = path
+            master["selected_by"] = "user"
+
+        self.sessions_path.parent.mkdir(parents=True, exist_ok=True)
+        TOMLFile(self.sessions_path).write(document)
+        # Keep the cached view in sync with what we just wrote.
+        self.sessions_config = document
+
+    @staticmethod
+    def _find_session_entry(
+        raw_sessions: Sequence[Any], key: tuple[str, ...]
+    ) -> MutableMapping[str, Any] | None:
+        """Find the ``[[sessions]]`` entry whose key (or start/end) matches."""
+        for raw in raw_sessions:
+            if isinstance(raw, MutableMapping) and ProcessedTarget._session_key(dict(raw)) == key:
+                return raw
+        # Fall back to start/end, in case a cosmetic field (e.g. filter) changed.
+        start_end = key[:2]
+        for raw in raw_sessions:
+            if (
+                isinstance(raw, MutableMapping)
+                and ProcessedTarget._session_key(dict(raw))[:2] == start_end
+            ):
+                return raw
+        return None
 
     # --- live run state ---------------------------------------------------
 

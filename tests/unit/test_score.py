@@ -1,6 +1,7 @@
 """Tests for starbash.score module."""
 
 from datetime import datetime, timedelta
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -473,3 +474,97 @@ class TestScoreCandidatesEdgeCases:
 
         # Should handle gracefully
         assert len(results) >= 0
+
+
+class TestStructuredDetails:
+    """The rankers must leave machine-readable evidence, not just English text."""
+
+    def test_rankers_record_structured_evidence(self):
+        ref_session = {
+            "metadata": {
+                Database.GAIN_KEY: 80,
+                "CCD-TEMP": 15.0,
+                Database.DATE_OBS_KEY: "2024-01-10T00:00:00",
+            }
+        }
+        candidates = [
+            {
+                "path": "cam/a.fit",
+                Database.GAIN_KEY: 80,
+                "CCD-TEMP": 17.2,
+                Database.DATE_OBS_KEY: "2024-01-06T00:00:00",
+            }
+        ]
+
+        scored = score_candidates(candidates, ref_session)
+
+        assert len(scored) == 1
+        details = scored[0].details
+        assert details["gain_match"] is True
+        assert details["gain_delta"] == 0.0
+        assert details["temp_delta_c"] == pytest.approx(2.2)
+        assert details["time_delta_days"] == pytest.approx(-4.0)
+        assert details["in_future"] is False
+        assert details["instrument_match"] is True
+        assert details["camera_match"] is True
+        assert details["dimensions_match"] is True
+        # A non-FLAT candidate records no filter evidence.
+        assert "filter_match" not in details
+        # The individual reason fragments are kept as a list too.
+        assert scored[0].reasons == scored[0].reason.split(", ")
+
+    def test_future_candidate_is_flagged(self):
+        ref_session = {
+            "metadata": {
+                Database.GAIN_KEY: 80,
+                "CCD-TEMP": 15.0,
+                Database.DATE_OBS_KEY: "2024-01-10T00:00:00",
+            }
+        }
+        candidates = [
+            {
+                "path": "cam/a.fit",
+                Database.GAIN_KEY: 80,
+                "CCD-TEMP": 15.0,
+                Database.DATE_OBS_KEY: "2024-01-20T00:00:00",
+            }
+        ]
+
+        details = score_candidates(candidates, ref_session)[0].details
+
+        assert details["time_delta_days"] == pytest.approx(10.0)
+        assert details["in_future"] is True
+
+
+class TestToTomlTable:
+    """``to_toml_table`` is the on-disk ``[[…candidates]]`` shape."""
+
+    def test_round_trips_structured_candidate(self):
+        import tomlkit
+
+        scored = ScoredCandidate(
+            candidate={"path": "cam/a.fit"},
+            score=-169472.44,
+            reason="gain match, temp Δ=0.3°C",
+            reasons=["gain match", "temp Δ=0.3°C"],
+            details={"gain_match": True, "gain_delta": 0.0, "temp_delta_c": 0.3},
+        )
+        document = tomlkit.document()
+        document["c"] = scored.to_toml_table()
+
+        table: Any = tomlkit.parse(tomlkit.dumps(document))["c"]
+        assert table["path"] == "cam/a.fit"
+        assert table["score"] == pytest.approx(-169472.4)
+        assert table["gain_match"] is True
+        assert table["temp_delta_c"] == pytest.approx(0.3)
+        assert list(table["reasons"]) == ["gain match", "temp Δ=0.3°C"]
+
+    def test_reasons_falls_back_to_the_joined_string(self):
+        import tomlkit
+
+        scored = ScoredCandidate(candidate={"path": "p"}, score=1.0, reason="only")
+        document = tomlkit.document()
+        document["c"] = scored.to_toml_table()
+
+        table: Any = tomlkit.parse(tomlkit.dumps(document))["c"]
+        assert list(table["reasons"]) == ["only"]
