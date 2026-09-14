@@ -308,14 +308,19 @@ picker.
   (via `set_link`, which now handles `QTableWidgetItem` as well as
   `QTreeWidgetItem`), with `open_on="activated"` so a plain click still only
   *chooses* a master.
-- **Hover previews are user-resizable**: the popup carries a small drag handle
-  (`_PreviewGrip`) in its own row at the card's bottom-right — a *row*, not an
+- **Hover previews are user-resizable and movable**: the popup carries a small drag
+  handle (`_PreviewGrip`) in its own row at the card's bottom-right — a *row*, not an
   overlay on the body's corner, which would swallow the text view's scrollbar arrow
-  — remembers the size the user dragged it
+  — and its title row is a `_TitleBar` drag bar (hand-rolled `window().move()`, since a
+  frameless `Qt.Tool` has no window-manager titlebar). It remembers the size the user
+  dragged it
   to across previews (`_PreviewPopup._user_size`, clamped to a floor and to the
   screen), and re-scales a previewed image to the new size (debounced; rendered
   from the kept source frame). Once the user owns the size, the popup no longer
-  shrink-wraps small images. See `ui/qt/widgets/hover_preview.py`.
+  shrink-wraps small images. A resize keeps the window where the user moved it
+  (`_keep_on_screen()` only pulls it back from an edge it has outgrown) rather than
+  snapping it back beside the hovered cell.
+  See `ui/qt/widgets/hover_preview.py`.
 - **Detail pane**: a `QStackedWidget` holding (a) the existing **option editor**
   (stage/param selection, unchanged) and (b) a new **`MasterPicker`**; it hides
   entirely when neither applies.
@@ -549,5 +554,5 @@ than an `ImportError` traceback.
   the implementation. Follow-up polish (2026-09-14): `Sessions` above `Stages`,
   the picker's column stretched to the scrollbar, master names as hover
   preview/open links, and a user-resizable hover-preview popup whose size is
-  remembered.
+  remembered and which can be dragged around by its title row.
 

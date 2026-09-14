@@ -237,11 +237,13 @@ def test_popup_reports_an_unreadable_file(qtbot, tmp_path, monkeypatch):
 # --- popup resize (the user's own size) ------------------------------------
 
 
-def _grip_drag(grip: QWidget, delta: QPoint) -> None:
-    """Drag ``grip`` by ``delta`` using synthetic events.
+def _drag(widget: QWidget, delta: QPoint) -> None:
+    """Drag ``widget`` by ``delta`` using synthetic events.
 
     ``QTest.mouseMove`` needs a real cursor position, which the offscreen platform
-    the suite runs on has none of, so press/move/release are posted directly.
+    the suite runs on has none of, so press/move/release are posted directly.  The
+    press point is inside either a grip or a title row, and the events go straight
+    to ``widget``, so no hit-testing is involved.
     """
     left = Qt.MouseButton.LeftButton
     modifiers = Qt.KeyboardModifier.NoModifier
@@ -254,7 +256,7 @@ def _grip_drag(grip: QWidget, delta: QPoint) -> None:
             QEvent.Type.MouseButtonRelease, end, end, left, Qt.MouseButton.NoButton, modifiers
         ),
     ):
-        QApplication.sendEvent(grip, event)
+        QApplication.sendEvent(widget, event)
 
 
 def _text_popup(qtbot, tmp_path: Path) -> tuple[hp._PreviewPopup, QWidget]:
@@ -276,7 +278,7 @@ def test_dragging_the_grip_resizes_the_popup_and_is_remembered(qtbot, tmp_path):
     assert popup._card.rect().contains(popup._grip.geometry())
 
     before = popup.size()
-    _grip_drag(popup._grip, QPoint(120, 90))
+    _drag(popup._grip, QPoint(120, 90))
 
     assert popup.width() > before.width()
     assert popup.height() > before.height()
@@ -293,10 +295,42 @@ def test_dragging_the_grip_inwards_stops_at_the_minimums(qtbot, tmp_path):
     """A preview cannot be dragged away to nothing."""
     popup, _parent_window = _text_popup(qtbot, tmp_path)
 
-    _grip_drag(popup._grip, QPoint(-4000, -4000))
+    _drag(popup._grip, QPoint(-4000, -4000))
 
     assert popup.size() == QSize(hp.MIN_WIDTH, hp.MIN_HEIGHT)
     assert hp._PreviewPopup._user_size == QSize(hp.MIN_WIDTH, hp.MIN_HEIGHT)
+
+
+# --- popup move (the title row is the drag bar) -----------------------------
+
+
+def test_dragging_the_title_row_moves_the_popup(qtbot, tmp_path):
+    """The popup has no window-manager titlebar, so its title row moves it."""
+    popup, _parent_window = _text_popup(qtbot, tmp_path)
+    origin = popup.pos()
+    size = popup.size()
+
+    _drag(popup._titlebar, QPoint(40, 25))
+
+    assert popup.pos() == origin + QPoint(40, 25)
+    assert popup.size() == size, "moving must not resize"
+    # The *name* is what a user aims at, so the label must let the press through to
+    # the title row - otherwise only the blank space beside it would drag.
+    assert popup._title.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+    assert popup._titlebar.cursor().shape() == Qt.CursorShape.SizeAllCursor
+
+
+def test_a_moved_popup_keeps_its_place_when_the_grip_resizes_it(qtbot, tmp_path):
+    """Resizing must not teleport a popup the user moved back beside its cell."""
+    popup, _parent_window = _text_popup(qtbot, tmp_path)
+    _drag(popup._titlebar, QPoint(-40, -30))
+    moved = popup.pos()
+    before = popup.size()
+
+    _drag(popup._grip, QPoint(60, 40))
+
+    assert popup.width() > before.width(), "the grip still resizes"
+    assert popup.pos() == moved, "and the window stayed where the user put it"
 
 
 def test_a_user_sized_preview_is_not_shrunk_to_hug_a_small_image(qtbot, tmp_path):

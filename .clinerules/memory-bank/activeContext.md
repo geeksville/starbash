@@ -65,6 +65,17 @@ the sequenced build order is recorded in `doc/plans/targets-redesign.md`).
     sharp). Hugging is skipped once the user owns the size, so the next hover of a
     small thumbnail cannot shrink their window back down. Because `_user_size` is
     class-level state, `test_hover_preview.py` has an autouse fixture that resets it.
+  - **Hover previews are movable**: the title row is a `_TitleBar` widget
+    (`SizeAllCursor`, own-row QSS-transparent widget) that translates a left-drag
+    into `window().move()` — the same hand-rolled approach as the grip, because a
+    frameless `Qt.Tool` window gets no window-manager titlebar and
+    `QWindow.startSystemMove()` is not dependable for it. The title *label* is
+    `WA_TransparentForMouseEvents` so dragging the file name itself moves the popup
+    (not just the blank space beside it); the ✕ button is a sibling child and keeps
+    working. Resizing no longer re-anchors to the hovered cell (that would teleport
+    a popup the user moved) — `_on_grip_dragged` calls `_keep_on_screen()`, which
+    only nudges the window back if growth pushed an edge off the screen; `_anchor`
+    is gone.
 - **Latent test bug exposed and fixed**: `test_targets_page.py`
   ::`test_master_picker_is_exclusive_and_resettable` constructed a `QWidget` with no
   `QApplication` alive and only passed when the xdist worker happened to run another

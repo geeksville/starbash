@@ -6,10 +6,11 @@ rest there.  The popup is deliberately *transient*: it never takes focus, it is
 placed **beside** the hovered cell so it cannot cover what the user is pointing
 at, and it disappears the moment the cursor moves on.
 
-The popup is also **user-resizable**: a drag handle sits in its bottom-right
-corner, and the size the user drags to is remembered (process-wide) so their
-"make this bigger" choice applies to the next preview as well - an image is
-re-scaled to fill the new size rather than being shrink-wrapped again.
+The popup is also **user-resizable and user-movable**: a drag handle sits at its
+bottom-right and its title row doubles as a drag bar, and the size the user drags
+to is remembered (process-wide) so their "make this bigger" choice applies to the
+next preview as well - an image is re-scaled to fill the new size rather than
+being shrink-wrapped again.
 
 Only *local* files are previewed.  A URL with no readable local path (for example
 an ``https://`` recipe) is ignored here while staying clickable in the view.
@@ -253,6 +254,46 @@ class _PreviewGrip(QWidget):
         event.accept()
 
 
+class _TitleBar(QWidget):
+    """The card's title row, which doubles as a drag bar for the whole popup.
+
+    A frameless ``Qt.Tool`` window has no window-manager titlebar, so nothing moves
+    it for the user: a left-button drag is translated into ``move()`` here.  (Same
+    reasoning as :class:`_PreviewGrip`: it is done by hand because
+    ``QWindow.startSystemMove()`` is not dependable for this window type, and the
+    offscreen platform the tests run on has no equivalent for it.)
+    """
+
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        self.setCursor(Qt.CursorShape.SizeAllCursor)
+        self.setToolTip("Drag to move this preview")
+        #: Pointer position (global) and window position when the drag started.
+        self._origin: QPoint | None = None
+        self._start: QPoint | None = None
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt API
+        """Start a move, remembering where the popup was."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._origin = event.globalPosition().toPoint()
+            self._start = self.window().pos()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt API
+        """Follow the pointer, taking the whole popup along."""
+        if self._origin is None or self._start is None:
+            return
+        self.window().move(self._start + (event.globalPosition().toPoint() - self._origin))
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802 - Qt API
+        """End the move."""
+        self._origin = None
+        self._start = None
+        event.accept()
+
+
 class _PreviewPopup(QFrame):
     """A frameless, shadowed window that renders one file preview.
 
@@ -286,8 +327,6 @@ class _PreviewPopup(QFrame):
         self._request = 0
         self._target = QSize(MIN_WIDTH, MIN_HEIGHT)
         self._content: QWidget | None = None
-        #: Cell the popup was last placed beside, so a resize can be re-placed.
-        self._anchor = QRect()
         #: The decoded image, kept so a resize can re-scale it to the new size.
         self._source: QImage | None = None
         #: The label showing that image, if the current body is one.
@@ -309,11 +348,17 @@ class _PreviewPopup(QFrame):
         card_layout.setContentsMargins(10, 8, 10, 10)
         card_layout.setSpacing(6)
 
-        header = QHBoxLayout()
+        #: Title row - a widget (not a bare layout) because it is also the popup's
+        #: drag bar; the close adornment is a child of it.
+        self._titlebar = _TitleBar(self._card)
+        header = QHBoxLayout(self._titlebar)
         header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(4)
         self._title = QLabel()
         self._title.setObjectName("PreviewTitle")
+        #: Dragging the *name* must move the popup too, so the label lets the press
+        #: through to the title row rather than swallowing it.
+        self._title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         header.addWidget(self._title, 1)
 
         self._close = QPushButton("\u2715")  # ✕ - a conventional close adornment
@@ -323,7 +368,7 @@ class _PreviewPopup(QFrame):
         self._close.setToolTip("Close preview")
         self._close.clicked.connect(self._request_close)
         header.addWidget(self._close, 0)
-        card_layout.addLayout(header)
+        card_layout.addWidget(self._titlebar)
 
         self._body = QWidget()
         self._body_layout = QVBoxLayout(self._body)
@@ -362,7 +407,6 @@ class _PreviewPopup(QFrame):
 
         self._request += 1
         request = self._request
-        self._anchor = anchor
         self._target = self._preferred_size(parent)
 
         self._title.setText(path.name)
@@ -408,7 +452,21 @@ class _PreviewPopup(QFrame):
         applied = self._clamp_to_screen(size)
         self.resize(applied)
         _PreviewPopup._user_size = applied
-        self._place(self._anchor)
+        # Stay where the user put it - they may have dragged the title row - so only
+        # nudge back if growing has pushed an edge off the screen.
+        self._keep_on_screen()
+
+    def _keep_on_screen(self) -> None:
+        """Move the window back inside its screen if the size pushed an edge out."""
+        screen = QGuiApplication.screenAt(self.frameGeometry().center())
+        if screen is None:
+            return
+        available = screen.availableGeometry()
+        pos = self.pos()
+        x = max(available.left() + 4, min(pos.x(), available.right() - self.width() - 4))
+        y = max(available.top() + 4, min(pos.y(), available.bottom() - self.height() - 4))
+        if QPoint(x, y) != pos:
+            self.move(x, y)
 
     def _clamp_to_screen(self, size: QSize) -> QSize:
         """Floor a dragged size at the minimums and cap it to the screen."""
