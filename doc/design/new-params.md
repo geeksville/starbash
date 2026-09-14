@@ -156,8 +156,10 @@ Rules:
 - `_init_from_toml()` — read the new `[[stages]]` AoT into `self.default_stages`
   (shape: `{"stages": <AoT>}`), and copy the same AoT for matching sessions.
 - `_set_default_stages()` — iterate `self.p.stages`; for each, ensure a
-  `[[stages]]` entry exists; mark `excluded = true` for `exclude_by_default`
-  stages not already present. Preserve existing entries/overrides.
+  `[[stages]]` entry exists. Preserve existing entries/overrides. (The old
+  `exclude_by_default` handling was **removed**: it was replaced by stage `role`s,
+  which pick between interchangeable implementations instead of hiding one — see
+  `doc/plans/stage-roles.md`.)
 - `_update_from_context()` — write back the `[[stages]]` AoT (per‑target and
   per‑session) instead of `stages.used` / `stages.excluded`.
 - Parameter loading — call `add_from_stage()` for each stage of the target repo

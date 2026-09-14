@@ -1219,7 +1219,9 @@ class TestBroadbandPaletteRecipe:
         stage = doc["stages"][0]
         assert stage["name"] == "palette_broadband"
         assert stage["tool"]["name"] == "siril"
-        assert stage["inputs"][0]["after"] == "noise_exterminator"
+        # The palette follows the *role*, so it works with either denoiser
+        # (doc/plans/stage-roles.md §6).
+        assert stage["inputs"][0]["after"] == "denoise"
         assert list(stage["outputs"][0]["name"]) == ["broadband.fits"]
 
     def test_multiplexed(self):

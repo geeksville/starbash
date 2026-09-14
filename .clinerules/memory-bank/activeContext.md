@@ -1,5 +1,41 @@
 # Active Context
 
+## Current work focus — stage roles (Phase 1 implemented)
+
+`doc/plans/stage-roles.md` Phase 1 is **implemented** (2026-09-14): a stage may
+declare an optional `role` and only the best-priority *available* implementation
+runs, with `after` generalized to name a role. Both blocking questions were settled
+2026-09-14 and are on record in the plan (§7.1, §7.2):
+
+- **§7.1 — a *higher* `priority` wins** (the code's existing `reverse=True` rule), so
+  no recipe renumbering and no risk to the conflicting-output resolver;
+  `doc/toml/guide.md` ("lower runs earlier") was the doc that needed fixing, not the
+  code.
+- **§7.2 — `exclude_by_default` was dropped** rather than honoured: roles subsume it.
+  The read in `ProcessedTarget._set_default_stages()` is gone (a stage the user has
+  not touched is now enabled), the two GraXpert stages became ordinary role
+  candidates (`priority = 300` vs rc-astro's `350`), and the flag was deleted from
+  both recipes and from `doc/design/new-params.md`.
+
+What landed, in one pass: `select_stages()` + `StageSelection`/`resolve()` in
+`stages.py`, the `resolve=` hook on `sort_stages()`, the `select_stages()` call in
+`Processing._job_to_tasks()` (before any task exists, so the losing branch never
+materialises), role resolution in `_get_prior_tasks()` (providers become literals,
+so the alternation-slicing hack is gone), and six palette `after` values switched
+from `noise_exterminator` to the `denoise` role. New tests:
+`tests/unit/test_stage_roles.py` (unit + recipe + pipeline fallback) and
+`TestGetPriorTasksWithRoles` in `tests/unit/test_processing.py`.
+
+Two facts verified while reviewing (written into the plan so they are not
+re-derived): `sort_stages()` ties break by **earlier** catalog order (stable sort
+over the default `0` — *not* later-wins), and the role name `denoise` **does**
+collide with the GraXpert stage of the same name, which the union +
+canonicalisation rule resolves to exactly one provider per branch.
+
+Phase 2 (GUI grouping, per-session role resolution) and Phase 3 remain open; the
+recipe edits live in the `starbash-recipes` submodule, which is committed separately
+by the human.
+
 ## Current work focus — the Targets page drives `sb select`
 
 The Targets page is now a second *editor* of the persistent session selection, so

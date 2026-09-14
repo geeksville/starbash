@@ -140,7 +140,8 @@ A stage is one unit of work, declared with the `[[stages]]` array‑of‑tables.
 name = "palette_sho"
 description = "SHO palette: R=Ha, G=Sii-or-synthetic, B=OIII"
 tool.name = "siril"
-priority = 330            # optional; lower runs earlier
+priority = 330            # optional; higher runs earlier
+role = "palette"          # optional; see "Stage roles" below
 # disabled = true         # optional; skip this stage entirely
 script = '''
     ... tool script ...
@@ -154,7 +155,8 @@ script = '''
 | `name` | **Unique** stage name. Used by `after` (§5) and by target exclusion lists (§8). |
 | `description` | Human‑readable summary. |
 | `tool.name` | Which tool runs the script: `siril`, `python`, `graxpert`, or `rc-astro`. |
-| `priority` | Optional integer to bias ordering; lower runs earlier. Ordering is otherwise driven by the `after` dependency graph. |
+| `priority` | Optional integer to bias ordering; **higher runs earlier**. A tie keeps catalog order (earlier wins). Also picks the winner when several stages share a `role`. Ordering is otherwise driven by the `after` dependency graph. |
+| `role` | Optional name marking this stage as one *implementation* of a pipeline step (`"deblur"`, `"denoise"`, …). See "Stage roles" below. |
 | `disabled` | Optional `true` to remove the stage from consideration. |
 | `script` | Inline script (see §6). |
 | `script-file` | Path to a script file, resolved relative to the repo. Use instead of `script`. |
@@ -162,6 +164,57 @@ script = '''
 | `[stages.context]` | Extra variables merged into the runtime context (§6). |
 | `[[stages.inputs]]` | Input selection (§5). |
 | `[[stages.outputs]]` | Output declaration (§5). |
+
+### Stage roles (interchangeable implementations)
+
+A `role` marks a stage as *one* implementation of a pipeline step. When several
+stages declare the same `role`, only one of them runs, so a recipe can say "denoise
+this" and let the machine pick the best tool it actually has:
+
+```toml
+[[stages]]
+name = "blur_exterminator"   # rc-astro BlurXTerminator
+role = "deblur"
+priority = 350
+
+[[stages]]
+name = "deconv-obj"          # graxpert; slower, used when rc-astro is absent
+role = "deblur"
+priority = 300
+```
+
+Selection happens **before** any task is created, and considers only stages that
+are enabled, not excluded for the target, and whose `tool.name` is installed. Among
+the survivors the highest `priority` wins (a tie keeps catalog order — the earlier
+entry wins); the losers are dropped from the run entirely, so their branch of the
+dependency graph never materialises.
+
+Because selection is decided at run time, **`after` may name a role** as well as a
+stage:
+
+```toml
+[[stages.inputs]]
+kind = "job"
+after = "deblur"   # whichever deblurrer won
+```
+
+That is the point of the feature: downstream stages depend on the *step*, not on
+which tool implemented it. An `after` naming a *losing* stage resolves to the
+winner too, so an existing recipe keeps working when its preferred implementation
+is unavailable. If nobody can implement the role (tool missing, or the stage is
+excluded for this target), the stage that follows it is skipped with a note in the
+log rather than silently producing nothing.
+
+Notes:
+
+- A stage **without** a `role` is unaffected — it is only ever skipped by
+  `disabled`, exclusion (§8), or a missing tool, exactly as before.
+- Recipe authors should not rely on catalog order to break a tie: it depends on
+  repo precedence. Give role members distinct `priority` values.
+- `exclude_by_default` was removed in favour of roles: instead of hiding a slow
+  implementation from every user, declare the role and let priority choose. A
+  stage a user excludes explicitly (or one already marked `excluded` in a target's
+  `.starbash/main.toml`) stays excluded and takes no part in role selection.
 
 ---
 
@@ -183,7 +236,9 @@ stage may have **multiple** input blocks; each becomes a named entry in
 Common keys:
 
 - `after` — name (regex‑matched) of the upstream stage to follow, e.g.
-  `after = "seqextract_haoiii"` or `after = "palette.*"`.
+  `after = "seqextract_haoiii"` or `after = "palette.*"`. It may also name a
+  **`role`** (`after = "deblur"`), which follows whichever implementation wins
+  (§4, "Stage roles").
 - `name` — optional label; the input becomes `context["input"]["<name>"]`. If
   omitted, inputs are numbered (`input[0]`, `input[1]`, …).
 - `multiplex = true` — create **one task per upstream file** instead of a single
@@ -213,7 +268,7 @@ Use `"100%"` on both parameters to retain the complete image. The old
 ```toml
 [[stages.inputs]]
 kind = "job"
-after = "noise_exterminator"
+after = "denoise"   # a role: follows whichever denoiser actually runs
 
 [[stages.inputs.requires]]
 kind = "min_count"
@@ -603,7 +658,8 @@ name = ["bkg_pp_{light_base}_.seq"]
 - **Repo**: `[repo]` `kind = ...`; pull in others with `[[repo-ref]]` (`dir`/`url`).
 - **Params**: `[[stages.parameters]]` `name`/`default`/`description` → `{parameters.name}`.
 - **Stage**: `[[stages]]` `name`, `tool.name`, `script`/`script-file`, optional
-  `priority`, `disabled`, `temporaries`, `[stages.context]`.
+  `priority` (higher runs earlier), `role`, `disabled`, `temporaries`,
+  `[stages.context]`.
 - **Inputs**: `[[stages.inputs]]` `kind` = `session`/`master`/`job`/`session-extra`;
   `after`, `name`, `multiplex`; filter with `[[stages.inputs.requires]]`.
 - **Outputs**: `[[stages.outputs]]` `kind` = `master`/`processed`/`job`; explicit
@@ -614,7 +670,8 @@ name = ["bkg_pp_{light_base}_.seq"]
 
 ### Common gotchas
 
-- Match `after` to a real stage `name` (regex allowed) or the stage never runs.
+- Match `after` to a real stage `name` (regex allowed), or to a `role`, or the
+  stage never runs.
 - Put `min_count` **last** in a `requires` chain.
 - `metadata` `value` list means OR; use multiple `requires` blocks for AND.
 - Every `{placeholder}` must resolve — define it or give it a default.

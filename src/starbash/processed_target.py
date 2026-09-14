@@ -599,27 +599,23 @@ class ProcessedTarget:
             shutil.rmtree(self.name, ignore_errors=True)
 
     def _set_default_stages(self) -> None:
-        """If we have newly discovered stages which should be excluded by default, add them now."""
+        """Make sure every known stage has a ``[[stages]]`` entry in our config."""
         from starbash.stage_utils import find_stage_entry, upsert_stage
 
         if self.p is None:
             # Read-only open: the [[stages]] entries already exist on disk.
             return
 
-        # Ensure every known stage has a [[stages]] entry. Newly discovered stages that
-        # are 'exclude_by_default' get marked excluded; existing entries (and any user
-        # edits/overrides) are left untouched.
+        # Ensure every known stage has a [[stages]] entry. Existing entries (and any
+        # user edits/overrides) are left untouched; a stage a user has not touched is
+        # enabled, since recipe *defaults* no longer hide implementations (role
+        # selection picks between them instead - see doc/plans/stage-roles.md).
         for stage in self.p.stages:
             stage_name = get_safe(stage, "name")
             if find_stage_entry(self.default_stages, stage_name) is not None:
                 continue  # respect whatever the user already has for this stage
 
-            excluded = bool(stage.get("exclude_by_default", False))
-            if excluded:
-                logging.debug(
-                    f"Excluding stage '{stage_name}' by default, edit .starbash/main.toml if you'd like it enabled."
-                )
-            upsert_stage(self.default_stages, stage, excluded=excluded)
+            upsert_stage(self.default_stages, stage)
 
     def _init_from_toml(self) -> None:
         """Read customized settings (masters, stages etc...) from the toml into our sessions/defaults."""

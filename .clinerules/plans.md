@@ -31,3 +31,10 @@ Implementation and design plans live in `doc/plans/*.md` and are tracked in git.
 - `doc/plans/targets-redesign.md` — the sequenced execution plan for the Targets
   screen redesign (narrow target picker + grouped explorer tree + session/master
   detail pane); implemented, kept as the build record. Design: `gui.md` §5.5.
+- `doc/plans/stage-roles.md` — optional `role` on `[[stages]]` so interchangeable
+  implementations (GraXpert vs RC-Astro deconvolution/denoise) auto-select by
+  `priority`, plus generalizing the `after` clause to accept role names.
+  **Phase 1 implemented 2026-09-14**; the test/code map is the table at the top of
+  the file. Both blocking questions were **decided** the same day — §7.1: a *higher*
+  `priority` wins (the code's existing rule), §7.2: `exclude_by_default` is dropped,
+  not honoured. Phase 2 (GUI grouping, per-session role resolution) remains open.

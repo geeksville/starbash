@@ -1,7 +1,7 @@
 """Tests for starbash.processing module utility functions."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -1433,3 +1433,149 @@ class TestRunAllStagesPreflight:
 
         assert len(seen) == 1
         assert set(seen[0]) == {"m42", "m31"}
+
+
+class TestGetPriorTasksWithRoles:
+    """``_get_prior_tasks()`` resolves role-named ``after`` patterns.
+
+    Generalizing ``after`` (doc/plans/stage-roles.md §6) means a downstream recipe
+    can name the *role* ("denoise") and get whichever implementation will really
+    run; a reference to the loser lands on the winner instead of raising.
+    """
+
+    @staticmethod
+    def _role_catalog() -> list[dict[str, Any]]:
+        return [
+            {"name": "deconv-obj", "role": "deblur", "priority": 300, "tool": {"name": "graxpert"}},
+            {"name": "denoise", "role": "denoise", "priority": 300, "tool": {"name": "graxpert"}},
+            {
+                "name": "blur_exterminator",
+                "role": "deblur",
+                "priority": 350,
+                "tool": {"name": "rc-astro"},
+            },
+            {
+                "name": "noise_exterminator",
+                "role": "denoise",
+                "priority": 350,
+                "tool": {"name": "rc-astro"},
+            },
+        ]
+
+    @classmethod
+    def _selection(cls, *available: str) -> Any:
+        from starbash.stages import select_stages
+
+        return select_stages(cls._role_catalog(), is_available=lambda tool: tool in available)
+
+    @staticmethod
+    def _processing(selection: Any, task_names: list[str], session_id: int = 35) -> Any:
+        from types import SimpleNamespace
+
+        from starbash.processing import Processing
+
+        proc = Processing.__new__(Processing)
+        proc._stage_selection = selection
+        # ``target`` is a read-only property over the context.
+        proc.context = {"session": {"id": session_id}, "target": "m20"}
+        proc.doit = cast(
+            Any,
+            SimpleNamespace(
+                dicts={
+                    name: {"name": name, "meta": {"context": {"session": {"id": session_id}}}}
+                    for name in task_names
+                }
+            ),
+        )
+        return proc
+
+    @staticmethod
+    def _stage(after: str) -> dict:
+        return {"name": "palette_broadband", "inputs": [{"after": after}]}
+
+    def test_role_after_follows_the_rc_astro_winner(self):
+        proc = self._processing(
+            self._selection("graxpert", "rc-astro", "siril"),
+            ["denoise_m20_s35", "noise_exterminator_m20_s35"],
+        )
+        prior = proc._get_prior_tasks(self._stage("denoise"))
+        assert prior["name"] == "noise_exterminator_m20_s35"
+
+    def test_role_after_follows_the_graxpert_fallback(self):
+        """Without rc-astro the same recipe text picks the GraXpert task."""
+        proc = self._processing(
+            self._selection("graxpert", "siril"),
+            ["denoise_m20_s35", "noise_exterminator_m20_s35"],
+        )
+        prior = proc._get_prior_tasks(self._stage("denoise"))
+        assert prior["name"] == "denoise_m20_s35"
+
+    def test_a_reference_to_the_dropped_member_redirects_to_the_winner(self):
+        """Recipes written against rc-astro keep working when GraXpert wins."""
+        proc = self._processing(
+            self._selection("graxpert", "siril"),
+            ["denoise_m20_s35", "noise_exterminator_m20_s35"],
+        )
+        prior = proc._get_prior_tasks(self._stage("noise_exterminator"))
+        assert prior["name"] == "denoise_m20_s35"
+
+    def test_multiplexed_winner_collects_every_index(self):
+        """A multiplexed winner still yields one prior task per index."""
+        proc = self._processing(
+            self._selection("graxpert", "rc-astro", "siril"),
+            [
+                "denoise_m20_s35_i0",
+                "noise_exterminator_m20_s35_i0",
+                "noise_exterminator_m20_s35_i1",
+            ],
+        )
+        prior = proc._get_prior_tasks(self._stage("denoise"))
+        assert [t["name"] for t in prior] == [
+            "noise_exterminator_m20_s35_i0",
+            "noise_exterminator_m20_s35_i1",
+        ]
+
+    def test_a_role_nobody_implements_raises_with_a_role_hint(self):
+        """The genuinely-empty case now says which role was expected.
+
+        With no implementor installed the members are all dropped up front, so no
+        task of theirs exists in the graph - the consumer must be skipped, and the
+        message names the role instead of leaving a mystery pattern.
+        """
+        from starbash.processing import NoPriorTaskException
+
+        proc = self._processing(
+            self._selection("siril"),  # neither deblur nor denoise implementor installed
+            [],
+        )
+        with pytest.raises(NoPriorTaskException, match="implements role 'denoise'"):
+            proc._get_prior_tasks(self._stage("denoise"))
+
+    def test_without_a_selection_the_raw_pattern_is_used(self):
+        """``_stage_selection = None`` keeps the pre-roles behaviour."""
+        proc = self._processing(None, ["denoise_m20_s35", "noise_exterminator_m20_s35"])
+        prior = proc._get_prior_tasks(self._stage("denoise"))
+        assert prior["name"] == "denoise_m20_s35"
+
+    def test_without_a_selection_an_alternation_matches_each_branch(self):
+        """The case the alternation-wrapping exists for: a regex plus a suffix."""
+        proc = self._processing(
+            None,
+            ["stack_single_duo_m20_s35_i0", "stack_dual_duo_m20_s35_i1"],
+        )
+        prior = proc._get_prior_tasks(self._stage("stack_(single|dual)_duo"))
+        assert [t["name"] for t in prior] == [
+            "stack_single_duo_m20_s35_i0",
+            "stack_dual_duo_m20_s35_i1",
+        ]
+
+    def test_without_a_selection_a_pattern_nothing_matches_still_raises(self):
+        from starbash.processing import NoPriorTaskException
+
+        proc = self._processing(None, ["denoise_m20_s35"])
+        with pytest.raises(NoPriorTaskException, match="Could not find prior task"):
+            proc._get_prior_tasks(self._stage("veralux.*"))
+
+    def test_a_stage_without_after_returns_none(self):
+        proc = self._processing(None, ["denoise_m20_s35"])
+        assert proc._get_prior_tasks({"name": "crop", "inputs": []}) is None

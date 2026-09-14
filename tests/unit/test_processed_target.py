@@ -251,13 +251,19 @@ class TestProcessedTargetMethods:
 class TestProcessedTargetStages:
     """Tests for ProcessedTarget stage handling."""
 
-    def test_set_default_stages_excludes_by_default(
+    def test_set_default_stages_gives_every_stage_an_entry(
         self, mock_processing_like, temp_processing_dir
     ):
-        """Test that stages with exclude_by_default are excluded."""
+        """Every discovered stage gets a [[stages]] entry, none excluded by default.
+
+        Recipe defaults no longer hide implementations: role selection picks between
+        them instead, so a stage the user has not touched is enabled
+        (doc/plans/stage-roles.md). A stale ``exclude_by_default`` left in a recipe
+        must not newly exclude anything.
+        """
         mock_processing_like.stages = [
-            {"name": "stage1", "exclude_by_default": True},
-            {"name": "stage2", "exclude_by_default": False},
+            {"name": "deconv-obj", "exclude_by_default": True},
+            {"name": "denoise", "role": "denoise", "priority": 300},
         ]
 
         with (
@@ -271,9 +277,10 @@ class TestProcessedTargetStages:
 
             pt = ProcessedTarget(mock_processing_like, "test")
 
-            # The _set_default_stages should have been called during init
-            # and should have set excluded stages
-            assert mock_repo.get.called
+        assert find_stage_entry(pt.default_stages, "deconv-obj") is not None
+        assert find_stage_entry(pt.default_stages, "denoise") is not None
+        assert is_excluded(pt.default_stages, "deconv-obj") is False
+        assert is_excluded(pt.default_stages, "denoise") is False
 
     def test_set_default_stages_preserves_existing_exclusions(
         self, mock_processing_like, temp_processing_dir
@@ -344,8 +351,14 @@ class TestProcessedTargetStages:
             # The user's exclusion must still be present after construction.
             assert is_excluded(pt.default_stages, "stack_osc") is True
 
-    def test_set_default_stages_with_used_list(self, mock_processing_like, temp_processing_dir):
-        """Test that stages already present (used) are not excluded by default."""
+    def test_set_default_stages_preserves_existing_entry(
+        self, mock_processing_like, temp_processing_dir
+    ):
+        """An existing [[stages]] entry is left alone, flag or no flag.
+
+        A stale ``exclude_by_default`` in the recipe must not flip a stage the user
+        (or a previous run) already has an entry for.
+        """
         mock_processing_like.stages = [
             {"name": "stage1", "exclude_by_default": True},
         ]
@@ -370,7 +383,7 @@ class TestProcessedTargetStages:
 
             pt = ProcessedTarget(mock_processing_like, "test")
 
-            # Stage1 already had an entry, so exclude_by_default must not flip it.
+            # Stage1 already had an entry, so the stale recipe flag is ignored.
             assert is_excluded(pt.default_stages, "stage1") is False
 
 

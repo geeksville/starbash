@@ -4,6 +4,7 @@ import copy
 import hashlib
 import logging
 import os
+import re
 import textwrap
 import types
 from collections.abc import Mapping
@@ -52,6 +53,7 @@ from starbash.rich import to_rich_string, to_tree
 from starbash.safety import get_list_of_strings, get_safe
 from starbash.score import ScoredCandidate, score_candidates
 from starbash.stages import (
+    StageSelection,
     create_default_task,
     inputs_by_kind,
     inputs_with_key,
@@ -59,6 +61,7 @@ from starbash.stages import (
     make_imagerow,
     mark_excluded,
     remove_excluded_tasks,
+    select_stages,
     set_used_stages_from_tasks,
     sort_stages,
     stage_to_doc,
@@ -287,6 +290,8 @@ class Processing(ProcessingLike):
             self.progress.start()
 
         self._stages_cache: list[StageDict] | None = None  # Cache for stages property
+        #: What role selection decided for the current job (see doc/plans/stage-roles.md).
+        self._stage_selection: StageSelection | None = None
         #: The target whose tasks are currently executing (for live log attribution).
         self._active_target: ProcessedTarget | None = None
         # Attribute streamed tool/log lines to the currently-running stage.
@@ -877,7 +882,21 @@ class Processing(ProcessingLike):
         with ProcessedTarget(self, target) as pt:
             pt.config_valid = False  # assume our config is not worth writing
 
-            stages = self.stages
+            # Pick one implementation per stage 'role' *before* any task is created,
+            # so the branch of the losing implementation never materialises and
+            # downstream stages follow the winner.  This is also what lets a recipe
+            # fall back to another tool when one is not installed (see
+            # doc/plans/stage-roles.md).
+            selection = select_stages(
+                self.stages,
+                is_available=self._tool_available,
+                is_excluded=lambda s: is_excluded(pt.default_stages, s.get("name", "")),
+            )
+            self._stage_selection = selection
+
+            # Sort what survived: a consumer's 'after' may now name a role, or a
+            # dropped role member (which redirects onto the winner).
+            stages = sort_stages(selection.stages, resolve=selection.resolve)
             self._stages_to_tasks(stages)
 
             # Every stage in the merged recipe catalog gets a candidate task, but
@@ -1023,24 +1042,32 @@ class Processing(ProcessingLike):
             return None
 
         after = get_safe(input_with_after, "after")
-        # ``after`` is a regex over task/stage names. Preserve it as a regex
-        # instead of passing it through ``_get_unique_task_name()``, which is
-        # intended for literal task names and would turn e.g.
-        # ``stack_(single|dual)_duo`` into a non-matching literal prefix.
-        prior_task_name = self._get_unique_task_name(after)
-        # ``_get_unique_task_name`` appends target/session suffixes after the
-        # regex. Wrap the dependency expression so the suffix remains outside
-        # the alternation (``stack_(single|dual)_duo_sh2126`` must match both
-        # concrete stage names).
-        if "(" in after or "[" in after or "|" in after:
-            suffix = prior_task_name[len(after) :]
-            prior_task_name = f"(?:{after}){suffix}"
+        # ``after`` is a regex over task/stage names, and since roles exist it may
+        # also name a *role* ("denoise") or a role member that did not win.  Resolve
+        # it to the stages that will actually run first (doc/plans/stage-roles.md
+        # §6); the resolved names are literals, so the target/session suffix can be
+        # appended directly and no alternation slicing is needed.
+        providers = self._stage_selection.resolve(after) if self._stage_selection else []
+
+        if providers:
+            alternation = "|".join(re.escape(name) for name in providers)
+            prior_task_name = f"(?:{alternation}){self._get_unique_task_name('')}"
+        else:
+            # No selection available, or the pattern named nothing that will run:
+            # fall back to preserving ``after`` as a regex.  Passing it through
+            # ``_get_unique_task_name()`` is intended for literal task names and
+            # would turn e.g. ``stack_(single|dual)_duo`` into a non-matching
+            # literal prefix, so wrap the regex and keep the suffix outside the
+            # alternation (``stack_(single|dual)_duo_sh2126`` must match both
+            # concrete stage names).
+            prior_task_name = self._get_unique_task_name(after)
+            if "(" in after or "[" in after or "|" in after:
+                suffix = prior_task_name[len(after) :]
+                prior_task_name = f"(?:{after}){suffix}"
 
         # Compile the prior_task_name into a regex pattern for prefix matching.
         # The pattern from TOML may contain wildcards like "light.*" which should match
         # task names like "light_m20_s35". We anchor the pattern to match the start of the task name.
-        import re
-
         prior_starting_pattern = re.compile(f"^{prior_task_name}")
         prior_exact_pattern = re.compile(f"^{prior_task_name}$")
 
@@ -1066,8 +1093,15 @@ class Processing(ProcessingLike):
                 prior_tasks.append(self.doit.dicts[key])
 
         if not prior_tasks:
+            hint = ""
+            if self._stage_selection is not None:
+                # A role nobody can implement silently removes its consumers, which
+                # is otherwise invisible; say which role was expected.
+                unimplemented = self._stage_selection.unimplemented_role(after)
+                if unimplemented:
+                    hint = f" No available stage implements role '{unimplemented}'."
             raise NoPriorTaskException(
-                f"Could not find prior task '{prior_task_name}' for 'after' input."
+                f"Could not find prior task '{prior_task_name}' for 'after' input.{hint}"
             )
         return prior_tasks
 
@@ -1302,7 +1336,14 @@ class Processing(ProcessingLike):
                 f"Skipping stage '{stage.get('name')}' - insufficient input files: {e}",
             )
         except NonFatalException as e:
-            logging.debug(f"Skipping stage '{stage.get('name')}' - {e}")
+            # A role nobody can implement removes its consumers silently, so say it
+            # at INFO rather than hiding it in the debug log.
+            level = (
+                logging.INFO
+                if isinstance(e, NoPriorTaskException) and "implements role" in str(e)
+                else logging.DEBUG
+            )
+            logging.log(level, f"Skipping stage '{stage.get('name')}' - {e}")
         except UserHandledError as e:
             logging.warning(f"Skipping stage '{stage.get('name')}' - {e}")
 
@@ -1486,6 +1527,19 @@ class Processing(ProcessingLike):
             provenance=provenance,
             sequence_provenance=sequence_provenance or None,
         )
+
+    @staticmethod
+    def _tool_available(tool_name: str) -> bool:
+        """Whether a stage's tool is installed on this machine.
+
+        Mirrors ``_remove_missing_tool_tasks``: a tool not in the registry counts as
+        unavailable, so a stage naming an unknown tool is dropped here rather than
+        failing later in ``_create_tool_action``.
+        """
+        if not tool_name:
+            return True
+        tool = tools.get(tool_name)
+        return tool is not None and bool(tool.is_available)
 
     def _remove_missing_tool_tasks(self, tasks: list[TaskDict]) -> list[TaskDict]:
         """Drop tasks whose stage requires a tool that isn't installed.
