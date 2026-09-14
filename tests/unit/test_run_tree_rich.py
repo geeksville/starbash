@@ -126,6 +126,35 @@ class TestRunsToTable:
     def test_ignores_non_dict_runs(self):
         assert "No results" in _render(runs_to_table([None, "nope", 3]))
 
+    def test_up_to_date_skips_are_not_reported_as_failures(self):
+        """doit skips a task whose outputs are still current - a healthy outcome."""
+        run = {
+            "target": "M31",
+            "stages": [
+                {
+                    "name": "stack",
+                    "status": "skipped",
+                    "excluded": False,
+                    "tasks": [
+                        {
+                            "name": "stack",
+                            "title": "Stack lights",
+                            "status": "skipped",
+                            "reason": "Current",
+                            "outputs": [],
+                            "logs": [],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        text = _render(runs_to_table([run], title="Results"))
+
+        assert "Up-to-date" in text
+        assert "Skipped" not in text
+        assert "Failed" not in text
+
 
 class TestProcessingView:
     def test_accumulates_runs_from_events(self):

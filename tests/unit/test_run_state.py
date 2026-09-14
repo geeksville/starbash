@@ -6,6 +6,7 @@ import tomlkit
 
 from starbash.run_state import (
     FileRef,
+    ResultSummary,
     RunState,
     RunStatus,
     StageNode,
@@ -41,6 +42,12 @@ class TestStatusLabels:
         assert RunStatus.OK.label == "ok"
         assert RunStatus.EXCLUDED.label == "excluded"
         assert RunStatus.FAILED.label == "failed"
+
+    def test_skipped_reads_as_up_to_date(self):
+        """A doit skip means the task's outputs are current - not a problem."""
+        assert RunStatus.SKIPPED.label == "up-to-date"
+        # The serialized value stays stable for run-log.toml compatibility.
+        assert str(RunStatus.SKIPPED) == "skipped"
 
 
 class TestRunStateStatus:
@@ -167,3 +174,39 @@ class TestSerialisation:
 
     def test_empty_document_returns_none(self):
         assert document_to_tree(tomlkit.document()) is None
+
+
+class _Result:
+    """Stand-in for a ``ProcessingResult``: the summary only reads ``success``."""
+
+    def __init__(self, success: bool | None) -> None:
+        self.success = success
+
+
+class TestResultSummary:
+    """A run's caption must not count up-to-date skips as failures."""
+
+    def test_up_to_date_skips_are_counted_separately(self):
+        results = [_Result(True), _Result(None), _Result(None), _Result(False)]
+
+        summary = ResultSummary.from_results(results)
+
+        assert (summary.total, summary.succeeded, summary.up_to_date, summary.failed) == (
+            4,
+            1,
+            2,
+            1,
+        )
+        assert summary.message == "4 task(s) run, 1 succeeded, 2 up-to-date, 1 failed."
+
+    def test_a_fully_up_to_date_rerun_reports_no_failures(self):
+        summary = ResultSummary.from_results([_Result(None)] * 92)
+
+        assert summary.up_to_date == 92
+        assert summary.failed == 0
+        assert summary.message == "92 task(s) run, 0 succeeded, 92 up-to-date, 0 failed."
+
+    def test_no_results_summarise_to_zeroes(self):
+        summary = ResultSummary.from_results([])
+
+        assert summary.message == "0 task(s) run, 0 succeeded, 0 up-to-date, 0 failed."

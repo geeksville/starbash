@@ -16,6 +16,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from starbash.run_state import ResultSummary
 from starbash.ui.qt.workers import CancelToken
 
 __all__ = [
@@ -67,6 +68,10 @@ def process_job(
 
     Masters-only processing is CLI-only (`sb process masters`), so there is no
     option for it here.
+
+    The returned summary buckets the finished tasks by outcome: doit reports an
+    up-to-date skip as ``success=None``, which must never be counted as a failure
+    (see :class:`~starbash.run_state.ResultSummary`).
     """
     from starbash.app import Starbash
     from starbash.processing import Processing
@@ -84,13 +89,13 @@ def process_job(
         token.raise_if_cancelled()
         results = proc.run_all_stages()
 
-    succeeded = sum(1 for r in results if getattr(r, "success", None))
-    failed = len(results) - succeeded
+    summary = ResultSummary.from_results(results)
     return {
-        "count": len(results),
-        "succeeded": succeeded,
-        "failed": failed,
-        "message": f"{len(results)} stage(s) run, {succeeded} succeeded, {failed} failed.",
+        "count": summary.total,
+        "succeeded": summary.succeeded,
+        "up_to_date": summary.up_to_date,
+        "failed": summary.failed,
+        "message": summary.message,
     }
 
 

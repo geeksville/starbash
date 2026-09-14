@@ -16,6 +16,9 @@ Every node carries a :class:`RunStatus`, clickable :class:`FileRef` inputs and
 outputs, the stage's upstream ``dependencies`` (derived from the doit task graph)
 and a bounded ``logs`` tail.  A run can be serialised to ``run-log.toml``
 (:meth:`RunState.to_toml`) and loaded back (:meth:`RunState.from_toml`).
+
+A finished batch of doit tasks is summarised by :class:`ResultSummary`, which
+keeps *up-to-date* skips apart from real failures.
 """
 
 from __future__ import annotations
@@ -32,6 +35,7 @@ __all__ = [
     "StageNode",
     "RunTree",
     "RunState",
+    "ResultSummary",
     "LOG_TAIL_LINES",
 ]
 
@@ -56,12 +60,18 @@ class RunStatus(StrEnum):
 
     @property
     def label(self) -> str:
-        """A display label for the status.
+        """A display label for the status (see the module-level ``_LABELS``).
 
-        ``PENDING`` reads as ``unused`` in the tree: a stage only keeps this status
-        when no task for it ever ran, i.e. it was not used for this target.
+        Two statuses read differently in the UI than their persisted values:
+
+        * ``PENDING`` reads as ``unused``: a stage only keeps this status when no
+          task for it ever ran, i.e. it was not used for this target.
+        * ``SKIPPED`` reads as ``up-to-date``: doit skips a task whose outputs are
+          already current (its ``uptodate`` fingerprint matched), which is a
+          healthy outcome.  Calling that "skipped" is what made a fully
+          up-to-date re-run look like a broken one.
         """
-        return "unused" if self is RunStatus.PENDING else str(self.value)
+        return _LABELS.get(self, str(self.value))
 
     @property
     def rich_style(self) -> str:
@@ -90,6 +100,14 @@ _RICH_STYLES: dict[RunStatus, str] = {
     RunStatus.SKIPPED: "yellow",
     RunStatus.FAILED: "red",
     RunStatus.EXCLUDED: "dim",
+}
+
+#: UI labels that read differently from a status's persisted value; any status
+#: not listed here reads as its own value.  ``run-log.toml`` stores the *values*,
+#: so these labels can change without breaking older logs.
+_LABELS: dict[RunStatus, str] = {
+    RunStatus.PENDING: "unused",
+    RunStatus.SKIPPED: "up-to-date",
 }
 
 
@@ -261,6 +279,50 @@ class RunTree:
             success=data.get("success"),
             is_master=bool(data.get("is_master", False)),
             stages=[StageNode.from_plain(s) for s in data.get("stages", [])],
+        )
+
+
+@dataclass(frozen=True)
+class ResultSummary:
+    """How a finished batch of doit tasks broke down by outcome.
+
+    doit reports ``success`` as a tri-state: ``True`` ran, ``False`` failed, and
+    ``None`` was skipped -- in practice *up-to-date*, which is what doit reports
+    when a task's ``uptodate`` fingerprint still matches.  Bucketing ``None``
+    with the failures is what made a no-op re-run of 92 up-to-date tasks announce
+    "92 failed", so the three outcomes are counted separately here.
+    """
+
+    total: int = 0
+    succeeded: int = 0
+    up_to_date: int = 0
+    failed: int = 0
+
+    @classmethod
+    def from_results(cls, results: Iterable[Any]) -> ResultSummary:
+        """Bucket finished results (any ``ProcessingResult``-like object)."""
+        succeeded = up_to_date = failed = 0
+        for result in results:
+            success = getattr(result, "success", None)
+            if success is True:
+                succeeded += 1
+            elif success is None:
+                up_to_date += 1
+            else:
+                failed += 1
+        return cls(
+            total=succeeded + up_to_date + failed,
+            succeeded=succeeded,
+            up_to_date=up_to_date,
+            failed=failed,
+        )
+
+    @property
+    def message(self) -> str:
+        """A one-line summary for a run's status caption."""
+        return (
+            f"{self.total} task(s) run, {self.succeeded} succeeded, "
+            f"{self.up_to_date} up-to-date, {self.failed} failed."
         )
 
 

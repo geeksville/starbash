@@ -852,6 +852,42 @@ def test_processing_page_labels_unused_stages(qtbot, app_context, bus):
     assert stage_item.text(1) == "unused"
 
 
+def test_processing_page_labels_up_to_date_tasks(qtbot, app_context, bus):
+    """A task doit skipped as current reads as 'up-to-date', never as 'skipped'."""
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    run = {
+        "target": "M31",
+        "is_master": False,
+        "stages": [
+            {
+                "name": "stack",
+                "status": "skipped",
+                "excluded": False,
+                "tasks": [
+                    {
+                        "name": "stack_m31_s1",
+                        "title": "stack_m31_s1",
+                        "status": "skipped",
+                        "session": "2025-07-18:light_IRCUT_gain80",
+                        "outputs": [],
+                        "logs": [],
+                    }
+                ],
+            }
+        ],
+    }
+    events.publish(events.EVENT_STAGE_RESULT, {"result": None, "run": run})
+
+    stage_item = _row(_top(page._tasks, 0), 0)
+    assert stage_item.text(1) == "up-to-date"
+    task_item = _row(stage_item, 0)
+    assert task_item.text(1) == "2025-07-18:light_IRCUT_gain80 — up-to-date"
+
+
 def test_processing_page_collapses_master_nodes(qtbot, app_context, bus):
     """Master (calibration) runs are collapsed so they don't crowd the tree."""
     from starbash.ui.qt.pages.processing import ProcessingPage

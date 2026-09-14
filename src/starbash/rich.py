@@ -203,10 +203,12 @@ def run_tree_to_rich(run: dict[str, Any], root_label: str | None = None) -> Tree
 
 #: Plain status words for the non-interactive results table.  Kept separate from
 #: ``RunStatus`` so the CLI's piped output is stable even if glyphs change.
+#: ``skipped`` is doit's *up-to-date* case (its outputs are still current), so it
+#: reads as ``Up-to-date`` rather than as something that went wrong.
 _STATUS_WORDS: dict[str, str] = {
     "ok": "Success",
     "failed": "Failed",
-    "skipped": "Skipped",
+    "skipped": "Up-to-date",
     "running": "Running",
     "pending": "Pending",
     "excluded": "Excluded",

@@ -29,6 +29,15 @@
   (legacy `used`/`excluded` arrays still parse); and
   `Processing._resolve_input_master()` honours a `selected_by = "user"` pick on
   the next run, falling back to the top scorer if that master is gone.
+- **Auto re-index before a run** (`doc/plans/` — see `activeContext.md`): `Processing.reindex_if_needed()`
+  scans the user's image folders before planning (opt-out via the `reindex.auto`
+  preference + GUI Settings checkbox), reusing the `reindex.progress` /
+  `reindex.finished` events that both front ends already render.
+- **Run-status vocabulary** (see `activeContext.md` → *up-to-date skips are not
+  failures*): doit's up-to-date skip (`success=None`) is reported as **up-to-date**
+  everywhere — the GUI Processing caption (`ResultSummary`, which never counts it
+  as a failure), the GUI/CLI run-tree status words and the CLI's flat results
+  table — while `run-log.toml` keeps the stable `"skipped"` value.
 - **Type checking covers `src/` *and* `tests/`**: `just lint` runs `ruff check --fix`,
   `ruff format` and `basedpyright` over both trees (0 errors).  `Starbash.__exit__`
   propagates exceptions under pytest (a mocked `analytics_exception` used to suppress

@@ -1,5 +1,38 @@
 # Active Context
 
+## Current work focus — up-to-date skips are not failures
+
+A no-op re-run used to announce *"92 stage(s) run, 0 succeeded, 92 failed."* and
+show every task as `skipped`, which reads like a broken run.  Both came from
+treating doit's tri-state `success` as a boolean:
+
+- **Caption** — `ui/qt/jobs.py::process_job` computed
+  `failed = len(results) - succeeded`, so an up-to-date skip (`success=None`,
+  published by `MyReporter.skip_uptodate` with `reason="Current"`) was counted as
+  a failure.  The counting now lives in the dependency-free
+  `run_state.ResultSummary` (`total` / `succeeded` / `up_to_date` / `failed` plus a
+  `message` line), returned by `process_job` as `count` / `succeeded` /
+  `up_to_date` / `failed` / `message` and rendered by the Processing page's
+  caption.  The noun was corrected to `task(s)`: a `ProcessingResult` is one doit
+  **task**, not a stage.
+- **Status word** — `RunStatus.SKIPPED.label` is now `up-to-date`, via the new
+  module-level `_LABELS` map (which also carries the pre-existing
+  `PENDING → unused`), and `rich._STATUS_WORDS["skipped"]` is `Up-to-date` for the
+  CLI's flat results table.  The **persisted value stays `"skipped"`**, so
+  `run-log.toml` and older logs are untouched — only display words changed.  Stage
+  rows roll up the same way (all tasks skipped → stage reads `up-to-date`), and
+  `RunTree.success` already treated skips as non-failures.
+- Deliberately unchanged: the `Ø` glyph and the amber styling for `SKIPPED` (still
+  visually distinct from `✓`), and the `(Current)` reason the CLI live tree
+  appends per task.  `skip_ignore` (reason `Ignored`) would now also read
+  `up-to-date`, but starbash never calls `doit ignore`, so it is unreachable.
+- Tests: `TestResultSummary` and the `SKIPPED` label case in
+  `tests/unit/test_run_state.py`,
+  `TestRunsToTable::test_up_to_date_skips_are_not_reported_as_failures`, and
+  `test_processing_page_labels_up_to_date_tasks` in `test_gui.py`.  Also verified
+  the real render path (`RunState.to_plain()` → `runs_to_table` → `Up-to-date`).
+  `just lint` clean (basedpyright 0 errors); full suite **1090 passed**.
+
 ## Current work focus — auto re-index before each processing run
 
 A run now scans the user's image folders first, so frames added since the last run
@@ -548,7 +581,7 @@ Landed (all phases):
   `rich.supports_live_display(console)` gates the `Live`; when false,
   `ProcessingView` skips `Live` entirely and prints `rich.runs_to_table(...)` on
   `finish()` — a flat one-row-per-task table with plain status words
-  (`Success`/`Failed`/`Skipped`/`Excluded`/…) plus a row for any task-less stage.
+  (`Success`/`Failed`/`Up-to-date`/`Excluded`/…) plus a row for any task-less stage.
   Real terminals are unchanged (still the live tree).  Tests in
   `tests/unit/test_run_tree_rich.py` (`TestSupportsLiveDisplay`, `TestRunsToTable`,
   the dumb-sink `TestProcessingView` cases).
@@ -729,6 +762,11 @@ Open tabs / files being touched suggest active work in:
 - `doc/design/report.md` — the end-to-end design covering target report metadata (R1), Jekyll publishing (R2), and per-frame registration TOML stages (R3).
 
 ## Recent changes
+- **Up-to-date skips are no longer reported as failures** — see the section at the
+  top of this file: `ResultSummary` (new, `run_state.py`) buckets doit's tri-state
+  `success`, so `success=None` counts as *up-to-date* instead of failed, and
+  `RunStatus.SKIPPED.label` / `rich._STATUS_WORDS` now read `up-to-date` (the
+  persisted `run-log.toml` value is unchanged).
 - **Auto re-index preference** (default true) + GUI checkbox — see the section at
   the top of this file: runs now call `Processing.reindex_if_needed()` before
   planning, gated on `reindex.auto`, and both front ends render the existing
