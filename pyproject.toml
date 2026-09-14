@@ -43,6 +43,16 @@ pyqt6 = "^6.10.1"
 # way to drive Starbash. "Optional" only means users may keep using the CLI instead.
 pyside6 = "^6.11.2"
 
+# The astro-color-stretch recipe engine (src/starbash/recipes/astro_color_stretch.py) uses
+# these directly. They currently also arrive transitively via graxpert, but the recipe must
+# not depend on graxpert's dependency tree, so they are declared here. The opencv range is
+# deliberately ^4.11: graxpert pins opencv-python-headless to exactly 4.11.0.86. Headless (not
+# opencv-python) because the engine never opens a window, and the GUI variant would collide
+# with Qt/bundled GTK on some platforms. numpy is left to graxpert/astropy.
+opencv-python-headless = "^4.11"
+scikit-image = "^0.26"
+scipy = "^1.18"
+
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.4.2,<10.0.0"
 pytest-cov = ">=6.0.0"

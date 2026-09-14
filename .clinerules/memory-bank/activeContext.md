@@ -1,6 +1,44 @@
 # Active Context
 
-## Current work focus — Targets explorer + structured session masters
+## Current work focus — astro-color-stretch (ACS) port
+
+The GPL `astro-color-stretch` 1.2 engine (David M. Jones, an adaptation of Roger N.
+Clark's rnc-color-stretch) is ported into Starbash as a Python recipe stage. Plan
+and build record: `doc/plans/astro-stretch.md` (§12 has the implementation status).
+
+- **Engine**: `src/starbash/recipes/astro_color_stretch.py` (1453 lines, 37 functions).
+  `StretchParams` (46 fields, one per TOML parameter) + `stretch_array()` is pure and
+  testable; `load_image`/`save_image`/`run(context)` are the only I/O-aware parts, going
+  through `starbash.sim_siril.SirilInterface` exactly like the VeraLux script. Output is
+  the float32 planar 0..1 convention that `merge_stars` expects.
+- **Recipe**: `starbash-recipes/post/astro-color-stretch.toml` — same slot as the VeraLux
+  stretch (`after = "(starnet|palette_broadband).*"`, `multiplex`, `starmask` exclude),
+  `auto.prefix = "acs_"`, 46 documented parameters whose names/defaults are asserted equal
+  to the dataclass's. `[[repo-ref]] dir = "post/astro-color-stretch.toml"` is in
+  `starbash-recipes/starbash.toml`. *Not* `exclude_by_default` (user decision, §10 Q1).
+- **Tests**: `tests/unit/test_astro_color_stretch.py` (51) — TOML/dataclass parity,
+  wiring, FITS boundary, validation, dark-window bounds, CA default/enable/no-op,
+  seeded regression pins, end-to-end `run()` on real FITS files, and one run of the
+  recipe's own script through the real RestrictedPython sandbox. `just lint` clean;
+  suite green (1113 passed).
+- **Seven documented deviations** from upstream (module docstring): RGB (not BGR) channel
+  order; RL Rec.709 luma weights fixed; `hsv_adjust`'s 0..65535-vs-0..1 HSV scaling fixed
+  (tested as a near-no-op round trip); the s-curve loop's discarded `rgb_sky_zero` dropped;
+  mono input raises instead of being mishandled; skimage's `num_iter=` keyword (upstream's
+  `iterations=` was renamed); and `ca_correct` defaults to **off** where upstream defaults it
+  on — this stage's input is the starless frame, so there are no stars to align (decided
+  2026-09-14, §10 Q7). The parameter still realigns when enabled.
+- **Deps declared**: `opencv-python-headless = "^4.11"`, `scikit-image = "^0.26"`,
+  `scipy = "^1.18"` in `pyproject.toml` (were only transitive via graxpert; the opencv
+  caret range must stay compatible with graxpert's exact 4.11.0.86 pin).
+- **Open / hand-offs**: the human commits the submodule TOML + manifest + README and bumps the
+  submodule pointer (`.clinerules/collaboration.md` bans agent commits). Phase 7 is otherwise
+  done: READMEs updated (root credits + supported tools, `src/starbash/recipes/README.md`
+  engine index, recipes-repo layout/credits), memory-bank entry written, and the real-data
+  `acs_*` vs `hms_*` A/B comparison dropped by the user (2026-09-14). No open questions
+  remain — the `ca_correct` default question was resolved in favour of `false` (§10 Q7).
+
+## Previous focus — Targets explorer + structured session masters
 
 Implemented the Targets-screen redesign and the structured `sessions.masters`
 schema (see `doc/plans/gui.md` §5.5 and the new `doc/plans/session-masters.md`;

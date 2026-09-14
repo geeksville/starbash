@@ -131,6 +131,7 @@ One of the main goals of starbash is to provide 'seestar-like' automatic image p
 * automatic recipe selection (color, bw, duo filters etc...), but you can customize if starbash picks poorly
 * background removal - (via Graxpert by default) provided as extra (optional) output files
 * star removal - (via Starnet by default) provided as extra (optional) output files
+* stretching - colour-preserving stretch to render the final display image (via the bundled [astro-color-stretch](https://dmjonesphotography.com/astrophotography-software-downloads/) engine, or the VeraLux HyperMetric stretch, see `sb process`'s `acs_*`/`hms_*` outputs)
 * no changes to input repos - you can safely ask starbash to auto-process your entire tree of raw images.  Processed images go in a special 'processed' output repo.
 
 ![auto session](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/vhs/process-auto.gif)
@@ -257,12 +258,15 @@ Starbash is a tool agnostic workflow manager.  But it wouldn't be possible witho
 * [Graxpert](https://graxpert.com/) - for background and noise elimination
 * [blur exterminator / noise exterminator](https://www.rc-astro.com/stand-alone-rc-astro-tools/)
 * [starnet](https://starnetastro.com/cli-tools/) - for star removal
+* [astro-color-stretch](https://dmjonesphotography.com/astrophotography-software-downloads/) - for colour-preserving stretching (GPL; ported into Starbash, see Credits)
 * [Python](https://www.python.org/) (you can add Python code to recipes if necessary)
 
 ## Credits
 * Various reddit users who submitted anonymous crash reports from alpha 1
 * [@codegistics](https://github.com/codegistics) for kindly donating Dwarf3 test data and invaluable debugging assistance.
 * The developers of Siril and Graxpert - which are wonderful tools.
+* [David M. Jones](https://dmjonesphotography.com/) for [astro-color-stretch](https://dmjonesphotography.com/astrophotography-software-downloads/) (GPL v3), the colour-preserving stretch engine ported as Starbash's `astro_color_stretch` recipe stage.
+* Roger N. Clark for the original rnc-color-stretch, which astro-color-stretch adapts.
 * The [doit](https://pydoit.org/) an **amazing** automation building tool, which substantially simiplified this tool's development.
 * Any parts of the user interface that look good are probably due to the awesome [rich](https://github.com/Textualize/rich) library.
 
