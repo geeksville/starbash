@@ -1,5 +1,35 @@
 # Active Context
 
+## Current work focus — the Targets page drives `sb select`
+
+The Targets page is now a second *editor* of the persistent session selection, so
+its list, its single-target detail pane and `sb select` cannot disagree:
+
+- **The list always shows every processed target** (it is a picker); the rows named
+  by the selection are **pre-highlighted**, and with no target filter *every* row is
+  highlighted, because "no filter" means every target is in effect — the same thing
+  the CLI says. Reading and writing both go through the one `Selection` instance the
+  GUI already shares with the CLI.
+- **Qt's `ExtendedSelection` already implements the wanted click semantics**: a probe
+  confirmed a plain click collapses the selection to the clicked row (even on an
+  already-highlighted row) and Ctrl+click toggles, with `currentIndex()` already on
+  the clicked row when `selectionChanged` fires. So no event filter or custom
+  collapse logic — the page only adds the write-back (`_write_selection`) and, on a
+  refresh, never rewrites a selection the user did not touch.
+- **The explorer is shown only while exactly one row is highlighted**; otherwise the
+  right column (`self._pane`, a `QStackedWidget` over the explorer and a hint label)
+  explains itself and nothing stays loaded. A stack rather than hiding the pane keeps
+  the splitter at its 22 % share instead of letting the list jump to the full width.
+- Unsaved edits are settled *before* the highlight leaves a dirty target, and a
+  cancelled prompt restores both the highlight and the in-memory edits (the pane
+  skips reloading an already-loaded target).
+- `services.preferred_target` became `services.selected_targets()` (the whole list),
+  and the never-assigned `_desired_target` field is gone.
+- Tests: 3 new GUI cases plus 2 rewritten ones in `tests/unit/test_targets_page.py`
+  (37 pass) covering the pre-highlight, the empty-filter and unmatched-target hints,
+  click/Ctrl+click toggling, and the dirty-target prompt. `just lint` clean
+  (basedpyright 0 errors). Plan/design: `doc/plans/targets-selection-sync.md`,
+  `doc/plans/gui.md` §5.5.
 ## Current work focus — up-to-date skips are not failures
 
 A no-op re-run used to announce *"92 stage(s) run, 0 succeeded, 92 failed."* and

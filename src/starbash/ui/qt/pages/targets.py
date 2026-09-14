@@ -17,6 +17,13 @@ Selecting a parameter reveals the option editor below the tree; selecting a
 calibration type reveals a :class:`~starbash.ui.qt.widgets.master_picker.MasterPicker`
 instead.  With nothing selected the detail pane is hidden entirely.
 
+The target list doubles as the page's editor for the persistent selection
+(``sb select``): it always lists every processed target, pre-highlights the ones
+the selection names, and writes a click straight back, so the CLI and the page
+cannot disagree.  Because the explorer describes exactly one target, it is shown
+only while a single row is highlighted; otherwise the right column carries a hint
+instead (see ``doc/plans/targets-selection-sync.md``).
+
 Edits live in memory and are only written by **Save options**; **Undo changes**
 discards them.  Leaving the page (or picking another target) with unsaved edits
 prompts the user via :meth:`TargetsPage.can_leave`.  A user-picked master is saved
@@ -37,9 +44,10 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QItemSelection, QItemSelectionModel, Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -69,9 +77,9 @@ from starbash.ui.qt.services import (
     load_stage_options,
     load_targets,
     master_url,
-    preferred_target,
     save_master_selections,
     save_stage_options,
+    selected_targets,
 )
 from starbash.ui.qt.theme import ACCENT
 from starbash.ui.qt.widgets.busy_indicator import BusyIndicator
@@ -142,8 +150,10 @@ class TargetsPage(Page):
         #: Target whose options are loaded, and its on-disk directory.
         self._loaded_target: str | None = None
         self._loaded_path: str | None = None
-        #: Target to select on the next refresh (keeps the row selected after a save).
-        self._desired_target: str | None = None
+        #: The target names the table currently has highlighted.  They mirror the
+        #: session selection (``sb select``) and are what a click edits - see
+        #: ``doc/plans/targets-selection-sync.md``.
+        self._selected_names: list[str] = []
         #: Suppresses selection/editor handlers while we mutate widgets ourselves.
         self._guard = False
 
@@ -158,6 +168,11 @@ class TargetsPage(Page):
         # 180px Target column stranded in a wider pane - a bare strip of table with
         # a scrollbar at its far edge.
         self._table.horizontalHeader().setStretchLastSection(True)
+        # Ctrl+click edits *the selection* (which targets are in play), not just
+        # which row is being browsed, so this table is multi-select.  Qt collapses
+        # an unmodified click to the clicked row and toggles on Ctrl, which is
+        # exactly the behaviour the page wants - only the write-back is ours.
+        self._table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._table.selectionModel().selectionChanged.connect(self._on_target_selected)
 
         right = QWidget()
@@ -237,9 +252,23 @@ class TargetsPage(Page):
         self._path.linkActivated.connect(self._on_path_link)
         right_layout.addWidget(self._path)
 
+        #: The explorer is only meaningful for one target at a time, so the right
+        #: column swaps between it and a hint saying why nothing is editable.
+        #: Swapping beats hiding the pane: the target list would otherwise jump
+        #: between its 22 % share and the full page width as rows are clicked.
+        self._pane = QStackedWidget()
+        self._pane.addWidget(right)
+        self._hint = QLabel("Select a target to edit its stages and calibration.")
+        self._hint.setObjectName("PageSubtitle")
+        self._hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._hint.setWordWrap(True)
+        self._hint.setContentsMargins(_COLUMN_GAP, 0, 0, 0)
+        self._pane.addWidget(self._hint)
+        self._pane.setCurrentWidget(self._hint)  # nothing is loaded yet
+
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self._table)
-        splitter.addWidget(right)
+        splitter.addWidget(self._pane)
         # Stretch factors only govern how *extra* space is divided once the panes
         # have their initial sizes, so the default proportion is set explicitly:
         # the target list is a narrow picker, the explorer takes the rest (and all
@@ -826,26 +855,51 @@ class TargetsPage(Page):
 
     # --- target selection -----------------------------------------------------
     def refresh(self) -> None:
-        """Reload the target list, selecting the current or preferred target."""
-        self._model.set_rows(load_targets(self.sb))
-        wanted = self._desired_target or preferred_target(self.sb)
-        self._desired_target = None
-        self._select_target(wanted)
+        """Reload the target list, pre-highlighting the selection's targets.
 
-    def _select_target(self, name: str | None) -> None:
-        """Select the row for ``name`` (normalised), or clear the selection."""
-        index = self._find_row(name)
+        The list deliberately always shows *every* processed target: it is a
+        picker, so narrowing it to the selection would leave the other targets
+        unreachable (see ``doc/plans/targets-selection-sync.md``).
+        """
+        rows = load_targets(self.sb)
+        self._model.set_rows(rows)
+        names = selected_targets(self.sb)
+        if not names:
+            # `sb select` with no target filter has *every* target in effect, so
+            # the list arrives fully highlighted; a click then narrows it to one.
+            names = [str(row.get("target", "")) for row in rows]
+        self._select_targets(names)
+
+    def _select_targets(self, names: list[str]) -> None:
+        """Highlight the rows for ``names``, then point the pane at that set.
+
+        Programmatic highlighting runs under :attr:`_guard`: the resulting
+        ``selectionChanged`` is not a user click and must not write the selection
+        back - on arrival that would rewrite a selection nobody touched.
+        """
+        self._selected_names = list(names)
+        wanted = {normalize_target_name(name) for name in names if name}
+
+        selection = QItemSelection()
+        for index, row in enumerate(self._model.rows()):
+            if normalize_target_name(str(row.get("target", ""))) in wanted:
+                selection.select(self._model.index(index, 0), self._model.index(index, 0))
+
+        model = self._table.selectionModel()
         self._guard = True
         try:
-            if index is None:
-                self._table.clearSelection()
+            if selection.isEmpty():
+                model.clearSelection()
             else:
-                self._table.selectRow(index)
-                self._table.scrollTo(self._model.index(index, 0))
+                model.select(
+                    selection,
+                    QItemSelectionModel.SelectionFlag.ClearAndSelect
+                    | QItemSelectionModel.SelectionFlag.Rows,
+                )
         finally:
             self._guard = False
 
-        self._load_target(self._model.row_at(index) if index is not None else None)
+        self._sync_pane()
 
     def _find_row(self, name: str | None) -> int | None:
         """Row index of the target matching ``name`` (ignoring case and separators)."""
@@ -857,22 +911,84 @@ class TargetsPage(Page):
                 return index
         return None
 
+    def _highlighted_targets(self) -> list[str]:
+        """The targets of the highlighted rows, in list order."""
+        rows = {index.row() for index in self._table.selectionModel().selectedRows()}
+        return [
+            str(row.get("target", ""))
+            for index, row in enumerate(self._model.rows())
+            if index in rows
+        ]
+
     def _on_target_selected(self) -> None:
-        """Load the selected target, resolving any unsaved edits first."""
+        """Make the highlighted targets the selection, then load the single one.
+
+        The highlight *is* the selection (``sb select``): Qt collapses an
+        unmodified click to the clicked row and Ctrl+click toggles a row, so the
+        table needs no click handling of its own - only this write-back.
+        """
         if self._guard:
             return
-        indexes = self._table.selectionModel().selectedRows()
-        row = self._model.row_at(indexes[0].row()) if indexes else None
-        if row is None:
+        names = self._highlighted_targets()
+        if names == self._selected_names:
+            return
+        if self._loaded_target is not None and names != [self._loaded_target]:
+            # The pane is about to leave the loaded target (or widen it to
+            # several): settle any unsaved edits before that changes what is on
+            # screen.
+            if not self._resolve_unsaved():
+                self._select_targets(self._selected_names)  # restore the highlight
+                return
+        self._write_selection(names)
+        self._select_targets(names)
+
+    def _write_selection(self, names: list[str]) -> None:
+        """Persist the highlighted targets as the session selection (`sb select`).
+
+        Best-effort but reported: if the write fails the CLI would quietly disagree
+        with what the page shows, so say so rather than pretend it worked.
+        """
+        try:
+            self.sb.selection.set_targets(list(names))
+        except Exception as exc:  # noqa: BLE001 - report, never crash the page
+            self.status.emit(f"Could not save the selection: {exc}")
+
+    def _sync_pane(self) -> None:
+        """Show the explorer for a lone highlighted target, otherwise a hint.
+
+        A target's stages and calibration are only editable while the row
+        selection *is* that target; with none (or several) the right column
+        explains itself rather than editing an arbitrary one - and nothing stays
+        loaded, so no stale stages or masters remain on screen.
+        """
+        names = self._selected_names
+        single = names[0] if len(names) == 1 else None
+        index = self._find_row(single) if single is not None else None
+        if index is None:
+            self._hint.setText(self._hint_text(names))
+            self._pane.setCurrentWidget(self._hint)
             self._load_target(None)
             return
-        if row.get("target") == self._loaded_target:
+
+        self._pane.setCurrentWidget(self._right)
+        if single == self._loaded_target:
+            # Already showing it: keep the loaded model (and any edits in it).
             return
-        if not self._resolve_unsaved():
-            # The user cancelled: put the selection back where it was.
-            self._select_target(self._loaded_target)
-            return
-        self._load_target(row)
+        self._table.scrollTo(self._model.index(index, 0))
+        self._load_target(self._model.row_at(index))
+
+    def _hint_text(self, names: list[str]) -> str:
+        """One line explaining why no target's options are on screen."""
+        if not self._model.rows():
+            return "No processed targets found — run Processing to create some."
+        if len(names) == 1:
+            return (
+                f"{names[0]} has no processed output yet — run it from Processing, "
+                "or select another target."
+            )
+        if len(names) > 1:
+            return f"{len(names)} targets selected — select a single one to edit its options."
+        return "Select a target to edit its stages and calibration."
 
     def _load_target(self, row: dict[str, Any] | None) -> None:
         """Load stage options and session masters for ``row`` (or clear when None)."""

@@ -56,7 +56,7 @@ __all__ = [
     "load_stage_options",
     "save_stage_options",
     "save_master_selections",
-    "preferred_target",
+    "selected_targets",
     "load_selection",
     "dashboard_stats",
 ]
@@ -191,10 +191,14 @@ def load_targets(sb: Starbash) -> list[dict[str, Any]]:
     return rows
 
 
-def preferred_target(sb: Starbash) -> str | None:
-    """The target the user currently has selected (``sb select target ...``)."""
-    targets = sb.selection.targets
-    return str(targets[0]) if targets else None
+def selected_targets(sb: Starbash) -> list[str]:
+    """The targets the user currently has selected (``sb select target ...``).
+
+    An empty list means "no target filter", which ``sb select`` treats as *every*
+    target being in effect; the Targets page mirrors that by pre-highlighting all
+    of its rows (see ``doc/plans/targets-selection-sync.md``).
+    """
+    return [str(target) for target in sb.selection.targets]
 
 
 def load_stage_options(sb: Starbash, target_path: str) -> list[StageOption]:

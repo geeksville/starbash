@@ -16,6 +16,15 @@
 - **External tools**: Siril (Flatpak stdin script), GraXpert (CLI), Starnet2, rc-astro (`bxt`/`nxt` with JSON progress streaming), Python (RestrictedPython sandbox).
 - **Missing-tool warnings with severity + ignore** (`doc/plans/tool-warnings.md`): `ToolSeverity` / `ToolStatus` / `missing_tool_statuses()` in `src/starbash/tool/` drive a severity-matched startup log line in the CLI (`Tool.preflight()`) and dismissible per-tool bars in the GUI (`ui/qt/widgets/tool_warning.py`), whose *Ignore* button persists `tool.<key>.ignored = true` to the user config (and therefore silences the CLI too). StarNet detection also validates the configured `starnet_exe` (a dangling path counts as missing) — a non-empty Siril setting alone used to report StarNet as available, so removing `starnet2` warned nobody.
 - **Desktop GUI** (`sb gui`, `feat-gui` branch): PySide6 app providing Dashboard, Sessions (filter/browse/export + FITS & raster preview), Masters, Targets (narrow target picker whose single column stretches to the scrollbar + a `Sessions`-then-`Stages` explorer tree of stage toggles, overridable recipe parameters and per-session calibration-master selection via a radio `MasterPicker`, with unsaved-change protection and clickable recipe/folder links plus hover-previewable master frames), live Processing (task tree with per-task collapsible Log/Out nodes, underlined file/recipe links, closable, movable (drag its title row) and user-resizable hover previews + streamed log + progress), Repositories (add/remove/re-index with live progress), Publish (local site) and Settings + first-run wizard. PySide6 is a normal dependency; the CLI never imports Qt. Backed by the new `starbash.events` bus and `starbash.interaction` protocol.
+- **Targets page drives `sb select`** (`doc/plans/targets-selection-sync.md`): the
+  target list always shows every processed target, pre-highlights the rows the
+  selection names (every row when no target filter is set, since "no filter" means
+  every target is in effect), and writes a click straight back through
+  `Selection.set_targets()` — plain click = only that target, Ctrl+click = toggle —
+  so the CLI and the Sessions page stay in step with no Save button.  The explorer
+  is shown only while exactly one row is highlighted; otherwise the right column
+  carries a hint and nothing stale stays loaded.
+
 - Image previews decode on a worker thread and show a rotating-arc `BusyIndicator`
   (`ui/qt/widgets/busy_indicator.py`) over the pane while loading, so selecting a big
   FITS frame no longer freezes the window.
@@ -57,12 +66,15 @@
 
 ## Current Status
 
-Alpha `v0.3.1` (tag `90529fe`, 2026-08-31). `main` is at `d9eb338` — the GUI work
+Alpha `v0.3.1` (tag `90529fe`, 2026-08-31); `main` has moved well past the
+`d9eb338` noted here originally — the GUI work
 (including the split live display: tool log pane + run tree), the missing-tool
-warning model, the real GitHub publish flow, and now the **Targets explorer**
+warning model, the real GitHub publish flow, and the **Targets explorer**
 (narrow target picker + `Stages`/`Sessions` tree + calibration `MasterPicker`)
 with the **structured `sessions.masters` schema** that makes a user's master pick
-authoritative on re-run. OSC workflows are the supported path; the R3 per-frame
+authoritative on re-run, and now the **Targets page editing `sb select`** (its
+highlighted rows *are* the selection, and the explorer appears only for a single
+target). OSC workflows are the supported path; the R3 per-frame
 registration reporting generalization is the other recent thread. The Memory
 Bank was initialized on top of `21dac19` and extended since.
 

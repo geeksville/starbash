@@ -212,8 +212,13 @@ def test_coerce_override_keeps_the_declared_type():
 # --- page behaviour --------------------------------------------------------
 
 
-def test_targets_page_selects_the_current_selection_target(qtbot, app_context, processed_repo):
-    """`sb select target X` pre-selects that target's row."""
+def test_targets_page_highlights_only_the_selection_targets(qtbot, app_context, processed_repo):
+    """`sb select target X` pre-highlights X's row - and only that row.
+
+    The list itself still shows every processed target (it is a picker); only the
+    highlight follows the selection.  A single highlighted row means the explorer is
+    on screen, since that is exactly the target whose stages it describes.
+    """
     _make_target(processed_repo, "sh2126")
     _make_target(processed_repo, "m31")
     app_context.selection.set_targets(["sh2126"])
@@ -223,19 +228,144 @@ def test_targets_page_selects_the_current_selection_target(qtbot, app_context, p
     page.refresh()
 
     assert page._loaded_target == "sh2126"
+    assert page._highlighted_targets() == ["sh2126"]
     assert page._table.selectionModel().selectedRows()[0].row() == page._find_row("sh2126")
+    assert page._pane.currentWidget() is page._right
 
 
-def test_targets_page_has_no_selection_when_none_is_configured(qtbot, app_context, processed_repo):
-    """With no selection (or no match) the page simply loads nothing."""
+def test_no_target_filter_highlights_every_row(qtbot, app_context, processed_repo):
+    """With no target filter every target is in effect, so every row is lit.
+
+    That is what `sb select` says (no filter selects everything), and it leaves the
+    right column explaining that one target must be chosen before it can be edited.
+    Nothing is written back: the user did not change anything.
+    """
+    _make_target(processed_repo, "sh2126")
     _make_target(processed_repo, "m31")
 
     page = TargetsPage(app_context, None)
     qtbot.addWidget(page)
     page.refresh()
 
+    assert sorted(page._highlighted_targets()) == ["m31", "sh2126"]
     assert page._loaded_target is None
     assert page._tree.topLevelItemCount() == 0
+    assert page._pane.currentWidget() is page._hint
+    assert app_context.selection.targets == []
+
+
+def test_selection_naming_an_unprocessed_target_shows_a_hint(qtbot, app_context, processed_repo):
+    """A selected target with no output directory highlights nothing - and is kept."""
+    _make_target(processed_repo, "sh2126")
+    app_context.selection.set_targets(["m99"])
+
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    page.refresh()
+
+    assert page._highlighted_targets() == []
+    assert page._pane.currentWidget() is page._hint
+    assert "m99" in page._hint.text()
+    assert page._loaded_target is None
+    # A refresh must never rewrite a selection the user did not touch.
+    assert app_context.selection.targets == ["m99"]
+
+
+def _click_target(qtbot: Any, page: Any, name: str, modifier: Any = None) -> None:
+    """Click the row for ``name`` in the target list, as a user would."""
+    index = page._model.index(page._find_row(name), 0)
+    page._table.scrollTo(index)
+    rect = page._table.visualRect(index)
+    qtbot.mouseClick(
+        page._table.viewport(),
+        Qt.MouseButton.LeftButton,
+        modifier or Qt.KeyboardModifier.NoModifier,
+        rect.center(),
+    )
+    qtbot.wait(10)
+
+
+def _shown_page(qtbot: Any, app_context: Any) -> TargetsPage:
+    """A sized, shown Targets page (real row geometry, so clicks land on rows)."""
+    page = TargetsPage(app_context, None)
+    qtbot.addWidget(page)
+    page.resize(1000, 800)
+    page.show()
+    page.refresh()
+    qtbot.waitExposed(page)
+    return page
+
+
+def test_clicking_a_target_row_makes_it_the_only_selected_target(
+    qtbot, app_context, processed_repo
+):
+    """A plain click replaces the selection with that one target."""
+    _make_target(processed_repo, "sh2126")
+    _make_target(processed_repo, "m31")
+    page = _shown_page(qtbot, app_context)
+
+    _click_target(qtbot, page, "m31")
+
+    assert app_context.selection.targets == ["m31"]
+    assert page._highlighted_targets() == ["m31"]
+    assert page._loaded_target == "m31"
+    assert page._pane.currentWidget() is page._right
+
+
+def test_ctrl_click_toggles_targets_in_the_selection(qtbot, app_context, processed_repo):
+    """Ctrl+click adds and removes targets; a plain click collapses back to one."""
+    _make_target(processed_repo, "sh2126")
+    _make_target(processed_repo, "m31")
+    page = _shown_page(qtbot, app_context)
+
+    _click_target(qtbot, page, "m31")
+    _click_target(qtbot, page, "sh2126", Qt.KeyboardModifier.ControlModifier)
+
+    assert sorted(app_context.selection.targets) == ["m31", "sh2126"]
+    # Two targets are in play, so neither one's stages are "the" stages.
+    assert page._loaded_target is None
+    assert page._pane.currentWidget() is page._hint
+
+    # A plain click collapses the selection to the clicked row.
+    _click_target(qtbot, page, "sh2126")
+    assert app_context.selection.targets == ["sh2126"]
+    assert page._loaded_target == "sh2126"
+    assert page._pane.currentWidget() is page._right
+
+    # Ctrl+click drops it again, which leaves no target filter at all.
+    _click_target(qtbot, page, "sh2126", Qt.KeyboardModifier.ControlModifier)
+    assert app_context.selection.targets == []
+    assert page._highlighted_targets() == []
+    assert page._pane.currentWidget() is page._hint
+
+
+def test_multi_selecting_away_from_a_dirty_target_asks_first(
+    qtbot, app_context, processed_repo, monkeypatch
+):
+    """Cancel keeps both the edits and the highlight the user started from."""
+    _make_target(processed_repo, "sh2126")
+    _make_target(processed_repo, "m31")
+    app_context.selection.set_targets(["sh2126"])
+    page = _shown_page(qtbot, app_context)
+
+    _stage_of(page, "crop").excluded = True
+    page._mark_dirty()
+    monkeypatch.setattr(page, "_ask_unsaved", lambda: UnsavedChoice.CANCEL)
+
+    _click_target(qtbot, page, "m31", Qt.KeyboardModifier.ControlModifier)
+
+    assert page._loaded_target == "sh2126"  # still editing the dirty target
+    assert page._highlighted_targets() == ["sh2126"]
+    assert app_context.selection.targets == ["sh2126"]
+    assert page._is_dirty() is True  # the edits survived the refused switch
+
+    # Discarding lets the multi-selection through.
+    monkeypatch.setattr(page, "_ask_unsaved", lambda: UnsavedChoice.DISCARD)
+    _click_target(qtbot, page, "m31", Qt.KeyboardModifier.ControlModifier)
+
+    assert sorted(app_context.selection.targets) == ["m31", "sh2126"]
+    assert page._loaded_target is None
+    assert page._pane.currentWidget() is page._hint
 
 
 def test_targets_page_save_button_only_appears_when_dirty(qtbot, app_context, processed_repo):

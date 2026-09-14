@@ -289,6 +289,22 @@ picker.
   un-stretched last section so it fills the pane right up to the scrollbar); the
   splitter stays user-resizable. The output directory remains visible — and
   clickable — in the right pane's path label, so nothing is lost.
+- **The list edits the session selection** (added 2026-09-14): it always lists every
+  processed target, but its *highlighted rows* mirror `sb select` — the targets named
+  by `Selection.targets`, or every row when no target filter is set (no filter means
+  every target is in effect, exactly as the CLI has it). A plain click makes that row
+  the only selected target and Ctrl+click toggles one in or out
+  (`ExtendedSelection`; Qt already collapses an unmodified click to the clicked row
+  and toggles on Ctrl, so the page adds only the write-back). Every change goes
+  straight through `Selection.set_targets()`, so the CLI and the Sessions page agree
+  without a Save button — see `targets-selection-sync.md`.
+- **Right pane visibility**: the explorer describes exactly one target, so the right
+  column is a `QStackedWidget` that shows the explorer while a *single* row is
+  highlighted and a one-line hint otherwise (nothing stays loaded, so no stale
+  stages/masters remain editable). Swapping rather than hiding keeps the splitter at
+  its 22 % share instead of letting the list jump to the full page width.
+  Unsaved edits are settled before the highlight leaves a dirty target, and a
+  cancelled prompt restores both the highlight and the in-memory edits.
 - **Right tree**: one `QTreeWidget` with two top-level groups, **`Sessions`
   first** (the master choice is the more common edit and the stage list is long):
   - **`Sessions`** — added only when `sessions.toml` records at least one
