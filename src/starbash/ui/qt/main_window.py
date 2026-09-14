@@ -38,12 +38,12 @@ logger = logging.getLogger(__name__)
 #: Pages in navigation order.
 PAGE_CLASSES = [
     DashboardPage,
-    SessionsPage,
-    MastersPage,
     TargetsPage,
+    SessionsPage,
     ProcessingPage,
-    RepositoriesPage,
     PublishPage,
+    RepositoriesPage,
+    MastersPage,
     SettingsPage,
 ]
 
