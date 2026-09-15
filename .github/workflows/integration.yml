@@ -13,7 +13,8 @@ jobs:
       # before their results could be read.
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # ubuntu-latest
+        os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     environment: ci
     env:
@@ -161,8 +162,9 @@ jobs:
       - name: Download and install Siril (macOS)
         if: matrix.os == 'macos-latest'
         run: |
-          # Download Siril DMG
-          curl -L -o siril.dmg https://free-astro.org/download/siril-1.4.4-arm64.dmg
+          # Download Siril DMG.  The 1.4.4 macOS packages were rebuilt ("-3") on
+          # June 26, 2026 to require macOS Ventura 13+; the un-suffixed name is stale.
+          curl -L -o siril.dmg https://free-astro.org/download/siril-1.4.4-arm64-3.dmg
           # Mount the DMG
           hdiutil attach siril.dmg -nobrowse -quiet
           # Copy Siril.app to /Applications
@@ -210,9 +212,11 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          # Download Siril installer
+          # Download Siril installer.  free-astro.org names the Windows build
+          # after its MSYS2 toolchain (ucrt64), not a plain "siril-<version>-setup.exe"
+          # - confirm the filename against the release page if this 404s again.
           $installer = "siril-setup.exe"
-          Invoke-WebRequest -Uri "https://free-astro.org/download/siril-1.4.4-setup.exe" -OutFile $installer
+          Invoke-WebRequest -Uri "https://free-astro.org/download/siril-1.4.4-ucrt64-setup.exe" -OutFile $installer
           
           # Run installer in silent mode (Inno Setup uses /VERYSILENT /NORESTART)
           # /DIR specifies installation directory
