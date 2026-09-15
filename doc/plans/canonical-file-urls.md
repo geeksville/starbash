@@ -1,6 +1,7 @@
 # Plan: one canonical `file://` URL spelling
 
-> **Status:** Implemented (2026-09-15) — pending the `toml-repo` release decision in §7
+> **Status:** Implemented & released (2026-09-15) — toml-repo 0.1.7 is on PyPI and
+> `starbash.url` re-exports its helpers (§7, resolved)
 > **Owner:** Kevin Hester
 > **Last updated:** 2026-09-15
 > **Scope:** Make every `file://` URL Starbash builds use one canonical spelling,
@@ -93,7 +94,7 @@ mistaken for a Windows drive.
 | `src/starbash/doit.py` | `FileInfo.rich_links` clickable outputs |
 | `src/starbash/publish/github_publish.py` | `collect_site_files()` sorts by the site-relative **posix** path |
 | `src/starbash/ui/qt/widgets/{hover_preview,file_links}.py` | hand-sliced `file://` replaced by the strict parser |
-| `pyproject.toml` | `toml-repo` dependency source — see §7 |
+| `pyproject.toml` | `toml-repo = ">=0.1.7"` — the release that carries the helpers (see §7) |
 | tests | `test_url.py`, `test_doit.py`, `test_app.py`, `test_cli.py`, `test_selection.py`, `test_repo_manager.py`, `test_repositories_page.py`, `test_github_publish.py` |
 
 ## 4. Implementation sequence
@@ -133,16 +134,24 @@ mistaken for a Windows drive.
   now refused loudly rather than silently misread. That is intended — use
   `sb repo add` rather than hand-editing URLs.
 
-## 7. Open question (needs the maintainer's decision)
+## 7. Resolved: Option B — toml-repo 0.1.7 from PyPI
 
-`starbash` must consume the *updated* `toml_repo`, which is not on PyPI yet
-(0.1.6 == the submodule HEAD before this change). Options:
+`starbash` and `toml_repo` must agree on the spelling byte-for-byte, so the
+dependency *floor* matters: the helpers landed in **toml-repo 0.1.7**, which was
+released to PyPI on 2026-09-15.
 
-| # | Option | Consequence |
+| # | Option | Outcome |
 |---|---|---|
-| A | `toml-repo = {path = "toml-repo", develop = true}` (**current state**) | dev/CI green now. `poetry build` emits `Requires-Dist: toml-repo @ file:///…`, so **this must be reverted before any PyPI publish** — the workflows do check out submodules, but a path dep cannot be published. |
-| B | Release `toml-repo` 0.1.7, then `toml-repo = ">=0.1.7"` | cleanest; needs a release in the other repo before starbash CI can pass. |
-| C | Keep `>=0.1.6` and make `starbash.url` self-contained | no dependency change, but leaves `toml_repo` building legacy provider URLs on Windows → the repo-removal mismatch returns. Not recommended. |
+| A | `toml-repo = {path = "toml-repo", develop = true}` | Used while 0.1.7 was unreleased (dev/CI green), but `poetry build` then emits `Requires-Dist: toml-repo @ file:///…`, which cannot be published. **Reverted.** |
+| **B** | **Release 0.1.7, then `toml-repo = ">=0.1.7"`** | **Chosen.** PyPI serves 0.1.7 and `poetry.lock` pins it — the re-lock changed only the `toml-repo` entry (plus two cosmetic marker normalisations poetry itself rewrote), so there was no churn. |
+| C | Keep `>=0.1.6` and make `starbash.url` self-contained | Rejected: two implementations drift, and `>=0.1.6` lets a fresh resolve pick a release with **no helpers** (`ImportError`). |
 
-`pyproject.toml` carries a `NOTE:` describing the revert-to-version-constraint
-step for whichever option is chosen.
+`starbash.url` is a **re-export** — `from toml_repo import make_file_url as
+make_file_url` — not a copy, and
+`tests/unit/test_url.py::test_starbash_exposes_toml_repos_helpers_itself` pins
+that with an `is` identity assertion, so Starbash's writer and toml_repo's reader
+cannot drift again.
+
+The old floor was also a latent CI break worth remembering: with `>=0.1.6` the
+lock still held 0.1.6 while a hand-updated venv had 0.1.7, so everything passed
+locally and CI would have installed a release with no `make_file_url` at all.

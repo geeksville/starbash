@@ -889,10 +889,13 @@ Open tabs / files being touched suggest active work in:
   indistinguishable from a URL host) — the owner recreates the databases instead
   of migrating them.  `_find_user_repo_ref()` now accepts the recorded dir *or*
   the canonical URL, since the CLI passes user input and the GUI passes `repo.url`.
-  Because starbash must consume the *updated* parser, `pyproject.toml` currently
-  takes `toml-repo = {path = "toml-repo", develop = true}` — **that must be
-  swapped back to a version constraint before any PyPI publish** (plan §7; a
-  released 0.1.7 is the clean option).  Gates: `just lint` clean, starbash
+  Because starbash must consume the *updated* parser, the dependency floor is
+  `toml-repo = ">=0.1.7"`: **0.1.7 was released to PyPI on 2026-09-15** (Option B
+  in plan §7 — the `develop = true` path dep is gone), so the lock pins 0.1.7 and
+  a fresh resolve cannot fall back to 0.1.6, which has no helpers.  `starbash.url`
+  is a **re-export** of both helpers (`from toml_repo import make_file_url as
+  make_file_url`), pinned by `test_url.py`'s `is`-identity test, so Starbash's
+  writer and toml_repo's reader cannot drift.  Gates: `just lint` clean, starbash
   **1202 passed**, toml-repo **39 passed**.
 - **Integration CI is Linux-only for now, and installs StarNet2** — see
   [`.github/workflows/integration.yml`](../../.github/workflows/integration.yml):

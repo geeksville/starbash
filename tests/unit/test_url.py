@@ -134,6 +134,7 @@ def test_path_from_file_url_handles_a_windows_unc_share():
 def test_path_from_file_url_ignores_a_localhost_host():
     """``file://localhost/data`` means ``file:///data`` -- the host is this machine."""
     assert str(path_from_file_url("file://localhost/data")) == "/data"
+    assert str(path_from_file_url("file://127.0.0.1/data")) == "/data"
 
 
 def test_path_from_file_url_keeps_a_posix_directory_that_looks_like_a_drive():
