@@ -107,6 +107,14 @@ use-workspace-config:
     [ "$(readlink ~/.config/starbash)" = "$cwd/.config" ] || { rm -rf ~/.config/starbash && ln -s "$cwd/.config" ~/.config/starbash; }
     [ "$(readlink ~/.local/share/starbash)" = "$cwd/.local" ] || { rm -rf ~/.local/share/starbash && ln -s "$cwd/.local" ~/.local/share/starbash; }
 
+# use a config that just writes to the default locations
+use-default-config:
+    #!/usr/bin/env bash
+    for d in ~/.config/starbash ~/.local/share/starbash ~/.cache/starbash; do
+        [ -L "$d" ] && rm -f "$d"
+        mkdir -p "$d"
+    done
+
 # our small standard set of test images (from ghcr.io/geeksville/starbash/test-data:latest)
 reinit: common-init
     sb repo add /test-data/dwarf3

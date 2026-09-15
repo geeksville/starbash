@@ -13,8 +13,7 @@ jobs:
       # before their results could be read.
       fail-fast: false
       matrix:
-        # ubuntu-latest
-        os: [macos-latest, windows-latest]
+        os: [ubuntu-latest,macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     environment: ci
 
