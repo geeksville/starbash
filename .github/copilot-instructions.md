@@ -105,7 +105,11 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
   the run's view/page (`commands/process.py::ProcessingView`,
   `ui/qt/pages/processing.py`), the GUI's `ui/qt/pages/repositories.py`, and
   `ui/cli.py::ReindexView` for a bare `sb repo reindex` / `sb repo add`. See
-  `doc/plans/cli-live-display.md` (Fix 5).
+  `doc/plans/cli-live-display.md` (Fix 5). Every CLI observer is now a
+  `starbash.ui.cli_events.CliEventHandler` and is built through its `for_console()`
+  factory (Fix 8): on a pipe/redirect a Rich `Live` renders nothing, so such a sink gets
+  `SimpleLoggingEventHandler`, which prints the run as plain greppable lines and then the
+  same flat summary table.
 - **Python tool**: RestrictedPython sandbox with globals: `context`, `logger`, builtins (list, dict, str, int, all)
 
 ## External tool integration

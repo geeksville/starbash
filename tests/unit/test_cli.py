@@ -88,6 +88,9 @@ def test_repo_reindex_reports_each_repo(setup_test_environment):
     lines = [line for line in plain.splitlines() if line.startswith("Indexed ")]
     assert lines, f"expected a result line per indexed repo, got: {result.output!r}"
     assert all(re.fullmatch(r"Indexed \d+ file\(s\) in file://\S+", line) for line in lines)
+    # A scan observes no run snapshots, so there is no result table to print --
+    # an empty one would be noise on the very sink this output is meant for.
+    assert "No results" not in plain
 
 
 def test_repo_list_non_verbose(setup_test_environment):

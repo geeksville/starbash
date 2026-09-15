@@ -1,5 +1,60 @@
 # Active Context
 
+## Current work focus — piped runs keep their log (`ui/cli_events.py`)
+
+**Implemented 2026-09-15**, **not committed**.
+
+- **The gap it closes.**  Fix 5/6 of the CLI-live-display thread gated the live display on
+  `supports_live_display()` and, on a sink that cannot animate, printed only
+  `runs_to_table()` at the end.  So `sb process auto > run.log` kept a table and *nothing
+  else*: no `Target 1/3: M31` banner, no `Running: siril-cli -s -`, no tool stdout/stderr,
+  no per-task status lines — the log you redirected the run for was the part that went
+  missing.  Both `ReindexView` and `ProcessingView` also carried their own copy of the
+  policy (`_interactive`, `Live(...) if ... else None`, `__enter__`/`__exit__`, `_finished`,
+  `_refresh()`, `finish()`), and the choice of handler was invisible at the call site.
+- **`src/starbash/ui/cli_events.py` (new)** — `CliEventHandler`: the lifecycle
+  (subscribe/unsubscribe, at most one `Live`), the run model (`_note_run()`/`_drop_runs()`
+  folding the bus's `run` snapshots into `_runs`/`_order`, `_run_caption()`/`_task_caption()`,
+  `print_summary()` → `rich.runs_to_table`), and the policy as a hook:
+  `_make_live()` returning `None` means "this sink cannot animate"; `interactive` reports a
+  frame is owned; `__exit__` records `_aborted` and always calls `finish()` *before* the
+  frame stops (so the settled frame is what remains).  `for_console(title, console)` is the
+  one place the choice is made — a terminal gets `cls(...)`, anything else
+  `SimpleLoggingEventHandler`.
+- **`SimpleLoggingEventHandler`** — the fallback, and now a real log: one plain line per
+  notable event (`Processing N task(s)`, run/target banners, `stage: title`,
+  `Running: <cmd>`, tool stdout/stderr, `Success`/`Failed`/`Up-to-date`/`Ignored` per task,
+  `Indexing <repo>` announced once + `Indexed N file(s) in <repo>`, rc-astro's status text),
+  then `<title>: done` (or `: interrupted` when the block raised) and the flat summary.
+  Tool lines print `markup=False, highlight=False` so a `[2024-01-01]` stays literal and the
+  file greps; structured `stdout.<mime>` frames are skipped via
+  `events.is_structured_stream()` (already republished as `tool.progress`); a bare `%`
+  progress is skipped while its `message` is not; the table is omitted when no run was
+  planned (an empty "No results" would read as a finding).  Reindex's sentence is
+  deliberately identical to `ReindexView`'s, so one grep covers a bare scan and a run's
+  pre-run scan.
+- **Views keep only their painting.**  `ReindexView(CliEventHandler)`
+  (`_make_live()` → `Live(self, ...)`, `REFRESH_PER_SECOND = 8`) and
+  `ProcessingView(CliEventHandler)` (`_make_live()` → `Live(self, ...)`, 4).  `auto()` /
+  `masters()` / `repo.py`'s three scan sites now build through `for_console()`.
+  `ProcessingView._on_finish()` stays terminal-specific: it repaints the final frame with the
+  run's verdict (`Failed: …`, `<title>: interrupted`, `<title>: done`) and prints the table
+  only when it owns no `Live` (reachable only by constructing it directly on a dumb sink).
+- **Tests**: `tests/unit/test_cli_events.py` (new) — `TestForConsole` (terminal → subclass,
+  pipe → fallback), `TestSimpleLoggingEventHandler` (exact line lists for a run, stderr, a
+  literal `[`, a skipped structured stream, a skipped percentage, the end-of-run table with
+  its borders and status word, an interrupted run, a repo scan with no table, a run that
+  planned nothing, stop-observing-after-exit) and `TestPrintSummary`.  One assertion added to
+  the piped-scan test in `tests/unit/test_cli.py` (no empty table in a scan's output).
+  Full unit suite: **1203 passed**.
+- **Docs**: `doc/plans/cli-live-display.md` → new *Fix 8* section (+ Files/Risks updates);
+  `AGENTS.md` → new *CLI observers* bullet; `.github/copilot-instructions.md` → the reindex
+  paragraph; `systemPatterns.md` / `progress.md` → the factory + base-class pattern.
+- **Verified** (2026-09-15): `just lint` → *0 errors, 0 warnings, 0 notes*; full unit suite
+  **1203 passed**; `pytest tests/integration/test_workflow.py -m integration -n0` (the outside
+  consumer — it runs `sb process masters`/`sb process auto` for real and scrapes stdout for
+  ≥10 `Success` rows) → **13 passed in 650.84s**, so the fallback neither lost the table nor
+  invented lines around it.
 ## Current work focus — Masters grouping, and the xdist SIGSEGV its tests triggered
 
 **Implemented 2026-09-15**, both **not committed** (suggested split: the GUI grouping,
@@ -807,14 +862,17 @@ Landed (all phases):
   pipe/file/dumb terminal, so the live tree silently produced no CLI output for
   tools.  That broke
   `tests/integration/test_workflow.py::TestProcessMastersWorkflow::test_process_masters_executes`,
-  which parses stdout for ≥10 rows containing `Success`.  Now
-  `rich.supports_live_display(console)` gates the `Live`; when false,
-  `ProcessingView` skips `Live` entirely and prints `rich.runs_to_table(...)` on
-  `finish()` — a flat one-row-per-task table with plain status words
-  (`Success`/`Failed`/`Up-to-date`/`Excluded`/…) plus a row for any task-less stage.
-  Real terminals are unchanged (still the live tree).  Tests in
-  `tests/unit/test_run_tree_rich.py` (`TestSupportsLiveDisplay`, `TestRunsToTable`,
-  the dumb-sink `TestProcessingView` cases).
+  which parses stdout for ≥10 rows containing `Success`.  `rich.supports_live_display(console)`
+  gates the `Live`, and a sink that fails it gets no live frame.  Originally that meant
+  `ProcessingView` skipped `Live` and printed only `rich.runs_to_table(...)` on `finish()`
+  (a flat one-row-per-task table with plain status words
+  (`Success`/`Failed`/`Up-to-date`/`Excluded`/…) plus a row for any task-less stage) — so a
+  redirected run lost every line it produced *while* running.  **Superseded by Fix 8**
+  (see the top of this file): the fallback is now
+  `ui/cli_events.py::SimpleLoggingEventHandler`, chosen by
+  `CliEventHandler.for_console()`, which prints those lines as they happen and then the
+  same table.  Tests in `tests/unit/test_cli_events.py` (plus
+  `test_run_tree_rich.py::TestSupportsLiveDisplay`/`TestRunsToTable`).
 
 ## Current work focus — Phase GUI (branch `feat-gui`)
 

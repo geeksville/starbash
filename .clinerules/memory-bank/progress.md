@@ -51,6 +51,18 @@
   `ruff format` and `basedpyright` over both trees (0 errors).  `Starbash.__exit__`
   propagates exceptions under pytest (a mocked `analytics_exception` used to suppress
   them), so tests can no longer pass vacuously.
+- **Piped/redirected runs keep their log** (`doc/plans/cli-live-display.md` Fix 8):
+  a Rich `Live` renders *nothing* to a non-terminal, so `sb process auto > run.log` used
+  to keep only the final summary table — every line the run produced while it ran went
+  missing.  The CLI's observers now share a base (`ui/cli_events.py::CliEventHandler`)
+  and commands build one through `for_console()`, which returns the new
+  `SimpleLoggingEventHandler` when the sink cannot animate: the same events as plain
+  greppable lines (target banners, `Running: <cmd>`, tool stdout/stderr, per-task
+  `Success`/`Failed`/`Up-to-date`/`Ignored`, `Indexing`/`Indexed` per repo, rc-astro's
+  status text; bare percentages and `stdout.json` protocol frames skipped), then
+  `<title>: done` (or `: interrupted`) and the flat `runs_to_table` summary.  Terminals
+  are unchanged: `ReindexView` and `ProcessingView` subclass the base and keep only their
+  own painting.
 
 
 ## What's Left to Build

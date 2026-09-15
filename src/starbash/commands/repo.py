@@ -120,7 +120,7 @@ def add(
         # core only reports that through the bus, so this command shows it.  The
         # view draws on the console Starbash just installed -- the same one
         # add_local_repo() itself prints to, so its lines land above the bar.
-        with ReindexView(f"Indexing {path}", starbash.console):
+        with ReindexView.for_console(f"Indexing {path}", starbash.console):
             sb.add_local_repo(path, repo_type=repo_type)
 
 
@@ -202,12 +202,12 @@ def reindex(
         repo_to_reindex = repo_url_to_repo(sb, repo_url)
 
         if repo_to_reindex is None:
-            with ReindexView("Re-indexing repositories", starbash.console):
+            with ReindexView.for_console("Re-indexing repositories", starbash.console):
                 sb.reindex_repos()
         else:
             # Get the repo to reindex
             console.print(f"Reindexing repository: {repo_to_reindex.url}")
-            with ReindexView(f"Re-indexing {repo_to_reindex.url}", starbash.console):
+            with ReindexView.for_console(f"Re-indexing {repo_to_reindex.url}", starbash.console):
                 sb.reindex_repo(repo_to_reindex)
             console.print(f"[green]Successfully reindexed repository {repo_to_reindex}[/green]")
 

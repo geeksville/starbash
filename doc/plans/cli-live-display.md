@@ -500,6 +500,105 @@ Delete the core's bar and give the view the *numbers* it needs instead.
   own bar.  Note `github_publish.py` — the sign-in/upload sequence the GUI shares
   — is already Rich-free.
 
+## Fix 8: the non-interactive fallback is a handler (`ui/cli_events.py`)
+
+### Problem
+
+Fix 5/6 gave the two CLI views a dumb-sink fallback, but each grew its own copy of it and
+the *policy* stayed invisible at the call site:
+
+* `ReindexView` and `ProcessingView` each held
+  `self._interactive = supports_live_display(console)` plus
+  `self._live = Live(...) if self._interactive else None`, with `__enter__`/`__exit__`,
+  `_finished`, `_refresh()` and `finish()` duplicated between them (`ProcessingView`'s
+  `_refresh()` even carried the comment *"non-interactive sinks get the flat table on
+  finish() only"*).  `commands/process.py` and `commands/repo.py` constructed the *live*
+  view and trusted it to degrade correctly.
+* On a sink that cannot animate, a run's output was **only** the flat summary table
+  (`ProcessingView.finish()` → `_print_table()`), so `sb process auto > run.log` lost
+  everything the run said while it ran: the `Target 1/3: M31` banner, `Running: siril-cli
+  -s -`, the tool's own stdout/stderr, and every per-task status line.  The very thing a
+  user redirects a long run for — the log — was the thing that went missing.
+* `ProcessingView.finish()` settled the final frame, but only `auto()`/`masters()` called
+  it explicitly and `__exit__` called it *only* on the non-interactive branch — so the
+  live path's last frame depended on the command remembering.
+
+### Approach — one base class, chosen by a factory
+
+`src/starbash/ui/cli_events.py` (new) holds what every CLI observer of the bus agrees on,
+leaving each view with just its painting:
+
+* `CliEventHandler` — the **lifecycle** (subscribe on `__enter__`, unsubscribe on
+  `__exit__`, and at most one `Live` for the duration), the **run model** (`_note_run()` /
+  `_drop_runs()` folding the bus's `run` snapshots into `_runs`/`_order`, the same plain
+  dicts the GUI's tree uses, plus `print_summary()` rendering them through
+  `rich.runs_to_table`), the call/task caption helpers, and the **policy**: `_make_live()`
+  returning `None` means "this sink cannot animate", `interactive` reports whether a frame
+  is owned.  `__exit__` marks `_aborted` when the block raised and always calls
+  `finish()` *before* the frame stops, so the settled state is what stays on screen.
+* `CliEventHandler.for_console(title, console)` — the single place the choice is made:
+  `supports_live_display(console)` → `cls(title, console)`, otherwise
+  `SimpleLoggingEventHandler(title, console)`.  The commands now call
+  `ProcessingView.for_console(...)` / `ReindexView.for_console(...)`, so "which handler
+  does a redirected run get?" is answerable at the call site.
+
+* `SimpleLoggingEventHandler` — the fallback, and now a *useful* one: it reports the same
+  events as plain lines on that same console (target banners, `Processing N task(s)`,
+  `stage: title`, `Running: <cmd>`, tool stdout/stderr, `Success`/`Failed`/`Up-to-date`/
+  `Ignored` per task, `Indexing <repo>` once per repo + `Indexed N file(s) in <repo>`), then
+  `<title>: done` (or `: interrupted` when the block raised) and the flat summary table.
+  Details that make it a good *file*:
+  - tool lines print with `markup=False, highlight=False`, so a `[2024-01-01]` in a tool's
+    output stays literal and the log greps (and its status words match the table's);
+  - structured `stdout.<mime>` frames (rc-astro's `--json`) are skipped via
+    `events.is_structured_stream()` — their meaning is already republished as
+    `tool.progress`, and dumping the frames would bury the log in JSON;
+  - a bare `%` `tool.progress` is skipped (it changes dozens of times a second) while its
+    `message` is printed;
+  - the table is omitted when no run was ever planned, so an empty "No results" table
+    cannot read as a finding.
+* `ReindexView(CliEventHandler)` / `ProcessingView(CliEventHandler)` keep only their own
+  painting: `_make_live()` returning `Live(self, ...)` (with `REFRESH_PER_SECOND = 8` for
+  the scan, 4 for a run), `_on_event()`, an optional `_on_finish()`, and (for
+  `ReindexView`) the pedantic `Progress`.
+
+`ProcessingView._on_finish()` stays terminal-specific (it repaints the final *frame* with the
+run's verdict, now including `interrupted`) and prints the table only when it owns no `Live`
+— reachable only if something constructs it directly on a dumb sink, since its commands go
+through `for_console()`.  The `view.finish()` calls in `process.py` are kept (harmless;
+`finish()` is idempotent).
+
+### Verification
+
+* `tests/unit/test_cli_events.py` (new) — `TestForConsole` (a terminal gets the subclass, a
+  pipe the fallback) and `TestSimpleLoggingEventHandler`, which asserts the **exact** lines
+  for: a run as it happens (banner → task → `Running:` → `stacking` → status word → close),
+  stderr, a literal `[`, a skipped structured stream, a skipped bare percentage, the
+  end-of-run table (title, borders, and a row carrying the target and `Success`), an
+  interrupted run, a repo scan (announced once per repo, no table), a run that planned
+  nothing, and that a handler stops observing once its block ends.  Plus
+  `TestPrintSummary` (nothing is printed before a run snapshot is seen).
+* Piped probe: a `SimpleLoggingEventHandler` on a non-terminal console, run by hand,
+  confirmed the end-to-end line/table shape.
+* `tests/unit/test_cli.py` — the piped-scan test now also asserts no empty table leaked into
+  the captured output.
+* The suites that pin the live rendering (`test_run_tree_rich.py`, `test_reindex_view.py`,
+  `test_cli.py`) and the whole unit suite (1203 passed) pass unchanged.
+* The outside consumer: `pytest tests/integration/test_workflow.py -m integration -n0` —
+  13 passed in 650.84s.  It runs `sb process masters` / `sb process auto` for real and
+  parses stdout for ≥10 rows carrying `Success`, so it is the one test that would notice if
+  the fallback had dropped the table or buried it under lines the parser trips on.
+* `just lint` (format + `ruff check` + `basedpyright`) → 0 errors, 0 warnings, 0 notes.
+
+### Risks / notes
+
+* Two classes now describe a run (`CliEventHandler` + the view that subclasses it), so a new
+  CLI observer should extend the base rather than copy a `Live` block; the base's docstring
+  says as much.
+* The fallback prints *while* the run happens **and** the table at the end (deliberate: the
+  lines are the log, the table is the result), so a piped log is longer than it used to be.
+  Anything scraping it should key on the table's status words.
+
 ## Files
 
 * `src/starbash/tool/base.py` — drop `ToolLiveDisplay`, `Tool._active_display`,
@@ -548,7 +647,21 @@ Delete the core's bar and give the view the *numbers* it needs instead.
   `show_progress` flag that silenced them are gone.
 * `src/starbash/ui/cli.py` (Fix 5) — `ReindexView`, the CLI's observer for a bare repo
   scan (a per-repo `Live` bar; plain per-repo lines when the sink cannot animate), used
-  by `sb repo reindex` and `sb repo add` in `src/starbash/commands/repo.py`.
+  by `sb repo reindex` and `sb repo add` in `src/starbash/commands/repo.py`.  Fix 8 made it
+  a `CliEventHandler` subclass (`_make_live()` + `_on_event()` only) and moved the shared
+  lifecycle/policy/summary into `ui/cli_events.py`.
+* `src/starbash/ui/cli_events.py` (Fix 8, new) — `CliEventHandler` (lifecycle, the
+  "live only on a real terminal" policy via `_make_live()`, the run model
+  `_runs`/`_order`, `_note_run()`/`_drop_runs()`, `_run_caption()`/`_task_caption()`,
+  `print_summary()`, `finish()`/`_refresh()`, `for_console()`) and
+  `SimpleLoggingEventHandler`, the piped/redirected fallback: the same run as plain
+  greppable lines *while it happens*, then `<title>: done`/`: interrupted` and the flat
+  `runs_to_table` summary.
+* `src/starbash/commands/process.py` (Fix 8) — `ProcessingView` is a `CliEventHandler`
+  subclass (`_make_live()` returns `Live(self, ...)`, `_on_finish()` keeps the terminal's
+  final-frame verdict and prints the table only when it owns no `Live`); `auto`/`masters`
+  build their view through `ProcessingView.for_console()`.  `repo.py`'s three
+  `ReindexView(...)` sites became `ReindexView.for_console(...)`.
 * Tests: `tests/unit/test_run_tree_rich.py` (`TestLiveStatusLine` for fix 1,
   `TestLiveLayout` for fix 2 — it renders at a given terminal size and asserts
   the row count never exceeds it, that no `...` is drawn and that the status
@@ -560,6 +673,9 @@ Delete the core's bar and give the view the *numbers* it needs instead.
   `tests/unit/test_emit_hooks.py`, the real-doit
   `tests/unit/test_doit.py::test_a_run_reports_one_finish_per_planned_task`, and
   `tests/unit/test_events.py::test_every_event_kind_is_exported_and_unique`.
+  Fix 8 adds `tests/unit/test_cli_events.py` (`TestForConsole`,
+  `TestSimpleLoggingEventHandler`, `TestPrintSummary`) and one assertion to the
+  piped-scan test in `tests/unit/test_cli.py`.
 * `src/starbash/tool/base.py` (Fix 6) — `tool_run_in_process()`, `_ToolSourceFilter`,
   `_ToolLogForwarder` and the `_active_forwarders` nesting rule.
 * `src/starbash/tool/graxpert.py` (Fix 6) — the built-in `api_run` runs inside
@@ -590,3 +706,9 @@ Delete the core's bar and give the view the *numbers* it needs instead.
   `RichHandler` (there is no file handler that could lose lines); `log_out` still receives
   them, so the stage's log file is complete.  GraXpert keeps the narrower
   directory-scoped match, so Starbash's own messages are unaffected there.
+* **Fix 8: a redirected run now prints *while* it runs.**  `supports_live_display()` false
+  used to mean "the run's only output is the final table"; the fallback handler now also
+  emits one plain line per notable event (the tool's stdout/stderr included) and still
+  closes with `runs_to_table`'s status words.  A consumer that scraped the table should
+  expect the lines above it — which is what the integration test's "≥10 rows containing
+  `Success`" already tolerates.

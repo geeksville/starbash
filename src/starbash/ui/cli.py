@@ -2,15 +2,15 @@
 
 The core never draws to the terminal -- it *publishes* on :mod:`starbash.events`
 and a front end renders, so one core path can feed the CLI's live display, the
-GUI's widgets and a parsed log alike.  This module holds the small views the CLI
+GUI's widgets and a parsed log alike.  This module holds the small view the CLI
 owns outside a processing run (whose tree is
-:class:`~starbash.commands.process.ProcessingView`); :mod:`starbash.ui.qt` is the
-GUI's counterpart.
+:class:`~starbash.commands.process.ProcessingView`): the lifecycle, the "live
+only on a terminal" policy and the plain-logging fallback every CLI view shares
+live in :class:`~starbash.ui.cli_events.CliEventHandler`, and
+:mod:`starbash.ui.qt` is the GUI's counterpart of all of it.
 """
 
 from __future__ import annotations
-
-from types import TracebackType
 
 from rich.console import Console, Group, RenderableType
 from rich.live import Live
@@ -18,12 +18,12 @@ from rich.progress import Progress, TaskID
 from rich.text import Text
 
 from starbash import events
-from starbash.rich import supports_live_display
+from starbash.ui.cli_events import CliEventHandler
 
 __all__ = ["ReindexView"]
 
 
-class ReindexView:
+class ReindexView(CliEventHandler):
     """A live progress bar for a repository scan, driven by the event bus.
 
     ``sb repo reindex`` and ``sb repo add`` (which indexes the folder it was
@@ -38,25 +38,24 @@ class ReindexView:
     A finished repo leaves a plain ``Indexed N file(s) in <repo>`` line behind
     (printed as it happens, so Rich keeps it above the live frame).  On a pipe, a
     redirect or a dumb terminal that line is the *only* output there is -- a live
-    bar would render nothing at all there, so it is skipped entirely, the same
-    trade :class:`~starbash.commands.process.ProcessingView` makes.
+    bar would render nothing at all there -- which is exactly why such sinks get
+    :class:`~starbash.ui.cli_events.SimpleLoggingEventHandler` instead (see
+    :meth:`CliEventHandler.for_console`).
 
     While it runs, this view owns the console's one :class:`~rich.live.Live`.
     That is only safe because the core owns no display of its own any more; see
     ``doc/plans/cli-live-display.md``.
     """
 
+    #: A scan reports often and briefly, so it repaints more eagerly than a
+    #: processing run does (see :attr:`CliEventHandler.REFRESH_PER_SECOND`).
+    REFRESH_PER_SECOND = 8
+
     def __init__(self, title: str, console: Console) -> None:
-        self.title = title
-        self.console = console
+        super().__init__(title, console)
         # Rendered inside our own Live (never entered standalone), so this
         # Progress starts no display of its own.
-        self._progress = Progress(console=console, refresh_per_second=8)
-        self._subscriber = self._on_event
-        self._interactive = supports_live_display(console)
-        self._live: Live | None = (
-            Live(self, console=console, refresh_per_second=8) if self._interactive else None
-        )
+        self._progress = Progress(console=console, refresh_per_second=self.REFRESH_PER_SECOND)
         # The one bar, dropped and re-added as each repo's first event arrives.
         self._task: TaskID | None = None
         self._repo: str | None = None
@@ -64,32 +63,10 @@ class ReindexView:
         self._total = 0
         self._repos = 0
         self._files = 0
-        self._finished = False
 
-    def __enter__(self) -> ReindexView:
-        events.subscribe(self._subscriber)
-        if self._live is not None:
-            self._live.start()
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: TracebackType | None,
-    ) -> bool:
-        events.unsubscribe(self._subscriber)
-        if self._live is not None:
-            # ``stop()`` repaints once more, so the finished frame (not a bar
-            # frozen at whatever percentage the last repo reached) is what stays
-            # on screen.
-            self.finish()
-            self._live.stop()
-        return False
-
-    def finish(self) -> None:
-        """Mark the scan over, so the last frame reports what it indexed."""
-        self._finished = True
+    def _make_live(self) -> Live | None:
+        """Live repaints this view itself -- scanning is the whole display."""
+        return Live(self, console=self.console, refresh_per_second=self.REFRESH_PER_SECOND)
 
     def _on_event(self, event: events.Event) -> None:
         """Fold one bus event into the bar and the per-repo result lines."""

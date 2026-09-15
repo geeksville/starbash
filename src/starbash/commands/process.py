@@ -23,8 +23,9 @@ from starbash.commands.select import selection_by_number
 from starbash.database import SessionRow
 from starbash.paths import get_user_config_path
 from starbash.processing import Processing
-from starbash.rich import log_line_to_text, run_tree_to_rich, runs_to_table, supports_live_display
+from starbash.rich import log_line_to_text, run_tree_to_rich
 from starbash.run_state import RunStatus
+from starbash.ui.cli_events import CliEventHandler
 
 app = typer.Typer()
 
@@ -316,7 +317,7 @@ class _RunWindow:
             yield Text(f"… {below_runs} more {self.unit}{plural}", style="dim")
 
 
-class ProcessingView:
+class ProcessingView(CliEventHandler):
     """A live Rich tree of a processing run, driven by the event bus.
 
     Owns the single :class:`~rich.live.Live` used during a CLI run -- so the tree,
@@ -329,6 +330,12 @@ class ProcessingView:
     nor the tools draw anything: two Rich ``Live`` displays on one console tear
     each other apart, so the one bar on screen is this view's, and it is driven by
     the events rather than by ``Processing`` (see ``doc/plans/cli-live-display.md``).
+    The lifecycle, the "live only on a terminal" policy and the flat summary table
+    are :class:`~starbash.ui.cli_events.CliEventHandler`'s; on a sink that cannot
+    animate (a pipe, a redirect, a dumb terminal) the commands use that module's
+    :class:`~starbash.ui.cli_events.SimpleLoggingEventHandler` instead, which
+    reports these same events as plain lines on that same console and still ends
+    with the table.
 
     The screen is split with a :class:`~rich.layout.Layout`:
 
@@ -351,9 +358,13 @@ class ProcessingView:
     When the output is **not** an interactive terminal (a pipe, a file redirect,
     a "dumb" terminal or a test harness), a live tree would render nothing until
     it stops -- and even then it carries no plain status words -- so tools
-    watching our output would see no results.  In that case the view skips
-    ``Live`` entirely and prints a flat :func:`~starbash.rich.runs_to_table`
-    summary on :meth:`finish` instead.
+    watching our output would see no results.  The commands therefore build this
+    view through :meth:`CliEventHandler.for_console`, which hands such a sink
+    :class:`~starbash.ui.cli_events.SimpleLoggingEventHandler` (the run as plain
+    lines, then the same summary table) rather than this class.  Should
+    one be constructed on such a sink anyway, it still skips ``Live`` entirely and
+    prints a flat :func:`~starbash.rich.runs_to_table` summary on
+    :meth:`CliEventHandler.finish` instead.
     """
 
     #: How many tool output lines the log pane keeps (a bounded scrollback, not
@@ -369,8 +380,7 @@ class ProcessingView:
     MIN_SPLIT_HEIGHT = 6
 
     def __init__(self, title: str, console: Console) -> None:
-        self.title = title
-        self.console = console
+        super().__init__(title, console)
         # The header's single progress bar.  The view owns it -- the core
         # publishes events and draws nothing -- and points it at whatever phase
         # is running: files being indexed, targets being planned, or the tasks of
@@ -392,11 +402,6 @@ class ProcessingView:
         # without the run's tasks stopping progressing underneath it.
         self._tasks_done = 0
         self._tasks_total = 0
-        self._runs: dict[str, dict] = {}
-        self._order: list[str] = []
-        self._subscriber = self._on_event
-        self._interactive = supports_live_display(console)
-        self._finished = False
         # The first task that failed, if any: the final frame keeps reporting it
         # (the live caption moves on to whatever runs next).
         self._failure: str | None = None
@@ -408,32 +413,16 @@ class ProcessingView:
         # The log pane's bounded scrollback: every tool line for the whole run,
         # so a stack that has been running for minutes can still be read back.
         self._log: deque[Text] = deque(maxlen=self.LOG_LINES)
-        # The view renders itself: Live's own refresh thread repaints the current
-        # state at a fixed rate.  That keeps a chatty tool (Siril emits thousands of
-        # lines) from forcing a re-render per line -- events only mutate a few
-        # fields -- and the display cannot outpace the terminal.
-        self._live: Live | None = (
-            Live(self, console=console, refresh_per_second=4) if self._interactive else None
-        )
 
-    def __enter__(self) -> ProcessingView:
-        events.subscribe(self._subscriber)
-        if self._live is not None:
-            self._live.start()
-        return self
+    def _make_live(self) -> Live | None:
+        """Live renders this view itself, repainting it at a fixed rate.
 
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        tb: object | None,
-    ) -> bool:
-        events.unsubscribe(self._subscriber)
-        if self._live is not None:
-            self._live.stop()
-        else:
-            self.finish()
-        return False
+        The view holds the frame rather than Live a snapshot of it, so events only
+        mutate a few fields and the refresh thread does the drawing: a chatty tool
+        (Siril emits thousands of lines) cannot force a re-render per line, and the
+        display cannot outpace the terminal.
+        """
+        return Live(self, console=self.console, refresh_per_second=self.REFRESH_PER_SECOND)
 
     def _on_event(self, event: events.Event) -> None:
         """Fold a core event into the rendered tree and the live status line."""
@@ -541,26 +530,6 @@ class ProcessingView:
                 total=self._tasks_total,
             )
 
-    def _note_run(self, data: dict) -> None:
-        """Fold a payload's run/target labels into the rendered tree."""
-        run = data.get("run")
-        if isinstance(run, dict):
-            target = str(run.get("target") or "masters")
-            self._runs[target] = run
-        elif data.get("target"):
-            target = str(data["target"])
-        else:
-            return  # nothing to learn (e.g. a stage result with no run snapshot)
-        if target not in self._order:
-            self._order.append(target)
-
-    def _drop_runs(self, data: dict) -> None:
-        """Drop culled master runs (ones no selected target needs) from the tree."""
-        for label in data.get("drop", []):
-            self._runs.pop(label, None)
-            if label in self._order:
-                self._order.remove(label)
-
     def _set_status(self, text: str, style: str = "") -> None:
         """Replace the one-line 'what is happening now' caption.
 
@@ -615,22 +584,6 @@ class ProcessingView:
         self._tool = None
         self._percent = None
         self._note = None
-
-    @staticmethod
-    def _run_caption(data: dict) -> str:
-        """Caption for a run/target transition (mirrors the GUI's wording)."""
-        label = data.get("target") or "masters"
-        index, total = data.get("index"), data.get("total")
-        if index is not None and total is not None:
-            return f"Target {index}/{total}: {label}"
-        return f"Processing {label}"
-
-    @staticmethod
-    def _task_caption(data: dict) -> str:
-        """Caption for a task transition, e.g. ``stack: Stack lights``."""
-        title = str(data.get("title") or data.get("task") or "")
-        stage = data.get("stage")
-        return f"{stage}: {title}" if stage else title
 
     def _add_log_line(self, line: str, is_stderr: bool) -> None:
         """Append one tool output line to the live log pane."""
@@ -724,7 +677,7 @@ class ProcessingView:
         """The live status line and the phase progress bar (the pinned header)."""
         if self._finished:
             # The frame that stays on screen (Live leaves the last one behind).
-            if self._failure:
+            if self._aborted or self._failure:
                 head: RenderableType = Text.assemble(("✗", "red"), " ", self._status_text())
             else:
                 head = Text.assemble(("✓", "green"), " ", self._status_text())
@@ -744,37 +697,27 @@ class ProcessingView:
             text.append(f" · {self._note}", style="dim")
         return text
 
-    def _refresh(self) -> None:
-        """Repaint now; Live's own refresh thread also repaints periodically."""
-        if self._live is None:
-            return  # non-interactive sinks get the flat table on finish() only
-        try:
-            self._live.refresh()
-        except Exception:  # noqa: BLE001 - rendering must never break a run
-            pass
+    def _on_finish(self) -> None:
+        """Settle the final state, then emit whatever this sink can still show.
 
-    def finish(self) -> None:
-        """Render the final state once more before the view is closed."""
-        if self._finished:
-            return
-        self._finished = True
+        On a terminal that final *frame* is the output -- Live leaves the last one
+        on screen -- so it is repainted with the run's verdict: a failure it must
+        keep reporting, or the title.  A sink that cannot animate has no frame to
+        leave behind, so the run's flat summary table is printed instead, exactly as
+        :class:`~starbash.ui.cli_events.SimpleLoggingEventHandler` ends.
+        """
         self._clear_tool()
-        if self._failure:
+        if self._aborted:
+            # Something raised inside the ``with``: the run died mid-flight, so the
+            # frame must not claim it finished.
+            self._set_status(f"{self.title}: interrupted", style="red")
+        elif self._failure:
             # Keep reporting the failure: it is the thing a user needs to see last.
             self._set_status(f"Failed: {self._failure}", style="red")
         else:
             self._set_status(f"{self.title}: done")
-        if self._live is not None:
-            self._refresh()
-        else:
-            self._print_table()
-
-    def _print_table(self) -> None:
-        """Emit the simplified, line-oriented summary used for dumb sinks."""
-        runs = [self._runs[t] for t in self._order if t in self._runs]
-        self.console.print(self.title, style="bold")
-        if runs:
-            self.console.print(runs_to_table(runs))
+        if self._live is None:
+            self.print_summary()
 
 
 @app.command()
@@ -822,7 +765,7 @@ def auto(
     with Starbash("process.auto") as sb:
         from starbash import console
 
-        view = ProcessingView("Auto-processing", console)
+        view = ProcessingView.for_console("Auto-processing", console)
         with view, Processing(sb) as proc:
             if session_num is not None:
                 console.print(
@@ -869,7 +812,7 @@ def masters() -> None:
     with Starbash("process.masters") as sb:
         from starbash import console
 
-        view = ProcessingView("Generating master frames", console)
+        view = ProcessingView.for_console("Generating master frames", console)
         with view, Processing(sb) as proc:
             proc.reindex_if_needed()
             proc.run_master_stages()

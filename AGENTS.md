@@ -78,6 +78,16 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   live widget for a run, and the GUI bridges the same events to Qt. Nothing in
   the core (or in a tool) draws to the terminal itself; see
   `doc/plans/cli-live-display.md`. Also see *Desktop GUI* below.
+- **CLI observers**: `src/starbash/ui/cli_events.py` — every CLI handler of that bus is a
+  `CliEventHandler` (lifecycle, the "live frame only on a real terminal" policy via
+  `_make_live()`, and the run model `_runs`/`_order` behind `print_summary()`). The
+  commands construct them through `CliEventHandler.for_console()`: on a sink that cannot
+  animate (a pipe, `> run.log`, a dumb terminal, a test harness) a Rich `Live` renders
+  *nothing*, so the factory hands back `SimpleLoggingEventHandler` instead, which reports
+  the same run as plain greppable lines (tool stdout/stderr included, structured
+  `stdout.json` frames skipped) and still ends with `<title>: done` plus the flat
+  `runs_to_table()` summary. Only a terminal gets the live view (`ReindexView` = a scan's
+  bar, `ProcessingView` = a run's tree).
 - **Interaction**: `src/starbash/interaction.py` — `UserInteraction` protocol
   (`confirm`/`text`/`notify`/`open_url`) with a Rich default (identical CLI
   behaviour), an `AutoAccept` headless impl, and a process-wide accessor. Guided
@@ -86,6 +96,10 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   `sb gui`. Never imported by the CLI unless the command is used.
   `src/starbash/ui/cli.py` is the CLI's counterpart: the terminal views that
   observe the event bus (`ReindexView`, used by `sb repo reindex` / `sb repo add`).
+- `src/starbash/ui/cli_events.py` is the base those views share: `CliEventHandler`
+  (lifecycle, `_make_live()`, the run model + `print_summary()`) and
+  `SimpleLoggingEventHandler`, the plain-line handler `for_console()` picks for a sink
+  that cannot animate.
 
 ## Stage exclusion flow (common source of bugs)
 
