@@ -94,6 +94,22 @@ def test_make_file_url_makes_a_relative_path_absolute(tmp_path, monkeypatch):
     assert unquote(urlparse(url).path).endswith("frame.fits")
 
 
+def test_make_file_url_percent_encodes_a_question_mark(tmp_path):
+    """A ``?`` in a path is quoted, so it cannot start the URL's query.
+
+    Asserted on the URL itself, without touching the filesystem: Windows forbids
+    ``?`` in a file name, so a real file cannot round-trip this path there (see
+    ``test_hover_preview.py``, whose fixture files have to be nameable).
+    """
+    path = tmp_path / "q?mark.txt"
+
+    url = make_file_url(path)
+
+    assert "%3F" in url
+    assert "?" not in url  # nothing here starts a query
+    assert path_from_file_url(url) == path
+
+
 def test_path_from_file_url_round_trips_a_real_path(tmp_path):
     """The two helpers are exact inverses -- that is what makes the URL an identity."""
     target = tmp_path / "my data" / "café"
@@ -133,8 +149,10 @@ def test_path_from_file_url_handles_a_windows_unc_share():
 
 def test_path_from_file_url_ignores_a_localhost_host():
     """``file://localhost/data`` means ``file:///data`` -- the host is this machine."""
-    assert str(path_from_file_url("file://localhost/data")) == "/data"
-    assert str(path_from_file_url("file://127.0.0.1/data")) == "/data"
+    # as_posix(), not str(): the *parsing* is platform-independent, but str() renders
+    # a path with the platform's own separator (a Windows Path spells this "\\data").
+    assert path_from_file_url("file://localhost/data").as_posix() == "/data"
+    assert path_from_file_url("file://127.0.0.1/data").as_posix() == "/data"
 
 
 def test_path_from_file_url_keeps_a_posix_directory_that_looks_like_a_drive():
@@ -143,7 +161,7 @@ def test_path_from_file_url_keeps_a_posix_directory_that_looks_like_a_drive():
     ``as_uri()`` percent-encodes the colon of a POSIX path, so matching the drive
     pattern against the encoded path is what keeps the two apart.
     """
-    assert str(path_from_file_url("file:///C%3A/x")) == "/C:/x"
+    assert path_from_file_url("file:///C%3A/x").as_posix() == "/C:/x"
 
 
 @pytest.mark.parametrize(

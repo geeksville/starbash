@@ -897,6 +897,28 @@ Open tabs / files being touched suggest active work in:
   make_file_url`), pinned by `test_url.py`'s `is`-identity test, so Starbash's
   writer and toml_repo's reader cannot drift.  Gates: `just lint` clean, starbash
   **1202 passed**, toml-repo **39 passed**.
+- **The Windows CI run exposed six platform-dependent *assertions* in those URL
+  tests (2026-09-15) — the code was right, the tests were not.**  `path_from_file_url()`
+  is deliberately platform-independent (it always yields a `/`-separated string to
+  `Path()`), but `str(Path(...))` renders with the **platform's** separator, so
+  `"/data"`, `"/C:/x"`, `"/a b/c&d"` and `"C:/Users/runner/data"` become `"\\data"`,
+  `"\\C:\\x"`, `"\\a b\\c&d"` and `"C:\\Users\\runner\\data"` on Windows.  Those
+  assertions now compare **`.as_posix()`** (`tests/unit/test_url.py` ×2,
+  `toml-repo/tests/test_urls.py` ×4, including the submodule's own drive-letter,
+  localhost, percent-decoding and `/C:`-looks-like-a-drive cases) — and
+  `test_path_from_file_url_handles_a_windows_unc_share` was already safe because it
+  compared `str()` against `str()`.  The seventh failure was worse than cosmetic:
+  `test_hover_preview.py`'s parametrised fixture wrote a file named `q?mark.txt`,
+  which **Windows cannot create at all** (`OSError [Errno 22]`), so `?` left that
+  parametrisation and its real point — a `?` must be percent-encoded to `%3F` rather
+  than starting a query — is now asserted on the URL itself, with no filesystem
+  access, by `test_make_file_url_percent_encodes_a_question_mark` (so it guards
+  Windows too).  Lesson worth keeping: **assert on `.as_posix()` (or compare like
+  with like), never `str(Path)`, when the expected value is POSIX-spelled; and never
+  name a fixture file after a character Windows forbids** (`? * : " < > |`).
+  Gates: `just lint` clean, and the three touched test modules pass
+  (`70 passed, 1 skipped`; the toml-repo tests run in-process against the installed
+  0.1.7, which is byte-identical to the submodule's `urls.py`).
 - **Integration CI is Linux-only for now, and installs StarNet2** — see
   [`.github/workflows/integration.yml`](../../.github/workflows/integration.yml):
   the matrix is now `os: [ubuntu-latest]`, and the macOS/Windows steps are kept

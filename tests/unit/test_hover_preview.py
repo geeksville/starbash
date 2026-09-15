@@ -130,14 +130,18 @@ def test_local_path_decodes_a_percent_escaped_file_url(tmp_path):
     assert hp.local_path(path.as_uri()) == path
 
 
-@pytest.mark.parametrize("name", ["a b.txt", "hash#tag.txt", "q?mark.txt", "amp&and.txt"])
+#: The characters a fragment/query split would truncate -- the reason
+#: :func:`starbash.url.make_file_url` percent-encodes rather than pasting a raw path
+#: after ``file://``, so ``#`` must not turn into a fragment.  ``?`` is deliberately
+#: absent: Windows forbids it in a file name, so this fixture file cannot exist
+#: there.  Its encoding is asserted without a file, on the URL itself, in
+#: ``test_url.py::test_make_file_url_percent_encodes_a_question_mark``.
+@pytest.mark.parametrize("name", ["a b.txt", "hash#tag.txt", "amp&and.txt"])
 def test_local_path_reads_every_kind_of_canonical_file_url(tmp_path, name):
     """A URL Starbash produced opens the file it was built for.
 
-    The characters here are the ones a fragment/query split would truncate -- the
-    reason :func:`starbash.url.make_file_url` percent-encodes rather than pasting
-    a raw path after ``file://``.  ``#`` and ``?`` in particular must not turn
-    into a fragment or a query.
+    The characters here are the ones a fragment/query split would truncate, which
+    is why the URL quotes them instead of pasting the path (see above for ``?``).
     """
     path = tmp_path / name
     path.write_text("hi", encoding="utf-8")
