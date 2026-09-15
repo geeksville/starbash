@@ -308,7 +308,7 @@ jobs:
           SENTRY_ENVIRONMENT: ci
           STARBASH_TEST_DATA: /mnt/scratch/test-data
           STARBASH_LOG_DIR: /tmp
-        run: TMPDIR=/mnt/scratch/tmp poetry run pytest -m "" -n 0 -v --cov --cov-report=term --cov-report=xml --junit-xml=pytest.xml
+        run: TMPDIR=/mnt/scratch/tmp poetry run pytest -m integration -n 0 -v --cov --cov-report=term --cov-report=xml --junit-xml=pytest.xml
 
       - name: Run integration tests (macOS)
         if: matrix.os == 'macos-latest'
