@@ -853,6 +853,17 @@ Open tabs / files being touched suggest active work in:
 - `doc/design/report.md` — the end-to-end design covering target report metadata (R1), Jekyll publishing (R2), and per-frame registration TOML stages (R3).
 
 ## Recent changes
+- **Integration CI is Linux-only for now, and installs StarNet2** — see
+  [`.github/workflows/integration.yml`](../../.github/workflows/integration.yml):
+  the matrix is now `os: [ubuntu-latest]`, and the macOS/Windows steps are kept
+  deliberately (their `if:` conditions simply never match) so re-enabling them is
+  a one-line change back in the matrix.  A new *Install StarNet2 (Linux)* step
+  fetches the same `StarNet2_linux_2.5.4-0214_ORT_x64.deb` as
+  `just install-starnet` (the package drops `/usr/bin/starnet2`), via `dpkg -i`
+  with `apt-get install -f -y` as the unmet-dependency fallback, then asserts
+  `command -v starnet2` — so a star-removal stage fails loudly at install time
+  instead of mid-run.  The deb is ~132 MiB and is downloaded on every run (no
+  cache step, unlike the pipx/flatpak trees).
 - **Up-to-date skips are no longer reported as failures** — see the section at the
   top of this file: `ResultSummary` (new, `run_state.py`) buckets doit's tri-state
   `success`, so `success=None` counts as *up-to-date* instead of failed, and

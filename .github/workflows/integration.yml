@@ -6,8 +6,12 @@ on:
 jobs:
   integration-test:
     strategy:
+      # Linux only for now: the integration run needs Siril + StarNet2, and the
+      # Linux runner is the only one we install both on.  The macOS/Windows steps
+      # below are kept deliberately (their `if:` conditions never match while the
+      # list is Linux-only) so re-enabling them is a one-line change here.
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     environment: ci
 
@@ -117,6 +121,24 @@ jobs:
           # Install Siril
           flatpak install --user -y flathub org.siril.Siril
           flatpak --user override --filesystem=/tmp org.siril.Siril
+
+      #----------------------------------------------
+      # Install StarNet2 (Linux only)
+      #----------------------------------------------
+      - name: Install StarNet2 (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          # StarNet2 is a Siril plugin: the package drops a `starnet2` binary on the
+          # PATH and Siril is pointed at it by Starbash (see src/starbash/tool/starnet.py).
+          # Same steps as `just install-starnet` for the dev container.
+          wget -O /tmp/starnet.deb https://download.starnetastro.com/StarNet2_linux_2.5.4-0214_ORT_x64.deb
+          # dpkg mirrors the justfile recipe; `apt-get install -f` mops up any
+          # dependencies the .deb declares that the runner is missing.
+          sudo dpkg -i /tmp/starnet.deb || sudo apt-get install -f -y
+          rm /tmp/starnet.deb
+          # Fail loudly here (rather than in a star-removal stage later) if the
+          # binary Siril looks for is not actually usable.
+          command -v starnet2
 
       #----------------------------------------------
       # Download and install Siril (macOS only)
