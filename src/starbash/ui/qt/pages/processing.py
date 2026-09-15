@@ -54,7 +54,11 @@ _DIM = "#8b949e"
 _ROLE_KIND = Qt.ItemDataRole.UserRole
 _ROLE_NAME = Qt.ItemDataRole.UserRole + 1
 
+#: Label of the collapsed group that holds every master (calibration) run.
+_MASTERS_LABEL = "Masters"
+
 #: Node kinds stored in ``_ROLE_KIND``.
+_KIND_GROUP = "group"
 _KIND_STAGE = "stage"
 _KIND_TASK = "task"
 _KIND_LOG = "log"
@@ -103,6 +107,10 @@ class ProcessingPage(Page):
     def _build(self) -> None:
         self._worker = None
         self._targets: dict[str, QTreeWidgetItem] = {}
+        #: Labels known to be master (calibration) runs, i.e. rows under ``Masters``.
+        self._masters: set[str] = set()
+        #: The collapsed ``Masters`` group, created when the first master run appears.
+        self._masters_group: QTreeWidgetItem | None = None
         #: (target, stage, task) of the doit task running right now.
         self._running: tuple[str, str, str] | None = None
 
@@ -156,6 +164,8 @@ class ProcessingPage(Page):
     def _start(self) -> None:
         self._tasks.clear()
         self._targets.clear()
+        self._masters.clear()
+        self._masters_group = None
         self._running = None
         self._links.dismiss()
         self._progress.setRange(0, 0)  # indeterminate until a tool reports a percentage
@@ -211,7 +221,9 @@ class ProcessingPage(Page):
             # that reports no percentage must not then look finished.
             self._progress.setRange(0, 0)
         elif kind == events.EVENT_RUN_STARTED:
-            self._ensure_target(str(data.get("target") or "masters")).setExpanded(True)
+            target = str(data.get("target") or "masters")
+            is_master = bool(data.get("is_master", False))
+            self._ensure_target(target, is_master=is_master).setExpanded(True)
         elif kind == events.EVENT_TASK_STARTED:
             self._on_task_started(data)
         elif kind == events.EVENT_TASK_FINISHED:
@@ -263,28 +275,99 @@ class ProcessingPage(Page):
         """Drop master runs that planning found no target depends on."""
         dropped: list[str] = []
         for label in data.get("drop", []):
-            item = self._targets.pop(str(label), None)
-            if item is not None:
-                index = self._tasks.indexOfTopLevelItem(item)
-                if index >= 0:
-                    self._tasks.takeTopLevelItem(index)
+            self._drop_run(str(label))
             dropped.append(str(label))
         # If a removed run was somehow still the active one, stop attributing
         # further log lines to a row that no longer exists.
         if self._running is not None and self._running[0] in dropped:
             self._running = None
 
-    def _ensure_target(self, target: str) -> QTreeWidgetItem:
-        """Return (creating if needed) the top-level item for a target."""
+    def _drop_run(self, label: str) -> None:
+        """Remove one run's row (dropping the ``Masters`` group if it empties)."""
+        item = self._targets.pop(label, None)
+        self._masters.discard(label)
+        if item is None:
+            return
+        parent = item.parent()
+        if parent is None:
+            index = self._tasks.indexOfTopLevelItem(item)
+            if index >= 0:
+                self._tasks.takeTopLevelItem(index)
+            return
+        parent.removeChild(item)
+        # A group with no runs left is an empty container, so it goes too.
+        if parent.data(0, _ROLE_KIND) == _KIND_GROUP and parent.childCount() == 0:
+            self._masters_group = None
+            index = self._tasks.indexOfTopLevelItem(parent)
+            if index >= 0:
+                self._tasks.takeTopLevelItem(index)
+
+    def _masters_item(self) -> QTreeWidgetItem:
+        """Return (creating if needed) the collapsed top-level ``Masters`` group."""
+        if self._masters_group is None:
+            group = QTreeWidgetItem([_MASTERS_LABEL, ""])
+            group.setData(0, _ROLE_KIND, _KIND_GROUP)
+            font = group.font(0)
+            font.setBold(True)
+            group.setFont(0, font)
+            # Dim, so a container reads differently from a target's run row.
+            group.setForeground(0, QBrush(QColor(_DIM)))
+            self._tasks.addTopLevelItem(group)
+            # Collapsed by default: master runs are many and rarely what the user
+            # is watching, so the group opens only when asked to.
+            group.setExpanded(False)
+            self._masters_group = group
+        return self._masters_group
+
+    def _ensure_target(self, target: str, *, is_master: bool = False) -> QTreeWidgetItem:
+        """Return (creating if needed) the row for a target or a master run.
+
+        Master (calibration) runs are nested under the collapsed ``Masters``
+        node instead of sitting at the top level beside the targets: there are
+        usually many of them and they crowd out what the user came to watch.
+        """
+        if is_master:
+            # Sticky: a task event can report master-ness before any run
+            # snapshot does, and a row must never be grouped twice.
+            self._masters.add(target)
         item = self._targets.get(target)
         if item is None:
             item = QTreeWidgetItem([target, ""])
             font = item.font(0)
             font.setBold(True)
             item.setFont(0, font)
-            self._tasks.addTopLevelItem(item)
             self._targets[target] = item
+            self._file_run(target, item)
+        elif item.parent() is None and target in self._masters:
+            # Created earlier from an event that did not yet know it was a
+            # master run; move it where it belongs.
+            index = self._tasks.indexOfTopLevelItem(item)
+            if index >= 0:
+                self._tasks.takeTopLevelItem(index)
+            self._file_run(target, item)
         return item
+
+    def _file_run(self, target: str, item: QTreeWidgetItem) -> None:
+        """File a run row under the ``Masters`` group, or at the top level."""
+        if target in self._masters:
+            self._masters_item().addChild(item)
+        else:
+            self._tasks.addTopLevelItem(item)
+
+    def _scroll_to(self, item: QTreeWidgetItem) -> None:
+        """Bring a row into view, unless the user has not opened its parents.
+
+        Qt's ``scrollToItem`` *expands* collapsed parents on the way (its default
+        ``EnsureVisible`` hint), which would pop the ``Masters`` group open behind
+        the user's back on every live log line.  A row the user cannot see is
+        simply not scrolled to.
+        """
+        parent = item.parent()
+        while parent is not None:
+            if not parent.isExpanded():
+                return
+            parent = parent.parent()
+        self._tasks.scrollToItem(item)
 
     def _render_run(self, run: object) -> None:
         """Rebuild a target's subtree from a plain run-tree snapshot."""
@@ -293,7 +376,8 @@ class ProcessingPage(Page):
         # The items are about to be replaced, so any preview is now stale.
         self._links.dismiss()
         target = str(run.get("target") or "masters")
-        root = self._ensure_target(target)
+        is_master = bool(run.get("is_master", False))
+        root = self._ensure_target(target, is_master=is_master)
         root.takeChildren()
 
         if run.get("output_url"):
@@ -328,8 +412,8 @@ class ProcessingPage(Page):
 
         # Real targets open; master (calibration) runs stay collapsed — there are
         # usually many of them and they are rarely what the user is looking at.
-        root.setExpanded(not run.get("is_master", False))
-        self._tasks.scrollToItem(root)
+        root.setExpanded(not is_master)
+        self._scroll_to(root)
 
     def _add_task_rows(self, task: dict, stage_item: QTreeWidgetItem) -> None:
         """Add one task row, plus its collapsible ``Log`` and output rows.
@@ -408,9 +492,11 @@ class ProcessingPage(Page):
                 return child
         return None
 
-    def _ensure_stage_item(self, target: str, stage: str) -> QTreeWidgetItem:
+    def _ensure_stage_item(
+        self, target: str, stage: str, *, is_master: bool = False
+    ) -> QTreeWidgetItem:
         """Return (creating if needed) a stage row, so live logs have a home."""
-        root = self._ensure_target(target)
+        root = self._ensure_target(target, is_master=is_master)
         item = self._stage_item(target, stage)
         if item is None:
             item = QTreeWidgetItem([f"{RunStatus.RUNNING.glyph} {stage}", ""])
@@ -453,6 +539,7 @@ class ProcessingPage(Page):
         stage = str(data.get("stage") or "")
         task = str(data.get("task") or "")
         title = str(data.get("title") or task or "task")
+        is_master = bool(data.get("is_master", False))
         self._caption.setText(f"Running: {title}")
 
         if not stage or not task:
@@ -460,7 +547,7 @@ class ProcessingPage(Page):
             return
         self._running = (target, stage, task)
 
-        stage_item = self._ensure_stage_item(target, stage)
+        stage_item = self._ensure_stage_item(target, stage, is_master=is_master)
         task_item = self._task_item(target, stage, task)
         if task_item is None:
             task_item = QTreeWidgetItem([f"    {title}", RunStatus.RUNNING.label])
@@ -477,7 +564,7 @@ class ProcessingPage(Page):
             log_item.setForeground(0, QBrush(QColor(_DIM)))
             task_item.insertChild(0, log_item)
         log_item.setExpanded(True)
-        self._tasks.scrollToItem(task_item)
+        self._scroll_to(task_item)
 
     def _on_task_finished(self, data: dict) -> None:
         """Close the finished task's ``Log`` node (a failure keeps it open)."""
@@ -510,7 +597,7 @@ class ProcessingPage(Page):
                 break
             log_item.removeChild(oldest)
 
-        self._tasks.scrollToItem(item)
+        self._scroll_to(item)
 
     @staticmethod
     def _stage_label(stage: dict, status: RunStatus) -> str:

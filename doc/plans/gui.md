@@ -252,6 +252,13 @@ Maps to `sb info` + `sb info target/telescope/filter` + quick entry to process/r
 - Progress: per-target bar + per-task bar + rc-astro JSON % streaming.
 - On finish, `Results` table mirrors `print_results` (target/session/status/notes with clickable output links -> open file/folder).
 - `Cancel` -> cooperative token; partial results preserved.
+- **Master (calibration) runs are grouped** under one dim, bold `Masters` node that
+  is **collapsed by default** (`ProcessingPage._masters_item` / `_file_run`), so the
+  dozen `Master <config> · <date> · <camera>` rows no longer crowd the targets out
+  of the tree. The page never scrolls to a row inside a collapsed ancestor
+  (`_scroll_to`), because Qt's `scrollToItem` expands it — which would pop the group
+  open on the first log line. Culling (`EVENT_PREFLIGHT_FINISHED`) removes a master
+  row and drops the group itself once it is empty.
 
 ### 5.5 Targets (processed results + config) — the persistent browser
 
