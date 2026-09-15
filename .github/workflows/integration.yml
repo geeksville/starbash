@@ -17,16 +17,6 @@ jobs:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     environment: ci
-    env:
-      # The StarNet2 CLI release every platform installs, from
-      # https://starnetastro.com/cli-tools/starnet/ - pinned in one place so the
-      # three per-OS URLs below cannot drift apart.  Note that the CLI is only
-      # reachable through Siril 1.4.x's legacy `starnet` command, which probes
-      # `starnet2 --version` for its " version:" marker (Siril's
-      # starnet_executablecheck(), src/filters/starnet.c) and then passes
-      # -i/-o/-m/-s/-u/-w: a CLI that changed that output, or dropped one of those
-      # options, would break star removal here.
-      STARNET2_VERSION: "2.6.2-0241"
 
     steps:
       - name: Checkout
@@ -136,165 +126,17 @@ jobs:
           flatpak --user override --filesystem=/tmp org.siril.Siril
 
       #----------------------------------------------
-      # Install StarNet2 (Linux only)
+      # Install StarNet2 (all platforms; see .github/actions/install-starnet)
       #----------------------------------------------
-      - name: Install StarNet2 (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          # StarNet2 is a Siril plugin: the .deb drops a `starnet2` binary in
-          # /usr/bin plus its shared libs and model in /usr/lib/starnet2, and Siril
-          # is pointed at the binary by Starbash (see
-          # src/starbash/tool/starnet.py).
-          # Same steps as `just install-starnet` for the dev container.
-          wget -O /tmp/starnet.deb "https://download.starnetastro.com/StarNet2_linux_${STARNET2_VERSION}_ORT_x64.deb"
-          # dpkg mirrors the justfile recipe; `apt-get install -f` mops up any
-          # dependencies the .deb declares that the runner is missing.
-          sudo dpkg -i /tmp/starnet.deb || sudo apt-get install -f -y
-          rm /tmp/starnet.deb
-          # Fail loudly here (rather than in a star-removal stage later) if the
-          # binary Siril looks for is not actually usable.
-          command -v starnet2
-          starnet2 --version
+      - name: Install StarNet2
+        uses: ./.github/actions/install-starnet
 
       #----------------------------------------------
-      # Download and install Siril (macOS only)
+      # Download and install Siril (macOS/Windows only; Linux uses Flatpak above)
       #----------------------------------------------
-      - name: Download and install Siril (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          # Download Siril DMG.  The 1.4.4 macOS packages were rebuilt ("-3") on
-          # June 26, 2026 to require macOS Ventura 13+; the un-suffixed name is stale.
-          curl -L -o siril.dmg https://free-astro.org/download/siril-1.4.4-arm64-3.dmg
-          # Mount the DMG
-          hdiutil attach siril.dmg -nobrowse -quiet
-          # Copy Siril.app to /Applications
-          cp -R /Volumes/Siril*/Siril.app /Applications/
-          # Unmount the DMG
-          hdiutil detach /Volumes/Siril* -quiet
-          # Clean up
-          rm siril.dmg
-          # Create symlinks to siril and siril-cli in /usr/local/bin
-          sudo ln -s /Applications/Siril.app/Contents/MacOS/siril /usr/local/bin/siril
-          sudo ln -s /Applications/Siril.app/Contents/MacOS/siril-cli /usr/local/bin/siril-cli
-
-      #----------------------------------------------
-      # Install StarNet2 (macOS only)
-      #----------------------------------------------
-      - name: Install StarNet2 (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          # The .pkg installs `starnet2` into /usr/local/bin, which is already on
-          # the runner's PATH, with its model and CoreML/ORT runtime files under
-          # /usr/local/lib/starnet2.  Siril is pointed at the binary by Starbash
-          # (see src/starbash/tool/starnet.py).
-          # macOS runners are Apple Silicon, so take the native CoreML build (the
-          # x64/ORT one would need Rosetta); keep an Intel branch so this step
-          # cannot silently break if a future image changes architecture.
-          if [ "$(uname -m)" = "arm64" ]; then
-            pkg="StarNet2_macos-arm64_${STARNET2_VERSION}_COREML_arm64.pkg"
-          else
-            pkg="StarNet2_macos-x64_${STARNET2_VERSION}_ORT_x64.pkg"
-          fi
-          curl -sSLf -o /tmp/starnet.pkg "https://download.starnetastro.com/${pkg}"
-          # `-target /` installs it system-wide, which a .pkg needs root for.
-          sudo installer -pkg /tmp/starnet.pkg -target /
-          rm /tmp/starnet.pkg
-          # Fail loudly here (rather than in a star-removal stage later) if the
-          # binary Siril looks for is not actually usable.  Siril picks which CLI
-          # dialect to speak from the `--version` output, so run its probe.
-          command -v starnet2
-          starnet2 --version
-
-      #----------------------------------------------
-      # Download and install Siril (Windows only)
-      #----------------------------------------------
-      - name: Download and install Siril (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          # Download Siril installer.  free-astro.org names the Windows build
-          # after its MSYS2 toolchain (ucrt64), not a plain "siril-<version>-setup.exe"
-          # - confirm the filename against the release page if this 404s again.
-          $installer = "siril-setup.exe"
-          Invoke-WebRequest -Uri "https://free-astro.org/download/siril-1.4.4-ucrt64-setup.exe" -OutFile $installer
-          
-          # Run installer in silent mode (Inno Setup uses /VERYSILENT /NORESTART)
-          # /DIR specifies installation directory
-          Start-Process -FilePath $installer -ArgumentList "/VERYSILENT", "/NORESTART", "/DIR=C:\Siril" -Wait
-          
-          # Find where siril.exe actually is
-          Write-Host "::group::Looking for siril.exe"
-          $sirilExe = Get-ChildItem -Path "C:\Siril" -Filter "siril.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($sirilExe) {
-            $sirilDir = $sirilExe.DirectoryName
-            Write-Host "Found siril.exe at: $sirilDir"
-            
-            # Add actual Siril directory to PATH for this step
-            $env:PATH = "$sirilDir;$env:PATH"
-            
-            # Add to GITHUB_PATH for subsequent steps
-            Add-Content -Path $env:GITHUB_PATH -Value $sirilDir
-            Write-Host "Added to PATH: $sirilDir"
-            
-            # Also set SIRIL_PATH environment variable as fallback
-            Add-Content -Path $env:GITHUB_ENV -Value "SIRIL_PATH=$sirilDir"
-          } else {
-            Write-Host "ERROR: siril.exe not found!"
-          }
-          Write-Host "::endgroup::"
-          
-          # Clean up installer
-          Remove-Item $installer
-
-      #----------------------------------------------
-      # Install StarNet2 (Windows only)
-      #----------------------------------------------
-      - name: Install StarNet2 (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          # The installer is Inno Setup (like Siril's), so /VERYSILENT /NORESTART
-          # needs no UI.  It places the executable in
-          # "C:\Program Files\StarNet2\bin", which is *not* on PATH by default -
-          # so add it below: Starbash's StarnetTool looks for `starnet2` on the
-          # PATH and then records that path in Siril's config
-          # (see src/starbash/tool/starnet.py).
-          # Built by concatenation because $env:STARNET2_VERSION_ORT... would
-          # otherwise be read as one (unset) variable name.
-          $version = $env:STARNET2_VERSION
-          $installer = "starnet-setup.exe"
-          $url = "https://download.starnetastro.com/StarNet2_win_" + $version + "_ORT_x64_setup.exe"
-          Invoke-WebRequest -Uri $url -OutFile $installer
-          $proc = Start-Process -FilePath $installer -ArgumentList "/VERYSILENT", "/NORESTART" -Wait -PassThru
-          Remove-Item $installer
-          if ($proc.ExitCode -ne 0) {
-            Write-Host "ERROR: StarNet2 installer exited with code $($proc.ExitCode)"
-            exit 1
-          }
-
-          # The documented location first, then the 32-bit Program Files as a
-          # safety net.
-          Write-Host "::group::Looking for starnet2.exe"
-          $starnetExe = Get-ChildItem -Path "$env:ProgramFiles\StarNet2" -Filter "starnet2.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $starnetExe) {
-            $starnetExe = Get-ChildItem -Path "C:\Program Files (x86)\StarNet2" -Filter "starnet2.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-          }
-          if (-not $starnetExe) {
-            Write-Host "ERROR: starnet2.exe not found after install!"
-            exit 1
-          }
-          $starnetDir = $starnetExe.DirectoryName
-          Write-Host "Found starnet2.exe at: $starnetDir"
-          # PATH for the rest of this job, and therefore for Starbash itself
-          # (shutil.which) when the integration tests run.
-          Add-Content -Path $env:GITHUB_PATH -Value $starnetDir
-          $env:PATH = "$starnetDir;$env:PATH"
-          Write-Host "::endgroup::"
-
-          # Fail loudly here (rather than in a star-removal stage later) if the
-          # binary Siril looks for is not actually usable.  Siril picks which CLI
-          # dialect to speak from the `--version` output, so run its probe.
-          & starnet2 --version
+      - name: Install Siril (macOS/Windows)
+        if: matrix.os != 'ubuntu-latest'
+        uses: ./.github/actions/install-siril
 
       #----------------------------------------------
       # Install crane for container image extraction (Linux only)

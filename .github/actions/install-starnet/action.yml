@@ -1,0 +1,104 @@
+name: Install StarNet2
+description: >-
+  Downloads and installs the StarNet2 CLI (https://starnetastro.com/cli-tools/starnet/)
+  on Linux/macOS/Windows runners. StarNet2 is a Siril plugin, not a standalone
+  app: Siril's legacy `starnet` command shells out to it, probing
+  `starnet2 --version` for its " version:" marker (see
+  starnet_executablecheck(), src/filters/starnet.c) before passing
+  -i/-o/-m/-s/-u/-w. Single source of truth for the version pin so the three
+  per-OS download URLs cannot drift apart.
+inputs:
+  version:
+    description: StarNet2 CLI release version
+    required: false
+    default: 2.6.2-0241
+runs:
+  using: composite
+  steps:
+    - name: Install StarNet2 (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        # The .deb drops a `starnet2` binary in /usr/bin plus its shared libs and
+        # model in /usr/lib/starnet2, and Siril is pointed at the binary by
+        # Starbash (see src/starbash/tool/starnet.py). Same steps as
+        # `just install-starnet` for the dev container.
+        wget -O /tmp/starnet.deb "https://download.starnetastro.com/StarNet2_linux_${{ inputs.version }}_ORT_x64.deb"
+        # dpkg mirrors the justfile recipe; `apt-get install -f` mops up any
+        # dependencies the .deb declares that the runner is missing.
+        sudo dpkg -i /tmp/starnet.deb || sudo apt-get install -f -y
+        rm /tmp/starnet.deb
+        # Fail loudly here (rather than in a star-removal stage later) if the
+        # binary Siril looks for is not actually usable.
+        command -v starnet2
+        starnet2 --version
+
+    - name: Install StarNet2 (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        # The .pkg installs `starnet2` into /usr/local/bin, which is already on
+        # the runner's PATH, with its model and CoreML/ORT runtime files under
+        # /usr/local/lib/starnet2. Siril is pointed at the binary by Starbash
+        # (see src/starbash/tool/starnet.py).
+        # macOS runners are Apple Silicon, so take the native CoreML build (the
+        # x64/ORT one would need Rosetta); keep an Intel branch so this step
+        # cannot silently break if a future image changes architecture.
+        if [ "$(uname -m)" = "arm64" ]; then
+          pkg="StarNet2_macos-arm64_${{ inputs.version }}_COREML_arm64.pkg"
+        else
+          pkg="StarNet2_macos-x64_${{ inputs.version }}_ORT_x64.pkg"
+        fi
+        curl -sSLf -o /tmp/starnet.pkg "https://download.starnetastro.com/${pkg}"
+        # `-target /` installs it system-wide, which a .pkg needs root for.
+        sudo installer -pkg /tmp/starnet.pkg -target /
+        rm /tmp/starnet.pkg
+        # Fail loudly here (rather than in a star-removal stage later) if the
+        # binary Siril looks for is not actually usable. Siril picks which CLI
+        # dialect to speak from the `--version` output, so run its probe.
+        command -v starnet2
+        starnet2 --version
+
+    - name: Install StarNet2 (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        # The installer is Inno Setup (like Siril's), so /VERYSILENT /NORESTART
+        # needs no UI. It places the executable in
+        # "C:\Program Files\StarNet2\bin", which is *not* on PATH by default -
+        # so add it below: Starbash's StarnetTool looks for `starnet2` on the
+        # PATH and then records that path in Siril's config
+        # (see src/starbash/tool/starnet.py).
+        $installer = "starnet-setup.exe"
+        $url = "https://download.starnetastro.com/StarNet2_win_${{ inputs.version }}_ORT_x64_setup.exe"
+        Invoke-WebRequest -Uri $url -OutFile $installer
+        $proc = Start-Process -FilePath $installer -ArgumentList "/VERYSILENT", "/NORESTART" -Wait -PassThru
+        Remove-Item $installer
+        if ($proc.ExitCode -ne 0) {
+          Write-Host "ERROR: StarNet2 installer exited with code $($proc.ExitCode)"
+          exit 1
+        }
+
+        # The documented location first, then the 32-bit Program Files as a
+        # safety net.
+        Write-Host "::group::Looking for starnet2.exe"
+        $starnetExe = Get-ChildItem -Path "$env:ProgramFiles\StarNet2" -Filter "starnet2.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $starnetExe) {
+          $starnetExe = Get-ChildItem -Path "C:\Program Files (x86)\StarNet2" -Filter "starnet2.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        }
+        if (-not $starnetExe) {
+          Write-Host "ERROR: starnet2.exe not found after install!"
+          exit 1
+        }
+        $starnetDir = $starnetExe.DirectoryName
+        Write-Host "Found starnet2.exe at: $starnetDir"
+        # PATH for the rest of this job, and therefore for Starbash itself
+        # (shutil.which) when the integration tests run.
+        Add-Content -Path $env:GITHUB_PATH -Value $starnetDir
+        $env:PATH = "$starnetDir;$env:PATH"
+        Write-Host "::endgroup::"
+
+        # Fail loudly here (rather than in a star-removal stage later) if the
+        # binary Siril looks for is not actually usable. Siril picks which CLI
+        # dialect to speak from the `--version` output, so run its probe.
+        & starnet2 --version
