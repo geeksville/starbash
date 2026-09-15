@@ -6,7 +6,7 @@ from pathlib import Path
 
 from platformdirs import PlatformDirs
 
-from starbash.tool.base import ToolSeverity
+from starbash.tool.base import MissingToolError, Tool, ToolSeverity
 from starbash.tool.siril import SIRIL_INSTALL_URL, SirilTool
 
 logger = logging.getLogger(__name__)
@@ -15,6 +15,9 @@ __all__ = ["StarnetTool"]
 
 #: Where the user can obtain StarNet (the CLI build Siril can call).
 STARNET_INSTALL_URL = "https://starnetastro.com/cli-tools/"
+
+#: Siril's flatpak app id - also one of :class:`SirilTool`'s candidate commands.
+SIRIL_FLATPAK_APP_ID = "org.siril.Siril"
 
 
 def _starnet_exe_usable(configured: str) -> bool:
@@ -50,14 +53,90 @@ class StarnetTool(SirilTool):
 
     @staticmethod
     def _siril_config_dir() -> Path:
-        """Location of Siril's own config directory (OS-appropriate)."""
+        """Location of the config directory of a natively installed Siril (OS-appropriate)."""
         return Path(PlatformDirs("siril").user_config_dir)
+
+    @staticmethod
+    def _siril_flatpak_config_dir() -> Path:
+        """Location of Siril's config directory when Siril is the flatpak app.
+
+        A flatpak app cannot see ``~/.config``: its sandbox is given a private XDG
+        config home (``XDG_CONFIG_HOME=$HOME/.var/app/$FLATPAK_ID/config``, see
+        https://docs.flatpak.org/en/latest/sandbox-permissions.html), so Siril's
+        settings land in ``~/.var/app/org.siril.Siril/config/siril`` instead.  A
+        StarNet found on the host PATH has to be recorded *there* to be used, which
+        is what this directory is for.  It simply does not exist off Linux (nor on a
+        native Linux install), where scanning it finds nothing.
+        """
+        return Path.home() / ".var" / "app" / SIRIL_FLATPAK_APP_ID / "config" / "siril"
+
+    def _siril_is_flatpak(self) -> bool:
+        """Whether the Siril Starbash would run is the flatpak app.
+
+        A flatpak install is launched by its app-id-named command, and
+        ``userconfig.toml`` documents pointing ``siril.path`` at
+        ``flatpak run --command=siril-cli org.siril.Siril`` by hand, so either the
+        executable we resolved or that override identifies it.  This only decides
+        which directory is *preferred* - both are scanned either way.
+        """
+        configured = Tool.Preferences.get("siril", {}).get("path", "")
+        if SIRIL_FLATPAK_APP_ID in str(configured):
+            return True
+        try:
+            return SIRIL_FLATPAK_APP_ID in self.executable_path
+        except MissingToolError:
+            # No Siril at all: is_available reports that before config files matter,
+            # so there is nothing to prefer here.
+            return False
+
+    def _siril_config_dirs(self) -> list[Path]:
+        """Siril's config directories to scan, the likely-live one first.
+
+        Siril keeps ``config.<version>.ini`` in its XDG config directory, and there
+        are two candidates: a distro/AppImage install uses ``~/.config/siril`` while
+        the flatpak app uses the config home inside its sandbox (see
+        :meth:`_siril_flatpak_config_dir`).  A user can have both installed, and only
+        one of the two holds the settings the Siril we would run actually reads - so
+        that one comes first, and is the one a newly found ``starnet_exe`` is written
+        to.
+
+        Directories are returned whether or not they exist, so a probe can report
+        where it looked (globbing a missing directory finds nothing anyway).
+        """
+        native = self._siril_config_dir()
+        flatpak = self._siril_flatpak_config_dir()
+        candidates = [flatpak, native] if self._siril_is_flatpak() else [native, flatpak]
+        # De-duplicated, in case an XDG_CONFIG_HOME already points into a flatpak
+        # sandbox and the two names resolve to the same directory.
+        return list(dict.fromkeys(candidates))
+
+    @staticmethod
+    def _siril_config_to_write(config_dirs: list[Path]) -> Path | None:
+        """The Siril config file a newly found ``starnet2`` should be recorded in.
+
+        Only the first (live) directory is considered: a setting written into another
+        install's config file may never be read.  A config file has to exist already -
+        Siril writes one the first time it runs, and inventing one would be guesswork -
+        and of the versioned files Siril leaves behind (``config.1.4.ini``), the newest
+        is the one the current Siril reads.
+        """
+        for config_dir in config_dirs:
+            in_dir = sorted(config_dir.glob("config.*.ini"))
+            if in_dir:
+                return in_dir[-1]
+        return None
 
     def _starnet_configured(self) -> bool:
         """Ensure Siril has a usable ``starnet_exe`` and report whether it is configured."""
-        config_dir = self._siril_config_dir()
-        # Siril versions its config file (e.g. config.1.4.ini); check whichever exist.
-        ini_paths = sorted(config_dir.glob("config.*.ini"))
+        # Every directory a Siril install could be reading the setting from (native
+        # and flatpak).  All are scanned: a decayed setting in one must not hide a
+        # usable one in another.
+        config_dirs = self._siril_config_dirs()
+        ini_paths: list[Path] = []
+        for config_dir in config_dirs:
+            # Siril versions its config file (e.g. config.1.4.ini); check whichever exist.
+            ini_paths.extend(sorted(config_dir.glob("config.*.ini")))
+
         dangling: str | None = None
         saw_value = False
         for ini_path in ini_paths:
@@ -84,25 +163,35 @@ class StarnetTool(SirilTool):
             return False
 
         starnet_path = shutil.which("starnet2")
-        if starnet_path and ini_paths:
-            ini_path = ini_paths[-1]
-            parser = configparser.ConfigParser()
-            try:
-                parser.read(ini_path)
-                if not parser.has_section("core"):
-                    parser.add_section("core")
-                parser.set("core", "starnet_exe", str(Path(starnet_path).resolve()))
-                with ini_path.open("w", encoding="utf-8") as config_file:
-                    parser.write(config_file)
-            except (OSError, configparser.Error) as exc:
-                logger.warning("Unable to add starnet2 to Siril config %s: %s", ini_path, exc)
-            else:
-                logger.warning(
-                    "Added starnet2 at %s to the Siril config file %s",
-                    Path(starnet_path).resolve(),
-                    ini_path,
-                )
-                return True
+        ini_path = self._siril_config_to_write(config_dirs)
+        if not starnet_path or ini_path is None:
+            # Nothing is configured, and there is nothing we can do about it - but say
+            # where we looked, because "StarNet was not detected" is otherwise hard to
+            # tell apart from "we looked in the wrong place".
+            logger.debug(
+                "No starnet_exe set in any Siril config (%s); starnet2 was %s",
+                ", ".join(str(config_dir) for config_dir in config_dirs) or "no directory found",
+                "found on the PATH" if starnet_path else "not found on the PATH",
+            )
+            return False
+
+        parser = configparser.ConfigParser()
+        try:
+            parser.read(ini_path)
+            if not parser.has_section("core"):
+                parser.add_section("core")
+            parser.set("core", "starnet_exe", str(Path(starnet_path).resolve()))
+            with ini_path.open("w", encoding="utf-8") as config_file:
+                parser.write(config_file)
+        except (OSError, configparser.Error) as exc:
+            logger.warning("Unable to add starnet2 to Siril config %s: %s", ini_path, exc)
+        else:
+            logger.warning(
+                "Added starnet2 at %s to the Siril config file %s",
+                Path(starnet_path).resolve(),
+                ini_path,
+            )
+            return True
         return False
 
     @property

@@ -29,8 +29,8 @@ install-completion:
 # Install the starnet binaries
 install-starnet:
     #!/usr/bin/env bash
-    [ -f /usr/bin/starnet2 ] && exit 0
-    wget -O /tmp/starnet.deb https://download.starnetastro.com/StarNet2_linux_2.5.4-0214_ORT_x64.deb
+    [ -f s ] && exit 0
+    wget -O /tmp/starnet.deb https://download.starnetastro.com/StarNet2_linux_2.6.2-0241_ORT_x64.deb
     mkdir -p ~/packages
     sudo dpkg -i /tmp/starnet.deb
     rm /tmp/starnet.deb

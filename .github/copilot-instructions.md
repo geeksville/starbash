@@ -114,6 +114,12 @@ These rules help AI coding agents work effectively in this repo. Keep answers co
 
 ## External tool integration
 - **Siril**: executed via Flatpak `org.siril.Siril -d <workdir> -s -` (commands via stdin)
+- **StarNet** has no executable of its own - it is a Siril plugin. `StarnetTool` reports
+  what Siril is *configured* to run (`starnet_exe`), checked for real existence, and scans
+  both config homes: `~/.config/siril` (native/AppImage) and the flatpak sandbox's
+  `~/.var/app/org.siril.Siril/config/siril`, the install Starbash would run first. A
+  `starnet2` found on the PATH is written into the live directory's newest
+  `config.<version>.ini` (see `doc/plans/tool-warnings.md`).
 - **GraXpert**: invoked as `graxpert -cmd ...` (expects CLI on PATH)
 - Tools run in temp dirs with symlinked inputs; failures raise `RuntimeError`
 

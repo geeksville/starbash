@@ -64,8 +64,19 @@
   are unchanged: `ReindexView` and `ProcessingView` subclass the base and keep only their
   own painting.
 
+- **Integration CI** (`.github/workflows/integration.yml`, `workflow_dispatch` only):
+  the whole Linux/macOS/Windows matrix (`fail-fast: false`) installs native Siril and
+  StarNet2 per platform (`STARNET2_VERSION` pinned once; each install step ends by
+  asserting a runnable `starnet2`), pulls the image test-data in with `crane`, and runs
+  `poetry run pytest -m integration -n 0` against `STARBASH_TEST_DATA` /
+  `STARBASH_LOG_DIR`, posting `/tmp/process-auto.log` (or `%TEMP%\…`) into the job
+  summary and uploading both logs as artifacts.  Per-OS install paths, the Siril
+  `--version`/`TORCH` compatibility argument behind the version pin and the Linux
+  flatpak config caveat are recorded in `activeContext.md`.
+
 
 ## What's Left to Build
+
 
 - **Complete R3 migration** (in progress): route all three OSC stacking variants through `report_registration.toml`, remove `_update_ha_registration_metrics()` from `recipes/osc.py`, confirm per-variant `.seq` basenames (Phase 0 in `doc/design/report.md`).
 - **Merge `feat-report2`** branch WIP ("report2 plan", "wip") into `main`, or decide against it.
@@ -103,6 +114,16 @@ Bank was initialized on top of `21dac19` and extended since.
   `doc/plans/qt-object-lifetimes.md` guards their report is dropped safely rather than
   crashing, but the job's work is lost (and a job that writes files can still write
   them after `Starbash.close()`). The plan's *Open question* lays out the options.
+- ~~StarNet may be undetectable in the **Linux** integration job~~ — **fixed
+  2026-09-15.** flatpak Siril writes its `config.1.4.ini` inside its sandbox
+  (`~/.var/app/org.siril.Siril/config/siril/`) while `StarnetTool._siril_config_dir()`
+  (platformdirs) read only `~/.config/siril`, so the star-removal stage was skipped
+  there (macOS/Windows use native Siril and were unaffected; the integration tests
+  never assert on star removal, so it was silent).  `StarnetTool` now scans both
+  directories, preferring the one belonging to the Siril Starbash would run.  Still
+  unverified against a *real* flatpak run (none in this dev container — the tests
+  stub the sandbox layout), and the CI stage difference has not been re-measured:
+  see `activeContext.md` → the newest *Current work focus* section.
 
 ## Evolution of Project Decisions
 

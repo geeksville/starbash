@@ -73,6 +73,19 @@ Starbash never rewrites a non-blank `starnet_exe`: auto-configuration fills in a
 blank one only, so repairing a stale value stays the user's decision - the
 warning just tells them how.
 
+**Which config file is read (or written).**  Siril has two possible config homes,
+because a flatpak app cannot see `~/.config`: a native (distro/AppImage) install
+uses `~/.config/siril`, the flatpak app uses the config home inside its sandbox,
+`~/.var/app/org.siril.Siril/config/siril`.  `StarnetTool._siril_config_dirs()`
+returns both, putting the one belonging to the Siril Starbash would run first
+(`_siril_is_flatpak()`: the app id in the resolved executable, or in a
+`siril.path` override).  `_starnet_configured()` **scans every directory** - a
+dead path in one install must not hide a working setting in the other - while
+auto-configuration writes only into the live directory's newest
+`config.<version>.ini`, since a setting written into the other install's file may
+never be read.  Before this, only `~/.config/siril` was consulted, which is why
+StarNet went undetected on Linux, where Siril is usually the flatpak.
+
 ### `ToolStatus` (core)
 
 A frozen dataclass carrying everything a UI needs: `name`, `key`, `severity`,

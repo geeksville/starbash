@@ -1,5 +1,54 @@
 # Active Context
 
+## Current work focus — StarNet detection inside Siril's flatpak sandbox
+
+**Implemented 2026-09-15**, **not committed**.
+
+- **The gap.** `StarnetTool` read Siril's settings from one place — platformdirs'
+  `~/.config/siril` — so on Linux, where Siril is normally the flatpak app, the probe
+  looked at a directory that Siril cannot see: flatpak gives its sandbox a private
+  config home (`XDG_CONFIG_HOME=$HOME/.var/app/$FLATPAK_ID/config`), so
+  `config.<version>.ini` really lives in
+  `~/.var/app/org.siril.Siril/config/siril/`.  StarNet was therefore reported missing
+  (and the star-removal stage skipped) on exactly the install most Linux users have,
+  while macOS/Windows (native Siril) were fine — this closes the *Known issue* in
+  `progress.md` and the *Open question* under *Integration CI* below.
+- **`src/starbash/tool/starnet.py`** — `SIRIL_FLATPAK_APP_ID`;
+  `_siril_flatpak_config_dir()` (the sandbox XDG path), `_siril_is_flatpak()` (the app
+  id appears in the resolved `executable_path` — `SirilTool`'s candidate commands
+  include it — or in a `siril.path` override, guarded by `MissingToolError`), and
+  `_siril_config_dirs()`: **both** directories, the likely-live one first, de-duped,
+  returned whether or not they exist (so a probe can say where it looked).
+  `_starnet_configured()` scans every one of them — a dangling `starnet_exe` in one
+  install must not hide a usable one in the other — and a newly found `starnet2` is
+  written into the live directory's newest `config.*.ini` only
+  (`_siril_config_to_write()`), rather than into whichever file happened to sort last
+  in one directory's glob.  The miss path gained a `logger.debug` naming the
+  directories scanned and whether `starnet2` was on the PATH, since "StarNet was not
+  detected" was otherwise indistinguishable from "we looked in the wrong place".
+- **The write's *timing* is unchanged.** The preference order only decides which
+  existing file the auto-configuration fills in; a blank `starnet_exe` plus a
+  `starnet2` on the PATH still fills it, and a non-blank one is still never rewritten
+  (the deliberate side effect `tool-warnings.md` documents).
+- **Tests** (`tests/unit/test_tool.py`, 10 new cases in `TestStarnetTool`): a
+  flatpak-only config found (native dir present but empty), either directory's setting
+  honoured, a flatpak dangling path not hiding a native usable one, the write landing
+  in the flatpak file *and* inventing nothing in the other install's directory, only
+  the live directory written when both hold a config, the newest `config.*.ini`
+  version chosen, the diagnostic line, plus the search order itself (flatpak first for
+  an app-id/`siril.path`-overridden Siril, native first otherwise, and identical
+  directories not scanned twice).  `_make_tool()` now stubs `_siril_config_dirs`,
+  which also keeps a real Siril config on the developer's machine out of the result.
+- **Verified** (2026-09-15): `just lint` → *0 errors, 0 warnings, 0 notes*; full unit
+  suite **1253 passed, 1 skipped**.  The *real* methods (nothing stubbed but
+  `$HOME`) were also run against a temp home holding only the sandbox layout: both
+  directories came back, the flatpak `config.1.4.ini` was found and filled with the
+  `starnet2` from the PATH, and a value already set there was honoured.
+- **Not done**: still unverified against a real flatpak run (this container has no
+  flatpak), and the three-platform CI difference has not been re-measured.
+  `just install-starnet` still installs 2.5.4 while the integration CI pins 2.6.2
+  (pre-existing and unrelated — see the *Integration CI* note below).
+
 ## Current work focus — piped runs keep their log (`ui/cli_events.py`)
 
 **Implemented 2026-09-15**, **not committed**.
@@ -1107,17 +1156,53 @@ Open tabs / files being touched suggest active work in:
   Gates: `just lint` clean, and the three touched test modules pass
   (`70 passed, 1 skipped`; the toml-repo tests run in-process against the installed
   0.1.7, which is byte-identical to the submodule's `urls.py`).
-- **Integration CI is Linux-only for now, and installs StarNet2** — see
-  [`.github/workflows/integration.yml`](../../.github/workflows/integration.yml):
-  the matrix is now `os: [ubuntu-latest]`, and the macOS/Windows steps are kept
-  deliberately (their `if:` conditions simply never match) so re-enabling them is
-  a one-line change back in the matrix.  A new *Install StarNet2 (Linux)* step
-  fetches the same `StarNet2_linux_2.5.4-0214_ORT_x64.deb` as
-  `just install-starnet` (the package drops `/usr/bin/starnet2`), via `dpkg -i`
-  with `apt-get install -f -y` as the unmet-dependency fallback, then asserts
-  `command -v starnet2` — so a star-removal stage fails loudly at install time
-  instead of mid-run.  The deb is ~132 MiB and is downloaded on every run (no
-  cache step, unlike the pipx/flatpak trees).
+- **Integration CI runs the whole three-OS matrix, with StarNet2 installed on each** —
+  see [`.github/workflows/integration.yml`](../../.github/workflows/integration.yml):
+  the strategy is now `fail-fast: false` with `os: [ubuntu-latest, macos-latest,
+  windows-latest]`, so one platform's breakage can no longer cancel the others'
+  results.  All three install the *same* CLI release, pinned once in the job-level
+  `STARNET2_VERSION: "2.6.2-0241"` env var (bumped from the `2.5.4-0214` that
+  `just install-starnet` still gives the dev container) from
+  https://download.starnetastro.com/: Linux `.deb` (drops `/usr/bin/starnet2` +
+  `/usr/lib/starnet2`; `Depends: libc6, libstdc++6` only, installed exactly as
+  `just install-starnet` does), macOS `.pkg` (`/usr/local/bin/starnet2` +
+  `/usr/local/lib/starnet2`, the Apple-Silicon CoreML build via `sudo installer -pkg
+  … -target /`, behind an `uname -m` guard for a future Intel image) and the Windows
+  Inno Setup installer (`/VERYSILENT /NORESTART`; the binary lands in
+  `C:\Program Files\StarNet2\bin`, which the step adds to `GITHUB_PATH` because
+  Starbash resolves `starnet2` through the PATH).  Each step fails loudly if the
+  install produced no usable binary — `command -v starnet2` + `starnet2 --version`
+  on Linux/macOS, an exe search + `& starnet2 --version` on Windows.
+  **Why the version pin is safe** (so it need not be re-derived): the recipe runs
+  StarNet through Siril 1.4.x's deprecated C `starnet` command, and
+  `starnet_executablecheck()` (`src/filters/starnet.c`) classifies the CLI purely
+  from `starnet2 --version`: `"StarNet++ v2"` → `V2`, `" version:"` → `TORCH`.  Both
+  2.5.4 and 2.6.2 alike print that marker (`starnet2  version: 2.5.4` /
+  `starnet2  version: 2.6.2`), so we take the `TORCH` branch,
+  which passes `-i/-o/-m/-s/-u/-w` — all still present in 2.6.x.  2.6.0 did remove
+  `-e/--eight`, but Siril never passes it on that path.
+  Verified without a runner: the `.deb` extracted to `/tmp` and its binary run; the
+  `.pkg`'s XAR Payload listed with a small Python cpio scan (confirmed
+  `/usr/local/bin/starnet2` + the CoreML `.mlpackage`); the Windows step body
+  executed under PowerShell 7.6.6 with download/installer stubbed (URL string, exe
+  discovery, `GITHUB_PATH` write, installer-failure branch, cleanup); test-step
+  shell blocks through `bash -n`; and `actionlint` 1.7.7 clean on
+  `.github/workflows/`.
+  **Resolved 2026-09-15** (was an open question): flatpak Siril on Linux keeps its
+  config *inside* its sandbox
+  (`~/.var/app/org.siril.Siril/config/siril/config.1.4.ini`) while
+  `StarnetTool._siril_config_dir()` read only `~/.config/siril`, so StarNet could be
+  detected on macOS/Windows (native Siril; GLib's config dir matches platformdirs'
+  on both — LocalAppData on Windows, `~/Library/Application Support` on macOS) and
+  *skipped* on Linux.  Nothing asserts on star removal
+  (`tests/integration/test_workflow.py` only wants exit 0 and ≥10 `Success` rows), so
+  the run stayed green either way — but the three platforms exercised different
+  stages.  `StarnetTool` now scans the flatpak directory as well, preferring whichever
+  install Starbash would actually run, so the Linux job detects the `starnet2` it
+  installs; see the newest *Current work focus* section at the top of this file.  Two
+  things remain unmeasured: no flatpak exists in this dev container, so the fix is
+  verified against a stubbed sandbox layout rather than a real flatpak Siril, and the
+  three-platform stage difference has not been re-measured on a CI run.
 - **Up-to-date skips are no longer reported as failures** — see the section at the
   top of this file: `ResultSummary` (new, `run_state.py`) buckets doit's tri-state
   `success`, so `success=None` counts as *up-to-date* instead of failed, and

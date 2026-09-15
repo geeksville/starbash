@@ -69,7 +69,14 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   which logs at a severity-matched level (error/warning/debug), and the GUI adds a
   dismissible warning bar per missing tool (`ui/qt/widgets/tool_warning.py`). A
   `tool.<key>.ignored = true` entry in the user config (written by the GUI's
-  *Ignore* button) silences both. See `doc/plans/tool-warnings.md`.
+  *Ignore* button) silences both. See `doc/plans/tool-warnings.md`. StarNet is the
+  special case: it has no executable of its own, so `StarnetTool` reports what Siril
+  is configured to run and scans **both** of Siril's config homes — platformdirs'
+  `~/.config/siril` and the flatpak sandbox's
+  `~/.var/app/org.siril.Siril/config/siril` (`_siril_config_dirs()`, the install
+  Starbash would run first). A `starnet2` found on the PATH is written into the live
+  directory's newest `config.<version>.ini`; a non-blank `starnet_exe` is never
+  rewritten, and a dangling one counts as missing.
 - **Paths**: `src/starbash/paths.py` — platformdirs-based; override in tests via
   `paths.set_test_directories(...)`.
 - **Events**: `src/starbash/events.py` — dependency-free pub/sub bus. The core

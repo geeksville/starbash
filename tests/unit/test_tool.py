@@ -1350,10 +1350,11 @@ class TestVeraluxFilter:
 class TestStarnetTool:
     """Tests for StarnetTool.is_available (Siril StarNet plugin detection)."""
 
-    def _make_config(self, tmp_path: Path, starnet_exe: str) -> Path:
-        config_dir = tmp_path / "siril"
-        config_dir.mkdir()
-        (config_dir / "config.1.4.ini").write_text(
+    def _make_config(self, parent: Path, starnet_exe: str, version: str = "1.4") -> Path:
+        """Create a Siril config directory under ``parent`` holding one versioned config file."""
+        config_dir = parent / "siril"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / f"config.{version}.ini").write_text(
             f"[core]\nextension=.fit\nstarnet_exe={starnet_exe}\n"
         )
         return config_dir
@@ -1366,15 +1367,24 @@ class TestStarnetTool:
         executable.write_text("starnet")
         return executable
 
-    def _make_tool(self, monkeypatch, config_dir: Path, siril_available: bool):
+    def _new_tool(self, monkeypatch, siril_available: bool = True):
+        """A tool with its real config-directory search in place (the two OS paths stubbed)."""
         from starbash.tool import base, starnet
 
         tool = starnet.StarnetTool()
-        monkeypatch.setattr(tool, "_siril_config_dir", lambda: config_dir)
         # Force the base ExternalTool availability probe to a known value.
         monkeypatch.setattr(
             base.ExternalTool, "is_available", property(lambda self: siril_available)
         )
+        return tool
+
+    def _make_tool(self, monkeypatch, config_dirs: Path | list[Path], siril_available: bool):
+        tool = self._new_tool(monkeypatch, siril_available)
+        # Give the probe a fixed directory list.  Besides letting a test pick the
+        # native/flatpak search order, this keeps a real Siril config on the machine
+        # running the tests out of the result.
+        dirs = [config_dirs] if isinstance(config_dirs, Path) else list(config_dirs)
+        monkeypatch.setattr(tool, "_siril_config_dirs", lambda: dirs)
         return tool
 
     def test_available_when_starnet_configured(self, tmp_path, monkeypatch):
@@ -1488,6 +1498,180 @@ class TestStarnetTool:
         monkeypatch.setattr(tool, "_starnet_configured", counting)
         assert tool.is_available is True
         assert calls["n"] == 0  # cached, not re-probed
+
+    # --- which Siril config directory is read and written ----------------------
+
+    def test_flatpak_config_is_scanned(self, tmp_path, monkeypatch):
+        """A flatpak Siril reads its config from inside its sandbox.
+
+        This is the gap the probe used to have: flatpak gives Siril a private config
+        home (``~/.var/app/org.siril.Siril/config/siril``), so reading only
+        ``~/.config/siril`` reported StarNet as unconfigured for a flatpak user even
+        when Siril was perfectly able to run it.
+        """
+        executable = self._make_exe(tmp_path)
+        flatpak_dir = self._make_config(tmp_path / "flatpak", str(executable))
+        # The native directory exists (Siril was run once as a distro package) but
+        # holds no config file of its own.
+        native_dir = tmp_path / "native" / "siril"
+        native_dir.mkdir(parents=True)
+
+        tool = self._make_tool(monkeypatch, [flatpak_dir, native_dir], siril_available=True)
+        assert tool.is_available is True
+
+    def test_setting_in_either_directory_is_honoured(self, tmp_path, monkeypatch):
+        """Every directory is read, so neither install hides the other's setting."""
+        executable = self._make_exe(tmp_path)
+
+        native_dir = self._make_config(tmp_path / "native", "")
+        flatpak_dir = self._make_config(tmp_path / "flatpak", str(executable))
+        tool = self._make_tool(monkeypatch, [native_dir, flatpak_dir], siril_available=True)
+        assert tool.is_available is True
+
+        native_dir = self._make_config(tmp_path / "native2", str(executable))
+        flatpak_dir = self._make_config(tmp_path / "flatpak2", "")
+        tool = self._make_tool(monkeypatch, [flatpak_dir, native_dir], siril_available=True)
+        assert tool.is_available is True
+
+    def test_a_dangling_setting_does_not_hide_a_usable_one(self, tmp_path, monkeypatch):
+        """One directory holding a dead path must not mask the other's live one."""
+        executable = self._make_exe(tmp_path)
+        flatpak_dir = self._make_config(tmp_path / "flatpak", str(tmp_path / "gone" / "starnet2"))
+        native_dir = self._make_config(tmp_path / "native", str(executable))
+        tool = self._make_tool(monkeypatch, [flatpak_dir, native_dir], siril_available=True)
+        monkeypatch.setattr("shutil.which", lambda name: None)
+
+        assert tool.is_available is True
+
+    def test_flatpak_config_is_where_a_found_starnet_is_recorded(self, tmp_path, monkeypatch):
+        """The live directory is the one written to - the flatpak one here.
+
+        Siril has to be *told* about a ``starnet2`` Starbash found on the PATH, and
+        for the flatpak app that setting is only read from its sandbox config.
+        """
+        executable = self._make_exe(tmp_path)
+        flatpak_dir = self._make_config(tmp_path / "flatpak", "")
+        native_dir = tmp_path / "native" / "siril"
+        tool = self._make_tool(monkeypatch, [flatpak_dir, native_dir], siril_available=True)
+        monkeypatch.setattr("shutil.which", lambda name: str(executable))
+
+        assert tool.is_available is True
+
+        parser = configparser.ConfigParser()
+        parser.read(flatpak_dir / "config.1.4.ini")
+        assert parser.get("core", "starnet_exe") == str(executable.resolve())
+        # The other install's directory is left completely alone (no file invented).
+        assert not (native_dir / "config.1.4.ini").exists()
+
+    def test_only_the_live_directory_is_written_to(self, tmp_path, monkeypatch):
+        """With a config file in both directories, only the first one is filled in."""
+        executable = self._make_exe(tmp_path)
+        native_dir = self._make_config(tmp_path / "native", "")
+        flatpak_dir = self._make_config(tmp_path / "flatpak", "")
+        tool = self._make_tool(monkeypatch, [flatpak_dir, native_dir], siril_available=True)
+        monkeypatch.setattr("shutil.which", lambda name: str(executable))
+
+        assert tool.is_available is True
+
+        flatpak_parser = configparser.ConfigParser()
+        flatpak_parser.read(flatpak_dir / "config.1.4.ini")
+        assert flatpak_parser.get("core", "starnet_exe") == str(executable.resolve())
+        native_parser = configparser.ConfigParser()
+        native_parser.read(native_dir / "config.1.4.ini")
+        assert native_parser.get("core", "starnet_exe") == ""
+
+    def test_newest_config_version_in_the_live_directory_is_used(self, tmp_path, monkeypatch):
+        """Siril reads the config file matching its own version, so the newest wins."""
+        executable = self._make_exe(tmp_path)
+        flatpak_dir = self._make_config(tmp_path / "flatpak", "", version="1.2")
+        self._make_config(tmp_path / "flatpak", "", version="1.4")
+        native_dir = self._make_config(tmp_path / "native", "")
+        tool = self._make_tool(monkeypatch, [flatpak_dir, native_dir], siril_available=True)
+        monkeypatch.setattr("shutil.which", lambda name: str(executable))
+
+        assert tool.is_available is True
+
+        newer = configparser.ConfigParser()
+        newer.read(flatpak_dir / "config.1.4.ini")
+        assert newer.get("core", "starnet_exe") == str(executable.resolve())
+        older = configparser.ConfigParser()
+        older.read(flatpak_dir / "config.1.2.ini")
+        assert older.get("core", "starnet_exe") == ""
+
+    def test_probe_logs_the_directories_it_looked_in(self, tmp_path, monkeypatch, caplog):
+        """A probe stays silent, except for the diagnostic that explains a miss."""
+        flatpak_dir = tmp_path / "flatpak" / "siril"
+        native_dir = tmp_path / "native" / "siril"
+        tool = self._make_tool(monkeypatch, [flatpak_dir, native_dir], siril_available=True)
+        monkeypatch.setattr("shutil.which", lambda name: None)
+
+        with caplog.at_level(logging.DEBUG):
+            assert tool.is_available is False
+
+        assert str(flatpak_dir) in caplog.text
+        assert str(native_dir) in caplog.text
+        assert "not found on the PATH" in caplog.text
+
+    # --- the directory search itself -------------------------------------------
+
+    def _make_search_tool(self, monkeypatch, native: Path, flatpak: Path, siril_command: str):
+        """A tool that exercises the *real* search, with its two OS paths stubbed."""
+        from starbash.tool import starnet
+
+        monkeypatch.setattr(
+            starnet.StarnetTool, "executable_path", property(lambda self: siril_command)
+        )
+        tool = self._new_tool(monkeypatch)
+        monkeypatch.setattr(tool, "_siril_config_dir", lambda: native)
+        monkeypatch.setattr(tool, "_siril_flatpak_config_dir", lambda: flatpak)
+        return tool
+
+    def test_flatpak_directory_is_preferred_for_a_flatpak_siril(self, tmp_path, monkeypatch):
+        from starbash.tool import starnet
+
+        native = tmp_path / "config" / "siril"
+        flatpak = tmp_path / "sandbox" / "config" / "siril"
+        monkeypatch.setitem(starnet.Tool.Preferences, "siril", {})
+        tool = self._make_search_tool(monkeypatch, native, flatpak, starnet.SIRIL_FLATPAK_APP_ID)
+
+        # The sandbox directory comes first, so a StarNet we discover is recorded in
+        # the config file the flatpak Siril actually reads.
+        assert tool._siril_config_dirs() == [flatpak, native]
+
+    def test_native_directory_is_preferred_for_a_native_siril(self, tmp_path, monkeypatch):
+        from starbash.tool import starnet
+
+        native = tmp_path / "config" / "siril"
+        flatpak = tmp_path / "sandbox" / "config" / "siril"
+        monkeypatch.setitem(starnet.Tool.Preferences, "siril", {})
+        tool = self._make_search_tool(monkeypatch, native, flatpak, "siril-cli")
+
+        # Both are still searched - a user who migrated to flatpak keeps an old native
+        # config around, and it must not become the one that gets written to.
+        assert tool._siril_config_dirs() == [native, flatpak]
+
+    def test_siril_path_override_marks_the_flatpak(self, tmp_path, monkeypatch):
+        """``userconfig.toml`` documents naming the flatpak launcher in ``siril.path``."""
+        from starbash.tool import starnet
+
+        native = tmp_path / "config" / "siril"
+        flatpak = tmp_path / "sandbox" / "config" / "siril"
+        # The resolved command is a plain one: only the override says "flatpak".
+        tool = self._make_search_tool(monkeypatch, native, flatpak, "siril-cli")
+        monkeypatch.setitem(
+            starnet.Tool.Preferences,
+            "siril",
+            {"path": "flatpak run --command=siril-cli org.siril.Siril"},
+        )
+
+        assert tool._siril_config_dirs() == [flatpak, native]
+
+    def test_identical_directories_are_not_scanned_twice(self, tmp_path, monkeypatch):
+        """Both names can resolve to one directory (an XDG config inside a sandbox)."""
+        same = tmp_path / "siril"
+        tool = self._make_search_tool(monkeypatch, same, same, "siril-cli")
+
+        assert tool._siril_config_dirs() == [same]
 
 
 class TestRecipeParameterDefaults:
