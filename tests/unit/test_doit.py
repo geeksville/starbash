@@ -18,6 +18,7 @@ from starbash.doit import (
     my_builtin_task,
 )
 from starbash.exception import FilesystemUnavailableError
+from starbash.url import make_file_url
 
 
 @pytest.fixture(autouse=True)
@@ -288,3 +289,39 @@ class TestDoitIntegration:
         captured = capsys.readouterr()
         # Should show an error message
         assert len(captured.err) > 0
+
+
+class TestFileInfoRichLinks:
+    """Tests for FileInfo.rich_links - the clickable output links in the run tree."""
+
+    def test_link_is_a_file_uri_for_the_output(self, tmp_path):
+        """The link must be a URI, so a Windows path cannot leak backslashes into it."""
+        frame = tmp_path / "cam" / "bias" / "master_bias.fit"
+        frame.parent.mkdir(parents=True)
+        frame.touch()
+        info = FileInfo(base=str(tmp_path), full=frame, relative="cam/bias/master_bias.fit")
+
+        (link,) = info.rich_links
+
+        assert link == f"[link={make_file_url(frame)}]cam/bias/master_bias.fit[/link]"
+        assert "\\" not in link
+
+    def test_image_rows_link_each_file(self, tmp_path):
+        """A sequence lists one link per frame, each pointing at its own absolute path."""
+        first = tmp_path / "light_0001.fits"
+        second = tmp_path / "light_0002.fits"
+        info = FileInfo(
+            base=str(tmp_path),
+            full=tmp_path / "light_0001.fits",
+            image_rows=[
+                {"abspath": str(first), "path": "light_0001.fits"},
+                {"abspath": str(second), "path": "light_0002.fits"},
+            ],
+        )
+
+        links = info.rich_links
+
+        assert links == [
+            f"[link={make_file_url(first)}]light_0001.fits[/link]",
+            f"[link={make_file_url(second)}]light_0002.fits[/link]",
+        ]

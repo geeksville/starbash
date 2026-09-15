@@ -28,6 +28,7 @@ from PySide6.QtWidgets import QTableWidgetItem, QTreeWidgetItem
 
 from starbash.ui.qt.models import LINK_ROLE
 from starbash.ui.qt.widgets.hover_preview import HoverPreview
+from starbash.url import path_from_file_url
 
 __all__ = ["LINK_ROLE", "set_link", "open_link", "open_with_status", "LinkDecorator"]
 
@@ -72,12 +73,18 @@ def set_link(item: QTreeWidgetItem | QTableWidgetItem, column: int, url: object)
 
 
 def _folder_for(url: QUrl) -> Path | None:
-    """The containing folder of a local file URL (or the folder itself)."""
-    if url.isLocalFile():
-        path = Path(url.toLocalFile())
-    elif url.toString().startswith("file://"):
-        path = Path(url.toString()[len("file://") :])
-    else:
+    """The containing folder of a local file URL (or the folder itself).
+
+    The URL is parsed by :func:`starbash.url.path_from_file_url`, deliberately
+    *not* by Qt.  Qt "rescues" the legacy ``file://C:\\dir`` spelling by decoding
+    it to a path that is not absolute (``file://\\tmp\\x`` becomes
+    ``file:%5C%5C%5Ctmp%5Cx``), whose parent is ``''`` -- i.e. the process's
+    working directory, which "exists", so the folder fallback would offer to open
+    an unrelated directory.  A URL the canonical parser refuses maps to no folder.
+    """
+    try:
+        path = path_from_file_url(url.toString())
+    except ValueError:
         return None
     folder = path if path.is_dir() else path.parent
     return folder if folder.exists() else None

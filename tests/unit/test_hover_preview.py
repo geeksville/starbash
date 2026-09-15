@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (  # noqa: E402
 from starbash.ui.qt.models import LINK_ROLE  # noqa: E402
 from starbash.ui.qt.widgets import hover_preview as hp  # noqa: E402
 from starbash.ui.qt.widgets.file_links import set_link  # noqa: E402
+from starbash.url import make_file_url  # noqa: E402
 
 pytestmark = pytest.mark.gui
 
@@ -127,6 +128,29 @@ def test_local_path_decodes_a_percent_escaped_file_url(tmp_path):
     path = tmp_path / "my notes.txt"
     path.write_text("hi", encoding="utf-8")
     assert hp.local_path(path.as_uri()) == path
+
+
+@pytest.mark.parametrize("name", ["a b.txt", "hash#tag.txt", "q?mark.txt", "amp&and.txt"])
+def test_local_path_reads_every_kind_of_canonical_file_url(tmp_path, name):
+    """A URL Starbash produced opens the file it was built for.
+
+    The characters here are the ones a fragment/query split would truncate -- the
+    reason :func:`starbash.url.make_file_url` percent-encodes rather than pasting
+    a raw path after ``file://``.  ``#`` and ``?`` in particular must not turn
+    into a fragment or a query.
+    """
+    path = tmp_path / name
+    path.write_text("hi", encoding="utf-8")
+
+    assert hp.local_path(make_file_url(path)) == path
+
+
+def test_local_path_rejects_a_legacy_hand_built_url(tmp_path):
+    """A ``file://C:\\...`` URL is refused rather than resolved to a wrong path."""
+    path = tmp_path / "frame.fits"
+    path.write_bytes(b"x")
+
+    assert hp.local_path(f"file://{path}".replace("/", "\\")) is None
 
 
 # --- popup -----------------------------------------------------------------

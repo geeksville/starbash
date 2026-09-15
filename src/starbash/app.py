@@ -48,6 +48,7 @@ from starbash.score import ScoredCandidate, score_candidates
 from starbash.selection import Selection, build_search_conditions
 from starbash.toml import toml_from_template
 from starbash.tool import init_tools
+from starbash.url import make_file_url
 from starbash.windows import windows_init
 
 critical_keys = [Database.DATE_OBS_KEY, Database.IMAGETYP_KEY]
@@ -216,7 +217,7 @@ class Starbash:
         submodule_path = Path(__file__).parent.parent.parent / "starbash-recipes"
         if submodule_path.exists():
             logging.info(f"Using local recipes from {submodule_path}")
-            self.repo_manager.add_repo(f"file://{submodule_path}")
+            self.repo_manager.add_repo(make_file_url(submodule_path))
             return True
         return False
 
@@ -226,7 +227,7 @@ class Starbash:
         self.repo_manager.add_repo("pkg://defaults")
 
         # Add user prefs as a repo
-        self.user_repo = self.repo_manager.add_repo("file://" + str(create_user()))
+        self.user_repo = self.repo_manager.add_repo(make_file_url(create_user()))
 
         # We always need at least one set of recipes.  If the user hasn't specified one use the default.
         if self.repo_manager.get_repo_by_kind("std-recipe") is None:
@@ -649,18 +650,27 @@ class Starbash:
 
     def _find_user_repo_ref(self, url: str) -> dict | None:
         """
-        Find the user configuration ``[[repo-ref]]`` entry matching a repository URL.
+        Find the user configuration ``[[repo-ref]]`` entry matching a repository.
 
         Args:
-            url: The repository URL to look for (e.g., 'file:///path/to/repo')
+            url: The repository URL or directory to look for.  Both are accepted,
+                because the CLI passes whatever the user typed on the command line
+                (a number, a path or a URL) and the GUI passes the URL from its
+                repository table.  (e.g., 'file:///path/to/repo')
 
         Returns:
             The matching repo-ref entry, or None if the URL is not user configured.
         """
         for ref in self.user_repo.config.get("repo-ref", []):
             ref_dir = ref.get("dir", "")
-            # Match by converting to file:// URL format if needed
-            if ref_dir and (ref_dir == url or f"file://{ref_dir}" == url):
+            if not ref_dir:
+                continue
+            # ``dir`` is always recorded as a plain filesystem path
+            # (Repo.add_repo_ref writes str(path)), so compare paths directly and
+            # fall back to the canonical URL -- that is the spelling Starbash
+            # stores elsewhere, and on Windows it differs far more than the
+            # "file://" prefix (file:///C:/data vs file://C:\data).
+            if ref_dir == url or make_file_url(ref_dir) == url:
                 return ref
         return None
 

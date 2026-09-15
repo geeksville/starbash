@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 from starbash import paths
 from starbash.database import Database, get_column_name
 from starbash.main import app
+from starbash.url import make_file_url
 
 # Configure CliRunner to disable Rich formatting by setting NO_COLOR env var
 # This makes Rich automatically disable all ANSI codes and formatting
@@ -336,7 +337,7 @@ def test_repo_remove_by_url(setup_test_environment, tmp_path):
     assert add_result.exit_code == 0
 
     # Remove by URL
-    repo_url = f"file://{test_repo}"
+    repo_url = make_file_url(test_repo)
     remove_result = runner.invoke(app, ["repo", "remove", repo_url])
     assert remove_result.exit_code == 0
     assert "Removed repository" in remove_result.stdout
@@ -356,7 +357,7 @@ def test_repo_reindex_by_url(setup_test_environment, tmp_path):
     assert add_result.exit_code == 0
 
     # Reindex by URL
-    repo_url = f"file://{test_repo}"
+    repo_url = make_file_url(test_repo)
     result = runner.invoke(app, ["repo", "reindex", repo_url])
     assert result.exit_code == 0
     assert "Successfully reindexed" in result.stdout

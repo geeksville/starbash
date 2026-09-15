@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, call, patch
+from urllib.parse import urlparse
 
 import pytest
 import typer
@@ -12,6 +13,7 @@ from starbash import events, paths
 from starbash.app import Starbash, copy_images_to_dir, create_user, setup_logging
 from starbash.database import Database, get_column_name
 from starbash.selection import Selection
+from starbash.url import make_file_url
 
 
 class TestCreateUser:
@@ -581,7 +583,7 @@ class TestGetSessionImages:
             repo_dir = setup_test_environment["tmp_path"] / "image_repo"
             repo_dir.mkdir()
             (repo_dir / "starbash.toml").write_text("[repo]\nkind = 'images'\n")
-            repo = app.repo_manager.add_repo(f"file://{repo_dir}")
+            repo = app.repo_manager.add_repo(make_file_url(repo_dir))
 
             # Add an image
             image = {
@@ -656,7 +658,7 @@ class TestRemoveRepoRef:
             app.user_repo.add_repo_ref(app.repo_manager, test_repo)
 
             # Remove it
-            app.remove_repo_ref(f"file://{test_repo}")
+            app.remove_repo_ref(make_file_url(test_repo))
 
             # Verify it's gone
             repo_refs = app.user_repo.config.get("repo-ref", [])
@@ -695,7 +697,7 @@ class TestRemoveRepoRef:
             app.user_repo.add_repo_ref(app.repo_manager, added_repo)
 
             # A repo the user added is removable, by dir or by URL.
-            assert app.is_repo_removable(f"file://{added_repo}") is True
+            assert app.is_repo_removable(make_file_url(added_repo)) is True
             assert app.is_repo_removable(str(added_repo)) is True
 
             # The ones Starbash manages for the user are not.
@@ -704,6 +706,35 @@ class TestRemoveRepoRef:
             assert app.is_repo_removable(recipes.url) is False
             assert app.is_repo_removable("pkg://defaults") is False
             assert app.is_repo_removable(app.user_repo.url) is False
+
+    def test_user_repo_url_is_a_canonical_file_url(self, setup_test_environment, mock_analytics):
+        """The preferences repo URL is a real URI, not the hand-built spelling."""
+        with Starbash() as app:
+            assert app.user_repo.url == make_file_url(create_user())
+            parsed = urlparse(app.user_repo.url)
+            assert parsed.scheme == "file"
+            assert "\\" not in app.user_repo.url
+
+    def test_legacy_hand_built_repo_url_is_not_removable(
+        self, setup_test_environment, mock_analytics
+    ):
+        """A repo URL in the old hand-built spelling does not name the same repo.
+
+        ``f"file://{path}"`` puts the filesystem path in the URL *authority*
+        (``file://C:\\dir``), which is a different URL from the canonical
+        ``file:///C:/dir`` Starbash records.  That spelling is deliberately not
+        translated - a repository recorded by an old version has to be re-added.
+        """
+        with Starbash() as app:
+            added_repo = setup_test_environment["tmp_path"] / "added_repo"
+            added_repo.mkdir()
+            added_repo.joinpath("starbash.toml").write_text("[repo]\nkind = 'test'\n")
+            app.user_repo.add_repo_ref(app.repo_manager, added_repo)
+
+            legacy = "file://" + str(added_repo).replace("/", "\\")
+
+            assert legacy != make_file_url(added_repo)
+            assert app.is_repo_removable(legacy) is False
 
     def test_remove_managed_repo_keeps_its_indexed_rows(
         self, setup_test_environment, mock_analytics
@@ -714,7 +745,7 @@ class TestRemoveRepoRef:
         with Starbash() as app:
             managed_repo = setup_test_environment["tmp_path"] / "managed_repo"
             managed_repo.mkdir()
-            url = f"file://{managed_repo}"
+            url = make_file_url(managed_repo)
             # Indexed like any other repo, but never recorded in the user config.
             app.db.upsert_repo(url)
             assert app.db.get_repo_id(url) is not None
@@ -748,7 +779,7 @@ class TestReindexRepo:
             recipe_repo.mkdir()
             (recipe_repo / "starbash.toml").write_text("[repo]\nkind = 'recipe'\n")
 
-            repo = app.repo_manager.add_repo(f"file://{recipe_repo}")
+            repo = app.repo_manager.add_repo(make_file_url(recipe_repo))
 
             # Should skip it
             app.reindex_repo(repo)
@@ -772,13 +803,13 @@ class TestReindexRepo:
             hdu.header["OBJECT"] = "M31"
             astropy_fits.HDUList([hdu]).writeto(fits_file, overwrite=True)
 
-            repo = app.repo_manager.add_repo(f"file://{test_repo}")
+            repo = app.repo_manager.add_repo(make_file_url(test_repo))
 
             # Reindex
             app.reindex_repo(repo)
 
             # Verify image was added to database
-            image = app.db.get_image(f"file://{test_repo}", "test.fit")
+            image = app.db.get_image(make_file_url(test_repo), "test.fit")
             assert image is not None
             assert image["FILTER"] == "Ha"
 
@@ -804,11 +835,11 @@ class TestReindexRepo:
             hdu.header["FILTER"] = "Ha"
             astropy_fits.HDUList([hdu]).writeto(fits_file, overwrite=True)
 
-            repo = app.repo_manager.add_repo(f"file://{test_repo}")
+            repo = app.repo_manager.add_repo(make_file_url(test_repo))
 
             app.reindex_repo(repo)  # used to raise sqlite3.IntegrityError
 
-            assert app.db.get_image(f"file://{test_repo}", "notelescope.fit") is not None
+            assert app.db.get_image(make_file_url(test_repo), "notelescope.fit") is not None
             sessions = app.db.search_session()
             assert len(sessions) == 1
             # An unknown telescope is recorded as "" rather than aborting the scan.
@@ -837,13 +868,13 @@ class TestReindexRepo:
             create_fits_file(included_file)
             create_fits_file(ignored_file)
 
-            repo = app.repo_manager.add_repo(f"file://{test_repo}")
+            repo = app.repo_manager.add_repo(make_file_url(test_repo))
 
             with caplog.at_level("WARNING"):
                 app.reindex_repo(repo)
 
-            assert app.db.get_image(f"file://{test_repo}", "included.fit") is not None
-            assert app.db.get_image(f"file://{test_repo}", ".sbignore/ignored.fit") is None
+            assert app.db.get_image(make_file_url(test_repo), "included.fit") is not None
+            assert app.db.get_image(make_file_url(test_repo), ".sbignore/ignored.fit") is None
             assert f'Skipping "{ignored_file}"' in caplog.text
 
     def test_reindex_repo_with_force(self, setup_test_environment, mock_analytics, monkeypatch):
@@ -863,7 +894,7 @@ class TestReindexRepo:
             hdu.header["FILTER"] = "Ha"
             astropy_fits.HDUList([hdu]).writeto(fits_file, overwrite=True)
 
-            repo = app.repo_manager.add_repo(f"file://{test_repo}")
+            repo = app.repo_manager.add_repo(make_file_url(test_repo))
 
             # Index once
             app.reindex_repo(repo)
@@ -879,7 +910,7 @@ class TestReindexRepo:
             app.reindex_repo(repo)
 
             # Verify the change was picked up
-            image = app.db.get_image(f"file://{test_repo}", "test.fit")
+            image = app.db.get_image(make_file_url(test_repo), "test.fit")
             assert image is not None
             assert image["FILTER"] == "OIII"
 
@@ -895,7 +926,7 @@ class TestReindexRepo:
             fits_file = test_repo / "bad.fit"
             fits_file.write_text("This is not a FITS file")
 
-            repo = app.repo_manager.add_repo(f"file://{test_repo}")
+            repo = app.repo_manager.add_repo(make_file_url(test_repo))
 
             # The corrupt file is skipped (and logged) rather than aborting the scan
             with caplog.at_level("ERROR"):

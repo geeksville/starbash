@@ -19,6 +19,7 @@ pytest.importorskip("PySide6")
 from starbash import events  # noqa: E402
 from starbash.ui.qt.pages.repositories import ADD_KINDS, RepositoriesPage  # noqa: E402
 from starbash.ui.qt.services import load_repos  # noqa: E402
+from starbash.url import make_file_url  # noqa: E402
 
 pytestmark = pytest.mark.gui
 
@@ -56,7 +57,7 @@ def input_repo(app_context, tmp_path: Path) -> str:
     repo_dir = (tmp_path / "lights").resolve()
     repo_dir.mkdir()
     app_context.add_local_repo(str(repo_dir))
-    return f"file://{repo_dir}"
+    return make_file_url(repo_dir)
 
 
 def _kind_index(kind: str | None) -> int:

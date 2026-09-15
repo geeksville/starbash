@@ -34,7 +34,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QSize, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QEvent, QObject, QPoint, QRect, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QGuiApplication, QImage, QMouseEvent, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
@@ -50,6 +50,7 @@ from PySide6.QtWidgets import (
 from starbash.ui.qt.widgets.busy_indicator import BusyIndicator
 from starbash.ui.qt.widgets.image_viewer import load_image_file
 from starbash.ui.qt.workers import run_async
+from starbash.url import path_from_file_url
 
 logger = logging.getLogger(__name__)
 
@@ -170,15 +171,17 @@ def local_path(url: str | None) -> Path | None:
 
     ``http(s)`` (and any other non-file scheme) has no local path, and a path that
     does not point at a real file is treated the same way.
+
+    The URL is parsed by :func:`starbash.url.path_from_file_url` and never by Qt
+    or a ``url[7:]`` slice, so a URL the canonical parser refuses (the legacy
+    ``file://C:\\dir`` spelling, or a relative one) previews nothing rather than
+    resolving to some other file.
     """
     if not url:
         return None
-    parsed = QUrl(url)
-    if parsed.isLocalFile():
-        candidate = Path(parsed.toLocalFile())
-    elif url.startswith("file://"):
-        candidate = Path(url[len("file://") :])
-    else:
+    try:
+        candidate = path_from_file_url(url)
+    except ValueError:
         return None
     return candidate if candidate.is_file() else None
 

@@ -17,10 +17,12 @@ try:  # Probe Qt startup once, so an unusable Qt skips rather than erroring.
 except Exception as _qt_error:  # pragma: no cover - environment dependent
     pytest.skip(f"Qt cannot start here: {_qt_error}", allow_module_level=True)
 
+from PySide6.QtCore import QUrl  # noqa: E402
 from PySide6.QtWidgets import QTreeWidgetItem  # noqa: E402
 
 from starbash.ui.qt.models import LINK_ROLE  # noqa: E402
 from starbash.ui.qt.widgets import file_links  # noqa: E402
+from starbash.url import make_file_url  # noqa: E402
 
 pytestmark = pytest.mark.gui
 
@@ -101,6 +103,30 @@ def test_open_link_reports_failure_when_nothing_opens(tmp_path, monkeypatch):
     monkeypatch.setattr(file_links, "QDesktopServices", fake)
 
     assert file_links.open_link(path.as_uri()) is False
+
+
+def test_folder_for_refuses_a_legacy_hand_built_file_url(tmp_path):
+    """A hand-built ``file://C:\\...`` URL maps to no folder at all.
+
+    Qt cannot read that spelling either, and guessing (treating the URL authority
+    as a UNC share) would offer a location that does not exist -- see
+    :mod:`starbash.url`.
+    """
+    legacy = f"file://{tmp_path}".replace("/", "\\")
+
+    assert file_links._folder_for(QUrl(legacy)) is None
+
+
+def test_folder_for_reads_a_hash_in_a_file_name(tmp_path):
+    """A ``#`` in a name is not a URL fragment, so the folder is still found.
+
+    This is what the ``as_uri()`` encoding in :func:`starbash.url.make_file_url`
+    buys: a raw path pasted after ``file://`` would truncate at the ``#``.
+    """
+    path = tmp_path / "café#1.fit"
+    path.write_bytes(b"x")
+
+    assert file_links._folder_for(QUrl(make_file_url(path))) == tmp_path
 
 
 def test_open_with_status_reports_the_outcome(tmp_path, monkeypatch):

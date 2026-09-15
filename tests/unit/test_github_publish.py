@@ -56,6 +56,21 @@ def test_collect_site_files_skips_metadata_caches_and_blacklisted_prefixes(tmp_p
     ]
 
 
+def test_collect_site_files_orders_files_the_same_on_every_platform(tmp_path):
+    """The order is the site-relative posix path, not the platform's path ordering.
+
+    Sorting the ``Path`` objects directly is case-*insensitive* on Windows, which
+    reordered the site (and made the upload order differ per platform), so the
+    case-sensitive posix path is what the sort key uses.
+    """
+    (tmp_path / "Zebra.txt").write_text("z")
+    (tmp_path / "apple.txt").write_text("a")
+
+    files = collect_site_files(tmp_path)
+
+    assert [path.name for path in files] == ["Zebra.txt", "apple.txt"]
+
+
 def test_upload_blobs_use_at_most_four_workers_and_keep_every_file(tmp_path):
     """Independent blob requests run concurrently, a few at a time."""
     files = []

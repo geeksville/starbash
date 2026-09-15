@@ -171,7 +171,10 @@ def collect_site_files(
         if path.relative_to(site).as_posix().startswith(blacklist):
             continue
         files.append(path)
-    return sorted(files)
+    # Sort by the site-relative posix path, not by the Path objects themselves:
+    # Path comparison is case-insensitive on Windows, so sorting the paths gave a
+    # different order there ("images/m31.jpg" before "README.md").
+    return sorted(files, key=lambda path: path.relative_to(site).as_posix())
 
 
 def upload_blobs(

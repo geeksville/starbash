@@ -6,6 +6,8 @@ from typing import Any
 import pytest
 from toml_repo.repo import Repo
 
+from starbash.url import make_file_url
+
 
 def _config(repo: Repo) -> Any:
     """Return a repo's parsed TOML.
@@ -179,14 +181,14 @@ def test_import_from_external_repo(tmp_path: Path):
     main_repo_path.mkdir()
 
     main_toml = main_repo_path / "starbash.toml"
-    repo_url = external_repo_path.as_posix()
+    repo_url = make_file_url(external_repo_path)
     main_toml.write_text(
         f"""
         [repo]
         kind = "recipe"
 
         [my_stage.import]
-        repo = "file://{repo_url}"
+        repo = "{repo_url}"
         node = "shared_stage"
         """,
         encoding="utf-8",

@@ -862,6 +862,38 @@ Open tabs / files being touched suggest active work in:
 - `doc/design/report.md` — the end-to-end design covering target report metadata (R1), Jekyll publishing (R2), and per-frame registration TOML stages (R3).
 
 ## Recent changes
+- **Fixed the two Windows-only unit-test failures (file URLs, site upload order)** —
+  `starbash.url.make_file_url()` built its URL by hand as `file://` +
+  `quote(str(path))`, which percent-encodes a Windows path's backslashes and drive
+  colon into an unusable `file://C%3A%5C...` — very visible in the GUI, since
+  `master_url()`/`load_targets()`/`_path_link()` feed it to `QUrl`, which cannot
+  resolve that.  It now delegates to `Path.as_uri()` (making a relative path
+  absolute first, because `as_uri()` *raises* on relative ones), so a drive path
+  reads `file:///C:/dir/file` and POSIX output is unchanged.
+  `FileInfo.rich_links` (`doit.py`) hand-built the same broken URL for the run
+  tree's clickable outputs and now uses the helper.  Separately,
+  `collect_site_files()` sorted the `Path` objects themselves, and `Path`
+  comparison is case-*insensitive* on Windows — so the site upload order (and the
+  test asserting it) differed per platform; it now sorts by the site-relative
+  posix path.  New tests lock this in: two in `tests/unit/test_url.py`, a
+  case-order one in `tests/unit/test_github_publish.py`, and
+  `TestFileInfoRichLinks` in `tests/unit/test_doit.py`.
+- **…and that grew into one canonical `file://` spelling across both repos** —
+  see `doc/plans/canonical-file-urls.md` (implemented 2026-09-15).  `toml_repo`
+  now *owns* the spelling (`toml_repo/urls.py`: `make_file_url()` ==
+  `Path.as_uri()` and `path_from_file_url()`), `starbash.url` re-exports both, and
+  every hand-built URL *and* every `url[len("file://"):]` slice is gone from both
+  trees (5 sites in `toml_repo/repo.py`, plus `app.py`'s repo-URL producers,
+  `doit.py`, `github_publish.py` and the GUI hover/link parsers).  The **legacy
+  spelling is refused, not translated** (`ValueError`: `file://C:\dir` is
+  indistinguishable from a URL host) — the owner recreates the databases instead
+  of migrating them.  `_find_user_repo_ref()` now accepts the recorded dir *or*
+  the canonical URL, since the CLI passes user input and the GUI passes `repo.url`.
+  Because starbash must consume the *updated* parser, `pyproject.toml` currently
+  takes `toml-repo = {path = "toml-repo", develop = true}` — **that must be
+  swapped back to a version constraint before any PyPI publish** (plan §7; a
+  released 0.1.7 is the clean option).  Gates: `just lint` clean, starbash
+  **1202 passed**, toml-repo **39 passed**.
 - **Integration CI is Linux-only for now, and installs StarNet2** — see
   [`.github/workflows/integration.yml`](../../.github/workflows/integration.yml):
   the matrix is now `os: [ubuntu-latest]`, and the macOS/Windows steps are kept

@@ -8,6 +8,7 @@ import tomlkit
 from toml_repo import Repo, RepoManager, get_config_suffix
 
 from starbash.selection import Selection
+from starbash.url import make_file_url
 
 
 @pytest.fixture
@@ -33,7 +34,7 @@ def temp_state_file(tmp_path):
 def user_repo(temp_repo_dir):
     """Create a Repo instance for testing."""
     manager = RepoManager()
-    return manager.add_repo(f"file://{temp_repo_dir}")
+    return manager.add_repo(make_file_url(temp_repo_dir))
 
 
 @pytest.fixture
@@ -124,7 +125,7 @@ class TestSelectionSave:
         toml_path.write_text("")
 
         manager = RepoManager()
-        repo = manager.add_repo(f"file://{nested_path}")
+        repo = manager.add_repo(make_file_url(nested_path))
         sel = Selection(repo)
         sel.targets = ["M31"]
         sel._save()

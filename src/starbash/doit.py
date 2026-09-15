@@ -27,6 +27,7 @@ from starbash.os import symlink_or_copy
 from starbash.paths import get_user_cache_dir
 from starbash.tool.base import Tool
 from starbash.tool.context import expand_context_list
+from starbash.url import make_file_url
 
 if TYPE_CHECKING:
     from starbash.processing_like import ProcessingLike
@@ -73,10 +74,11 @@ class FileInfo:
         links = []
         if self.image_rows is not None:
             for img in self.image_rows:
-                path = img["abspath"]
-                links.append(f"[link=file://{path}]{img['path']}[/link]")
+                path = Path(img["abspath"])
+                links.append(f"[link={make_file_url(path)}]{img['path']}[/link]")
         elif self.base is not None and self.full is not None:
-            links.append(f"[link=file://{self.full}]{self.relative or self.full.name}[/link]")
+            label = self.relative or self.full.name
+            links.append(f"[link={make_file_url(self.full)}]{label}[/link]")
         return links
 
     @property
