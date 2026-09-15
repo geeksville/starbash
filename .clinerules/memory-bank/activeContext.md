@@ -209,6 +209,15 @@ the sequenced build order is recorded in `doc/plans/targets-redesign.md`).
     sharp). Hugging is skipped once the user owns the size, so the next hover of a
     small thumbnail cannot shrink their window back down. Because `_user_size` is
     class-level state, `test_hover_preview.py` has an autouse fixture that resets it.
+    The floor is really `_PreviewPopup._minimum_size()` — `max(MIN_WIDTH/MIN_HEIGHT,
+    the window's own minimum)`. A top-level `QLayout` pins the window's `minimumSize`
+    to its contents, and the text view's share of that is font/platform dependent:
+    ~88px of height on Linux, ~194px on macOS, where Qt then refuses to shrink the
+    popup to `MIN_HEIGHT`. Clamping only to the constants therefore recorded a
+    `_user_size` the window could not take (fixed 2026-09-15, after the macOS CI run
+    failed `test_dragging_the_grip_inwards_stops_at_the_minimums` with 280x194 vs
+    280x180); the test now reads the floor back from the popup, with a second test
+    covering the above-`MIN_HEIGHT` case.
   - **Hover previews are movable**: the title row is a `_TitleBar` widget
     (`SizeAllCursor`, own-row QSS-transparent widget) that translates a left-drag
     into `window().move()` — the same hand-rolled approach as the grip, because a

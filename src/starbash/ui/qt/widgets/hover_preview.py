@@ -468,8 +468,26 @@ class _PreviewPopup(QFrame):
         if QPoint(x, y) != pos:
             self.move(x, y)
 
+    def _minimum_size(self) -> QSize:
+        """The smallest this popup can really be: our clamps, or the layout's floor.
+
+        ``MIN_WIDTH``/``MIN_HEIGHT`` are only *lower* bounds.  A ``QLayout`` on a
+        top-level widget pins the window's ``minimumSize`` to what its contents ask
+        for, and that floor is font- and platform-dependent - the text view wants
+        ~88px of height on Linux but ~194px on macOS - so ``resize()`` is silently
+        clamped by Qt.  Clamping a drag to this instead keeps ``_user_size`` in step
+        with the window's real size on every platform.
+
+        Both minimums are read, since either is what a top-level window may be held
+        to; the larger of the two wins (the popup is never resized *up* by this - the
+        drag already asked for something big).
+        """
+        needed = self.minimumSize().expandedTo(self.minimumSizeHint())
+        return QSize(max(MIN_WIDTH, needed.width()), max(MIN_HEIGHT, needed.height()))
+
     def _clamp_to_screen(self, size: QSize) -> QSize:
-        """Floor a dragged size at the minimums and cap it to the screen."""
+        """Floor a dragged size at the popup's minimums and cap it to the screen."""
+        floor = self._minimum_size()
         screen = QGuiApplication.screenAt(self.geometry().center())
         if screen is None:
             screen = QGuiApplication.primaryScreen()
@@ -478,8 +496,10 @@ class _PreviewPopup(QFrame):
             if screen is not None
             else QSize(MAX_WIDTH, MAX_HEIGHT)
         )
-        width = max(MIN_WIDTH, min(size.width(), max(MIN_WIDTH, limit.width() - 2 * GAP)))
-        height = max(MIN_HEIGHT, min(size.height(), max(MIN_HEIGHT, limit.height() - 2 * GAP)))
+        width = max(floor.width(), min(size.width(), max(floor.width(), limit.width() - 2 * GAP)))
+        height = max(
+            floor.height(), min(size.height(), max(floor.height(), limit.height() - 2 * GAP))
+        )
         return QSize(width, height)
 
     def _fit_automatic(self) -> None:

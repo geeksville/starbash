@@ -297,8 +297,45 @@ def test_dragging_the_grip_inwards_stops_at_the_minimums(qtbot, tmp_path):
 
     _drag(popup._grip, QPoint(-4000, -4000))
 
-    assert popup.size() == QSize(hp.MIN_WIDTH, hp.MIN_HEIGHT)
-    assert hp._PreviewPopup._user_size == QSize(hp.MIN_WIDTH, hp.MIN_HEIGHT)
+    # The drag stops dead at the popup's floor.  The width floor is our own clamp,
+    # but the height floor is whatever the popup's layout asks for: a top-level
+    # ``QLayout`` pins the window's minimum size to its contents, and the text view
+    # wants more room on macOS (~194px) than on Linux (~88px) - Qt would enforce that
+    # over ``MIN_HEIGHT`` whatever we clamped to, so the floor is read back from the
+    # popup rather than assumed to be the constants.
+    floor = popup._minimum_size()
+    assert floor.width() == hp.MIN_WIDTH
+    assert floor.height() >= hp.MIN_HEIGHT
+    assert popup.size() == floor
+    # ...and the size remembered for the next hover is the size the window really has.
+    assert hp._PreviewPopup._user_size == popup.size()
+
+
+def test_dragging_the_grip_inwards_stops_at_the_layouts_own_floor(qtbot, tmp_path):
+    """When the window's own floor is above ``MIN_HEIGHT``, that floor wins - and the
+    size remembered is the one the window really got.
+
+    A top-level ``QLayout`` pins the window's minimum size to its contents, and the
+    text view's share of that is font-dependent: on Linux it lands below
+    ``MIN_HEIGHT``, on macOS above it (~194px), where Qt then refuses to shrink the
+    popup to ``MIN_HEIGHT``.  That used to leave ``_user_size`` recording a size the
+    window could not take, and every later hover reopened at that phantom size.
+    """
+    popup, _parent_window = _text_popup(qtbot, tmp_path)
+
+    # The window minimum a top-level layout pins here: Linux's ends up below
+    # ``MIN_HEIGHT``, macOS's ends up above it (its text metrics are fatter), and Qt
+    # refuses to shrink the window past it either way.
+    pinned = QSize(hp.MIN_WIDTH, hp.MIN_HEIGHT + 14)
+    popup.setMinimumSize(pinned)
+    assert popup._minimum_size() == pinned
+
+    _drag(popup._grip, QPoint(-4000, -4000))
+
+    # The drag stops at that floor too, and remembers the size it really got - the
+    # bug was recording ``MIN_HEIGHT`` while the window sat at 194px.
+    assert popup.size() == pinned
+    assert hp._PreviewPopup._user_size == popup.size()
 
 
 # --- popup move (the title row is the drag bar) -----------------------------
