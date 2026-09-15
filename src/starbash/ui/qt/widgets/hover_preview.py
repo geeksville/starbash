@@ -49,7 +49,7 @@ from PySide6.QtWidgets import (
 
 from starbash.ui.qt.widgets.busy_indicator import BusyIndicator
 from starbash.ui.qt.widgets.image_viewer import load_image_file
-from starbash.ui.qt.workers import run_async
+from starbash.ui.qt.workers import guard_callback, run_async
 from starbash.url import path_from_file_url
 
 logger = logging.getLogger(__name__)
@@ -550,7 +550,9 @@ class _PreviewPopup(QFrame):
             except Exception as exc:  # noqa: BLE001 - an unreadable file is expected
                 return False, str(exc) or exc.__class__.__name__
 
-        run_async(job, on_finished=lambda result: self._on_text(result, request))
+        run_async(
+            job, on_finished=guard_callback(self, lambda result: self._on_text(result, request))
+        )
 
     def _on_text(self, result: Any, request: int) -> None:
         """Populate the body with ``text`` (GUI thread)."""
@@ -583,7 +585,9 @@ class _PreviewPopup(QFrame):
             except Exception as exc:  # noqa: BLE001 - an unreadable file is expected
                 return False, str(exc) or exc.__class__.__name__
 
-        run_async(job, on_finished=lambda result: self._on_image(result, request))
+        run_async(
+            job, on_finished=guard_callback(self, lambda result: self._on_image(result, request))
+        )
 
     def _show_error(self, message: str) -> None:
         """Show a readable failure inside the popup (never raise)."""

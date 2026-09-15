@@ -131,3 +131,10 @@ with this fix. Nothing in the code above depends on the answer.
 - `setAutoDelete(False)` means a worker whose `done` is never delivered is not freed
   until its wrapper is collected — the same lifetime the caller's own reference has;
   `run_async`'s `done` connection is what drops the internal one.
+
+**Also see** [`gui-widget-teardown.md`](gui-widget-teardown.md) — a third crash in the
+same area, with a *different* cause: a test's widgets were never destroyed (Qt delivers
+`DeferredDelete` only from a running event loop, and pytest never enters one), so a later
+cyclic collection destroyed them — on a `QThreadPool` thread under xdist — and
+`~QAbstractItemView` walked connections whose owners were already gone. That plan adds
+the teardown flush and `workers.guard_callback`.

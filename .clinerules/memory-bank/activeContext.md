@@ -1,5 +1,51 @@
 # Active Context
 
+## Current work focus — Masters grouping, and the xdist SIGSEGV its tests triggered
+
+**Implemented 2026-09-15**, both **not committed** (suggested split: the GUI grouping,
+then the crash fix).
+
+- **Masters grouping** in the Processing page's run tree (full map in the bullet further
+  down): every master (calibration) run is nested under one lazily-created, collapsed
+  `Masters` group, with `_scroll_to` replacing `QTreeWidget.scrollToItem` (Qt's
+  `scrollToItem` expands collapsed ancestors — that would pop the group open on the
+  first streamed log line).
+- **The xdist-only SIGSEGV** the extra tests made likely is a *third* Qt-lifetime bug,
+  written up in [`doc/plans/gui-widget-teardown.md`](../../doc/plans/gui-widget-teardown.md).
+  Root cause: **nothing ever destroyed a test's widgets.** Qt delivers a
+  `DeferredDelete` event only from a *running* event loop, and a pytest session never
+  enters one — measured: `close() + deleteLater() + processEvents()` leaves the C++
+  object alive, while an explicit `sendPostedEvents(None, DeferredDelete)` deletes it.
+  So pytest-qt's `deleteLater()` for `qtbot.addWidget()` was a no-op: the widget stayed
+  alive in C++ while its Python wrapper became garbage, and **whichever thread next ran
+  a cyclic collection** destroyed that live widget tree there. Under xdist that was a
+  `QThreadPool` thread running a later test's keyring job — hence
+  `~QAbstractItemView` executing on a thread with no event dispatcher
+  (`QBasicTimer::stop: Failed. Possibly trying to stop from a different thread` is its
+  calling card, from the seven timer stops that destructor begins with) and a SIGSEGV
+  in `QAbstractItemViewPrivate::disconnectAll()`; serially the same thing happened on
+  the *main* thread, mid-`processEvents()` (`QTimerInfoList::activateTimers`).
+  - Fix: `tests/conftest.py`'s teardown hook destroys them on the GUI thread
+    (`_destroy_pending_gui_widgets`: deliver pending events → `sendPostedEvents(None,
+    DeferredDelete)` → `processEvents()` → `gc.collect()`), after the pool drain and
+    before fixture finalization.
+  - The flush then exposed a *latent* bug it made deterministic: a job callback that
+    PySide cannot tie to a receiver (`partial(self._on_sessions_loaded, path)`) is not
+    auto-disconnected, so its report still ran against the deleted page and raised
+    `RuntimeError: Internal C++ object ... already deleted` **from inside the event
+    loop** — two teardown errors in `test_targets_page.py`, reproducibly. Fix: the new
+    `workers.guard_callback` (same `shiboken6.isValid` idea as `Worker.run`), applied
+    in `Page.start_job`, `TargetsPage._request_sessions` and the preview popup's two
+    lambdas.
+  - Evidence: with the flush disabled, `pytest tests/unit/test_gui.py -n0` segfaults
+    (exit 139, 2 of 3 runs) and the new test fails; with it, 64 passed, and a
+    page/window destruction log (the `/tmp` `qtdestroy` plugin) shows **58 destructions,
+    all on `MainThread`** — previously *zero* widgets were destroyed during a run. The
+    native stack (an `LD_PRELOAD` handler chained to faulthandler, plus
+    `python3.12-dbg`) bottoms out in `QThreadPoolPrivate::stealAndRunRunnable` +
+    `start_thread`, i.e. a pool thread.
+  - Full suite **1228 passed / 1 skipped**; `just lint` 0 basedpyright errors.
+
 ## Current work focus — one event-driven CLI bar (Fix 7: `Processing.progress` removal)
 
 **Implemented 2026-09-15**, recorded in `doc/plans/cli-live-display.md` (Fix 7).
@@ -1158,6 +1204,28 @@ Open tabs / files being touched suggest active work in:
   clean finish (kept open on failure). Covered by four new
   `test_gui.py::test_processing_page_*` tests plus `test_run_state.py`/
   `test_processed_target_model.py` log-attribution tests.
+- **Master runs are grouped under a collapsed `Masters` node in the Processing
+  page** (`ui/qt/pages/processing.py`): every master (calibration) run — the rows
+  whose label reads `Master <config> · <date> · <camera>`, i.e. `is_master` on the
+  run snapshot / task event — is now nested under one lazily-created, **dim and
+  bold** top-level `Masters` group that starts **collapsed**, instead of sitting
+  at the top level beside the targets where a dozen of them crowded the tree out.
+  `ProcessingPage._ensure_target(target, is_master=…)` files a row via `_file_run`
+  (group or top level; master-ness is *sticky* per label), `_on_task_started`
+  forwards the event's `is_master` so a master's live row is grouped from its
+  first log line, and `_drop_run` removes a culled (preflight) row from whatever
+  parent it has — taking the group away with the last master, so no empty
+  container is left behind. Crucially the new `_scroll_to` helper replaces every
+  `QTreeWidget.scrollToItem` call: Qt's `scrollToItem` **expands collapsed
+  ancestors** on the way (verified against PySide6: a collapsed parent came back
+  `isExpanded()`), which would have popped the group open behind the user's back
+  on the first streamed log line, so a row with a collapsed ancestor is simply
+  never scrolled to. Covered by
+  `test_gui.py::test_processing_page_groups_masters_under_a_collapsed_node`,
+  `test_processing_page_keeps_real_targets_out_of_the_masters_group`,
+  `test_processing_page_groups_a_master_task_reported_live` (the regression
+  guard for both the grouping and the auto-expand) and the updated
+  `test_processing_page_drops_unneeded_master_runs`.
 
 
 - **Targets page split defaults to a 66/34 layout** (`ui/qt/pages/targets.py`): the

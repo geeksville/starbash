@@ -22,7 +22,14 @@ from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["CancelToken", "JobCancelled", "WorkerSignals", "Worker", "run_async"]
+__all__ = [
+    "CancelToken",
+    "JobCancelled",
+    "WorkerSignals",
+    "Worker",
+    "guard_callback",
+    "run_async",
+]
 
 #: Workers that are still in flight.
 #:
@@ -50,6 +57,32 @@ def _signal_source_is_alive(signals: QObject) -> bool:
     emits; see :meth:`Worker.run`.
     """
     return shiboken6.isValid(signals)
+
+
+def guard_callback(
+    receiver: QObject, callback: Callable[..., None] | None
+) -> Callable[..., None] | None:
+    """Wrap ``callback`` so it is dropped once ``receiver``'s C++ object is gone.
+
+    PySide ties a connection to the receiver QObject only when the slot *is* one of
+    its bound methods: a ``partial`` or a closure around one (``partial(self._on_loaded,
+    path)``, ``lambda result: self._on_text(result, request)``) is opaque to it, so Qt
+    cannot drop the connection when that object dies.  A report arriving afterwards
+    then calls into a destroyed widget and raises ``RuntimeError: Internal C++ object
+    ... already deleted`` from inside the event loop.  Like :meth:`Worker.run` for the
+    mirror-image case, this drops such a late call instead.
+
+    Only needed for callbacks PySide cannot associate with a receiver - a bound method
+    of a live QObject is disconnected for us.
+    """
+    if callback is None:
+        return None
+
+    def guarded(*args: Any) -> None:
+        if shiboken6.isValid(receiver):
+            callback(*args)
+
+    return guarded
 
 
 class JobCancelled(Exception):

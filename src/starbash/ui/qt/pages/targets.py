@@ -85,7 +85,7 @@ from starbash.ui.qt.theme import ACCENT
 from starbash.ui.qt.widgets.busy_indicator import BusyIndicator
 from starbash.ui.qt.widgets.file_links import LinkDecorator, open_with_status, set_link
 from starbash.ui.qt.widgets.master_picker import MasterPicker
-from starbash.ui.qt.workers import run_async
+from starbash.ui.qt.workers import guard_callback, run_async
 from starbash.url import make_file_url
 
 __all__ = ["TargetsPage", "UnsavedChoice"]
@@ -1034,8 +1034,8 @@ class TargetsPage(Page):
         self._busy.start()
         run_async(
             partial(_load_session_options_job, path=path),
-            on_finished=partial(self._on_sessions_loaded, path),
-            on_failed=partial(self._on_sessions_failed, path),
+            on_finished=guard_callback(self, partial(self._on_sessions_loaded, path)),
+            on_failed=guard_callback(self, partial(self._on_sessions_failed, path)),
         )
 
     def _on_sessions_loaded(self, path: str, options: list[SessionOption]) -> None:

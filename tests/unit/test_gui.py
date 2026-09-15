@@ -170,6 +170,67 @@ def test_a_worker_is_still_usable_by_its_caller_after_it_finishes(qtbot, qapp):
     assert worker.token.is_cancelled() is True
 
 
+def test_a_late_report_is_dropped_for_an_opaque_callback(qtbot):
+    """A report must not reach a ``partial``/lambda callback after its widget died.
+
+    PySide ties a connection to the receiver QObject only when the slot *is* one of its
+    bound methods, so the Targets page's ``partial(self._on_sessions_loaded, path)``
+    stays connected to a destroyed page - and the late report then raised
+    ``RuntimeError: Internal C++ object ... already deleted`` from inside the event
+    loop (a teardown error once the suite destroys its widgets).  ``guard_callback``
+    drops it, mirroring ``Worker.run`` for the report side.
+    """
+    import shiboken6
+    from PySide6.QtCore import QObject
+
+    from starbash.ui.qt.workers import guard_callback
+
+    received: list[object] = []
+    receiver = QObject()
+    guarded = guard_callback(receiver, received.append)
+    assert guarded is not None
+
+    guarded("while the receiver lives")
+    assert received == ["while the receiver lives"]
+
+    shiboken6.delete(receiver)  # what teardown does to a test's widgets
+    guarded("after the receiver died")
+
+    assert received == ["while the receiver lives"]
+    assert guard_callback(receiver, None) is None
+
+
+# --- widget lifetimes ------------------------------------------------------
+
+
+def test_a_tests_widgets_are_destroyed_here_not_by_another_threads_gc(qtbot):
+    """A test's widgets must die with the test, on the GUI thread.
+
+    Qt delivers a ``DeferredDelete`` event only from a *running* event loop, and a
+    pytest session never enters one - so the ``deleteLater()`` pytest-qt calls for
+    ``qtbot.addWidget()`` did nothing on its own: the widget stayed alive in C++
+    while the Python wrapper became garbage.  Whichever thread next ran a cyclic
+    collection then dropped the wrapper (a ``QThreadPool`` thread running a later
+    test's job was the one that did it under xdist), and shiboken destroyed the
+    still-live widget tree off the GUI thread - the sporadic SIGSEGV inside
+    ``QAbstractItemView``'s destructor.  ``tests/conftest.py``'s teardown flush is
+    what deletes them; this pins it.
+    """
+    import shiboken6
+    from PySide6.QtWidgets import QWidget
+
+    from tests.conftest import _destroy_pending_gui_widgets
+
+    widget = QWidget()
+    widget.deleteLater()
+    # Deferred, and a pytest session never delivers it: still alive in C++.
+    assert shiboken6.isValid(widget) is True
+
+    _destroy_pending_gui_widgets()  # what the teardown hook calls
+
+    assert shiboken6.isValid(widget) is False
+
+
 # --- table models ----------------------------------------------------------
 
 
@@ -962,23 +1023,120 @@ def test_processing_page_labels_up_to_date_tasks(qtbot, app_context, bus):
     assert task_item.text(1) == "2025-07-18:light_IRCUT_gain80 — up-to-date"
 
 
-def test_processing_page_collapses_master_nodes(qtbot, app_context, bus):
-    """Master (calibration) runs are collapsed so they don't crowd the tree."""
+def test_processing_page_groups_masters_under_a_collapsed_node(qtbot, app_context, bus):
+    """Master runs nest under one collapsed ``Masters`` node, not at the top level.
+
+    There are usually many master (calibration) runs, and they used to crowd out
+    the targets the user came to watch.
+    """
     from starbash.ui.qt.pages.processing import ProcessingPage
 
     page = ProcessingPage(app_context, bus)
     qtbot.addWidget(page)
 
-    run = {
-        "target": "Master flat_Ha · 2024-01-01 · canon",
-        "is_master": True,
-        "stages": [{"name": "stack_bias", "status": "ok", "excluded": False}],
-    }
-    events.publish(events.EVENT_STAGE_RESULT, {"result": None, "run": run})
+    def master_run(label: str) -> dict:
+        return {
+            "target": label,
+            "is_master": True,
+            "stages": [{"name": "stack_bias", "status": "ok", "excluded": False}],
+        }
 
-    root = _top(page._tasks, 0)
-    assert root.text(0) == "Master flat_Ha · 2024-01-01 · canon"
-    assert not root.isExpanded()
+    events.publish(
+        events.EVENT_STAGE_RESULT,
+        {"result": None, "run": master_run("Master flat_Ha · 2024-01-01 · canon")},
+    )
+    events.publish(
+        events.EVENT_STAGE_RESULT,
+        {"result": None, "run": master_run("Master dark · 2024-01-01 · canon")},
+    )
+
+    assert page._tasks.topLevelItemCount() == 1
+    group = _top(page._tasks, 0)
+    assert group.text(0) == "Masters"
+    assert not group.isExpanded()  # collapsed by default
+    assert [_row(group, i).text(0) for i in range(group.childCount())] == [
+        "Master flat_Ha · 2024-01-01 · canon",
+        "Master dark · 2024-01-01 · canon",
+    ]
+    # Each run row is still itself collapsed, as it was before.
+    assert not _row(group, 0).isExpanded()
+
+
+def test_processing_page_keeps_real_targets_out_of_the_masters_group(qtbot, app_context, bus):
+    """Only master runs are grouped; a target stays a top-level row."""
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    events.publish(
+        events.EVENT_STAGE_RESULT,
+        {
+            "result": None,
+            "run": {
+                "target": "Master dark · 2024-01-01 · canon",
+                "is_master": True,
+                "stages": [{"name": "stack_dark", "status": "ok", "excluded": False}],
+            },
+        },
+    )
+    events.publish(
+        events.EVENT_RUN_STARTED,
+        {"target": "M31", "is_master": False},
+    )
+    events.publish(
+        events.EVENT_STAGE_RESULT,
+        {
+            "result": None,
+            "run": {
+                "target": "M31",
+                "is_master": False,
+                "stages": [{"name": "stack", "status": "ok", "excluded": False}],
+            },
+        },
+    )
+
+    assert page._tasks.topLevelItemCount() == 2
+    group = _top(page._tasks, 0)
+    assert group.text(0) == "Masters"
+    assert group.childCount() == 1
+    target_item = _top(page._tasks, 1)
+    assert target_item.text(0) == "M31"
+    assert target_item.isExpanded()  # a real target still opens
+
+
+def test_processing_page_groups_a_master_task_reported_live(qtbot, app_context, bus):
+    """A master task's live row (``is_master`` on the event) is grouped too.
+
+    Regression guard: TASK_STARTED for a master used to create a *top-level* row.
+    The group must also stay collapsed while its run works, even though the page
+    scrolls to the running task (Qt's ``scrollToItem`` expands collapsed parents,
+    which would have popped the group open on the first log line).
+    """
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    events.publish(
+        events.EVENT_TASK_STARTED,
+        {
+            "task": "stack_bias_s1",
+            "title": "Stack bias",
+            "target": "Master bias_gain100 · 2024-01-01 · canon",
+            "stage": "stack_bias",
+            "is_master": True,
+        },
+    )
+    events.publish(events.EVENT_TOOL_OUTPUT, {"stream": "stdout", "line": "working"})
+
+    assert page._tasks.topLevelItemCount() == 1
+    group = _top(page._tasks, 0)
+    assert group.text(0) == "Masters"
+    assert not group.isExpanded()
+    run_row = _row(group, 0)
+    assert run_row.text(0) == "Master bias_gain100 · 2024-01-01 · canon"
+    assert _child_of_kind(run_row, "stage") is not None
 
 
 def test_processing_page_drops_unneeded_master_runs(qtbot, app_context, bus):
@@ -1003,16 +1161,27 @@ def test_processing_page_drops_unneeded_master_runs(qtbot, app_context, bus):
         events.EVENT_STAGE_RESULT,
         {"result": None, "run": master_run("Master dark · 2024-01-01 · canon")},
     )
-    assert page._tasks.topLevelItemCount() == 2
+    assert page._tasks.topLevelItemCount() == 1  # just the Masters group
+    group = _top(page._tasks, 0)
+    assert group.childCount() == 2
 
     events.publish(
         events.EVENT_PREFLIGHT_FINISHED,
         {"drop": ["Master dark · 2024-01-01 · canon"]},
     )
 
-    assert page._tasks.topLevelItemCount() == 1
-    assert _top(page._tasks, 0).text(0) == "Master flat_Ha · 2024-01-01 · canon"
+    assert group.childCount() == 1
+    assert _row(group, 0).text(0) == "Master flat_Ha · 2024-01-01 · canon"
     assert "Master dark · 2024-01-01 · canon" not in page._targets
+
+    # Removing the last master run takes the now-empty group away with it, rather
+    # than leaving an empty container behind.
+    events.publish(
+        events.EVENT_PREFLIGHT_FINISHED,
+        {"drop": ["Master flat_Ha · 2024-01-01 · canon"]},
+    )
+    assert page._tasks.topLevelItemCount() == 0
+    assert page._masters_group is None
 
 
 def test_processing_page_groups_logs_under_each_task(qtbot, app_context, bus):

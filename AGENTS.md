@@ -194,6 +194,13 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
     been deleted` — or **segfaulting** — on `emit`. `Worker.run` therefore checks
     `shiboken6.isValid(self.signals)` first, and `WorkerSignals` is Python-owned
     (`setAutoDelete(False)`) so a worker its caller keeps stays valid.
+  - *The same guard on the receiving side is `workers.guard_callback`.* PySide ties a
+    connection to the receiver object only when the slot **is** one of its bound
+    methods; a `partial(self._on_loaded, path)` or a `lambda result: self._…(result)`
+    is opaque to it, so Qt cannot drop the connection when that widget dies and a late
+    report raises `RuntimeError: Internal C++ object ... already deleted` from inside
+    the event loop. Wrap those (as `Page.start_job` and the preview/Targets pages do),
+    not the bound methods — Qt disconnects those for us.
   - *`EventBusBridge` detaches itself when Qt deletes it.* Its bus subscription is a
     plain Python reference, so it used to outlive the QObject: the next publish from
     anywhere then called into the deleted object, and — with an in-process tool's log
@@ -240,6 +247,16 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
   the sporadic `test_every_page_refreshes_without_error` SIGSEGV — the job emitted
   into Qt objects Python had already freed. Keep the drain: it is the cheap half of
   the fix (the other half is `Worker.run` dropping a report whose signals are gone).
+  The same hook then **destroys the test's widgets on the GUI thread**
+  (`_destroy_pending_gui_widgets`: deliver pending events, `sendPostedEvents(None,
+  DeferredDelete)`, `gc.collect()`). Qt delivers a `DeferredDelete` event only from a
+  *running* event loop, which a pytest session never enters, so pytest-qt's
+  `deleteLater()` left every `qtbot.addWidget()` widget alive in C++ while its Python
+  wrapper became garbage — and whoever ran the next cyclic collection (a `QThreadPool`
+  thread under xdist) destroyed that live widget tree off the GUI thread, which is a
+  SIGSEGV inside `QAbstractItemView`'s destructor ("`QBasicTimer::stop: Failed.
+  Possibly trying to stop from a different thread`" is its calling card). Keep that
+  too — see `doc/plans/gui-widget-teardown.md`.
   `tests/unit/test_cli_headless.py` **locks in the headless guarantee**: it runs
   `sb info` in a subprocess with `DISPLAY` stripped and `PySide6` made
   unimportable, and asserts the CLI never loads Qt or the GUI package. If you ever

@@ -1,5 +1,6 @@
 """Shared fixtures for all tests (unit and integration)."""
 
+import gc
 import logging
 import os
 import sys
@@ -255,11 +256,65 @@ def _drain_qt_thread_pool(seconds: float, where: str) -> None:
         )
 
 
+# --- Qt widget destruction ---------------------------------------------------
+#
+# Waiting for the pool is only half of it: a finished test must also be free of
+# widgets, because *which thread* destroys a widget matters to Qt.
+#
+# ``qtbot.addWidget()`` makes pytest-qt call ``close()`` and then ``deleteLater()``
+# on the widget when the test ends, but Qt only delivers a ``DeferredDelete`` event
+# from a *running* event loop - the event remembers the loop level it was posted at
+# and is skipped while no loop runs.  A pytest session never enters one, so the
+# deletion never actually happened: the widget stayed alive in C++ while the Python
+# wrapper around it became garbage.  The wrapper was then dropped by *whichever
+# thread next ran a cyclic collection*, and shiboken destroyed the still-live C++
+# widget tree from there.  When that thread was a ``QThreadPool`` thread running a
+# later test's job, Qt's item views were destroyed off the GUI thread: their
+# destructors stop seven timers (``QBasicTimer::stop: Failed. Possibly trying to
+# stop from a different thread`` is the calling card) and walk connections whose
+# owners the concurrently busy GUI thread had already freed, and the worker died with
+# a SIGSEGV inside ``QAbstractItemView::~QAbstractItemView``.  Under xdist every
+# worker has a pool of threads racing its main thread, which is why only that mode
+# ever crashed, and only ever in a worker running a page test with a live job.
+#
+# So deliver the pending deletes ourselves - on the GUI thread, before the test's
+# fixtures go - and then collect the widget cycles a test left behind (widgets it
+# made but never registered) here as well.  Both steps destroy widgets while
+# destroying widgets is legal, which is the whole point.
+def _destroy_pending_gui_widgets() -> None:
+    """Delete a finished test's widgets here, and collect its widget garbage."""
+    try:
+        from PySide6.QtCore import QCoreApplication, QEvent
+        from PySide6.QtWidgets import QApplication
+    except ImportError:  # Qt is not installed at all
+        return
+    if QApplication.instance() is None:  # no GUI session in this process
+        return
+
+    # What the event loop Qt never got would have done: pending reports first (so a
+    # job that finished during the drain still reaches its - still alive - widget),
+    # then the deletes pytest-qt queued, then whatever those queued in turn (a page
+    # unsubscribing from the bus on ``destroyed``, say).
+    QApplication.processEvents()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    QApplication.processEvents()
+    # Only unreachable objects go, so a widget a still-running job refers to is safe.
+    gc.collect()
+
+
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_teardown(item, nextitem) -> None:
-    """Let a `gui` test's background jobs finish before its fixtures are torn down."""
+    """Wind a `gui` test down: its jobs first, then its widgets - here, on this thread.
+
+    pytest-qt's own teardown does the ``close()``/``deleteLater()`` for the widgets
+    the test registered, and it wraps every ``pytest_runtest_teardown`` implementation,
+    so it has already run by the time this hook's body does - the widgets to flush are
+    queued and waiting.  Fixture teardown happens *after* this, so the app context and
+    the ``QApplication`` are both still alive.
+    """
     if "gui" in item.keywords:
         _drain_qt_thread_pool(_TEST_JOB_DRAIN_SECONDS, item.nodeid)
+        _destroy_pending_gui_widgets()
 
 
 @pytest.hookimpl(trylast=True)

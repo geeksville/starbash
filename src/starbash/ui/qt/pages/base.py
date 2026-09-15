@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 
 from starbash.app import Starbash
 from starbash.ui.qt.models import DictTableModel
-from starbash.ui.qt.workers import run_async
+from starbash.ui.qt.workers import guard_callback, run_async
 
 __all__ = ["Page"]
 
@@ -87,9 +87,9 @@ class Page(QWidget):
 
         return run_async(
             job,  # type: ignore[arg-type]
-            on_finished=on_finished,  # type: ignore[arg-type]
-            on_failed=_failed,
-            on_progress=on_progress,  # type: ignore[arg-type]
+            on_finished=guard_callback(self, on_finished),  # type: ignore[arg-type]
+            on_failed=guard_callback(self, _failed),
+            on_progress=guard_callback(self, on_progress),  # type: ignore[arg-type]
         )
 
     def heading(self, text: str | None = None, subtitle: str | None = None) -> QVBoxLayout:

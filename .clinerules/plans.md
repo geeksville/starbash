@@ -45,3 +45,9 @@ Implementation and design plans live in `doc/plans/*.md` and are tracked in git.
   recursion-proof `events.publish` failure path. **Implemented 2026-09-15**; its
   *Open question* (should closing the GUI cancel-and-wait for in-flight jobs?) is
   **undecided** and deliberately left out of the fix.
+- `doc/plans/gui-widget-teardown.md` — the *third* crash in that area (the xdist-only
+  SIGSEGV that the Masters-tree tests made likely): a test's widgets were never
+  destroyed, so a later cyclic collection destroyed them off the GUI thread. Fix: the
+  teardown hook flushes the pending `DeferredDelete` events and collects widget garbage
+  on the GUI thread, plus `workers.guard_callback` for job callbacks PySide cannot tie
+  to a receiver (`partial`/lambda). **Implemented 2026-09-15.**
