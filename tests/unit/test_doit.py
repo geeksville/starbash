@@ -9,12 +9,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from starbash import paths
+from starbash import events, paths
 from starbash.doit import (
     FileInfo,
     StarbashDoit,
     ToolAction,
     cleanup_temporaries,
+    merge_to,
     my_builtin_task,
 )
 from starbash.exception import FilesystemUnavailableError
@@ -108,6 +109,37 @@ class TestStarbashDoit:
         # Use capfd (file descriptor capture) instead of capsys because doit writes directly to stdout
         captured = capfd.readouterr()
         assert "hello from built in" in captured.out
+
+    def test_a_run_reports_one_finish_per_planned_task(self, capfd):
+        """The tasks.planned denominator has to be reachable, skips included.
+
+        The CLI's live bar sets its total from ``tasks.planned`` and counts one
+        ``task.finished`` per task, so a task doit decided not to run (up to date,
+        or ignored) still has to report -- otherwise the bar stops short of its
+        end whenever there is nothing to do.  Exercised through a *real* doit run
+        (``load_doit_config`` installs ``MyReporter``), not a mock reporter.
+        """
+        captured: list[events.Event] = []
+        unsubscribe = events.subscribe(captured.append)
+        try:
+            doit = StarbashDoit()
+            doit.add_task(my_builtin_task)
+            doit.add_task({**my_builtin_task, "name": "already_current", "uptodate": [True]})
+            assert doit.run(["sample_task", "already_current"]) == 0
+        finally:
+            unsubscribe()
+
+        planned = [event for event in captured if event.kind == events.EVENT_TASKS_PLANNED]
+        finished = [event for event in captured if event.kind == events.EVENT_TASK_FINISHED]
+
+        assert [event.data["tasks"] for event in planned] == [2]
+        assert len(finished) == planned[0].data["tasks"]
+        # One ran (``reason`` is None on success), one was skipped as up to date.
+        assert sorted(event.data["task"] for event in finished) == [
+            "already_current",
+            "sample_task",
+        ]
+        assert {event.data["reason"] for event in finished} == {None, "Current"}
 
     def test_run_list_with_status(self, capsys):
         """Test that run method works with list options."""
@@ -325,3 +357,47 @@ class TestFileInfoRichLinks:
             f"[link={make_file_url(first)}]light_0001.fits[/link]",
             f"[link={make_file_url(second)}]light_0002.fits[/link]",
         ]
+
+
+class TestMergeToReportsProgress:
+    """``merge_to`` collects every input frame, so it reports its own progress.
+
+    It used to wrap its loop in ``rich.progress.track()``, which draws on Rich's
+    *global* console: a second ``Live`` drawing over the CLI's run view and an
+    unrequested display inside a GUI worker.  The core publishes events instead
+    and the CLI's bar grows a "Collecting inputs" phase for them -- see
+    doc/plans/cli-live-display.md.
+    """
+
+    def test_a_merge_reports_its_counts_and_completion(self, tmp_path):
+        lights = tmp_path / "lights"
+        lights.mkdir()
+        # Spans the 25-frame reporting interval, so the final count is the
+        # loop's last iteration rather than a multiple of 25.
+        frames = 26
+        for index in range(1, frames + 1):
+            (lights / f"light_{index:04d}.fits").touch()
+        info = FileInfo(
+            base=str(lights),
+            full=lights / "light_.seq",
+            image_rows=[{"abspath": str(lights / "light_.seq"), "path": "light_.seq"}],
+        )
+        captured: list[events.Event] = []
+        unsubscribe = events.subscribe(captured.append)
+        try:
+            merge_to("in", info)
+        finally:
+            unsubscribe()
+
+        assert [(event.kind, event.data) for event in captured] == [
+            (events.EVENT_MERGE_PROGRESS, {"name": "in", "done": 0, "total": frames}),
+            (events.EVENT_MERGE_PROGRESS, {"name": "in", "done": 25, "total": frames}),
+            (events.EVENT_MERGE_PROGRESS, {"name": "in", "done": frames, "total": frames}),
+            (events.EVENT_MERGE_FINISHED, {"name": "in", "files": frames}),
+        ]
+        # The events have to describe work that actually happened: one merged
+        # frame per input, named in collection order.
+        merged = sorted(path.name for path in (lights / "in").iterdir())
+        assert len(merged) == frames
+        assert merged[:2] == ["in_00001.fits", "in_00002.fits"]
+        assert merged[-1] == f"in_{frames:05d}.fits"

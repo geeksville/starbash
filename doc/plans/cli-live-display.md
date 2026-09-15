@@ -41,8 +41,9 @@ piece of state from those events.
 * Final frame: `finish()` leaves `✓ <title>: done` on screen, or
   `✗ Failed: <task>` when any task failed (the last frame is what a user walks
   away with, so it must not read as success).
-* Progress bars: unchanged `Progress` shared with `Processing`
-  (`Processing(progress=view.progress)`).
+* Progress bars: one bar, shared with `Processing` (`Processing(progress=view.progress)`).
+  **Superseded by Fix 7** — `Processing` has no bar at all now, and the view's
+  single bar follows the run's *phase* (indexing → planning → tasks) from events.
 
 Because it is only ever fed by the bus, the same widget works for any sink: a
 real terminal gets the live view, a pipe/dumb terminal gets the flat table.
@@ -118,7 +119,8 @@ scrolled to the **newest** runs.  Two things were wrong with that:
 ```
 ┌ Auto-processing ────────────────────────────────────────────┐  header: title,
 │ ⠋ stack: Stack lights · Siril 42%                           │  spinner/caption/tool
-│ ███████████░░░░░░░░░░░░░  calibrate 42%                     │  + progress bars
+│ ███████████░░░░░░░░░░░░░  calibrate 42%                     │  + the phase bar
+│                          12/40 0:01:23                      │    (Fix 7)
 ├──────────────────────────────┬──────────────────────────────┤
 │ ──── Siril ────────────────  │ ├── ✓ calibrate              │  body: log (left),
 │ reading frame 31.fits        │ └── ⏳ stack ← calibrate       │  run tree (right)
@@ -349,6 +351,155 @@ reroutes everything.
   `ProcessingView` from the bus.  GraXpert under the same harness reaches the live pane
   promptly, root handler draws **0**.
 
+## Fix 7: the core's own bar (`Processing.progress`), and one bar that follows the phase
+
+Fix 5 removed the last *core* bar drawn on Rich's global console, but `Processing`
+still owned a `Progress`: the CLI handed it its own bar
+(`Processing(sb, progress=view.progress)`), and with no bar supplied the core
+started one of its own (`Progress(console=starbash.console)` + `start()`).
+`MyReporter` then wrote *display strings* into it per task (`Subtask: <title>`)
+and advanced it on every completion.
+
+### Problem
+
+* **The GUI got a display it never asked for.** Its worker builds a `Processing`
+  inside a `QThread` and renders the run itself from the bus, so it passed no
+  `progress=` — `_owns_progress` was true and the worker started a Rich `Live` on
+  `starbash.console`: a second renderer painting the process's stdout while the Qt
+  window drew the very same run.
+* **The core decided a presentation string.** `MyReporter` relabelled a
+  *caller-owned* bar with `Subtask: <title>`; that string existed only for a bar
+  the core no longer draws, and it was the sole reason `Progress` sat in
+  `ProcessingLike`'s protocol.
+* **There were two bars for one job.** `Processing.run_all_stages()` created
+  "Processing targets..." and `doit.py` maintained a second, per-task bar next to
+  it — with the per-task relabelling making it read as a third thing.
+
+### Approach — publish the size of the run; the view owns the one bar
+
+Delete the core's bar and give the view the *numbers* it needs instead.
+
+* `Processing.__init__(sb)` — the `progress` parameter, `self.progress`,
+  `_owns_progress` and the matching `start()`/`stop()` are gone; `close()` only
+  unsubscribes. `ProcessingLike.progress` leaves the protocol.
+* `MyReporter` — `job_task`, the `Subtask: …` label update and `advance()` are
+  gone. `execute_task()` still publishes the running-run snapshot, and the
+  task's own name already travels on `task.started`, so both front ends name the
+  running task from that event (`ProcessingView._task_caption`, the GUI's row).
+  The completion path still calls `add_result()`, now guarded by
+  `if self.processing and task.meta` — which is all that guard ever meant.
+* **`EVENT_TASKS_PLANNED`** (`tasks.planned`, `{tasks}`) — new, published by
+  `MyReporter.initialize()`. Every loaded task ends with exactly one
+  `task.finished` (one doit decided not to run reports through
+  `skip_uptodate`/`skip_ignore`), so this is the denominator a bar needs.
+* `EVENT_PROCESS_TARGET` / `EVENT_RUN_STARTED` now carry `index` alongside
+  `total`, so an observer measures planning from the boundaries the core already
+  publishes instead of counting them itself.
+* **`EVENT_MERGE_PROGRESS` / `EVENT_MERGE_FINISHED`** (`merge.progress`,
+  `merge.finished`) — new, published by `doit.merge_to()`, which used to wrap its
+  symlink loop in `rich.progress.track()`: a `Live` on Rich's *global* console,
+  i.e. exactly the Fix 5 bug class (a second renderer painting over the run view,
+  plus a display a GUI worker never asked for).  `merge.progress` reports the
+  counts (`{name, done, total}`) every 25 frames and always on the last one, the
+  way the reindex scan does; `merge.finished` (`{name, files}`) closes the phase.
+  The GUI needs no handler — its row already names the task and the tool — and
+  `doit.py` no longer imports Rich at all.  The two *publishers* are both input
+  collectors: `tool/siril.py::link_or_copy_to_dir()` (which had the identical
+  `track()` bar, on **every** Siril stage) publishes the same pair — one concept,
+  "this stage is collecting its inputs", so one event kind and one phase.
+* **`ProcessingView` owns the bar**: explicit columns
+  (`TextColumn`/`BarColumn`/`MofNCompleteColumn`/`TimeElapsedColumn`) and one
+  task, aimed at a *phase* —
+
+  | phase | description | counts from |
+  |---|---|---|
+  | (none) | `Starting...` | indeterminate (pulses, `0/?`) |
+  | `indexing:<repo>` | `Indexing files` | `reindex.progress` `done`/`total` |
+  | `planning` | `Planning` | `process.target` `index`/`total` |
+  | `tasks` | `Processing tasks` | `tasks.planned`; `+1` per `task.finished` |
+  | `merge:<name>` | `Collecting inputs` | `merge.progress` `done`/`total` |
+
+  `_set_bar(phase, description, completed, total)` resets the bar only when the
+  *phase changes*, so a phase keeps one `TimeElapsedColumn` clock while its
+  events stream in; a phase that reports no total leaves the previous one in
+  place (Rich cannot move a task back to an unknown total, so the bar simply
+  keeps pulsing), and `_advance_bar()` never passes the total, so a plan/event
+  mismatch cannot draw past the bar's column.
+* **A collection borrows the bar and hands it back.** `merge_to()` and Siril's
+  `link_or_copy_to_dir()` both run *inside* a task (they collect the next stage's
+  inputs before its tool starts), so
+  `merge.progress` points the bar at the frames being collected while the caption
+  keeps naming the running task; `merge.finished` then points the bar back at
+  `tasks`, because that is what progresses for the (much longer) tool run that
+  follows — leaving a full `Collecting inputs` bar up would read as done until
+  the next phase.  The run's task counts therefore live in the view
+  (`_tasks_done`/`_tasks_total`, set by `tasks.planned` and advanced per
+  `task.finished`) rather than being read back off the bar, which some other
+  phase may be holding.
+* The caption keeps the *words* (`Indexing file:///img`) and the bar keeps the
+  *numbers* (`12/40`): both used to print the same counts on adjacent lines.
+
+### Verification
+
+* `tests/unit/test_run_tree_rich.py::TestLiveStatusLine` — the bar counts the
+  tasks of the *current* run (not the whole job), it pulses until a phase knows
+  its size, it takes planning from the target boundaries, it puts reindex counts
+  on the bar rather than in the caption, a task event past the plan cannot
+  overflow it, and one phase keeps one clock across its events.
+* `tests/unit/test_doit.py::test_a_run_reports_one_finish_per_planned_task` — a
+  **real** doit run (`load_doit_config` installs `MyReporter`, so this drives the
+  actual reporter rather than a mock): `tasks.planned` says 2, exactly two
+  `task.finished` events follow, and one of them is the `Current` (up-to-date)
+  skip — i.e. the denominator stays reachable when doit has nothing to do.
+* `tests/unit/test_emit_hooks.py::test_my_reporter_publishes_the_size_of_the_run`
+  and `…::test_a_skipped_task_still_reports_task_finished`.
+* `tests/unit/test_doit.py::TestMergeToReportsProgress` — a **real** `merge_to()`
+  call over 26 frames: the bus sees `merge.progress` at 0, 25 and 26 (the
+  interval *and* the last frame, so the phase never falls short of its total)
+  then `merge.finished`, and the merged sequence really holds one symlink per
+  input in collection order.
+* `tests/unit/test_tool.py::TestLinkOrCopyToDir` — the same contract for Siril's
+  collector: 26 frames report 0, 25, 26 then `merge.finished`, the links it claims
+  really exist, and a re-run that meets its own links still counts every frame
+  (the skip must not shorten the phase).
+* `TestLiveStatusLine` — `test_a_merge_phase_borrows_the_bar_and_gives_it_back`
+  (the bar shows `Collecting inputs 25/120` while the caption still names the
+  running task, then returns to `Processing tasks 1/3` and continues to `2/3`
+  rather than restarting at zero) and
+  `test_an_empty_merge_leaves_the_task_counts_alone` (a sequence that matched
+  nothing reports `0/0`, which takes the description but not the counts).
+* `tests/unit/test_processing.py::TestProcessingOwnsNoDisplay` — a real
+  `Processing(sb)` has no `progress` attribute at all, so the GUI cannot get a
+  stray display; `test_run_boundaries_say_which_target_of_how_many` asserts the
+  `(index, total)` pairs on both run-boundary events.
+* `tests/unit/test_events.py::test_every_event_kind_is_exported_and_unique` — the
+  new kind is in `__all__` and no two kinds share a string.
+* `TestLiveLayout`'s crop-marker test now renders through `LiveRender` (what
+  actually inserts the marker) and asserts no *whole row* reads `...`. Its old
+  `"..." in row` form passed only because it rendered the layout directly, where
+  Rich can never add the marker — it was vacuous, and the label `Starting...`
+  would have tripped it.
+
+### Risks / notes
+
+* The bar measures a **phase**, not a stage: it deliberately collapses the run
+  from "a whole job" to "this doit run's tasks", because that is the only size
+  the core knows before the run starts. A target's own stage progress is on the
+  status line (`stack: Stack lights · Siril 42%`) and in the tree.
+* Between phases the bar resets rather than summing, so `MofNCompleteColumn`
+  always refers to the phase named to its left.
+* **One Rich bar outside the run is left, deliberately.**  After Fix 7 no
+  `rich.progress.track()` call remains anywhere in `src/`; the only `Progress`
+  widgets are the CLI's own (`commands/process.py`, `ui/cli.py`) — plus
+  `publish/github.py::GitHubPublisher.publish()`, which opens one on
+  `starbash.console` for site generation and is called **from the GUI's publish
+  job** (`ui/qt/jobs.py::publish_github_job`), i.e. the Fix 5 bug class in the
+  publish subsystem.  Out of Fix 7's scope (the *run* bar), and left visible here
+  rather than half-fixed: the fix is to give `publish()` a reporter the way
+  `github_publish.publish_site()` already has one, and let `sb publish` draw its
+  own bar.  Note `github_publish.py` — the sign-in/upload sequence the GUI shares
+  — is already Rich-free.
+
 ## Files
 
 * `src/starbash/tool/base.py` — drop `ToolLiveDisplay`, `Tool._active_display`,
@@ -362,10 +513,32 @@ reroutes everything.
   `_RunTail` in Fix 3), plus `_building_index()` and the `LOG_LINES` /
   `MIN_SIDE_BY_SIDE_WIDTH` / `MIN_SPLIT_HEIGHT` sizing constants.  Fix 4 made the
   window follow the *running* run (or, between tasks, the row where progress was)
-  instead of the newest run's top.
+  instead of the newest run's top.  Fix 7 added the view's own phase bar
+  (`_set_bar()` / `_advance_bar()` and the `Progress` column list), so the CLI no
+  longer passes a bar into `Processing`.
+* `src/starbash/processing.py` (Fix 7) — `Processing` has no `progress` at all:
+  the `progress=` parameter, `self.progress`, `_owns_progress` and the
+  `start()`/`stop()` pair are gone, as are the "Processing targets..." /
+  "Processing: <target>" bars in `run_all_stages()` (which now enumerates its
+  targets so the run boundaries can carry `index`).
+* `src/starbash/processing_like.py` (Fix 7) — the `progress: Progress` member
+  leaves the protocol.
 * `src/starbash/doit.py` — `MyReporter.execute_task()` publishes the live run
   snapshot (with this task `running`) in the `task.started` payload (Fix 4).
-* `src/starbash/events.py` — documents that snapshot on `EVENT_TASK_STARTED`.
+  Fix 7 removed its bar work (`job_task`, the `Subtask: …` relabelling and the
+  `advance()`), so it now only publishes — and `initialize()` publishes the new
+  `tasks.planned` size.  Fix 7 also took the `track()` bar out of `merge_to()`
+  (the last Rich display in the core): it publishes `merge.progress` /
+  `merge.finished` instead, every 25 frames and on the last one.
+* `src/starbash/tool/siril.py` (Fix 7) — `link_or_copy_to_dir()` had the identical
+  `rich.progress.track()` bar (`Linking input files...` / `Copying input files
+  (fix your OS settings!)...`), drawn for **every** Siril stage; it now publishes
+  the same `merge.progress` / `merge.finished` pair (phase name = the directory it
+  fills) and the no-symlinks hint is a log line.  `import rich.progress` is gone.
+* `src/starbash/events.py` — documents that snapshot on `EVENT_TASK_STARTED`,
+  adds `EVENT_TASKS_PLANNED` (`tasks.planned`), the merge pair
+  (`merge.progress` / `merge.finished`), and documents the `index` that the
+  run-boundary events carry (Fix 7).
 * `src/starbash/rich.py` — render run-tree log lines as literal `Text` so a tool
   line containing `[` cannot raise `MarkupError` inside the live refresh thread
   (which would freeze the display); `log_line_to_text()` (Fix 3) reuses that
@@ -381,7 +554,12 @@ reroutes everything.
   the row count never exceeds it, that no `...` is drawn and that the status
   stays on the first row with 200 runs).  Fix 5 adds
   `tests/unit/test_reindex_view.py` and the two reindex tests in
-  `tests/unit/test_app.py`.
+  `tests/unit/test_app.py`.  Fix 7 adds six bar tests to `TestLiveStatusLine`,
+  `tests/unit/test_processing.py::TestProcessingOwnsNoDisplay` (plus the
+  run-boundary `index` assertions), the two event-hook tests in
+  `tests/unit/test_emit_hooks.py`, the real-doit
+  `tests/unit/test_doit.py::test_a_run_reports_one_finish_per_planned_task`, and
+  `tests/unit/test_events.py::test_every_event_kind_is_exported_and_unique`.
 * `src/starbash/tool/base.py` (Fix 6) — `tool_run_in_process()`, `_ToolSourceFilter`,
   `_ToolLogForwarder` and the `_active_forwarders` nesting rule.
 * `src/starbash/tool/graxpert.py` (Fix 6) — the built-in `api_run` runs inside
@@ -392,6 +570,12 @@ reroutes everything.
 
 ## Risks / notes
 
+* **The CLI run bar is a *phase* bar (Fix 7).** A run's bar restarts at each
+  phase (`Starting...` → `Indexing files` → `Planning` → `Processing tasks`), and
+  its `MofNCompleteColumn` always refers to the phase named beside it — there is
+  deliberately no "percent of the whole job", because the job's size is unknown
+  until the last target's tasks are planned.  An observer that wants a per-stage
+  percentage still gets it from `tool.progress` / the run snapshot.
 * Tools run without a live view (GUI worker thread, `sb process doit`) no longer
   draw a terminal spinner; their output still reaches the log file, the logger
   and the event bus.

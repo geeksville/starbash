@@ -1,5 +1,48 @@
 # Active Context
 
+## Current work focus — one event-driven CLI bar (Fix 7: `Processing.progress` removal)
+
+**Implemented 2026-09-15**, recorded in `doc/plans/cli-live-display.md` (Fix 7).
+The core no longer owns *any* Rich progress bar: every bar was the CLI's one live
+widget or a second renderer fighting it (the Fix 5 bug class).
+
+- **`Processing` has no `progress`**: the `progress=` parameter, `self.progress`,
+  `_owns_progress` and `start()`/`stop()` are gone, as are the "Processing
+  targets..." / "Processing: <target>" bars — `run_all_stages()` now enumerates its
+  targets so the run boundaries can carry `index`.  `ProcessingLike.progress` is
+  removed too; `test_processing.py::TestProcessingOwnsNoDisplay` asserts a real
+  `Processing` has no `progress` attribute, so a GUI cannot pick up a stray display.
+- **The run's size comes from the core, not a bar**: `doit.MyReporter.initialize()`
+  publishes the new `EVENT_TASKS_PLANNED` (`tasks.planned`), and
+  `EVENT_PROCESS_TARGET` / `EVENT_RUN_STARTED` now carry `index` (+ `total`).
+- **`ProcessingView` owns the one bar**, aimed at a *phase*:
+  `Starting...` (indeterminate) → `Indexing files` → `Planning` → `Processing tasks`
+  → `Collecting inputs`.  `_set_bar()` resets only when the *phase* changes (one
+  clock per phase), `_advance_bar()` never passes the total, and the run's task
+  counts live in the view (`_tasks_done`/`_tasks_total`) because another phase may be
+  holding the bar.
+- **`EVENT_MERGE_PROGRESS` / `EVENT_MERGE_FINISHED`** (`merge.progress` /
+  `merge.finished`, every 25 frames **and** always the last) replaced
+  `rich.progress.track()` in **both** input collectors: `doit.merge_to()` and
+  `tool/siril.py::link_or_copy_to_dir()` (the latter drew the identical bar on
+  *every* Siril stage, and its "no symlinks here" hint is now a log line).  A
+  collection *borrows* the bar mid-task and `merge.finished` hands it back to
+  `tasks`, so the much longer tool run that follows keeps advancing.
+- **Verified scope**: no `track(` call remains anywhere in `src/`, and the only
+  `Progress` widgets left are the CLI's own (`commands/process.py`, `ui/cli.py`)
+  plus one deliberate leftover — `publish/github.py::GitHubPublisher.publish()`
+  opens a `Progress` on `starbash.console` and *is* called from the GUI's
+  `publish_github_job` (same bug class, publish subsystem, out of Fix 7's scope;
+  documented in the plan's *Risks / notes* with the fix sketch).
+- **Tests**: `test_doit.py::TestMergeToReportsProgress` (a real 26-frame
+  `merge_to()`), `test_tool.py::TestLinkOrCopyToDir` (the same contract for Siril's
+  collector, including that a re-run meeting its own links still counts every
+  frame), the merge-phase cases in `TestLiveStatusLine`, plus `test_emit_hooks`,
+  `test_events`, `test_processing` and `test_run_tree_rich`.  Full suite
+  **1224 passed / 1 skipped**, `just lint` 0 basedpyright errors.
+- **Not committed** — the working tree holds the change for the developer to commit
+  (suggested split: core/view change, then the two collector changes).
+
 ## Current work focus — Qt object lifetimes (the SIGSEGV and the CI RecursionError)
 
 **Fixed 2026-09-15**, recorded in `doc/plans/qt-object-lifetimes.md`. Two

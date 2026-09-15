@@ -68,7 +68,9 @@
 
 Alpha `v0.3.1` (tag `90529fe`, 2026-08-31); `main` has moved well past the
 `d9eb338` noted here originally — the GUI work
-(including the split live display: tool log pane + run tree), the missing-tool
+(including the split live display: tool log pane + run tree, whose **one** progress
+bar is now the CLI view's own — the core owns no bar at all and every bar it used
+to draw now arrives as events), the missing-tool
 warning model, the real GitHub publish flow, and the **Targets explorer**
 (narrow target picker + `Stages`/`Sessions` tree + calibration `MasterPicker`)
 with the **structured `sessions.masters` schema** that makes a user's master pick

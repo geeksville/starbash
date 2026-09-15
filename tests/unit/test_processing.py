@@ -1285,6 +1285,23 @@ class TestAutoReindexIntegration:
         assert scanned == []
 
 
+class TestProcessingOwnsNoDisplay:
+    """The core publishes events; the CLI's view (or the GUI) owns the display.
+
+    Regression: ``Processing`` used to take a ``progress=`` bar from its caller
+    and otherwise start a Rich ``Progress`` of its own -- so the GUI, whose
+    worker builds a ``Processing`` with no bar at all, got a stray display
+    refreshing behind (and punching holes in) the Qt window.
+    """
+
+    def test_a_processing_job_has_no_progress_bar(self, setup_test_environment, mock_analytics):
+        from starbash.app import Starbash
+        from starbash.processing import Processing
+
+        with Starbash() as sb, Processing(sb) as proc:
+            assert not hasattr(proc, "progress")
+
+
 class TestRunAllStagesPreflight:
     """The auto pipeline builds every target before running any of them."""
 
@@ -1297,22 +1314,6 @@ class TestRunAllStagesPreflight:
         class FakeSb:
             def search_session(self, *args, **kwargs):
                 return [{"object": t} for t in targets]
-
-        class FakeProgress:
-            def __init__(self) -> None:
-                self.events: list[str] = []
-
-            def add_task(self, *args, **kwargs) -> int:
-                return 0
-
-            def update(self, *args, **kwargs) -> None:
-                pass
-
-            def track(self, iterable, *args, **kwargs):
-                return iterable
-
-            def remove_task(self, *args, **kwargs) -> None:
-                pass
 
         class FakePt:
             def __init__(self, name: str) -> None:
@@ -1329,7 +1330,6 @@ class TestRunAllStagesPreflight:
                 raise AssertionError("remove_processing_dir() must not be called")
 
         proc.sb = FakeSb()
-        proc.progress = FakeProgress()
         proc.processed_target = None
         return proc, FakePt
 
@@ -1377,6 +1377,46 @@ class TestRunAllStagesPreflight:
         # The cache bound is applied exactly once, after the whole run.
         assert prune_calls == [1]
         assert proc.processed_target is None
+
+    def test_run_boundaries_say_which_target_of_how_many(self, monkeypatch):
+        """``run.started``/``process.target`` carry their position in the job.
+
+        The CLI's header draws "Target 2/5" and its bar measures planning from
+        these, so the position is published rather than counted by each observer.
+        """
+        import starbash
+        from starbash import events
+        from starbash import processing as processing_mod
+
+        monkeypatch.setattr(starbash, "process_masters", False, raising=False)
+        proc, FakePt = self._fake_processing(["M42", "M31"])
+
+        proc._create_tasks = lambda sessions, targets: [
+            {"meta": {"processed_target": FakePt(targets[0])}}
+        ]
+        proc._run_all_tasks = lambda tasks, prune=True: []
+        proc._finish_runs = lambda results: None
+        proc._publish_master_cull = lambda results, tasks: []
+        monkeypatch.setattr(processing_mod, "cleanup_old_contexts", lambda: None)
+
+        captured: list[events.Event] = []
+
+        def record(event: events.Event) -> None:
+            captured.append(event)
+
+        events.subscribe(record)
+        try:
+            proc.run_all_stages()
+        finally:
+            events.unsubscribe(record)
+
+        for kind in (events.EVENT_PROCESS_TARGET, events.EVENT_RUN_STARTED):
+            positions = [
+                (event.data["index"], event.data["total"])
+                for event in captured
+                if event.kind == kind
+            ]
+            assert positions == [(1, 2), (2, 2)], kind
 
     def test_target_processing_dir_is_kept_after_run(self, monkeypatch):
         """A target's processing dir is a reuse cache and must survive its run.

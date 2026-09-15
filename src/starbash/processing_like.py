@@ -1,7 +1,5 @@
 from typing import Any, Protocol
 
-from rich.progress import Progress
-
 from starbash import StageDict
 from starbash.app import Starbash
 from starbash.database import SessionRow
@@ -22,8 +20,6 @@ class ProcessingLike(Protocol):
     def stages(
         self,
     ) -> list[StageDict]: ...
-
-    progress: Progress
 
     def add_result(self, result: Any) -> None: ...
 

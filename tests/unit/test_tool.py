@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
+from starbash import events
 from starbash.tool import (
     GraxpertBuiltinTool,
     GraxpertExternalTool,
@@ -33,6 +34,7 @@ from starbash.tool import (
 )
 from starbash.tool.base import tool_run_streaming
 from starbash.tool.rcastro import parse_json_line
+from starbash.tool.siril import link_or_copy_to_dir
 
 
 class TestSafeFormatter:
@@ -481,6 +483,76 @@ class TestSirilTool:
         # We can't easily test the actual siril execution without mocking subprocess,
         # but we can verify the tool is instantiated correctly
         assert tool.name == "Siril"
+
+
+class TestLinkOrCopyToDir:
+    """The Siril input collector reports on the bus instead of drawing a bar.
+
+    It runs for every Siril stage, *inside* a processing run, and a
+    ``rich.progress.track()`` there builds its own ``Console`` on stdout -- a
+    second bar painted over the CLI's one live display, and stdout output from a
+    GUI worker.  The CLI's bar has a "Collecting inputs" phase for these counts.
+    """
+
+    def test_it_reports_its_counts_and_completion(self, tmp_path):
+        source = tmp_path / "source"
+        source.mkdir()
+        # Spans the 25-frame reporting interval, so the final count is the last
+        # iteration rather than a multiple of 25.
+        frames = 26
+        inputs: list[Path] = []
+        for index in range(1, frames + 1):
+            path = source / f"light_{index:04d}.fits"
+            path.touch()
+            inputs.append(path)
+        dest = tmp_path / "work" / "stack"
+        dest.mkdir(parents=True)
+
+        captured: list[events.Event] = []
+        unsubscribe = events.subscribe(captured.append)
+        try:
+            link_or_copy_to_dir(inputs, str(dest))
+        finally:
+            unsubscribe()
+
+        assert [(event.kind, event.data) for event in captured] == [
+            (events.EVENT_MERGE_PROGRESS, {"name": "stack", "done": 0, "total": frames}),
+            (events.EVENT_MERGE_PROGRESS, {"name": "stack", "done": 25, "total": frames}),
+            (events.EVENT_MERGE_PROGRESS, {"name": "stack", "done": frames, "total": frames}),
+            (events.EVENT_MERGE_FINISHED, {"name": "stack", "files": frames}),
+        ]
+        # The reported counts have to describe work that actually happened.
+        assert sorted(path.name for path in dest.iterdir()) == sorted(path.name for path in inputs)
+
+    def test_a_second_run_keeps_the_input_it_already_has(self, tmp_path):
+        """An input already in place is left alone -- and is still reported.
+
+        A re-run of a Siril stage meets its own links, so the collector skips them;
+        the counts it reports must cover those frames too, or the phase would stop
+        short of its total.
+        """
+        source = tmp_path / "source"
+        source.mkdir()
+        frame = source / "light_0001.fits"
+        frame.touch()
+        dest = tmp_path / "work" / "stack"
+        dest.mkdir(parents=True)
+        already = dest / "light_0001.fits"
+        already.write_text("from an earlier stage")
+
+        captured: list[events.Event] = []
+        unsubscribe = events.subscribe(captured.append)
+        try:
+            link_or_copy_to_dir([frame], str(dest))
+        finally:
+            unsubscribe()
+
+        assert [event.data for event in captured if event.kind == events.EVENT_MERGE_PROGRESS] == [
+            {"name": "stack", "done": 0, "total": 1},
+            {"name": "stack", "done": 1, "total": 1},
+        ]
+        assert captured[-1].kind == events.EVENT_MERGE_FINISHED
+        assert already.read_text() == "from an earlier stage"
 
 
 class TestToolsDict:

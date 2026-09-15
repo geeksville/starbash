@@ -14,7 +14,6 @@ from typing import Any
 import tomlkit
 from doit.tools import config_changed
 from multidict import MultiDict
-from rich.progress import Progress
 from toml_repo import Repo
 from tomlkit.items import AoT
 
@@ -264,7 +263,7 @@ class Processing(ProcessingLike):
     - run_master_stages(): Generate master calibration frames
     """
 
-    def __init__(self, sb: Starbash, progress: Progress | None = None) -> None:
+    def __init__(self, sb: Starbash) -> None:
         self.sb: Starbash = sb
         self.context: dict[str, Any] = {}
 
@@ -282,13 +281,6 @@ class Processing(ProcessingLike):
 
         self.results: list[ProcessingResult] = []
 
-        self._owns_progress = progress is None
-        self.progress = progress or Progress(console=starbash.console, refresh_per_second=2)
-        if self._owns_progress:
-            # A caller-supplied progress (the CLI's live tree view) is driven by
-            # that view's own Live, so we must not start a competing one here.
-            self.progress.start()
-
         self._stages_cache: list[StageDict] | None = None  # Cache for stages property
         #: What role selection decided for the current job (see doc/plans/stage-roles.md).
         self._stage_selection: StageSelection | None = None
@@ -300,9 +292,8 @@ class Processing(ProcessingLike):
 
     # --- Lifecycle ---
     def close(self) -> None:
+        """Stop observing the bus.  Nothing here draws: the core owns no display."""
         events.unsubscribe(self._run_log_subscriber)
-        if self._owns_progress:
-            self.progress.stop()
 
     # Context manager support
     def __enter__(self) -> "Processing":
@@ -552,9 +543,6 @@ class Processing(ProcessingLike):
             master_results = self.run_master_stages()
             results.extend(master_results)
 
-        # Show two progress bars, one for each target and a second (from inside doit.py) showing the tasks
-        progress_task = self.progress.add_task("Processing targets...", total=len(targets_list))
-
         # --- preflight: build the task graph for every target, run nothing ---
         # Targets run one at a time (rather than as one big doit run) so each gets
         # its own run boundary (run.started / run.finished) and the cull can be
@@ -562,9 +550,6 @@ class Processing(ProcessingLike):
         prebuilt: dict[str | None, list[TaskDict]] = {}
         try:
             for index, t in enumerate(targets_list, start=1):
-                self.progress.update(
-                    progress_task, description=f"Planning: {t}" if t else "masters", refresh=True
-                )
                 events.publish(
                     events.EVENT_PROCESS_TARGET,
                     {"target": t, "index": index, "total": len(targets_list)},
@@ -579,13 +564,10 @@ class Processing(ProcessingLike):
             )
 
             # --- run: execute the pre-built target tasks ---
-            for t in self.progress.track(targets_list, task_id=progress_task):
-                self.progress.update(
-                    progress_task, description=f"Processing: {t}" if t else "masters", refresh=True
-                )
+            for index, t in enumerate(targets_list, start=1):
                 events.publish(
                     events.EVENT_RUN_STARTED,
-                    {"target": t or "masters", "total": len(targets_list)},
+                    {"target": t or "masters", "index": index, "total": len(targets_list)},
                 )
                 tasks = prebuilt.get(t) or self._create_tasks(sessions, [t])
                 self.processed_target = self._processed_target_of(tasks)
@@ -598,8 +580,6 @@ class Processing(ProcessingLike):
                 self._finish_runs(target_results)
                 self.processed_target = None
         finally:
-            # we manually created this task, so we manually need to remove it
-            self.progress.remove_task(progress_task)
             self.processed_target = None
             # Apply the normal cache bound now that the whole run is over (this is
             # the run's only prune).  Runs even if a target failed, so an

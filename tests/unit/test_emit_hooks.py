@@ -100,6 +100,47 @@ def test_tool_run_streaming_captures_stderr_separately(tmp_path, recorder):
     assert any("oops" in line for line in stderr_lines)
 
 
+def test_my_reporter_publishes_the_size_of_the_run(recorder):
+    """``tasks.planned`` is the denominator for a live progress bar.
+
+    Every task doit loaded ends with exactly one ``task.finished`` -- a task that
+    is already up to date, or ignored, reports through
+    ``skip_uptodate``/``skip_ignore`` -- so a bar can trust this number.
+    """
+    from collections import OrderedDict
+
+    reporter = MyReporter(outstream=io.StringIO(), options={})
+    reporter.processing = None
+    tasks: OrderedDict[str, Task] = OrderedDict(
+        (name, Task(name, [])) for name in ("calibrate", "stack", "stretch")
+    )
+
+    reporter.initialize(tasks, list(tasks))
+
+    planned = next(event for event in recorder if event.kind == events.EVENT_TASKS_PLANNED)
+    assert planned.data["tasks"] == 3
+
+
+def test_a_skipped_task_still_reports_task_finished(recorder):
+    """An up-to-date (or ignored) task finishes too, so a bar reaches its total.
+
+    Regression guard for the ``tasks.planned`` denominator: if a skip were silent
+    the CLI's bar would stall short of the end whenever doit had nothing to do.
+    """
+    reporter = MyReporter(outstream=io.StringIO(), options={})
+    reporter.processing = None
+    task = Task("calibrate", [])
+
+    reporter.skip_uptodate(task)
+    reporter.skip_ignore(task)
+
+    finished = [event for event in recorder if event.kind == events.EVENT_TASK_FINISHED]
+    assert [event.data["reason"] for event in finished] == ["Current", "Ignored"]
+    # Neither a success nor a failure: doit skipped the work.
+    assert all(event.data["success"] is None for event in finished)
+    assert all(event.data["task"] == "calibrate" for event in finished)
+
+
 def test_my_reporter_publishes_task_started_and_finished(recorder):
     """doit task transitions are observable so a GUI can drive a live task tree."""
     reporter = MyReporter(outstream=io.StringIO(), options={})

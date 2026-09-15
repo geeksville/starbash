@@ -16,7 +16,6 @@ from doit.doit_cmd import DoitMain
 from doit.exceptions import BaseFail
 from doit.reporter import ConsoleReporter
 from doit.task import Task, dict_to_task
-from rich.progress import TaskID, track
 from toml_repo import Repo
 
 from starbash import InputDef, events
@@ -177,7 +176,9 @@ def doit_post_process(task_dict: TaskDict) -> None:
 
     * Populate master output files in the DB (FIXME I think we can remove this once doit dependencies fully linked)
     * Set result for this task (for later reporting)
-    * Advance the progress bar
+
+    Note it publishes nothing and draws nothing: ``MyReporter`` reports the
+    task's completion on the event bus (see doc/plans/cli-live-display.md).
     """
 
     def closure(targets: list) -> None:
@@ -288,14 +289,28 @@ def merge_to(base_name: str, fi: FileInfo) -> None:
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create symlinks/copies with sequential names in the subdirectory
-    for index, source_file in track(
-        enumerate(collected_files, start=1), description="Collecting job inputs", transient=True
-    ):
+    # Create symlinks/copies with sequential names in the subdirectory.  Every
+    # input frame of the target is touched here, so it reports its own counts:
+    # the core owns no display (see doc/plans/cli-live-display.md) -- the CLI's
+    # run view points its bar at this phase from these events, the GUI ignores
+    # them -- where the old `track()` bar drew on Rich's *global* console, i.e.
+    # a second Live over the run view and an unrequested display in a GUI worker.
+    total = len(collected_files)
+    events.publish(events.EVENT_MERGE_PROGRESS, {"name": base_name, "done": 0, "total": total})
+    for index, source_file in enumerate(collected_files, start=1):
         dest_name = f"{base_name}_{index:05d}.fits"
         dest_path = output_dir / dest_name
         # logging.debug(f"Linking {source_file} to {dest_path}")
         symlink_or_copy(str(source_file), str(dest_path))
+        # One event per file would flood the bus on a large target (the reindex
+        # scan reports every 25 for the same reason); always report the last one
+        # so the phase is never left short of its total.
+        if index % 25 == 0 or index == total:
+            events.publish(
+                events.EVENT_MERGE_PROGRESS,
+                {"name": base_name, "done": index, "total": total},
+            )
+    events.publish(events.EVENT_MERGE_FINISHED, {"name": base_name, "files": total})
 
     merged_provenance = {
         f"{base_name}_{index:05d}.fits": provenance[source_file.name]
@@ -452,11 +467,15 @@ class ProcessingResult:
 
 
 class MyReporter(ConsoleReporter):
-    """A custom reporter that uses rich progress bars to show task progress."""
+    """A custom reporter that narrates a run on the event bus.
+
+    It *publishes* -- per-task start/finish and the size of the run -- and owns
+    no display at all: the CLI's ``ProcessingView`` and the GUI's task tree
+    render from those events (see doc/plans/cli-live-display.md).
+    """
 
     def __init__(self, outstream: Any, options: Any) -> None:
         super().__init__(outstream, options)
-        self.job_task = TaskID(0)
         self.processing: ProcessingLike | None = None
 
     @staticmethod
@@ -507,6 +526,11 @@ class MyReporter(ConsoleReporter):
             except Exception as e:  # noqa: BLE001
                 logging.debug(f"run-state task_started failed: {e}")
 
+        # Note: the progress *bar* is no longer labelled here.  It only ever
+        # relabelled a caller-owned bar that the core no longer has, and every
+        # front end already names the running task from this very event -- the
+        # CLI's live status line ("stack: Stack lights", built by
+        # ProcessingView._task_caption) and the GUI's caption/tree row.
         events.publish(
             events.EVENT_TASK_STARTED,
             {
@@ -517,11 +541,6 @@ class MyReporter(ConsoleReporter):
             },
         )
 
-        if self.processing:
-            self.processing.progress.update(
-                self.job_task, description=f"Subtask: {task.title()}", refresh=True
-            )
-
     def _handle_completion(
         self,
         task: Task,
@@ -531,16 +550,13 @@ class MyReporter(ConsoleReporter):
     ) -> None:
         # We made progress - call once per iteration ;-)
 
-        if self.processing:
-            self.processing.progress.advance(self.job_task)
+        if self.processing and task.meta:
+            result = ProcessingResult(task=task, reason=reason, success=success)
+            e = task.meta.get("exception")  # try to pass our raw exception if possible
 
-            if task.meta:
-                result = ProcessingResult(task=task, reason=reason, success=success)
-                e = task.meta.get("exception")  # try to pass our raw exception if possible
-
-                result.notes = task.name  # default nodes just show the task name
-                result.update(e or fail)
-                self.processing.add_result(result)
+            result.notes = task.name  # default nodes just show the task name
+            result.update(e or fail)
+            self.processing.add_result(result)
 
         # Report completion to any observers (e.g. the GUI task tree).  This is
         # outside the `if self.processing` guard so standalone doit runs report too.
@@ -581,22 +597,18 @@ class MyReporter(ConsoleReporter):
         super().initialize(tasks, selected_tasks)
 
         if len(tasks) > 0:
+            # Tell observers how big this run is.  Every task in this list ends
+            # with exactly one EVENT_TASK_FINISHED -- a task that was already up
+            # to date, or ignored, reports through skip_uptodate/skip_ignore --
+            # so this is the denominator a live progress bar needs.  Nothing
+            # draws here: the core owns no display (see doc/plans/cli-live-display.md).
+            events.publish(events.EVENT_TASKS_PLANNED, {"tasks": len(tasks)})
+
             first = next(
                 iter(tasks.values())
             )  # All tasks we add are required to have meta.processing
 
             self.processing = first.meta and first.meta["processing"]
-            if self.processing:
-                self.job_task = self.processing.progress.add_task(
-                    "Processing tasks...", total=len(tasks)
-                )
-
-    def complete_run(self) -> None:
-        """called when finished running all tasks"""
-        super().complete_run()
-
-        if self.processing:
-            self.processing.progress.remove_task(self.job_task)
 
 
 class StarbashDoit(TaskLoader2):

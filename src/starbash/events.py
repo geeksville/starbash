@@ -50,9 +50,12 @@ __all__ = [
     "EVENT_TOOL_FINISHED",
     "EVENT_TASK_STARTED",
     "EVENT_TASK_FINISHED",
+    "EVENT_TASKS_PLANNED",
     "EVENT_STAGE_RESULT",
     "EVENT_REINDEX_PROGRESS",
     "EVENT_REINDEX_FINISHED",
+    "EVENT_MERGE_PROGRESS",
+    "EVENT_MERGE_FINISHED",
     "EVENT_PROCESS_TARGET",
     "EVENT_PREFLIGHT_FINISHED",
     "EVENT_RUN_STARTED",
@@ -84,12 +87,23 @@ EVENT_TOOL_FINISHED = "tool.finished"
 EVENT_TASK_STARTED = "task.started"
 #: A doit task finished. data: {task, title, success, reason, target?, stage?, is_master?}
 EVENT_TASK_FINISHED = "task.finished"
+#: A doit run is about to start, with the size of its task list.  data: {tasks}
+#: -- a task that was already up to date (or ignored) still reports through
+#: ``task.finished``, so exactly ``tasks`` of those events follow and a live
+#: progress bar can use the number as its total.
+EVENT_TASKS_PLANNED = "tasks.planned"
 #: A processing stage produced a result. data: {result, run: {..plain run-tree..}}
 EVENT_STAGE_RESULT = "stage.result"
 #: Reindexing progress for a repo. data: {repo, done, total, file?}
 EVENT_REINDEX_PROGRESS = "reindex.progress"
 #: Reindexing of a repo completed. data: {repo, indexed}
 EVENT_REINDEX_FINISHED = "reindex.finished"
+#: A stage is collecting its input frames into one merged sequence (the recipes'
+#: ``merge_to``), which symlinks/copies every frame -- so it can be slow and it
+#: reports its own counts. data: {name, done, total}
+EVENT_MERGE_PROGRESS = "merge.progress"
+#: The merge above finished and the merged sequence is ready. data: {name, files}
+EVENT_MERGE_FINISHED = "merge.finished"
 #: A whole target is about to be processed. data: {target, index, total}
 EVENT_PROCESS_TARGET = "process.target"
 #: The preflight (plan) phase finished, before any target task runs.  data:

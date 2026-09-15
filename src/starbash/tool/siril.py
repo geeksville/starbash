@@ -7,8 +7,7 @@ import textwrap
 from pathlib import Path
 from typing import Any
 
-from rich.progress import track
-
+from starbash import events
 from starbash.os import symlink_or_copy
 from starbash.tool.base import ExternalTool, ToolSeverity, tool_run
 from starbash.tool.context import expand_context_unsafe, strip_comments
@@ -22,22 +21,46 @@ SIRIL_INSTALL_URL = "https://siril.org/"
 
 
 def link_or_copy_to_dir(input_files: list[Path], dest_dir: str) -> None:
-    """Create symbolic links or copies of input files in the given directory."""
+    """Create symbolic links or copies of input files in the given directory.
+
+    This runs *inside* a processing run, so it reports through the event bus
+    rather than drawing: a ``rich.progress.track()`` here builds its own
+    ``Console`` on stdout, which paints a second bar over the CLI's one live
+    display and writes to stdout from a GUI worker.  The CLI's bar has a
+    "Collecting inputs" phase for these counts (the same phase
+    ``doit.merge_to()`` feeds, as both collect a stage's inputs) -- see
+    doc/plans/cli-live-display.md.
+    """
 
     from starbash.os import symlinks_supported
 
-    description = (
-        "Linking input files..."
-        if symlinks_supported
-        else "Copying input files (fix your OS settings!)..."
-    )
+    if not symlinks_supported:
+        # This used to be the bar's description; a log line is where a user can
+        # still read it, and it is the only hint why the run is slower than it
+        # needs to be.
+        logger.info(
+            "Copying input files (symbolic links are unavailable here, fix your OS settings)"
+        )
 
-    for f in track(input_files, description=description, transient=True):
+    # Name the phase after the directory being filled, so a new stage's collection
+    # restarts the bar instead of extending the previous one.
+    name = Path(dest_dir).name or str(dest_dir)
+    total = len(input_files)
+    events.publish(events.EVENT_MERGE_PROGRESS, {"name": name, "done": 0, "total": total})
+    for index, f in enumerate(input_files, start=1):
         dest_file = os.path.join(dest_dir, os.path.basename(str(f)))
 
         # if a script is re-run we might already have the input file symlinks
         if not os.path.exists(dest_file):
             symlink_or_copy(str(f), dest_file)
+
+        # A target is thousands of frames, so report every 25th -- plus the last,
+        # so the phase always reaches its total (the reindex scan does the same).
+        if index % 25 == 0 or index == total:
+            events.publish(
+                events.EVENT_MERGE_PROGRESS, {"name": name, "done": index, "total": total}
+            )
+    events.publish(events.EVENT_MERGE_FINISHED, {"name": name, "files": total})
 
 
 class SirilTool(ExternalTool):

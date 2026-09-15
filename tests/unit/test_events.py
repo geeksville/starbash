@@ -1,6 +1,7 @@
 """Tests for the core event bus and the interaction protocol (Phase 0)."""
 
 import logging
+import re
 
 import pytest
 
@@ -150,6 +151,27 @@ def test_is_structured_stream_recognises_known_mimes():
     assert not events.is_structured_stream("stderr")
     # An unrecognised mime is still human-facing log text, not protocol data.
     assert not events.is_structured_stream("stdout.xml")
+
+
+def test_every_event_kind_is_exported_and_unique():
+    """The well-known kinds are one public, collision-free vocabulary.
+
+    Two things a producer/consumer typo hides behind: a kind that is publishable
+    but missing from ``__all__`` (so the documented surface and a star-import
+    consumer cannot see it), and two constants that share a string (so a filter
+    or a switch on ``event.kind`` silently matches the wrong event).  Adding a
+    kind -- e.g. ``tasks.planned``, the denominator a live progress bar needs --
+    has to keep both true.
+    """
+    constants = {name: value for name, value in vars(events).items() if name.startswith("EVENT_")}
+
+    # Every EVENT_* constant defined in the module is part of the public surface.
+    assert set(constants) <= set(events.__all__), set(constants) - set(events.__all__)
+    # ...and no two of them share a string, which is what a filter would match on.
+    assert len(set(constants.values())) == len(constants)
+    assert all(re.fullmatch(r"[a-z]+\.[a-z_.]+", kind) for kind in constants.values()), sorted(
+        constants.values()
+    )
 
 
 def test_auto_accept_interaction_returns_defaults():

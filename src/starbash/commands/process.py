@@ -11,7 +11,7 @@ import typer
 from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.layout import Layout
 from rich.live import Live
-from rich.progress import Progress
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
 from rich.segment import Segment
 from rich.spinner import Spinner
 from rich.text import Text
@@ -320,19 +320,21 @@ class ProcessingView:
     """A live Rich tree of a processing run, driven by the event bus.
 
     Owns the single :class:`~rich.live.Live` used during a CLI run -- so the tree,
-    the live status line and the progress bars share one render loop -- and renders
+    the live status line and the progress bar share one render loop -- and renders
     each target's run as ``target -> stage -> task`` with status glyphs, clickable
     links and a live log pane.  It is the CLI counterpart of the GUI's tree.
 
     Its *only* input is :mod:`starbash.events` (``process.target``, ``run.*``,
-    ``task.*``, ``tool.*`` and ``stage.result``).  Nothing under ``starbash.tool``
-    draws to the terminal any more, because two Rich ``Live`` displays on one
-    console tear each other apart (see ``doc/plans/cli-live-display.md``).
+    ``task.*``, ``tool.*``, ``reindex.*`` and ``stage.result``).  Neither the core
+    nor the tools draw anything: two Rich ``Live`` displays on one console tear
+    each other apart, so the one bar on screen is this view's, and it is driven by
+    the events rather than by ``Processing`` (see ``doc/plans/cli-live-display.md``).
 
     The screen is split with a :class:`~rich.layout.Layout`:
 
     * a *pinned* header on top -- the spinner, the current target/stage/task, the
-      tool being run with its percentage and the progress bars;
+      tool being run with its percentage, and the phase progress bar (files
+      indexed, targets planned, or the tasks of the current doit run);
     * the main body below it, in two panes: a scrolling log of the tools' own
       output on the *left* (stderr and "bad word" lines red), and the run trees
       on the *right*, scrolled so the task that is currently building stays
@@ -369,7 +371,27 @@ class ProcessingView:
     def __init__(self, title: str, console: Console) -> None:
         self.title = title
         self.console = console
-        self.progress = Progress(console=console, refresh_per_second=4)
+        # The header's single progress bar.  The view owns it -- the core
+        # publishes events and draws nothing -- and points it at whatever phase
+        # is running: files being indexed, targets being planned, or the tasks of
+        # the current doit run.  It starts indeterminate (pulsing, "0/?") and
+        # every phase that knows its size gives it a total.
+        self.progress = Progress(
+            TextColumn("{task.description}", markup=False),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=console,
+            refresh_per_second=4,
+        )
+        self._bar = self.progress.add_task("Starting...", total=None)
+        # What the bar is currently counting; a *change* of phase restarts it.
+        self._bar_phase: str | None = None
+        # This run's task counts, kept here rather than read back off the bar: a
+        # merge phase can sit on the bar for a while (see EVENT_MERGE_PROGRESS)
+        # without the run's tasks stopping progressing underneath it.
+        self._tasks_done = 0
+        self._tasks_total = 0
         self._runs: dict[str, dict] = {}
         self._order: list[str] = []
         self._subscriber = self._on_event
@@ -420,11 +442,31 @@ class ProcessingView:
         if kind in (events.EVENT_RUN_STARTED, events.EVENT_PROCESS_TARGET):
             self._note_run(data)
             self._set_status(self._run_caption(data))
+            if kind == events.EVENT_PROCESS_TARGET:
+                # Planning is measurable in targets: how many we have built task
+                # graphs for so far (the run phase then re-points the bar at the
+                # tasks of the current target).
+                self._set_bar(
+                    "planning",
+                    "Planning",
+                    completed=int(data.get("index") or 1) - 1,
+                    total=int(data.get("total") or 0),
+                )
+        elif kind == events.EVENT_TASKS_PLANNED:
+            # The size of the doit run that is about to start.  Exactly this many
+            # task.finished events follow (a task that is already up to date, or
+            # ignored, reports too), so it is the bar's total.  There is one run
+            # per target, so the bar measures the current target while the caption
+            # carries the overall "Target 2/5".
+            self._tasks_total = int(data.get("tasks") or 0)
+            self._tasks_done = 0
+            self._set_bar("tasks", "Processing tasks", total=self._tasks_total)
         elif kind == events.EVENT_TASK_STARTED:
             self._note_run(data)
             self._set_status(self._task_caption(data))
         elif kind == events.EVENT_TASK_FINISHED:
             self._note_run(data)
+            self._advance_bar()
             # A finished task leaves the caption alone (its status is in the tree);
             # only a failure is worth calling out where the running task was.
             if data.get("success") is False:
@@ -463,12 +505,41 @@ class ProcessingView:
         elif kind == events.EVENT_REINDEX_PROGRESS:
             # The pre-run index pass (see Processing.reindex_if_needed) reports the
             # same events as `sb repo reindex`, so the caption shows whose files are
-            # being scanned rather than a bare "starting up" pause.
-            done = int(data.get("done") or 0)
-            total = int(data.get("total") or 0)
-            self._set_status(f"Indexing {data.get('repo') or ''} — {done}/{total}")
+            # being scanned rather than a bare "starting up" pause.  The counts go
+            # on the bar, not in the caption: otherwise the header's two lines
+            # print the same numbers twice.
+            repo = str(data.get("repo") or "")
+            self._set_status(f"Indexing {repo}")
+            self._set_bar(
+                f"indexing:{repo}",
+                "Indexing files",
+                completed=int(data.get("done") or 0),
+                total=int(data.get("total") or 0),
+            )
         elif kind == events.EVENT_REINDEX_FINISHED:
             self._set_status(f"Indexed {data.get('indexed') or 0} file(s)")
+        elif kind == events.EVENT_MERGE_PROGRESS:
+            # A stage is collecting its input frames into one merged sequence
+            # (recipes' `merge_to`): a symlink per frame, so it can be slow and it
+            # reports its own counts.  Only the bar moves -- the caption keeps the
+            # running task, which is what the merge is working on.
+            self._set_bar(
+                f"merge:{data.get('name') or ''}",
+                "Collecting inputs",
+                completed=int(data.get("done") or 0),
+                total=int(data.get("total") or 0),
+            )
+        elif kind == events.EVENT_MERGE_FINISHED:
+            # The merged sequence is ready and the stage's own tool runs next, so
+            # hand the bar back to the run's tasks: they are what progresses now,
+            # and leaving a full "Collecting inputs" bar up would read as done for
+            # the whole (much longer) tool run.
+            self._set_bar(
+                "tasks",
+                "Processing tasks",
+                completed=self._tasks_done,
+                total=self._tasks_total,
+            )
 
     def _note_run(self, data: dict) -> None:
         """Fold a payload's run/target labels into the rendered tree."""
@@ -498,6 +569,46 @@ class ProcessingView:
         themselves) cannot break the render or inject styling.
         """
         self._caption = Text(text, style=style)
+
+    def _set_bar(
+        self, phase: str, description: str, completed: int = 0, total: int | None = None
+    ) -> None:
+        """Point the header's one bar at the phase that is running now.
+
+        ``phase`` names the metric being counted (files indexed, targets planned,
+        tasks run).  Repeating a phase only moves the counts, so a phase's clock
+        keeps running while its events stream in -- it is a *change* of phase that
+        restarts the bar.  Rich cannot move a task back to an unknown total, so a
+        phase that reports no total leaves the previous one in place (and the bar
+        keeps pulsing until some phase does know its size).
+        """
+        if not total:
+            self.progress.update(self._bar, description=description)
+            return
+        if phase == self._bar_phase:
+            self.progress.update(
+                self._bar, description=description, completed=completed, total=total
+            )
+        else:
+            self._bar_phase = phase
+            self.progress.reset(
+                self._bar, description=description, completed=completed, total=total, start=True
+            )
+
+    def _advance_bar(self) -> None:
+        """Count one finished task, never past the end of the current run.
+
+        The count lives in the view rather than being read back off the bar: a
+        merge phase may be holding the bar while the run's tasks continue (see
+        ``EVENT_MERGE_PROGRESS``), so only the *tasks* phase is drawn here.
+        """
+        if not self._tasks_total:
+            # No planned size: an over-full bar would draw past its column, and an
+            # indeterminate one has nothing to advance.
+            return
+        self._tasks_done = min(self._tasks_done + 1, self._tasks_total)
+        if self._bar_phase == "tasks":
+            self.progress.update(self._bar, completed=self._tasks_done)
 
     def _clear_tool(self) -> None:
         """Forget the running tool (and its progress) - the log stays visible."""
@@ -610,7 +721,7 @@ class ProcessingView:
         return self._render()
 
     def _status_renderable(self) -> RenderableType:
-        """The live status line and the progress bars (the pinned header)."""
+        """The live status line and the phase progress bar (the pinned header)."""
         if self._finished:
             # The frame that stays on screen (Live leaves the last one behind).
             if self._failure:
@@ -712,7 +823,7 @@ def auto(
         from starbash import console
 
         view = ProcessingView("Auto-processing", console)
-        with view, Processing(sb, progress=view.progress) as proc:
+        with view, Processing(sb) as proc:
             if session_num is not None:
                 console.print(
                     f"[red]Session number base filtering not yet implemented: {session_num}...[/red]"
@@ -759,7 +870,7 @@ def masters() -> None:
         from starbash import console
 
         view = ProcessingView("Generating master frames", console)
-        with view, Processing(sb, progress=view.progress) as proc:
+        with view, Processing(sb) as proc:
             proc.reindex_if_needed()
             proc.run_master_stages()
             view.finish()

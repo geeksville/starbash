@@ -6,6 +6,7 @@ import re
 from io import StringIO
 
 from rich.console import Console
+from rich.live_render import LiveRender
 
 from starbash import events
 from starbash.commands.process import ProcessingView, tool_label
@@ -417,6 +418,151 @@ class TestLiveStatusLine:
         )
         assert "Indexed 40 file(s)" in _render(view._render())
 
+    def test_the_bar_counts_the_tasks_of_the_current_run(self):
+        """``tasks.planned`` is the denominator; a finished task advances the bar."""
+        view = self._view()
+        view._on_event(events.Event(events.EVENT_TASKS_PLANNED, {"tasks": 3}))
+
+        view._on_event(events.Event(events.EVENT_TASK_FINISHED, {"title": "Calibrate"}))
+        view._on_event(events.Event(events.EVENT_TASK_FINISHED, {"title": "Stack"}))
+
+        text = _render(view._render())
+
+        assert "Processing tasks" in text
+        assert "2/3" in text
+
+    def test_a_merge_phase_borrows_the_bar_and_gives_it_back(self):
+        """A merge runs *inside* a task, so the bar follows it and then returns.
+
+        ``merge_to`` collects the next stage's inputs before its tool runs, and it
+        can be slow, so it gets its own phase -- but the caption keeps naming the
+        running task (that is what the merge is working on).  When it is over the
+        bar goes back to the run's tasks, rather than sitting full at "Collecting
+        inputs" for the whole (much longer) tool run that follows.
+        """
+        view = self._view()
+        view._on_event(events.Event(events.EVENT_TASKS_PLANNED, {"tasks": 3}))
+        view._on_event(
+            events.Event(
+                events.EVENT_TASK_STARTED,
+                {"task": "stack", "title": "Stack lights", "stage": "stack"},
+            )
+        )
+        view._on_event(events.Event(events.EVENT_TASK_FINISHED, {"title": "Calibrate"}))
+
+        view._on_event(
+            events.Event(events.EVENT_MERGE_PROGRESS, {"name": "lights", "done": 25, "total": 120})
+        )
+        collecting = _render(view._render())
+        assert "Collecting inputs" in collecting
+        assert "25/120" in collecting
+        assert "stack: Stack lights" in collecting  # the caption keeps the task
+
+        view._on_event(events.Event(events.EVENT_MERGE_FINISHED, {"name": "lights", "files": 120}))
+        handed_back = _render(view._render())
+        assert "Processing tasks" in handed_back
+        assert "1/3" in handed_back
+        assert "Collecting inputs" not in handed_back
+
+        # ...and the run's tasks carry on from where they were, not from zero.
+        view._on_event(events.Event(events.EVENT_TASK_FINISHED, {"title": "Stack"}))
+        assert "2/3" in _render(view._render())
+
+    def test_an_empty_merge_leaves_the_task_counts_alone(self):
+        """A sequence that matched nothing reports 0/0: the bar keeps its numbers.
+
+        A merge with no total has nothing honest to draw, so it only takes the
+        description -- the phase that was there keeps its counts, and the
+        completion hands the bar straight back to the run's tasks.
+        """
+        view = self._view()
+        view._on_event(events.Event(events.EVENT_TASKS_PLANNED, {"tasks": 2}))
+        view._on_event(events.Event(events.EVENT_TASK_FINISHED, {"title": "Calibrate"}))
+        view._on_event(events.Event(events.EVENT_MERGE_PROGRESS, {"name": "in", "total": 0}))
+        view._on_event(events.Event(events.EVENT_MERGE_FINISHED, {"name": "in", "files": 0}))
+
+        text = _render(view._render())
+
+        assert "Processing tasks" in text
+        assert "1/2" in text
+
+    def test_the_bar_pulses_until_a_phase_knows_its_size(self):
+        """No total yet means no honest denominator, so the bar stays indeterminate."""
+        view = self._view()
+
+        text = _render(view._render())
+
+        assert "Starting..." in text
+        assert "0/?" in text
+        assert view._bar_phase is None
+
+    def test_the_bar_measures_the_current_run_not_the_whole_job(self):
+        """There is one doit run per target, so each run has its own denominator."""
+        view = self._view()
+        view._on_event(events.Event(events.EVENT_TASKS_PLANNED, {"tasks": 2}))
+        for _ in range(2):
+            view._on_event(events.Event(events.EVENT_TASK_FINISHED, {"title": "t"}))
+
+        view._on_event(events.Event(events.EVENT_TASKS_PLANNED, {"tasks": 5}))
+
+        text = _render(view._render())
+
+        assert "0/5" in text
+        assert "2/2" not in text
+
+    def test_a_task_event_past_the_plan_does_not_overflow_the_bar(self):
+        """Counts that ever disagree are clamped rather than drawn past the column."""
+        view = self._view()
+        view._on_event(events.Event(events.EVENT_TASKS_PLANNED, {"tasks": 1}))
+        for _ in range(3):
+            view._on_event(events.Event(events.EVENT_TASK_FINISHED, {"title": "t"}))
+
+        assert "1/1" in _render(view._render())
+
+    def test_planning_is_measurable_from_the_target_boundaries(self):
+        """A target boundary says where planning has got to, so the bar can show it."""
+        view = self._view()
+        view._on_event(
+            events.Event(events.EVENT_PROCESS_TARGET, {"target": "M31", "index": 2, "total": 5})
+        )
+
+        text = _render(view._render())
+
+        assert "Target 2/5: M31" in text
+        # One target's graph is built when the second one starts.
+        assert "Planning" in text
+        assert "1/5" in text
+
+    def test_indexing_reports_its_counts_on_the_bar_not_the_caption(self):
+        """The header's two lines must not print the same numbers twice."""
+        view = self._view()
+        view._on_event(
+            events.Event(
+                events.EVENT_REINDEX_PROGRESS,
+                {"repo": "file:///img", "done": 12, "total": 40},
+            )
+        )
+
+        text = _render(view._render())
+
+        assert "Indexing file:///img" in text  # the caption names the repo
+        assert "Indexing files" in text  # the bar's label ...
+        assert "12/40" in text  # ... carries the counts
+        assert "12/40" not in view._status_text().plain
+
+    def test_a_phase_keeps_one_clock_across_its_events(self):
+        """Streaming progress must not restart the bar (and its clock) per event."""
+        view = self._view()
+        view._on_event(events.Event(events.EVENT_TASKS_PLANNED, {"tasks": 9}))
+        started = view.progress.tasks[view._bar].start_time
+
+        view._on_event(events.Event(events.EVENT_TASK_FINISHED, {"title": "t"}))
+        view._on_event(events.Event(events.EVENT_TASK_FINISHED, {"title": "u"}))
+
+        task = view.progress.tasks[view._bar]
+        assert task.completed == 2
+        assert task.start_time == started
+
 
 class TestLiveLayout:
     """The status region must survive a run tree that is hundreds of lines tall.
@@ -461,10 +607,14 @@ class TestLiveLayout:
 
     def test_no_overflow_ellipsis_is_drawn(self):
         # Rich's crop marker: what the users actually saw instead of the status.
+        # ``LiveRender`` is what inserts it (``Live`` uses it), so render through
+        # it -- a test that renders the layout directly can never see the marker.
         view = self._running(self._view(200))
-        rows = _render_at(view._render(), 80, 24)
+        renderable = LiveRender(view._render(), vertical_overflow="ellipsis")
+        rows = _render_at(renderable, 80, 24)
 
-        assert not any("..." in row for row in rows)
+        # The marker is a row of its own ("..."), and must not replace the status.
+        assert not any(row.strip() == "..." for row in rows)
 
     def test_status_line_and_progress_stay_pinned_with_hundreds_of_runs(self):
         view = self._running(self._view(200))
