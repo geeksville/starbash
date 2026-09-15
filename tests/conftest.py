@@ -1,5 +1,6 @@
 """Shared fixtures for all tests (unit and integration)."""
 
+import logging
 import os
 import sys
 from unittest.mock import MagicMock, patch
@@ -7,6 +8,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from starbash import doit_types, paths
+
+logger = logging.getLogger(__name__)
 
 # Qt tests (marked `gui`) must never need a display.  Set this before any
 # QApplication is created so `pytest -m gui` works on headless CI runners.
@@ -208,3 +211,62 @@ def mock_analytics():
             "exception": mock_exception,
             "context": mock_context,
         }
+
+
+# --- Qt background jobs ------------------------------------------------------
+#
+# The GUI runs slow work on Qt's global thread pool (``ui/qt/workers.py``).  Nothing
+# waited for those jobs, so a job could still be running while pytest tore down the
+# app context and the widgets it reports to - and, more painfully, while the
+# interpreter shut down and dropped the ``WorkerSignals`` it emits from.  The pool
+# thread then called into Qt objects Python had already freed: normally a
+# ``RuntimeError: Signal source has been deleted``, but a sporadic SIGSEGV (freed
+# memory reused) or a hang at interpreter exit (the job held the import lock) when
+# the timing fell the other way.  Slow CI runners widen that window, which is why it
+# showed up there.  Waiting for the pool before fixtures are finalized removes the
+# race at its source.
+
+#: Longest a `gui` test waits for in-flight jobs at teardown.
+_TEST_JOB_DRAIN_SECONDS = 10.0
+#: Longest the session waits for in-flight jobs before the interpreter exits.
+_SESSION_JOB_DRAIN_SECONDS = 30.0
+
+
+def _drain_qt_thread_pool(seconds: float, where: str) -> None:
+    """Wait for Qt background jobs to finish (a no-op when Qt never started)."""
+    try:
+        from PySide6.QtCore import QThreadPool
+        from PySide6.QtWidgets import QApplication
+    except ImportError:  # Qt is not installed at all
+        return
+    if QApplication.instance() is None:  # no GUI session in this process
+        return
+
+    pool = QThreadPool.globalInstance()
+    if pool.activeThreadCount() == 0:
+        return
+    if not pool.waitForDone(int(seconds * 1000)):
+        logger.warning(
+            "%s: a background job was still running after %.0fs (%d thread(s) busy); "
+            "the GUI's own jobs finish in milliseconds, so this one looks stuck",
+            where,
+            seconds,
+            pool.activeThreadCount(),
+        )
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_teardown(item, nextitem) -> None:
+    """Let a `gui` test's background jobs finish before its fixtures are torn down."""
+    if "gui" in item.keywords:
+        _drain_qt_thread_pool(_TEST_JOB_DRAIN_SECONDS, item.nodeid)
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_sessionfinish(session, exitstatus) -> None:
+    """Let background jobs finish before the interpreter starts tearing down.
+
+    Session-scoped fixtures - including pytest-qt's ``QApplication`` - are finalized
+    after this hook runs, so the thread pool is still usable here.
+    """
+    _drain_qt_thread_pool(_SESSION_JOB_DRAIN_SECONDS, "end of test session")

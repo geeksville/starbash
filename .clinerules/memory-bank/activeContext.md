@@ -1,5 +1,46 @@
 # Active Context
 
+## Current work focus — Qt object lifetimes (the SIGSEGV and the CI RecursionError)
+
+**Fixed 2026-09-15**, recorded in `doc/plans/qt-object-lifetimes.md`. Two
+"unrelated" failures were one bug: a Python reference kept after Qt deleted the C++
+object behind it (PySide then raises `Signal source has been deleted`, or — once the
+freed memory is reused — segfaults).
+
+- **Bug 1 (the SIGSEGV):** `run_async` jobs were never waited for. A thread dump in
+  `pytest_runtest_teardown` shows `test_every_page_refreshes_without_error`'s identity
+  job sitting in `keyring → get_all_keyring → entry_points()` **every single run**
+  (`activeThreadCount() == 1` before teardown), so at interpreter shutdown Python
+  dropped the `WorkerSignals` it emits from and the late emit hit freed memory.
+  Fix: `tests/conftest.py` drains the global pool before `gui`-test fixture finalizers
+  and at session end; `Worker.run` drops an outcome whose signals are gone
+  (`shiboken6.isValid`) and `_report` is guarded; `Worker.setAutoDelete(False)` so Qt
+  cannot delete the runnable under `_live_workers` (or a caller's `_stop_worker`).
+  Measured: late-emit errors 2/2 per run before → **0/8** after, and the whole suite
+  (xdist, as CI runs it) is 1206 passed / 0 late emits.
+- **Bug 2 (the CI `RecursionError`):** `EventBusBridge`'s bus subscription is a plain
+  Python reference, and `MainWindow.closeEvent` skips `_bus.close()` when a page
+  refuses to leave — so a bridge outlives its window
+  (`test_targets_page.py`'s navigation test leaks one; measured
+  `subscriber_count() == 1` after it). Every later `publish` then called into the dead
+  object, and because `publish`'s error path is `logger.exception` **and** an
+  in-process tool's log forwarder republishes *every* record
+  (`_ToolSourceFilter(None)` accepts all), the report published, failed again, and
+  recursed. Fix: a `destroyed` → `close()` **lambda** (PySide does not deliver
+  `destroyed` to a slot defined on the dying object — measured), a `shiboken6.isValid`
+  self-heal in `_on_event`, and `events._report_subscriber_failure` refusing to log
+  while a failure report is already in flight.
+- Three new GUI/event regression tests, each verified to fail against the pre-fix code
+  (e.g. the late emit raises `RuntimeError: Signal source has been deleted`; with
+  `autoDelete(True)` a finished worker's wrapper is `isValid == False`).
+- **Open (needs a decision, not implemented):** should `MainWindow.closeEvent` cancel
+  and wait for in-flight jobs (`workers.shutdown(timeout)`)? Options and trade-offs
+  are in the plan's *Open question*; the guards above already make the current
+  behaviour safe, so this is purely about not silently losing work on quit.
+- Debugging lesson worth keeping: a helper that swallowed `ImportError` hid a wrong
+  import (`QApplication` from `QtCore`, not `QtWidgets`), which made a "validated"
+  drain silently do nothing for several rounds. Check the probe, not just the result.
+
 ## Current work focus — stage roles (Phase 1 implemented)
 
 `doc/plans/stage-roles.md` Phase 1 is **implemented** (2026-09-14): a stage may

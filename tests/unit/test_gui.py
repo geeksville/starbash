@@ -96,6 +96,80 @@ def test_bridge_close_stops_delivery(qtbot):
     assert received == []
 
 
+def test_a_destroyed_bridge_detaches_itself_from_the_bus(qapp):
+    """Qt deleting the bridge must remove its bus subscription too.
+
+    A window can be destroyed without ``close()`` ever running - Qt deleting it, or
+    ``closeEvent`` returning early because a page refused to leave - yet a subscription
+    is a plain Python reference, so it used to outlive the QObject.  The next publish
+    from anywhere in the process then called into the deleted object (``RuntimeError:
+    Signal source has been deleted``), which became a ``RecursionError`` in an
+    unrelated test on CI once a tool's log forwarder republished that error.
+    """
+    import shiboken6
+    from PySide6.QtWidgets import QWidget
+
+    from starbash.ui.qt.bridge import EventBusBridge
+
+    parent = QWidget()
+    bridge = EventBusBridge(parent)
+    assert events.subscriber_count() == 1
+
+    del bridge  # only Qt's parent/child ownership still refers to the bridge...
+    shiboken6.delete(parent)  # ...and now that is gone too
+
+    # Going away drops the subscription eagerly (the ``destroyed`` handler) - and the
+    # next publish must not reach a deleted QObject either way.
+    assert events.subscriber_count() == 0
+    events.publish("after.the.bridge.was.deleted")
+
+
+# --- worker lifetimes ------------------------------------------------------
+
+
+def test_a_worker_whose_qt_objects_died_drops_its_report(qapp):
+    """A job that outlives the Qt objects it reports to must not emit into them.
+
+    This is the crash behind ``test_every_page_refreshes_without_error``: the identity
+    job was still scanning the keyring when the session ended and Python dropped the
+    ``WorkerSignals`` it emits from.  The late emit then raised ``Signal source has
+    been deleted`` (and, once the freed memory had been reused, segfaulted instead),
+    so the outcome is now dropped rather than delivered.
+    """
+    import shiboken6
+
+    from starbash.ui.qt.workers import Worker
+
+    worker = Worker(lambda report, token: "result")
+    report = worker._report
+
+    shiboken6.delete(worker.signals)  # what teardown/shutdown does under a running job
+    assert shiboken6.isValid(worker.signals) is False
+
+    report({"percent": 50})  # progress after the signals died: a no-op
+    worker.run()  # and the outcome is dropped, not emitted
+
+
+def test_a_worker_is_still_usable_by_its_caller_after_it_finishes(qtbot, qapp):
+    """``github_login._stop_worker`` cancels a worker that may already have finished.
+
+    Qt must therefore not delete the runnable from under the Python reference its
+    caller holds: with auto-delete on, that left a dangling wrapper (the object
+    Python kept was no longer valid) as soon as the job returned.
+    """
+    import shiboken6
+
+    from starbash.ui.qt.workers import run_async
+
+    finished: list[object] = []
+    worker = run_async(lambda report, token: "ok", on_finished=finished.append)
+    qtbot.waitUntil(lambda: len(finished) == 1, timeout=5000)
+
+    assert shiboken6.isValid(worker) is True
+    worker.token.cancel()  # what _stop_worker does, on a worker that has already finished
+    assert worker.token.is_cancelled() is True
+
+
 # --- table models ----------------------------------------------------------
 
 

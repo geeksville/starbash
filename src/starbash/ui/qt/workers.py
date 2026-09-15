@@ -17,6 +17,7 @@ import traceback
 from collections.abc import Callable
 from typing import Any
 
+import shiboken6
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
 
 logger = logging.getLogger(__name__)
@@ -25,14 +26,30 @@ __all__ = ["CancelToken", "JobCancelled", "WorkerSignals", "Worker", "run_async"
 
 #: Workers that are still in flight.
 #:
-#: A :class:`Worker` is a ``QRunnable`` with ``autoDelete`` set, so if Python drops
-#: the object the C++ side destroys it - and its signal object - as soon as the job
-#: returns.  A queued ``finished``/``failed`` delivery is then dropped before the GUI
-#: thread ever sees it, so a caller that ignores the return value of :func:`run_async`
-#: (a very natural thing to do) can silently never hear back.  Measured here: with
-#: no reference kept, only 7 of 60 callbacks arrived; keeping one until ``done``
-#: makes it 60 of 60.
+#: Python keeps a reference to every submitted :class:`Worker` until its ``done``
+#: signal has been delivered, so a caller that ignores the return value of
+#: :func:`run_async` (a very natural thing to do) still hears back.  Measured before
+#: this set existed: with no reference kept, only 7 of 60 callbacks arrived.
+#:
+#: That is also why :class:`Worker` sets ``autoDelete(False)``: when Qt owned the
+#: runnable, C++ deleted it - and its signal object - the moment the job returned,
+#: *underneath* the wrapper this set keeps, leaving a dangling object that a caller
+#: (``github_login._stop_worker`` cancels its worker, say) or this very set could
+#: still reach.  Releasing the reference on ``done`` is what frees it now.
 _live_workers: set[Worker] = set()
+
+
+def _signal_source_is_alive(signals: QObject) -> bool:
+    """Whether ``signals`` still has a live C++ object behind its Python wrapper.
+
+    PySide keeps the wrapper of a deleted C++ object around, but calling into it
+    raises (``RuntimeError: Signal source has been deleted``) - and, once the freed
+    memory has been handed to something else, can crash the process instead.  A job
+    can outlive the Qt objects it reports to (the window closed, or the interpreter
+    is shutting down while the job is still running), so a worker checks before it
+    emits; see :meth:`Worker.run`.
+    """
+    return shiboken6.isValid(signals)
 
 
 class JobCancelled(Exception):
@@ -86,22 +103,47 @@ class Worker(QRunnable):
         self._job = job
         self.signals = WorkerSignals()
         self.token = CancelToken()
-        self.setAutoDelete(True)
+        # Python owns this runnable (it created it, and it has no parent), so Qt must
+        # not delete the C++ side from under the wrapper :data:`_live_workers` holds
+        # until ``done`` has been delivered - that left a dangling wrapper whose
+        # signals had already gone.  With auto-delete off the runnable lives exactly
+        # as long as the Python reference does, and shiboken frees it on the GUI
+        # thread (where the reference is dropped).
+        self.setAutoDelete(False)
+
+    def _report(self, payload: Any) -> None:
+        """Forward a progress payload, unless the Qt signal object is already gone."""
+        if _signal_source_is_alive(self.signals):
+            self.signals.progress.emit(payload)
 
     @Slot()
     def run(self) -> None:  # noqa: D401 - QRunnable API
-        """Execute the job, translating outcomes into signals."""
+        """Execute the job, translating outcomes into signals.
+
+        An outcome is *dropped* rather than delivered when the Qt signal object has
+        been destroyed while the job was running: emitting into a deleted
+        ``WorkerSignals`` raises, and - when the freed memory has been handed to
+        anything else since - can segfault the process instead.  That is how a
+        harmless late report (the common case on a slow CI runner, or for a user who
+        quits the GUI mid-job) turns into a crash.
+        """
         try:
-            result = self._job(self.signals.progress.emit, self.token)
+            payload: Any = self._job(self._report, self.token)
+            failed = False
         except JobCancelled:
-            self.signals.failed.emit("Cancelled.")
+            payload, failed = "Cancelled.", True
         except Exception as exc:  # noqa: BLE001 - surfaced to the user, not swallowed
             logger.error("Background job failed:\n%s", traceback.format_exc())
-            self.signals.failed.emit(str(exc) or exc.__class__.__name__)
+            payload, failed = str(exc) or exc.__class__.__name__, True
+
+        if not _signal_source_is_alive(self.signals):
+            logger.debug("Job finished after its Qt objects were destroyed: dropping the report")
+            return
+        if failed:
+            self.signals.failed.emit(payload)
         else:
-            self.signals.finished.emit(result)
-        finally:
-            self.signals.done.emit()
+            self.signals.finished.emit(payload)
+        self.signals.done.emit()
 
 
 def run_async(

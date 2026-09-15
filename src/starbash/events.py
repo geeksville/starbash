@@ -133,6 +133,10 @@ Subscriber = Callable[["Event"], None]
 _subscribers: list[Subscriber] = []
 _lock = threading.RLock()
 
+#: Set (per thread) while a failed subscriber is being reported - see
+#: :func:`_report_subscriber_failure`.
+_reporting_failure = threading.local()
+
 
 @dataclass(frozen=True)
 class Event:
@@ -180,11 +184,36 @@ def subscriber_count() -> int:
         return len(_subscribers)
 
 
+def _report_subscriber_failure(kind: str) -> None:
+    """Log a failed subscriber, without letting the logger re-enter :func:`publish`.
+
+    ``logging`` can publish: an in-process tool installs a forwarder that republishes
+    every record it sees as a ``tool.output`` event (``starbash.tool.base``).  So
+    reporting a subscriber failure may itself publish, and if that subscriber fails
+    again for the new event - which is what a subscriber whose Qt object was deleted
+    does, every single time - the report recurses until the interpreter gives up with
+    a ``RecursionError``.  The failure is therefore dropped while a report is already
+    in flight on this thread; the outermost report still names the exception, so
+    nothing goes unnoticed.
+
+    Args:
+        kind: The ``Event.kind`` whose subscriber failed (for the log message).
+    """
+    if getattr(_reporting_failure, "active", False):
+        return
+    _reporting_failure.active = True
+    try:
+        logger.exception("Event subscriber failed while handling %r", kind)
+    finally:
+        _reporting_failure.active = False
+
+
 def publish(kind: str, data: dict[str, Any] | None = None) -> None:
     """Publish an event of ``kind`` to all current subscribers.
 
     This function never raises: a failing subscriber is logged and skipped so a
-    buggy observer can't abort a processing run.
+    buggy observer can't abort a processing run.  Reporting a failure is itself
+    recursion-safe - see :func:`_report_subscriber_failure`.
     """
     event = Event(kind=kind, data=data or {})
     with _lock:
@@ -198,4 +227,4 @@ def publish(kind: str, data: dict[str, Any] | None = None) -> None:
         try:
             callback(event)
         except Exception:  # noqa: BLE001 - a UI bug must never kill processing
-            logger.exception("Event subscriber failed while handling %r", kind)
+            _report_subscriber_failure(kind)

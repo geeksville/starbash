@@ -38,3 +38,10 @@ Implementation and design plans live in `doc/plans/*.md` and are tracked in git.
   the file. Both blocking questions were **decided** the same day — §7.1: a *higher*
   `priority` wins (the code's existing rule), §7.2: `exclude_by_default` is dropped,
   not honoured. Phase 2 (GUI grouping, per-session role resolution) remains open.
+- `doc/plans/qt-object-lifetimes.md` — the two Qt-lifetime crashes (the
+  `test_every_page_refreshes_without_error` SIGSEGV and the CI `RecursionError`) and
+  their fix: a pool drain in `tests/conftest.py`, `Worker.run` dropping a report whose
+  signals are gone, `setAutoDelete(False)`, a self-detaching `EventBusBridge`, and a
+  recursion-proof `events.publish` failure path. **Implemented 2026-09-15**; its
+  *Open question* (should closing the GUI cancel-and-wait for in-flight jobs?) is
+  **undecided** and deliberately left out of the fix.

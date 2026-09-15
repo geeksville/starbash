@@ -80,6 +80,43 @@ def test_failing_subscriber_does_not_break_publish(caplog):
     assert "subscriber failed" in caplog.text.lower()
 
 
+def test_a_failing_subscriber_does_not_recurse_through_logging(caplog):
+    """Reporting a failure must not re-enter publish, even when logging publishes.
+
+    An in-process tool's log forwarder republishes *every* record it sees as a
+    ``tool.output`` event (``starbash.tool.base``), so logging a subscriber failure
+    published again - and a subscriber that fails every time (a Qt object Qt already
+    deleted, say) then recursed until ``RecursionError``, far from the real cause.
+    """
+    attempts: list[str] = []
+
+    class RepublishingHandler(logging.Handler):
+        """Stands in for ``tool.base``'s forwarder: every record becomes an event."""
+
+        def emit(self, record: logging.LogRecord) -> None:
+            events.publish(events.EVENT_TOOL_OUTPUT, {"line": record.getMessage()})
+
+    def failing(event: events.Event) -> None:
+        attempts.append(event.kind)
+        raise RuntimeError("Signal source has been deleted")
+
+    events.subscribe(failing)
+    handler = RepublishingHandler()
+    root = logging.getLogger()
+    root.addHandler(handler)
+    try:
+        with caplog.at_level(logging.ERROR):
+            events.publish(events.EVENT_TOOL_STARTED, {"cmd": "python"})
+    finally:
+        root.removeHandler(handler)
+
+    # The subscriber ran for the event, then once more for the republished report...
+    assert attempts == [events.EVENT_TOOL_STARTED, events.EVENT_TOOL_OUTPUT]
+    # ...and the failure was reported exactly once, instead of once per recursion.
+    reports = [r for r in caplog.records if "subscriber failed" in r.getMessage().lower()]
+    assert len(reports) == 1
+
+
 def test_subscriber_may_unsubscribe_during_dispatch():
     """Mutating the subscriber list while an event is dispatched is safe."""
     calls: list[str] = []

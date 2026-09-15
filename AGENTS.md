@@ -185,10 +185,21 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
     the job itself must only compute and **return data** (a `QImage` is fine, a
     `QPixmap` is not — it needs the GUI thread).
   - *`run_async` retains the `Worker` until it finishes*, so callers may ignore its
-    return value. This matters: a `Worker` is a `QRunnable` with `autoDelete`, so a
-    dropped reference let C++ destroy it (and its signals) before the queued
-    `finished`/`failed` signal was delivered — measured at **7 of 60** callbacks
-    arriving. Don't remove `_live_workers` from `workers.py`.
+    return value. This matters: with no reference kept only **7 of 60** callbacks
+    arrived. Don't remove `_live_workers` from `workers.py`.
+  - *A late report is dropped, never emitted into a dead object.* A job can outlive
+    the Qt objects it reports to (the window was closed, or the interpreter is
+    shutting down while the job still runs in the keyring), and PySide keeps the
+    wrapper of a deleted C++ object while raising `RuntimeError: Signal source has
+    been deleted` — or **segfaulting** — on `emit`. `Worker.run` therefore checks
+    `shiboken6.isValid(self.signals)` first, and `WorkerSignals` is Python-owned
+    (`setAutoDelete(False)`) so a worker its caller keeps stays valid.
+  - *`EventBusBridge` detaches itself when Qt deletes it.* Its bus subscription is a
+    plain Python reference, so it used to outlive the QObject: the next publish from
+    anywhere then called into the deleted object, and — with an in-process tool's log
+    forwarder republishing that error record — recursed into a `RecursionError` in an
+    unrelated test. The `destroyed` handler must be a lambda/plain callable: PySide
+    does not deliver `destroyed` to a slot defined on the dying object.
 - **Busy states**: long work in a view shows
   `ui/qt/widgets/busy_indicator.py` (`BusyIndicator`), an understated arc plus
   caption that centres itself over any parent widget and only animates while
@@ -222,6 +233,13 @@ never imports Qt (every Qt import is lazy), so CLI start-up is unaffected.
   `tests/unit/test_gui_command.py` covers the broken-install path, and
   `tests/unit/test_desktop_entry.py` (Qt-free, so it always runs) covers the
   `.desktop` install.
+  `tests/conftest.py` also **drains Qt's global thread pool** before a `gui` test's
+  fixtures are finalized and again at session end (`pytest_runtest_teardown` with
+  `tryfirst`, `pytest_sessionfinish`): a `run_async` job left in flight while the app
+  context, the widgets and finally the interpreter were torn down is what produced
+  the sporadic `test_every_page_refreshes_without_error` SIGSEGV — the job emitted
+  into Qt objects Python had already freed. Keep the drain: it is the cheap half of
+  the fix (the other half is `Worker.run` dropping a report whose signals are gone).
   `tests/unit/test_cli_headless.py` **locks in the headless guarantee**: it runs
   `sb info` in a subprocess with `DISPLAY` stripped and `PySide6` made
   unimportable, and asserts the CLI never loads Qt or the GUI package. If you ever

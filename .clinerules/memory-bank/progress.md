@@ -85,6 +85,10 @@ Bank was initialized on top of `21dac19` and extended since.
 - Recipe Python is still broadly unsafe (RestrictedPython `my__import__` allows all imports — "FIXME very unsafe").
 - `tool_run_streaming` runs via `subprocess.Popen(shell=True)` — shell injection risk is inherent to the current tool invocation model.
 - Stale `fixme-ai ... fwhm.md` comment in `recipes/osc.py` pending the R3 cleanup (mapping ownership to the new stage).
+- Closing the GUI does not wait for in-flight background jobs: with the
+  `doc/plans/qt-object-lifetimes.md` guards their report is dropped safely rather than
+  crashing, but the job's work is lost (and a job that writes files can still write
+  them after `Starbash.close()`). The plan's *Open question* lays out the options.
 
 ## Evolution of Project Decisions
 
