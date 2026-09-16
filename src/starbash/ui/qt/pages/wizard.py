@@ -161,15 +161,14 @@ class WelcomePage(SetupPage):
         self.setTitle("Welcome to Starbash")
         self.setSubTitle("Starbash turns your raw astronomy frames into finished pictures.")
 
+        # attn ai: the logo pane should show our telescope a bit lower - so it appears centered
+
         layout = QVBoxLayout(self)
         for text in (
-            "This short setup asks four questions: who to credit, where to put the "
-            "results, where your raw images are, and whether the tools Starbash needs "
-            "are installed.",
-            "Nothing here is written into your images folder.  Starbash only reads your "
-            "raw frames; everything it produces goes to the output folders you choose.",
-            "Every page can be skipped except your name, and you can re-run this wizard "
-            "at any time from <b>File ▸ Run setup wizard…</b>.",
+            "Thank you for trying Starbash.  This project is young but with your feedback "
+            "we hope it will improve workflow sharing/collaboration.",
+            "This wizard will guide you through the initial setup.",
+            "You can re-run this wizard at any time from <b>File ▸ Run setup wizard…</b>.",
         ):
             label = QLabel(text)
             label.setWordWrap(True)
@@ -188,9 +187,11 @@ class YouPage(SetupPage):
         repo = sb.user_repo
         self._name = QLineEdit(str(repo.get("user.name", "") or ""))
         self._email = QLineEdit(str(repo.get("user.email", "") or ""))
-        self._analytics = QCheckBox("Send anonymous crash reports and usage data")
+        self._analytics = QCheckBox("Send anonymous crash reports and usage data (please!)")
         self._analytics.setChecked(analytics_enabled(repo))
-        self._include_email = QCheckBox("Include my email with crash reports")
+        self._include_email = QCheckBox(
+            "Include my email with crash reports (so we can contact you)"
+        )
         self._include_email.setChecked(analytics_include_user(repo))
 
         # The *include email* option only means something once an email is typed.
@@ -265,6 +266,8 @@ class FoldersPage(SetupPage):
         self._paths.setWordWrap(True)
         layout.addWidget(self._paths)
 
+        # attn ai: this is not correct. on this page the user must either pick the default or click
+        # to open a file dialog to create a new outputdirectory somewhere else.
         self._note = QLabel(
             "Leaving this unticked is fine — it means you already keep your masters "
             "and processed images somewhere, or you will add those folders later from "
@@ -371,8 +374,9 @@ class ImagesPage(SetupPage):
         layout.addWidget(self._status)
 
         hint = QLabel(
-            "Starbash only reads these folders — nothing is ever written back into "
-            "them.  You can add more folders later from the Repositories page."
+            "Starbash only reads these from these folders — nothing is ever written back into "
+            "them.  It will automatically discover sessions, targets, flats, biases, etc... "
+            "You can add more folders later from the Repositories page."
         )
         hint.setWordWrap(True)
         layout.addWidget(hint)
@@ -425,8 +429,8 @@ class ImagesPage(SetupPage):
             self._list.setText("Your image folders:\n" + "\n".join(lines))
         else:
             self._list.setText(
-                "No image folders yet.  Choose the folder that holds your raw frames, "
-                "or skip this page and add it later."
+                "No sourceimage folders yet.  Choose the folder that holds your raw frames, "
+                "or skip this page and add it later."  # attn ai: this is not correct - to complete the wizard the user must pick at least one image folder.
             )
 
     def validatePage(self) -> bool:  # noqa: N802 - Qt API
@@ -746,6 +750,8 @@ class SetupWizard(QWizard):
         # *Finish* stays the plain "just close" path.
         self.setOption(QWizard.WizardOption.HaveCustomButton1)
         self.setOption(QWizard.WizardOption.HaveCustomButton2)
+        # attn ai: these buttons should default to disabled.  only enable once all setup requirements are met.
+        # currently i see they start enabled then get disabled only once we reach a later setup page (bug)
         self.setButtonText(QWizard.WizardButton.CustomButton1, "Process all my targets")
         self.setButtonText(QWizard.WizardButton.CustomButton2, "Pick a target to process")
         self.customButtonClicked.connect(self._on_custom_button)
