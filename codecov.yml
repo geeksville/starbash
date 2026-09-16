@@ -1,0 +1,14 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 50% #overall project/ repo coverage
+
+github_checks:
+    annotations: true
+
+flags:
+  unittests:
+    carryforward: true
+  integration:
+    carryforward: true

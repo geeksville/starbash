@@ -333,7 +333,8 @@ jobs:
 
       - name: Upload test results to Codecov
         if: matrix.os == 'ubuntu-latest'
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: pytest.xml     
+          files: pytest.xml
+          flags: integration
