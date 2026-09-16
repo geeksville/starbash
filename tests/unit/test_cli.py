@@ -417,6 +417,11 @@ def test_help_commands(setup_test_environment):
     assert "select" in result.stdout.lower()
     assert "Commands" in result.stdout or "commands" in result.stdout.lower()
 
+    # ...and that `--no-gui` keeps exactly that behaviour, whatever the session.
+    result = runner.invoke(app, ["--no-gui"])
+    assert result.exit_code == 0
+    assert "select" in result.stdout.lower()
+
     # Select help
     result = runner.invoke(app, ["select", "--help"])
     assert result.exit_code == 0

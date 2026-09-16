@@ -1432,7 +1432,7 @@ def test_processing_page_disables_buttons_and_shows_spinner(qtbot, app_context, 
 
     monkeypatch.setattr(page, "start_job", fake_start_job)
 
-    page._start()
+    page.start_run()
 
     assert started  # the job was handed off to the (stubbed) worker pool
     assert page._run.isEnabled() is False
@@ -1517,7 +1517,7 @@ def test_processing_page_button_row_does_not_shift_when_a_run_starts(
     assert idle[0] > 0  # the row really is laid out
     assert page._spinner.isHidden() is False  # its slot is reserved from the start
 
-    page._start()
+    page.start_run()
     assert positions() == idle
 
     page._on_finished({"message": "done"})
@@ -1576,39 +1576,7 @@ def test_run_async_releases_finished_workers(qtbot):
     assert len(workers._live_workers) <= before
 
 
-# --- setup wizard ----------------------------------------------------------
-
-
-def test_setup_wizard_persists_preferences(qtbot, app_context):
-    """The wizard writes the same user config keys as `sb user setup`."""
-    from starbash.ui.qt.pages.wizard import SetupWizard
-
-    wizard = SetupWizard(app_context)
-    qtbot.addWidget(wizard)
-    wizard._name.setText("Ada Lovelace")
-    wizard._email.setText("ada@example.com")
-    wizard._analytics.setChecked(True)
-    # Leave this off so the test doesn't create repositories / start an index run.
-    wizard._create_dirs.setChecked(False)
-
-    wizard.apply()
-
-    repo = app_context.user_repo
-    assert repo.get("user.name") == "Ada Lovelace"
-    assert repo.get("user.email") == "ada@example.com"
-    assert repo.get("analytics.enabled") is True
-
-
-def test_setup_wizard_shows_analytics_defaults(qtbot, app_context):
-    """An unset preference shows the documented defaults, not an unchecked box."""
-    from starbash.ui.qt.pages.wizard import SetupWizard
-
-    wizard = SetupWizard(app_context)
-    qtbot.addWidget(wizard)
-
-    # Analytics defaults to enabled; including the email defaults to off.
-    assert wizard._analytics.isChecked() is True
-    assert wizard._include_email.isChecked() is False
+# --- settings --------------------------------------------------------------
 
 
 def test_settings_page_shows_analytics_defaults(qtbot, app_context):

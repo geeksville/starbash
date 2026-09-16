@@ -119,7 +119,7 @@ class ProcessingPage(Page):
 
         self._run = QPushButton("Run auto pipeline")
         self._run.setObjectName("Primary")
-        self._run.clicked.connect(self._start)
+        self._run.clicked.connect(self.start_run)
 
         # A compact arc shown while a run is in flight, so a long (or slow to
         # start) job is obviously "doing something" without freezing the row.  It
@@ -161,7 +161,12 @@ class ProcessingPage(Page):
             self.bus.received.connect(self._on_event)  # type: ignore[attr-defined]
 
     # --- actions ----------------------------------------------------------
-    def _start(self) -> None:
+    def start_run(self) -> None:
+        """Clear the last run's view and start processing in the background.
+
+        Public so the setup wizard can hand the user straight to a run ("Process
+        all my targets") without them hunting for the button.
+        """
         self._tasks.clear()
         self._targets.clear()
         self._masters.clear()

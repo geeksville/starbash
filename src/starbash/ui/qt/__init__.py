@@ -11,9 +11,13 @@ than that an optional feature is missing.
 
 from __future__ import annotations
 
+import os
+import sys
+
 __all__ = [
     "GuiUnavailableError",
     "QTSIDE6_IMPORT_HINT",
+    "desktop_session_available",
     "qt_available",
     "run_gui",
 ]
@@ -39,6 +43,34 @@ def qt_available() -> bool:
         import PySide6.QtWidgets  # noqa: F401  (import is the point)
     except ImportError:
         return False
+    return True
+
+
+def desktop_session_available() -> bool:
+    """Return ``True`` if a GUI window could plausibly be shown here.
+
+    Deliberately Qt-free: bare ``sb`` (no subcommand) calls this *before* deciding
+    whether to launch the GUI, so it must never import PySide6 - a headless SSH box
+    may not even have Qt's shared libraries, and importing them just to decide not
+    to show a window would be both slow and fatal.
+
+    Returns ``False`` when
+
+    - the user opted out (``STARBASH_NO_GUI`` set, or ``sb --no-gui``),
+    - the Qt platform plugin draws nothing (``QT_QPA_PLATFORM`` is
+      ``offscreen``/``minimal``) - this is also what stops the test suite, which
+      pins ``QT_QPA_PLATFORM=offscreen``, from ever opening a window,
+    - on Linux, neither ``DISPLAY`` nor ``WAYLAND_DISPLAY`` is set (i.e. no X/Wayland
+      session: exactly the SSH case).
+
+    macOS and Windows always have a desktop session.
+    """
+    if os.environ.get("STARBASH_NO_GUI"):
+        return False
+    if os.environ.get("QT_QPA_PLATFORM", "").strip().lower() in ("offscreen", "minimal"):
+        return False
+    if sys.platform.startswith("linux"):
+        return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
     return True
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import TypeVar
 
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
@@ -19,6 +20,8 @@ from starbash.app import Starbash
 from starbash.tool import set_tool_ignored
 from starbash.ui.qt.bridge import EventBusBridge
 from starbash.ui.qt.pages import (
+    ACTION_PROCESS,
+    ACTION_TARGETS,
     DashboardPage,
     MastersPage,
     ProcessingPage,
@@ -34,6 +37,9 @@ from starbash.ui.qt.widgets import ToolWarningPanel
 __all__ = ["MainWindow"]
 
 logger = logging.getLogger(__name__)
+
+#: Type variable for :meth:`MainWindow.show_page_of_type`.
+_PageT = TypeVar("_PageT")
 
 #: Pages in navigation order.
 PAGE_CLASSES = [
@@ -125,6 +131,19 @@ class MainWindow(QMainWindow):
     def show_page(self, index: int) -> None:
         """Switch to the page at ``index`` (which refreshes it)."""
         self._nav.setCurrentRow(index)
+
+    def show_page_of_type(self, page_type: type[_PageT]) -> _PageT | None:
+        """Switch to the first page of ``page_type``, returning it (or ``None``).
+
+        Switching through the nav rail is what refreshes the page, so a caller
+        gets a fully-loaded page back and can drive it immediately.
+        """
+        for index in range(self._stack.count()):
+            page = self._stack.widget(index)
+            if isinstance(page, page_type):
+                self._nav.setCurrentRow(index)
+                return page
+        return None
 
     def reload_context(self) -> None:
         """Rebuild the app context (e.g. after a repository was added).
@@ -223,15 +242,37 @@ class MainWindow(QMainWindow):
         return bool(can_leave()) if callable(can_leave) else True
 
     def _on_setup(self) -> None:
-        if run_setup_dialog(self._sb, self):
-            self.reload_context()
+        """*File ▸ Run setup wizard…* — re-runnable at any time."""
+        self.run_setup_wizard()
+
+    def run_setup_wizard(self) -> None:
+        """Show the setup wizard, then act on how the user left it.
+
+        Public because :mod:`starbash.ui.qt.app` schedules it on the first run,
+        once the event loop is running.
+        """
+        self._apply_setup_action(run_setup_dialog(self._sb, self))
+
+    def _apply_setup_action(self, action: str | None) -> None:
+        """Reload what the wizard changed, then honour its closing action.
+
+        The reload comes first: the wizard may have created output folders or
+        added an image folder, and the pages must see those before a run starts.
+        """
+        self.reload_context()
+
+        if action == ACTION_PROCESS:
+            # An empty selection means "every session" - the CLI's `sb select any`.
+            self._sb.selection.clear()
+            page = self.show_page_of_type(ProcessingPage)
+            if page is not None:
+                page.start_run()
+        elif action == ACTION_TARGETS:
+            self.show_page_of_type(TargetsPage)
 
     def _on_reindex_requested(self) -> None:
         """Jump to the Repositories page, where re-indexing lives."""
-        for index in range(self._stack.count()):
-            if isinstance(self._stack.widget(index), RepositoriesPage):
-                self._nav.setCurrentRow(index)
-                return
+        self.show_page_of_type(RepositoriesPage)
 
     def closeEvent(self, event: object) -> None:  # noqa: N802 - Qt API
         """Ask about unsaved work, then release the bridge and app context."""

@@ -10,6 +10,7 @@ import logging
 import sys
 from typing import cast
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from starbash.app import Starbash
@@ -21,10 +22,22 @@ from starbash.ui.qt.theme import apply_theme, load_app_icon
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["create_application", "run"]
+__all__ = ["create_application", "first_run", "run"]
 
 APP_NAME = "Starbash"
 ORG_NAME = "Starbash"
+
+
+def first_run(sb: Starbash) -> bool:
+    """True while Starbash does not yet know who the user is.
+
+    The username is the first-run test (see ``gui.md`` §5.4) rather than the
+    existence of a config file: a config can exist for a dozen other reasons, and
+    the name is the one thing every later feature assumes (it is credited in the
+    output metadata).  The setup wizard requires it on its second page, so a user
+    who cancels before then is still - correctly - on a first run.
+    """
+    return not str(sb.user_repo.get("user.name", "") or "").strip()
 
 
 def create_application(argv: list[str] | None = None) -> QApplication:
@@ -59,6 +72,12 @@ def run(argv: list[str] | None = None) -> int:
     # instead of reading stdin.  Restored on exit so nothing leaks between runs.
     set_interaction(QtUserInteraction(window))
     window.show()
+
+    # A first run opens the setup wizard as soon as the event loop is live: it
+    # centres itself on the window, and a modal dialog opened before exec() would
+    # have no loop to run it.
+    if first_run(sb):
+        QTimer.singleShot(0, window.run_setup_wizard)
 
     try:
         return app.exec()

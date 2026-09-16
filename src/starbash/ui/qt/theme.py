@@ -9,13 +9,16 @@ from __future__ import annotations
 from importlib import resources
 from pathlib import Path
 
-from PySide6.QtGui import QColor, QIcon, QPalette, QPixmap
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QIcon, QPainter, QPalette, QPixmap
 from PySide6.QtWidgets import QApplication
 
 __all__ = [
     "apply_theme",
     "checkmark_path",
     "load_app_icon",
+    "wizard_logo_pixmap",
+    "wizard_watermark_pixmap",
     "STYLESHEET",
     "ACCENT",
     "INDICATOR_SIZE",
@@ -59,6 +62,75 @@ def checkmark_path() -> str | None:
 _checkmark = checkmark_path()
 #: ``image:`` declaration for a checked box, empty when the glyph cannot be found.
 _CHECK_IMAGE = "" if _checkmark is None else f'image: url("{_checkmark}");'
+
+
+#: Telescope mark used by the wizard (a light-on-transparent SVG, so it reads
+#: correctly on the dark watermark panel).
+WIZARD_LOGO_NAME = "icon.svg"
+#: Size of the wizard's watermark (the big mark behind each page, ModernStyle).
+WIZARD_WATERMARK_SIZE = 160
+#: Size of the wizard's logo (the small mark in the header banner, ModernStyle).
+WIZARD_LOGO_SIZE = 32
+
+
+def _asset(name: str) -> bytes | None:
+    """Read a packaged asset's bytes, or ``None`` if it is not there."""
+    try:
+        return resources.files("starbash.assets").joinpath(name).read_bytes()
+    except (FileNotFoundError, ModuleNotFoundError, OSError):
+        return None
+
+
+def _scaled_pixmap(name: str, size: int) -> QPixmap:
+    """Load ``assets/<name>`` as a square pixmap of ``size`` px, or a null pixmap.
+
+    ``svg`` assets go through :class:`QSvgRenderer` (Qt rasterises them at the
+    requested size, so the mark stays crisp); everything else is decoded and
+    scaled smoothly.  Always best effort: a broken asset yields a null pixmap and
+    the caller simply does not set it.
+    """
+    data = _asset(name)
+    if data is None:
+        return QPixmap()
+
+    if name.lower().endswith(".svg"):
+        try:
+            from PySide6.QtSvg import QSvgRenderer
+        except ImportError:  # pragma: no cover - QtSvg ships with PySide6
+            return QPixmap()
+        renderer = QSvgRenderer(data)
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        if not renderer.isValid():
+            return QPixmap()
+        painter = QPainter(pixmap)
+        renderer.render(painter)
+        painter.end()
+        return pixmap
+
+    pixmap = QPixmap()
+    if not pixmap.loadFromData(data):
+        return QPixmap()
+    return pixmap.scaled(
+        size,
+        size,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+
+
+def wizard_watermark_pixmap() -> QPixmap:
+    """The large mark :class:`QWizard` draws down the left of every page.
+
+    ModernStyle puts this behind the page body, so it doubles as the wizard's
+    branding; it is deliberately large and uncluttered.
+    """
+    return _scaled_pixmap(WIZARD_LOGO_NAME, WIZARD_WATERMARK_SIZE)
+
+
+def wizard_logo_pixmap() -> QPixmap:
+    """The small mark shown in the wizard's header banner (ModernStyle)."""
+    return _scaled_pixmap(WIZARD_LOGO_NAME, WIZARD_LOGO_SIZE)
 
 
 def load_app_icon() -> QIcon:

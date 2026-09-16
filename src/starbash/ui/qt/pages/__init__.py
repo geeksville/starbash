@@ -16,9 +16,16 @@ from starbash.ui.qt.pages.repositories import RepositoriesPage
 from starbash.ui.qt.pages.sessions import SessionsPage
 from starbash.ui.qt.pages.settings import SettingsPage
 from starbash.ui.qt.pages.targets import TargetsPage
-from starbash.ui.qt.pages.wizard import SetupWizard, run_setup_dialog
+from starbash.ui.qt.pages.wizard import (
+    ACTION_PROCESS,
+    ACTION_TARGETS,
+    SetupWizard,
+    run_setup_dialog,
+)
 
 __all__ = [
+    "ACTION_PROCESS",
+    "ACTION_TARGETS",
     "Page",
     "DashboardPage",
     "SessionsPage",

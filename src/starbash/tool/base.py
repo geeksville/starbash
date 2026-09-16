@@ -685,6 +685,17 @@ class Tool:
             detail=None if available else self.missing_message(),
         )
 
+    def invalidate_availability(self) -> None:
+        """Forget the cached availability probe, so the next check re-probes.
+
+        Built-in tools are always available, so the base implementation is a
+        no-op; :class:`ExternalTool` overrides it to drop its cached probe result.
+        This exists for the GUI setup wizard's *Re-check* button: a user who
+        installs a missing tool while the wizard is open must be able to make
+        Starbash look again, and ``is_available`` caches its first answer.
+        """
+        return None
+
     def preflight(self) -> None:
         """Report a missing tool at a log level matching its severity.
 
@@ -828,6 +839,15 @@ class ExternalTool(Tool):
             except MissingToolError:
                 self._is_available = False
         return self._is_available
+
+    def invalidate_availability(self) -> None:
+        """Drop the cached probe so the next :attr:`is_available` re-runs it.
+
+        ``is_available`` caches its answer in ``_is_available`` on first read, so
+        without this a *Re-check* after the user installed the tool would keep
+        reporting the old (missing) answer forever.
+        """
+        self._is_available = None
 
     @property
     def executable_path(self) -> str:

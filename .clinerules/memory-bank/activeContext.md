@@ -1,6 +1,51 @@
 # Active Context
 
-## Current work focus — StarNet detection inside Siril's flatpak sandbox
+## Current work focus — GUI first-run setup wizard (**implemented 2026-09-16**, not committed)
+
+`doc/plans/gui-setup-wizard.md` is done: the GUI's first run is a six-page
+**`QWizard`** (welcome → you → output folders → raw-image folder picker → tools →
+checklist) in `ui/qt/pages/wizard.py`, replacing the single-form `QDialog`.
+
+- **Flow.** `Page` is an `IntEnum` of the six ids, and one `SetupWizard.nextId()` holds
+  both dynamic edges (page 4 → 6 whenever no required tool is missing).
+  `SetupPage.refresh()` re-reads the world and is called from `currentIdChanged` —
+  *not* `initializePage()`, which `IndependentPages` only ever runs once.
+- **Page 2 requires a username** (`isComplete()` computed from the field's own text,
+  deliberately *not* a `user.name*` mandatory field, which Qt would count as
+  "unfilled" for an already-configured user on a re-run). `validatePage()` writes the
+  same keys as `sb user setup`, so each page saves as it is left.
+- **Page 5 is the Siril gate:** `isComplete()` is False while a
+  `ToolSeverity.REQUIRED` tool is missing (Qt turns that into a disabled
+  *Next*/*Finish*), `validatePage()` re-checks and refuses, and *Re-check* calls the
+  new `Tool.invalidate_availability()` — `ExternalTool.is_available` caches its probe,
+  so a naive re-read kept reporting the old answer after the user installed Siril.
+- **Page 6 is the checklist.** Only the *Tools* row gates *Finish*; the other three
+  gate the two custom closing buttons — Qt does **not** gate custom buttons on
+  `isComplete()`, so the page moves them itself in `refresh()`.
+- **Wiring:** `run_setup_dialog()` returns an action (`ACTION_PROCESS` /
+  `ACTION_TARGETS` / `None`); `MainWindow.run_setup_wizard` + `_apply_setup_action`
+  (reload context first, then `sb.selection.clear()` + `ProcessingPage.start_run()`)
+  and `show_page_of_type()`; `ui/qt/app.py` gained `first_run(sb)` (username-based,
+  *not* the config file) and schedules the wizard with `QTimer.singleShot(0, …)` after
+  `window.show()`. Bare `sb` opens the GUI (Qt-free `desktop_session_available()` in
+  `ui/qt/__init__.py`, honoured by `main.py`; `--no-gui` opts out), so an SSH box keeps
+  the CLI path.
+- **Tests:** `tests/unit/test_setup_wizard.py` (23 cases: the cached-probe *Re-check*
+  regression, `nextId` skips, per-page saving, checklist gating and `first_run`),
+  `tests/unit/test_gui_launch.py` (the bare-`sb` decision + the first-run trigger),
+  the two old wizard tests removed from `test_gui.py`, `--no-gui` added to
+  `test_cli.py`.
+- **Two traps found while testing:** `setCurrentId()` is a no-op until the wizard is
+  *shown* (the tests `show()` it offscreen first); and a raw-image repo is **not**
+  simply "anything `regular_repos` returns" — that list hides only a plain `"recipe"`,
+  while the default recipes Starbash installs for itself are `"std-recipe"`, so
+  `_raw_image_repos()` filters an explicit kind set instead.
+- **Verified 2026-09-16:** `just lint` → *0 errors, 0 warnings, 0 notes*; full suite
+  **1282 passed, 1 skipped**.
+- **Next up:** nothing outstanding for this plan; the open questions elsewhere are the
+  cancel-and-wait one in `qt-object-lifetimes.md` and phase 2 of `stage-roles.md`.
+
+## Previously — StarNet detection inside Siril's flatpak sandbox
 
 **Implemented 2026-09-15**, **not committed**.
 

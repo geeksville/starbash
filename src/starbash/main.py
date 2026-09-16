@@ -60,6 +60,11 @@ def main_callback(
         "--verbose",
         help="When providing responses, include all entries.  Normally long responses are truncated.",
     ),
+    no_gui: bool = typer.Option(
+        False,
+        "--no-gui",
+        help="Do not open the desktop GUI for a bare 'sb'; print help instead.",
+    ),
 ) -> None:
     """Main callback for the Starbash application."""
     # Set the log level based on --debug flag
@@ -71,6 +76,11 @@ def main_callback(
         starbash.verbose_output = True
 
     if ctx.invoked_subcommand is None:
+        # Bare `sb`: on a machine with a desktop session, open the GUI (which
+        # shows the setup wizard on a first run).  A headless box - or an explicit
+        # --no-gui - keeps today's behaviour, so SSH users are unaffected.
+        if not no_gui and _try_launch_gui():
+            raise typer.Exit()
         if not get_user_config_path().exists():
             with Starbash("app.first") as sb:
                 user.do_reinit(sb)
@@ -78,6 +88,34 @@ def main_callback(
             # No command provided, show help
             console.print(ctx.get_help())
         raise typer.Exit()
+
+
+def _try_launch_gui() -> bool:
+    """Open the GUI for a bare ``sb``, or report whether it was worth trying.
+
+    Returns ``True`` once the GUI ran (so the caller should stop), ``False`` when
+    there is no display or Qt is unusable, in which case the caller falls back to
+    the CLI's own first-run questions / help text.
+
+    ``desktop_session_available()`` is checked *first* and is Qt-free on purpose:
+    importing PySide6 on a headless box is slow and can fail on missing shared
+    libraries, and that must not turn a simple ``sb`` into a traceback.
+    """
+    from .ui.qt import GuiUnavailableError, desktop_session_available
+
+    if not desktop_session_available():
+        return False
+
+    from .ui.qt import run_gui
+
+    try:
+        run_gui()
+    except GuiUnavailableError as exc:
+        # A broken/partial install: say so, then fall through to the CLI path so
+        # the user still gets a working command line.
+        console.print(f"[yellow]{exc}[/yellow]")
+        return False
+    return True
 
 
 if __name__ == "__main__":

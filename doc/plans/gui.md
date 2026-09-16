@@ -149,7 +149,11 @@ def gui(no_wizard: bool = False, target: str | None = None) -> None:
     run_gui(no_wizard=no_wizard, initial_target=target)
 ```
 
-Registered in `main.py` alongside the other subcommands. If no user config exists and `--no-wizard` isn't passed, the wizard runs first (mirrors the CLI callback).
+Registered in `main.py` alongside the other subcommands. (The sketch above is the
+original command shape; the shipped command takes no options today. The wizard is
+*not* driven by `--no-wizard` — it shows itself while the user repo has no
+`user.name`, and bare `sb` grows a `--no-gui`/`STARBASH_NO_GUI` opt-out. See
+`gui-setup-wizard.md` §3.5 and §5.4.)
 
 ---
 
@@ -428,6 +432,12 @@ Reuses `GitHubPublisher`/`GitHubService`; the two-step App-install prompt become
 - **Config files**: reveal/open `starbash.toml`, tool prefs, DB.
 
 ### 5.9 First-run wizard (mirrors `sb user setup`)
+
+> **Superseded sketch (kept as the design record).** The doodle below is the
+> original single-form idea; the agreed shape is a six-page **`QWizard`**
+> (welcome → you → output folders → raw-image picker → tools → checklist) — see
+> the *Implementation plan* note under it and `gui-setup-wizard.md` §3.
+
 ```
 +---------------------------------------------------------------+
 |  * Welcome to Starbash                              step 1/4   |
@@ -448,6 +458,14 @@ Reuses `GitHubPublisher`/`GitHubService`; the two-step App-install prompt become
 +---------------------------------------------------------------+
 ```
 Final step shows the "add raw repo -> process auto" next-steps panel from `do_reinit`.
+
+**Implementation plan: `gui-setup-wizard.md`** (2026-09-15, revised same day) — the
+dialog becomes a six-page **`QWizard`** (welcome → you → output folders → raw-image
+file picker → tools → checklist), it shows itself while the user has no **username**
+set, page 5 cannot be passed without a required tool (Siril), and the checklist's
+two closing actions (*Process all my targets* / *Pick a target*) stay disabled until
+the folders, the images and the required tools are ready. Also makes bare `sb` open
+the GUI.
 
 ---
 
