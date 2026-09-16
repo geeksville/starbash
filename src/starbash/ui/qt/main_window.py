@@ -61,6 +61,9 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self.setWindowTitle("Starbash")
         self.resize(1280, 820)
+        # A stable handle for the gui-integration movie (doc/plans/gui-integration-video.md
+        # §6): a name, not a behaviour - nothing is styled by it.
+        self.setObjectName("MainWindow")
 
         self._bus = EventBusBridge(self)
         self._sb = sb

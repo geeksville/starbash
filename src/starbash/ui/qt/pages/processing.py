@@ -150,6 +150,7 @@ class ProcessingPage(Page):
         layout.addWidget(self._caption)
 
         self._tasks = _RunTree()
+        self._tasks.setObjectName("processingTree")
         self._tasks.setHeaderLabels(["Target / stage / task", "Status / details"])
         self._tasks.setAlternatingRowColors(True)
         layout.addWidget(self._tasks, 1)
@@ -159,6 +160,29 @@ class ProcessingPage(Page):
 
         if self.bus is not None:
             self.bus.received.connect(self._on_event)  # type: ignore[attr-defined]
+
+    # --- public handles ---------------------------------------------------
+    @property
+    def run_button(self) -> QPushButton:
+        """The *Run auto pipeline* button — the movie script's handle for it.
+
+        It cannot carry an ``objectName`` of its own (it is ``#Primary``, and a widget
+        has one ``objectName``), so it is reached through this accessor instead — see
+        ``doc/plans/gui-integration-video.md`` §6.
+        """
+        return self._run
+
+    @property
+    def cancel_button(self) -> QPushButton:
+        """The *Cancel* button beside the run button — same §6 workaround as the
+        run button (no ``objectName`` of its own)."""
+        return self._cancel
+
+    @property
+    def caption_label(self) -> QLabel:
+        """The one-line run caption (e.g. ``Idle.``) — same §6 workaround as above:
+        it is ``#PageSubtitle``, so its ``objectName`` is spoken for."""
+        return self._caption
 
     # --- actions ----------------------------------------------------------
     def start_run(self) -> None:

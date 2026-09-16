@@ -1549,6 +1549,45 @@ def test_repositories_page_reports_indexing_progress(qtbot, app_context, bus):
     assert page._progress.value() == 3
 
 
+# --- the movie script's handles (doc/plans/gui-integration-video.md §6) -----
+
+
+def test_main_window_has_the_movie_script_name(qtbot, app_context):
+    """The recorder latches the window by ``objectName`` — 'MainWindow'."""
+    from starbash.ui.qt.main_window import MainWindow
+
+    window = MainWindow(app_context)
+    qtbot.addWidget(window)
+    assert window.objectName() == "MainWindow"
+
+
+def test_the_processing_page_script_handles_exist(qtbot, app_context, bus):
+    """The run tree is named; the two ``#Primary``/``#PageSubtitle`` widgets are
+    reached by accessor, since their one ``objectName`` is already the theme's."""
+    from PySide6.QtWidgets import QPushButton
+
+    from starbash.ui.qt.pages.processing import ProcessingPage
+
+    page = ProcessingPage(app_context, bus)
+    qtbot.addWidget(page)
+
+    assert page.findChild(QTreeWidget, "processingTree") is not None
+    # The accessors hand back the very widgets the theme already styles by id, so a
+    # second objectName (which would have broken that styling) was never needed.
+    assert page.run_button is page.findChild(QPushButton, "Primary")
+
+    # ``#PageSubtitle`` is *not* unique inside a page: ``base.heading`` gives every page a
+    # subtitle carrying the same name, so ``findChild`` for it can return that one instead
+    # (asserting identity with ``findChild`` was the bug this replaces).  Assert the
+    # accessor by what it *does* instead - it is the label the page writes run status into.
+    assert page.caption_label.objectName() == "PageSubtitle"  # keeps the theme's styling
+    assert page.caption_label.text() == "Idle."
+
+    events.publish(events.EVENT_PROCESS_TARGET, {"target": "m13", "index": 1, "total": 2})
+
+    assert page.caption_label.text() == "Target 1/2: m13"
+
+
 # --- background workers -----------------------------------------------------
 
 

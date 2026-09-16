@@ -274,12 +274,18 @@ class YouPage(SetupPage):
 
         repo = sb.user_repo
         self._name = QLineEdit(str(repo.get("user.name", "") or ""))
+        # objectName is the gui-integration script's handle (doc/plans/gui-integration-video.md
+        # §6). These four are named, never restyled - the theme styles by type here.
+        self._name.setObjectName("wizardName")
         self._email = QLineEdit(str(repo.get("user.email", "") or ""))
+        self._email.setObjectName("wizardEmail")
         self._analytics = QCheckBox("Send anonymous crash reports and usage data (please!)")
+        self._analytics.setObjectName("wizardAnalytics")
         self._analytics.setChecked(analytics_enabled(repo))
         self._include_email = QCheckBox(
             "Include my email with crash reports (so we can contact you)"
         )
+        self._include_email.setObjectName("wizardIncludeEmail")
         self._include_email.setChecked(analytics_include_user(repo))
 
         # The *include email* option only means something once an email is typed.
@@ -547,6 +553,17 @@ class ImagesPage(SetupPage):
         layout.addStretch(1)
 
         self.refresh()
+
+    @property
+    def choose_button(self) -> QPushButton:
+        """The *Choose folder…* button — the movie script's handle for it.
+
+        It cannot carry an ``objectName`` of its own: it is ``#Primary`` (the theme's
+        accent style) and a widget has only one ``objectName``.  A public accessor is
+        the workaround the plan settled on — see ``doc/plans/gui-integration-video.md``
+        §6.
+        """
+        return self._choose
 
     def _known_paths(self) -> set[str]:
         """The filesystem paths of the raw-image repos we already know about."""
@@ -869,6 +886,9 @@ class SetupWizard(QWizard):
         self.action: str | None = None
 
         self.setWindowTitle("Starbash setup")
+        # A stable handle for the gui-integration movie (doc/plans/gui-integration-video.md
+        # §6); names, not behaviour.
+        self.setObjectName("SetupWizard")
         self.setWizardStyle(QWizard.WizardStyle.ModernStyle)
         # Page 1 is the start of the story, so a greyed-out *Back* is just noise.
         self.setOption(QWizard.WizardOption.NoBackButtonOnStartPage)
@@ -901,6 +921,11 @@ class SetupWizard(QWizard):
         self.setOption(QWizard.WizardOption.HaveCustomButton2)
         self.setButtonText(QWizard.WizardButton.CustomButton1, "Process all my targets")
         self.setButtonText(QWizard.WizardButton.CustomButton2, "Pick a target to process")
+        # The script's handles for those two actions (doc/plans/gui-integration-video.md
+        # §6). Qt pre-created the buttons, so naming them here is enough - and the
+        # names are new ids, so the theme (which styles nothing of theirs) is untouched.
+        self._name_action_button(QWizard.WizardButton.CustomButton1, "wizardProcessAllTargets")
+        self._name_action_button(QWizard.WizardButton.CustomButton2, "wizardPickTarget")
         # Qt creates those two *enabled* and shows them on every page, and it never
         # consults isComplete() for custom buttons - so without this the wizard
         # offered a live "Process all my targets" on page 1 and only switched it off
@@ -958,6 +983,16 @@ class SetupWizard(QWizard):
             if isinstance(button, QPushButton):
                 buttons.append(button)
         return buttons
+
+    def _name_action_button(self, which: QWizard.WizardButton, name: str) -> None:
+        """Give one of Qt's custom buttons an ``objectName`` (see the constructor).
+
+        Qt types :meth:`button` as ``QAbstractButton``; the closing actions are the
+        ``QPushButton`` it actually created.
+        """
+        button = self.button(which)
+        if isinstance(button, QPushButton):
+            button.setObjectName(name)
 
     def _disable_action_buttons(self) -> None:
         """Switch the closing actions off, and say when they come alive.

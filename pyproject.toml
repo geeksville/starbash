@@ -61,6 +61,7 @@ doit-graph = ">=0.3.0"
 # harlequin = "^2.4.1"
 library-skills = "^0.0.19"
 semble = {version = "^0.6.0", extras = ["mcp"]}
+imageio-ffmpeg = "^0.6.0"
 
 [tool.poetry.scripts]
 starbash = "starbash.main:app"
@@ -71,6 +72,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests requiring /test-data (deselect with '-m \"not integration\"')",
     "gui: marks tests that build real Qt widgets (offscreen; deselect with '-m \"not gui\"')",
+    "gui_integration: marks the scripted gui_integration movie runs (needs ffmpeg + /test-data; deselect with '-m \"not gui_integration\"')",
 ]
 # -n auto enables parallel test execution plugin
 # By default we exclude only slow and integration tests. GUI tests DO run: PySide6
@@ -80,7 +82,12 @@ markers = [
 # --tb=short shows shorter tracebacks
 # -rfE shows summary of failed and error test outcomes at end (not passed)
 # --ignore excludes third-party test directories
-addopts = "-m 'not slow and not integration' -n auto --tb=short -rfE --ignore=GraXpert --ignore=starbash-recipes"
+addopts = "-m 'not slow and not integration and not gui_integration' -n auto --tb=short -rfE --ignore=GraXpert --ignore=starbash-recipes"
+
+# Note: the `gui_integration` movies are deselected by default on purpose: they drive a
+# whole user journey (setup wizard -> reindex -> processing run) and take minutes, so they
+# run on demand - `just test-integration-gui`, or `pytest -m gui_integration -n 0`.
+# The marker name uses an underscore so it is usable as `pytest.mark.gui_integration`.
 
 # Note: To limit captured output further, you can:
 # 1. Use --tb=line for minimal tracebacks

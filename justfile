@@ -292,6 +292,26 @@ test-slow: test process-one
 test-integration:
     poetry run pytest -m integration -n 0 -v
 
+# record the end-to-end GUI movie (tests/gui_integration), then open it
+test-integration-gui:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    movie="${STARBASH_GUI_MOVIE:-/tmp/gui.mp4}"
+    # -n 0 on purpose: the movie must come from one process, and the recorder films that
+    # process's one window.  The suite skips itself (with a printed reason) when there is
+    # no ffmpeg or no dataset, so a bare container run is not a failure.  The dataset is
+    # /test-data/asiair by default (one target, ~5 minutes end to end); set
+    # GUI_MOVIE_TEST_DATA=/test-data to film the whole tree instead.
+    STARBASH_GUI_MOVIE="$movie" poetry run pytest tests/gui_integration -m gui_integration -n 0 -v
+    echo "Movie written to $movie - opening it..."
+    if command -v xdg-open >/dev/null && xdg-open "$movie" >/dev/null 2>&1; then
+        exit 0
+    fi
+    if command -v ffplay >/dev/null; then
+        exec ffplay -autoexit -loglevel error "$movie"
+    fi
+    echo "No movie player found (install xdg-open or ffplay); the movie is still at $movie"
+
 # Test in-place siril script usage
 test-scripts:
     sb select target m13 # An easy test target from the small dataset

@@ -29,7 +29,14 @@ except Exception as _qt_error:  # pragma: no cover - environment dependent
     pytest.skip(f"Qt cannot start here: {_qt_error}", allow_module_level=True)
 
 from PySide6.QtCore import Qt as QtCore  # noqa: E402
-from PySide6.QtWidgets import QDialog, QLabel, QPushButton, QWizard  # noqa: E402
+from PySide6.QtWidgets import (  # noqa: E402
+    QCheckBox,
+    QDialog,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QWizard,
+)
 
 from starbash import events  # noqa: E402
 from starbash.tool.base import ToolSeverity, ToolStatus  # noqa: E402
@@ -698,3 +705,43 @@ def test_the_last_page_and_the_start_up_test_share_one_definition(
     assert page.blockers() == []
     assert _incomplete(app_context) == []
     assert is_wizard_complete(app_context) is True
+
+
+# --- the movie script's handles (doc/plans/gui-integration-video.md §6) -----
+
+
+def test_the_wizard_script_handles_are_named(wizard):
+    """Every handle the gui-integration movie presses must exist, by name.
+
+    The recorder drives the app through these strings and nothing else, so an
+    ``objectName`` that silently disappears is a broken script waiting to happen.
+    """
+    assert wizard.objectName() == "SetupWizard"
+
+    you = wizard.page_of_type(YouPage)
+    assert isinstance(you, YouPage)
+    for widget_type, name in (
+        (QLineEdit, "wizardName"),
+        (QLineEdit, "wizardEmail"),
+        (QCheckBox, "wizardAnalytics"),
+        (QCheckBox, "wizardIncludeEmail"),
+    ):
+        assert you.findChild(widget_type, name) is not None, name
+
+    assert wizard.findChild(QPushButton, "wizardProcessAllTargets") is not None
+    assert wizard.findChild(QPushButton, "wizardPickTarget") is not None
+
+
+def test_the_images_page_choose_button_is_reached_by_accessor(wizard):
+    """It is ``#Primary``, so it cannot also be ``wizardChooseFolder``.
+
+    ``objectName`` is a single string and the theme styles this button by id — so the
+    script reaches it through :attr:`ImagesPage.choose_button` instead (§6).  The
+    assertion pins both halves: the id is still the styling one, and the accessor
+    hands back that same widget.
+    """
+    images = wizard.page_of_type(ImagesPage)
+    assert isinstance(images, ImagesPage)
+    assert images.findChild(QPushButton, "wizardChooseFolder") is None
+    assert images.choose_button.objectName() == "Primary"
+    assert images.findChild(QPushButton, "Primary") is images.choose_button
