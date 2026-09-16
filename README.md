@@ -46,6 +46,10 @@ This project is still very young - but making good progress 😊!
 
 If you are interested in alpha-testing we ❤️ you.  This README should have enough instructions to get you going, but if you encounter **any** problems please file a github issue and we'll work together to fix them.
 
+(new!) We now have a full GUI...
+![GUI session movie](https://github.com/user-attachments/assets/0791c47f-f8fa-4279-be06-f869d7212d8c)
+
+We have a CLI interface also...
 ![Sample session movie](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/doc/vhs/sample-session.gif)
 
 ## Current features
