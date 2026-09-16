@@ -725,9 +725,16 @@ def test_main_window_builds_every_page(qtbot, app_context):
     assert isinstance(window.current_page(), DashboardPage)
 
 
-def test_every_page_refreshes_without_error(qtbot, app_context):
+def test_every_page_refreshes_without_error(qtbot, app_context, monkeypatch):
     """Switching to each page reloads it against the real database cleanly."""
+    from starbash.ui.qt import workers
     from starbash.ui.qt.main_window import MainWindow
+    from starbash.ui.qt.pages import publish
+
+    def identity_job(_report, _token):
+        return {"signed_in": False, "login": ""}
+
+    monkeypatch.setattr(publish, "github_identity_job", identity_job)
 
     window = MainWindow(app_context)
     qtbot.addWidget(window)
@@ -735,6 +742,8 @@ def test_every_page_refreshes_without_error(qtbot, app_context):
     for index in range(len(window.pages())):
         window.show_page(index)
         assert window.current_page() is window.pages()[index]
+
+    qtbot.waitUntil(lambda: not workers._live_workers, timeout=5000)
 
 
 def test_main_window_warns_about_missing_tools(qtbot, app_context, monkeypatch):
