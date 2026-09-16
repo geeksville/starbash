@@ -28,7 +28,8 @@ try:  # Probe Qt startup once, so an unusable Qt skips rather than erroring.
 except Exception as _qt_error:  # pragma: no cover - environment dependent
     pytest.skip(f"Qt cannot start here: {_qt_error}", allow_module_level=True)
 
-from PySide6.QtWidgets import QDialog, QPushButton, QWizard  # noqa: E402
+from PySide6.QtCore import Qt as QtCore  # noqa: E402
+from PySide6.QtWidgets import QDialog, QLabel, QPushButton, QWizard  # noqa: E402
 
 from starbash import events  # noqa: E402
 from starbash.tool.base import ToolSeverity, ToolStatus  # noqa: E402
@@ -43,6 +44,7 @@ from starbash.ui.qt.pages.wizard import (  # noqa: E402
     SetupWizard,
     ToolsPage,
     YouPage,
+    is_wizard_complete,
     run_setup_dialog,
 )
 
@@ -94,6 +96,17 @@ def _make_fits_folder(tmp_path: Path, name: str = "lights", suffix: str = ".fit"
     return folder
 
 
+class _FakeFileDialog:
+    """Stands in for QFileDialog so a folder can be "chosen" without a dialog."""
+
+    def __init__(self, folder: str) -> None:
+        self._folder = folder
+
+    def getExistingDirectory(self, *_args, **_kwargs) -> str:  # noqa: N802 - Qt API
+        """Return the canned folder, as the real chooser would."""
+        return self._folder
+
+
 class _CachedTool:
     """A tool that caches its probe, exactly as ``ExternalTool`` does.
 
@@ -138,11 +151,11 @@ class _CachedTool:
 @pytest.fixture
 def tools_ok(monkeypatch) -> None:
     """Pretend every required tool is installed."""
-
-    def none_missing() -> list[ToolStatus]:
-        return []
-
-    monkeypatch.setattr(wizard_mod, "_required_tools_missing", none_missing)
+    monkeypatch.setattr(wizard_mod, "_required_tools_missing", lambda: [])
+    # ToolsPage.refresh() builds its rows (and its "all installed" caption) from
+    # tool_statuses(), so a host without Siril would otherwise show a missing
+    # required tool on this fixture and fail test_tools_page_is_complete_*.
+    monkeypatch.setattr(wizard_mod, "tool_statuses", lambda: [])
 
 
 @pytest.fixture
@@ -187,6 +200,29 @@ def test_the_username_is_required(wizard):
 
     page._name.setText("Ada Lovelace")
     assert page.isComplete() is True
+
+
+def test_the_left_pane_mark_is_centred(wizard):
+    """Qt paints the watermark top-left in a full-height label; we centre it.
+
+    Qt owns that label and builds it during the first show, so this is the only
+    place it can be caught — see ``_centre_pane_mark``.
+    """
+    watermark = wizard.pixmap(QWizard.WizardPixmap.WatermarkPixmap)
+    assert not watermark.isNull()
+
+    marks = [
+        label
+        for label in wizard.findChildren(QLabel)
+        if not label.pixmap().isNull() and label.pixmap().cacheKey() == watermark.cacheKey()
+    ]
+    assert marks, "Qt built no watermark label to centre"
+    for label in marks:
+        assert label.alignment() == QtCore.AlignmentFlag.AlignCenter
+
+    # The logo is a different pixmap, so it must not have been caught by the match.
+    logo = wizard.pixmap(QWizard.WizardPixmap.LogoPixmap)
+    assert logo.isNull() or watermark.cacheKey() != logo.cacheKey()
 
 
 # --- page 2: who to credit -------------------------------------------------
@@ -249,48 +285,78 @@ def test_the_email_checkbox_needs_an_email(wizard):
 # --- page 3: output folders ------------------------------------------------
 
 
-def test_folders_page_creates_the_missing_output_folders(wizard, app_context):
-    """The ticked box becomes two real repos, and then retires itself."""
+def test_folders_page_creates_the_default_output_folders(wizard, app_context):
+    """The pre-selected answer becomes two real repos, and then retires itself."""
     page = wizard.page_of_type(FoldersPage)
     assert isinstance(page, FoldersPage)
 
     assert page._missing is True
-    page._create.setChecked(True)
+    assert page._default_radio.isChecked() is True  # the one-click path
+    assert page._custom_radio.isChecked() is False
+    assert page.isComplete() is True
     assert page.validatePage() is True
 
     manager = app_context.repo_manager
     assert manager.get_repo_by_kind("master") is not None
     assert manager.get_repo_by_kind("processed") is not None
 
-    # Both exist now, so the offer goes away and the page reports them instead.
+    # Both exist now, so the question goes away and the page reports them instead.
     page.refresh()
     assert page._missing is False
-    assert page._create.isHidden() is True
+    assert page._default_radio.isHidden() is True
+    assert page._custom_radio.isHidden() is True
     assert "already" in page._paths.text()
 
 
-def test_folders_page_leaves_an_unticked_box_alone(wizard, app_context):
-    """Unticking is an answer ("I keep them elsewhere"), not a to-do list."""
+def test_folders_page_refuses_somewhere_else_with_no_folder(wizard, app_context):
+    """*Somewhere else* with nothing picked is not an answer, so Next is refused.
+
+    This is the issue the old checkbox had: unticking it counted as an answer
+    ("I keep my masters elsewhere"), so the wizard walked on with nowhere to
+    write anything.
+    """
     page = wizard.page_of_type(FoldersPage)
     assert isinstance(page, FoldersPage)
 
-    page._create.setChecked(False)
-    assert page.validatePage() is True
+    page._custom_radio.setChecked(True)
+    assert page._custom_base is None  # nothing picked yet
+
+    assert page.isComplete() is False
+    assert page.validatePage() is False
     assert app_context.repo_manager.get_repo_by_kind("master") is None
+
+    assert page._note.isHidden() is False
+    assert "Choose folder" in page._note.text()
+
+
+def test_folders_page_uses_the_folder_it_was_given(wizard, app_context, monkeypatch, tmp_path):
+    """A folder picked through *Choose folder…* gets master/ and processed/ inside it."""
+    base = tmp_path / "big-disk" / "astro"
+    base.mkdir(parents=True)
+    monkeypatch.setattr(wizard_mod, "QFileDialog", _FakeFileDialog(str(base)))
+
+    page = wizard.page_of_type(FoldersPage)
+    assert isinstance(page, FoldersPage)
+    page._on_choose()
+
+    # Picking a folder *is* choosing the custom answer, so it ticks itself.
+    assert page._custom_radio.isChecked() is True
+    assert page._custom_base == base
+    assert page.isComplete() is True
+    assert page.validatePage() is True
+
+    manager = app_context.repo_manager
+    master = manager.get_repo_by_kind("master")
+    processed = manager.get_repo_by_kind("processed")
+    assert master is not None
+    assert processed is not None
+    assert str(wizard_mod._repo_path(master) or "") == str(base.resolve() / "master")
+    assert str(wizard_mod._repo_path(processed) or "") == str(base.resolve() / "processed")
+    assert (base / "master").is_dir()
+    assert (base / "processed").is_dir()
 
 
 # --- page 4: the raw images ------------------------------------------------
-
-
-class _FakeFileDialog:
-    """Stands in for QFileDialog so a folder can be "chosen" without a dialog."""
-
-    def __init__(self, folder: str) -> None:
-        self._folder = folder
-
-    def getExistingDirectory(self, *_args, **_kwargs) -> str:  # noqa: N802 - Qt API
-        """Return the canned folder, as the real chooser would."""
-        return self._folder
 
 
 def _raw_paths(sb) -> list[str]:
@@ -328,6 +394,28 @@ def test_images_page_notices_a_folder_without_fits_files(wizard, monkeypatch, tm
     page._on_choose()
 
     assert "No FITS images" in page._status.text()
+    # The warning is advice, not a refusal: plenty of people keep their lights a
+    # level down (raw/M31/lights), and refusing those would trap the very users
+    # this page exists for.
+    assert page.isComplete() is True
+
+
+def test_images_page_will_not_go_on_without_a_folder(wizard, monkeypatch, tmp_path):
+    """No folder anywhere means nothing to process, so the wizard stays put."""
+    page = wizard.page_of_type(ImagesPage)
+    assert isinstance(page, ImagesPage)
+
+    assert page.isComplete() is False
+    assert page.validatePage() is False
+    assert "at least one folder" in page._status.text()
+
+    monkeypatch.setattr(
+        wizard_mod, "QFileDialog", _FakeFileDialog(str(_make_fits_folder(tmp_path)))
+    )
+    page._on_choose()
+
+    assert page.isComplete() is True
+    assert page.validatePage() is True
 
 
 def test_images_page_adds_the_chosen_folder_once(wizard, app_context, monkeypatch, tmp_path):
@@ -460,6 +548,41 @@ def test_the_closing_checklist_refreshes_when_it_is_visited_again(
 # --- the closing actions ---------------------------------------------------
 
 
+def test_the_closing_actions_start_disabled(qtbot, app_context):
+    """A half-built wizard must not offer a live *Process all my targets*.
+
+    Qt builds its custom buttons enabled and never consults ``isComplete()`` for
+    them, so they used to be clickable from page one — and clicking one closes the
+    wizard with nothing set up.
+    """
+    wizard = SetupWizard(app_context)
+    qtbot.addWidget(wizard)
+
+    buttons = wizard.action_buttons()
+    assert len(buttons) == 2
+    for button in buttons:
+        assert isinstance(button, QPushButton)
+        assert button.isEnabled() is False
+        assert button.toolTip()  # the tooltip says when they come alive
+
+
+def test_the_closing_actions_are_armed_on_the_last_page_only(
+    wizard, app_context, tools_ok, tmp_path
+):
+    """The checklist arms them; the next page change puts them back to sleep."""
+    app_context.user_repo.set("user.name", "Ada Lovelace")
+    app_context.add_local_repo(str(_make_fits_folder(tmp_path)))
+    folders = wizard.page_of_type(FoldersPage)
+    assert isinstance(folders, FoldersPage)
+    assert folders.validatePage() is True
+
+    wizard.setCurrentId(int(Page.DONE))
+    assert [button.isEnabled() for button in wizard.action_buttons()] == [True, True]
+
+    wizard.setCurrentId(int(Page.WELCOME))
+    assert [button.isEnabled() for button in wizard.action_buttons()] == [False, False]
+
+
 def test_the_custom_buttons_record_which_action_was_used(qtbot, app_context):
     """The wizard reports *how* the user left it, not merely that they did."""
     first = SetupWizard(app_context)
@@ -505,12 +628,73 @@ def test_run_setup_dialog_returns_none_when_cancelled(monkeypatch, app_context):
     assert run_setup_dialog(app_context) is None
 
 
-def test_first_run_follows_the_username(app_context):
-    """The username - not the existence of a config file - decides a first run."""
-    from starbash.ui.qt.app import first_run
+# --- the start-up test: is the setup finished? -----------------------------
 
-    app_context.user_repo.set("user.name", "")
-    assert first_run(app_context) is True
+
+def _incomplete(sb) -> list[str]:
+    """The titles of the setup minimums that are not met yet."""
+    return [title for title, complete, _hint in wizard_mod.setup_checklist(sb) if not complete]
+
+
+def test_is_wizard_complete_needs_every_minimum(wizard, app_context, tools_ok, tmp_path):
+    """A username is *not* "set up": each of the four minimums is asked in turn."""
+    assert _incomplete(app_context) == ["Your details", "Output folders", "Your raw images"]
+    assert is_wizard_complete(app_context) is False
 
     app_context.user_repo.set("user.name", "Ada Lovelace")
-    assert first_run(app_context) is False
+    assert _incomplete(app_context) == ["Output folders", "Your raw images"]
+    assert is_wizard_complete(app_context) is False
+
+    folders = wizard.page_of_type(FoldersPage)
+    assert isinstance(folders, FoldersPage)
+    assert folders.validatePage() is True  # creates master *and* processed
+    assert _incomplete(app_context) == ["Your raw images"]
+    assert is_wizard_complete(app_context) is False
+
+    # The *folder* is the requirement, not the FITS files in it, exactly as on
+    # ImagesPage: turning "no .fit/.fits directly inside" into "not set up" would
+    # re-open the wizard for every user who keeps their lights a level down.
+    lights = tmp_path / "lights"
+    lights.mkdir()
+    (lights / "IMG_1234.jpg").write_bytes(b"not a fits file")
+    app_context.add_local_repo(str(lights))
+
+    assert _incomplete(app_context) == []
+    assert is_wizard_complete(app_context) is True
+
+
+def test_is_wizard_complete_needs_the_required_tools(wizard, app_context, siril_missing, tmp_path):
+    """Everything but Siril is still not set up - the one thing that can block."""
+    app_context.user_repo.set("user.name", "Ada Lovelace")
+    folders = wizard.page_of_type(FoldersPage)
+    assert isinstance(folders, FoldersPage)
+    assert folders.validatePage() is True
+    lights = tmp_path / "lights"
+    lights.mkdir()
+    app_context.add_local_repo(str(lights))
+
+    assert _incomplete(app_context) == ["Tools"]
+    assert is_wizard_complete(app_context) is False
+
+
+def test_the_last_page_and_the_start_up_test_share_one_definition(
+    wizard, app_context, tools_ok, tmp_path
+):
+    """What the checklist shows is what reopens the wizard: one list, not two."""
+    page = wizard.page_of_type(DonePage)
+    assert isinstance(page, DonePage)
+    page.refresh()
+    assert page.blockers() == _incomplete(app_context)
+
+    app_context.user_repo.set("user.name", "Ada Lovelace")
+    folders = wizard.page_of_type(FoldersPage)
+    assert isinstance(folders, FoldersPage)
+    assert folders.validatePage() is True
+    lights = tmp_path / "lights"
+    lights.mkdir()
+    app_context.add_local_repo(str(lights))
+    page.refresh()
+
+    assert page.blockers() == []
+    assert _incomplete(app_context) == []
+    assert is_wizard_complete(app_context) is True

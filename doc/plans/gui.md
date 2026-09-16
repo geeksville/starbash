@@ -459,10 +459,12 @@ Reuses `GitHubPublisher`/`GitHubService`; the two-step App-install prompt become
 ```
 Final step shows the "add raw repo -> process auto" next-steps panel from `do_reinit`.
 
-**Implementation plan: `gui-setup-wizard.md`** (2026-09-15, revised same day) — the
+**Implementation plan: `gui-setup-wizard.md`** (2026-09-15, revised 2026-09-16) — the
 dialog becomes a six-page **`QWizard`** (welcome → you → output folders → raw-image
-file picker → tools → checklist), it shows itself while the user has no **username**
-set, page 5 cannot be passed without a required tool (Siril), and the checklist's
+file picker → tools → checklist), it shows itself while any of the setup minimums is
+unmet (`is_wizard_complete(sb)` folds the closing page's own checklist — name, output
+folders, raw-image folder, required tools — into one bool, §5.4 of the plan), page 5
+cannot be passed without a required tool (Siril), and the checklist's
 two closing actions (*Process all my targets* / *Pick a target*) stay disabled until
 the folders, the images and the required tools are ready. Also makes bare `sb` open
 the GUI.

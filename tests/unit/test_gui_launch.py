@@ -4,8 +4,9 @@ Bare ``sb`` opens the window when there is a desktop session, and keeps the plai
 CLI behaviour (help text, first-run questions) when there is not - an SSH user
 must never be dropped into a PySide6 import failure.  That decision lives in
 ``starbash.main._try_launch_gui`` / ``starbash.ui.qt.desktop_session_available``,
-and the wizard trigger in ``starbash.ui.qt.app.run``; these tests pin the
-*decisions*, not the window.
+and the wizard trigger in ``starbash.ui.qt.app.run`` (which asks
+``is_wizard_complete``, the wizard's own checklist - see ``test_setup_wizard.py``);
+these tests pin the *decisions*, not the window.
 
 They are Qt-free on purpose (no ``gui`` marker): the point of half of them is that
 nothing Qt-shaped is imported on the way to the answer.
@@ -147,6 +148,30 @@ def fake_app_run(monkeypatch, app_context) -> list[str]:
     return opened
 
 
+@pytest.fixture
+def required_tools_present(monkeypatch) -> None:
+    """Pretend every required tool is installed.
+
+    The suite runs on machines without Siril, so a test that wants to isolate one
+    of the *other* setup minimums has to stub the tool gate.  It patches the
+    wizard's own ``_required_tools_missing`` - the same check ``ToolsPage`` and
+    ``setup_checklist`` use - so nothing here bypasses the real logic.
+    """
+    from starbash.ui.qt.pages import wizard as wizard_module
+
+    monkeypatch.setattr(wizard_module, "_required_tools_missing", lambda: [])
+
+
+def _finish_setup(app_context, tmp_path) -> None:
+    """Meet every setup minimum, the way the wizard's pages would."""
+    app_context.user_repo.set("user.name", "Ada Lovelace")
+    app_context.add_local_repo(str(tmp_path / "master"), repo_type="master")
+    app_context.add_local_repo(str(tmp_path / "processed"), repo_type="processed")
+    lights = tmp_path / "lights"
+    lights.mkdir()  # a raw-image repo must exist; the output repos need not
+    app_context.add_local_repo(str(lights))
+
+
 def test_run_opens_the_wizard_on_a_first_run(fake_app_run):
     """A first run gets the wizard, scheduled once the event loop is live."""
     from starbash.ui.qt import app as app_module
@@ -155,11 +180,25 @@ def test_run_opens_the_wizard_on_a_first_run(fake_app_run):
     assert fake_app_run == ["wizard"]
 
 
-def test_run_does_not_reopen_the_wizard_once_the_user_is_known(app_context, fake_app_run):
-    """A returning user goes straight to the window, not through setup again."""
+def test_run_reopens_the_wizard_when_a_minimum_is_missing(
+    app_context, fake_app_run, required_tools_present
+):
+    """A name is not *set up*: missing output folders still bring the wizard back."""
     from starbash.ui.qt import app as app_module
 
     app_context.user_repo.set("user.name", "Ada Lovelace")
+
+    assert app_module.run() == 0
+    assert fake_app_run == ["wizard"]
+
+
+def test_run_skips_the_wizard_once_setup_is_complete(
+    app_context, fake_app_run, required_tools_present, tmp_path
+):
+    """A user whose setup is finished goes straight to the window, not through it."""
+    from starbash.ui.qt import app as app_module
+
+    _finish_setup(app_context, tmp_path)
 
     assert app_module.run() == 0
     assert fake_app_run == []

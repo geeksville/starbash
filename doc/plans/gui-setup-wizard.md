@@ -15,13 +15,14 @@ sketch and stays as the design record), `tool-warnings.md`, `gui-github-publish.
 |---|---|
 | Six `QWizardPage`s + `SetupWizard` + `run_setup_dialog` (returns the action) | `ui/qt/pages/wizard.py` |
 | Module helpers: `_output_folders_base`, `_raw_image_repos`, `_repo_path`, `_required_tools_missing` | `ui/qt/pages/wizard.py` |
+| `setup_checklist` + `is_wizard_complete` — the one definition of "set up", shared by the last page and the start-up test (§5.4) | `ui/qt/pages/wizard.py` |
 | `MainWindow.run_setup_wizard` / `_apply_setup_action` / `show_page_of_type` | `ui/qt/main_window.py` |
-| `first_run(sb)` + `QTimer.singleShot(0, window.run_setup_wizard)` in `run()` | `ui/qt/app.py` |
+| `is_wizard_complete(sb)` + `QTimer.singleShot(0, window.run_setup_wizard)` in `run()` | `ui/qt/app.py` |
 | `ProcessingPage.start_run()` (was `_start`, now public for the wizard) | `ui/qt/pages/processing.py` |
 | `Tool.invalidate_availability()` (the *Re-check* button needs it) | `tool/base.py` |
 | `desktop_session_available()` + bare-`sb` launch (`--no-gui` opts out) | `ui/qt/__init__.py`, `main.py` |
 | `wizard_logo_pixmap` / `wizard_watermark_pixmap` / `WIZARD_*` sizes | `ui/qt/theme.py` |
-| Tests: 23 new in `test_setup_wizard.py` + `test_gui_launch.py`, the two old wizard tests moved out of `test_gui.py`, and a `--no-gui` case in `test_cli.py` | `tests/unit/` |
+| Tests: 31 in `test_setup_wizard.py` plus 9 in `test_gui_launch.py`, the two old wizard tests moved out of `test_gui.py`, and a `--no-gui` case in `test_cli.py` | `tests/unit/` |
 
 Two things that were wrong on the first pass and are easy to get wrong again:
 
@@ -159,10 +160,10 @@ to per-page copies) so the two dynamic edges below live in one readable `switch`
 
 | # | Page | Content | Next enabled when |
 |---|---|---|---|
-| 1 | **Welcome** | What Starbash does; "nothing here is written into your images folder"; every page can be skipped **except your name** (§5.4). | always |
+| 1 | **Welcome** | What Starbash does; "nothing here is written into your images folder"; the telescope in the left pane is **centred** by `_centre_pane_mark` (§3.6). | always |
 | 2 | **You** | name, email, *include email in reports*, analytics checkbox (defaults from the repo, exactly as today). The name is required. | `user.name` non-empty (§3.2) |
-| 3 | **Output folders** | "Create default output folders under `~/Documents/starbash/repos`" + the resolved `master` / `processed` paths, or "you already have these" when `get_repo_by_kind()` finds them. | always (unchecked = accepted, and the page says so) |
-| 4 | **Your images** | A `QFileDialog.getExistingDirectory` picker + *Add & scan*; the chosen folders are listed with live index progress; a *Skip for now* line. | always (an add in flight keeps it disabled until the scan reports) |
+| 3 | **Output folders** | Two radios — *create the default output folders under `~/Documents/starbash/repos`* (pre-selected, so the one-click path is unchanged) or *under a folder I choose* + *Choose folder…* — with the resolved `master`/`processed` paths, or "you already have these" when `get_repo_by_kind()` finds them. | **answered**: the default, or the custom radio with a folder actually picked (§3.6) |
+| 4 | **Your images** | A `QFileDialog.getExistingDirectory` picker; the known folders are listed, each marked with whether FITS files were found directly inside it. | **at least one raw-image folder** exists — picked here or already added (§3.6) |
 | 5 | **Tools** | One row per missing required/recommended tool with *Install*, *Re-check* and (where `can_be_ignored`) *Ignore* — the logic of `ToolWarningBar` (§3.3). | only when every `ToolSeverity.REQUIRED` tool is available — **this is the Siril gate** |
 | 6 | **Done** | The checklist and the two closing actions (§3.4). | Finish enabled per §3.4 |
 
@@ -313,12 +314,19 @@ visible; do not read a non-`None` button as "ours is showing".)
   clicking it does nothing (the wizard never accepts). So requirement 5 — *no
   finishing the wizard without Siril* — costs one method returning one condition,
   and it is the *item*, not the button, that decides.
-- Qt does **not** apply that to custom buttons: ours stayed enabled with
-  `isComplete()` returning `False`. The page therefore enables/disables the two
-  action buttons **itself** from the freshly-computed checklist, in `refresh()`
-  (§3.1 — every visit, not `initializePage()`), and repaints them when a row
-  changes while shown. Both buttons and *Finish* must move together, or the user
-  gets a live *Process all* next to a dead *Finish*.
+- Qt does **not** apply that to custom buttons: it never consults `isComplete()` for
+  them, and it creates them **enabled** and shows them on **every** page — so the
+  wizard used to offer a live *Process all my targets* on page 1. Gating is therefore
+  two halves, and both are the wizard's, not the page's (§3.6 says why):
+  `SetupWizard._disable_action_buttons()` switches both buttons off at construction
+  and again on entering any page but the last (`currentIdChanged`), and
+  `DonePage.refresh()` is the *only* code that arms them, from the freshly-computed
+  checklist, on every visit. Disabled rather than hidden: Qt re-shows a hidden custom
+  button on the next page change, and the tooltip ("Finish the setup first — the last
+  page has this action.") still explains a greyed one. `SetupWizard.action_buttons()`
+  owns "which buttons are ours"; `DonePage._action_buttons()` just delegates to it.
+  Both buttons and *Finish* must move together, or the user gets a live *Process all*
+  next to a dead *Finish*.
 
 `SetupWizard.action` records which button was used; `run_setup_dialog()` returns it
 so `MainWindow` — not the wizard — performs the navigation, after the reload.
@@ -352,6 +360,60 @@ box never imports PySide6: a new `desktop_session_available()` in
 `run_gui()` is still wrapped in `GuiUnavailableError` handling: a broken install
 falls back to the CLI rather than printing a traceback.
 
+### 3.6 Follow-ups from the review (2026-09-16)
+
+Three behaviours were flagged for correction once the wizard was running (`attn ai`
+notes in the first implementation). What each one *was*, and what it is now:
+
+#### 3.6.1 The Welcome watermark is not top-left
+
+The telescope used to sit in the upper third of the left pane. Qt's
+`ModernStyle` paints `WatermarkPixmap` at the **top-left** of a label that runs the
+full height of the page body — that is Qt's placement, not our layout. Qt builds
+that label *during* the first show, i.e. after our constructor returned, so it
+cannot be touched there. `_centre_pane_mark(wizard)` finds it by the pixmap we
+handed Qt (`QPixmap.cacheKey()` identifies the *contents*; the label's copy of the
+watermark shares ours, while the logo's differs) and changes only its alignment to
+`AlignCenter`, which keeps the mark centred by itself as the window is resized or
+restyled. `SetupWizard.showEvent()` calls it after `super().showEvent(event)`.
+A Qt that paints the watermark some other way leaves this a no-op, and a null
+watermark returns immediately.
+
+#### 3.6.2 The Output-folders page must be answered
+
+The folder was chosen with a checkbox, and leaving it unchecked counted as an
+answer, which left Starbash with nowhere to write. It is now a pair of
+`QRadioButton`s: *create the default output folders under
+`~/Documents/starbash/repos`* (**pre-selected while the folders are missing**, so a
+user who reads nothing and presses *Next* is still fine) or *create them under a
+folder I choose instead* + *Choose folder…* (`QFileDialog.getExistingDirectory`,
+prefilled at the documents dir). The page is complete only when the answer is one
+of those two (`FoldersPage.isComplete()`), and `validatePage()` refuses the one
+answer with nothing behind it ("somewhere else" with no folder picked) rather than
+walking on. `refresh()` re-describes what the current answer will do — including
+the "Press *Choose folder…*" note — and is driven off the *radio*, never off
+widget visibility, because it runs while the wizard is hidden (in tests, and for a
+frame during a page change).
+
+#### 3.6.3 The Images page, and the closing actions
+
+The page could be left with no folder, and the closing actions were live far too
+early. `ImagesPage.isComplete()` now requires at least one raw-image folder — picked
+on the page (`self._chosen`) or already added — and
+`validatePage()` refuses to walk on while `_raw_image_repos()` is empty: it adds
+the pick, reports the outcome in the status line, and if there is still nothing
+(including "the folder could not be added") it stays put so the next *Next*
+retries. The requirement is the **folder**, not FITS files inside it:
+`_has_fits_images()` only looks one level down and plenty of people keep their
+lights in `raw/M31/lights` — so the page *warns* ("No FITS images … directly
+inside") but does not block on it. The two closing buttons are no longer theirs
+from page 1 — see the gating bullet in §3.4; `SetupWizard._disable_action_buttons()`
+is why.
+
+The tests that pin all three (and the folders/images `validatePage` refusals) are in
+§7; the review notes themselves are gone from the source, replaced by the comments
+explaining the behaviour.
+
 ## 4. Components and files
 
 | File | Change |
@@ -360,7 +422,7 @@ falls back to the CLI rather than printing a traceback.
 | `src/starbash/tool/base.py` | add `Tool.invalidate_availability()` (base: a no-op returning `None`; `ExternalTool` overrides it to reset `_is_available = None`) — the *only* way to make a re-probe possible, since `is_available` caches on first access (`base.py:824`). Three lines, no behaviour change for existing callers. |
 | `src/starbash/ui/qt/main_window.py` | `_on_setup` reloads the context and then applies the returned action; new `_apply_setup_action(action)` and a public `show_page_of_type(page_class) -> bool` (the loop currently inlined in `_on_reindex_requested`, which becomes a one-liner call to it). |
 | `src/starbash/ui/qt/pages/processing.py` | rename `_start` → `start_run` (the public "run everything now" entry point); update the two call sites in `tests/unit/test_gui.py` (`:1435`, `:1520`). |
-| `src/starbash/ui/qt/app.py` | `def first_run(sb) -> bool` (no `user.name` in the user repo — see §5.4); `run()` schedules the wizard with `QTimer.singleShot(0, window.run_setup_wizard)` after `window.show()`. |
+| `src/starbash/ui/qt/app.py` | `run()` schedules the wizard with `QTimer.singleShot(0, window.run_setup_wizard)` after `window.show()`, guarded by `is_wizard_complete(sb)` (imported from `pages/wizard.py` — the checklist is the one definition of "set up", §5.4). |
 | `src/starbash/ui/qt/__init__.py` | add `desktop_session_available()` (+ `__all__`). |
 | `src/starbash/main.py` | the no-subcommand branch described in §3.5; new global `--no-gui` option. |
 | `tests/unit/test_setup_wizard.py` | **new** (`gui` marker) — see §7. |
@@ -372,6 +434,16 @@ falls back to the CLI rather than printing a traceback.
 ## 5. Engine details that matter
 
 ### 5.1 Adding the images folder (worker + progress)
+
+**What shipped is not this** (see §3.6.3): `ImagesPage` adds the picked folder
+**synchronously** in `validatePage()` — `sb.add_local_repo(str(path))`, with the
+outcome in the page's status line and nothing added to block on — so there is no
+`add_repo_job`, no `run_async`, no `BusyIndicator` and no reindex progress. That
+keeps the page and its tests simple; the cost to accept knowingly is the one this
+paragraph was written to avoid: a genuinely large folder indexes on the GUI thread,
+so *Next* sits there until it finishes. The design below is the fix if that ever
+bites (the Repositories page already has the machinery), and it is deliberately left
+as the recorded design rather than silently dropped.
 
 Reuse `jobs.add_repo_job(report, token, path, kind)` (`ui/qt/jobs.py:47`) through
 `workers.run_async` — never on the GUI thread (`add_local_repo` indexes FITS, and
@@ -425,30 +497,72 @@ runs. Therefore:
   and `github_login.py`'s `_closed` flag is copied, so closing the wizard
   mid-scan cannot raise `Internal C++ object already deleted`.
 
-### 5.4 First-run detection — the username test
+### 5.4 Start-up detection — `is_wizard_complete`, from the checklist
 
-`first_run(sb)` = **the user repo has no `user.name`**. This was the second of the
-two options this plan originally listed (config-file absence vs "not really set
-up"), chosen because it is the honest one: the config *file* is created by any
-`Starbash()` context — `sb info`, even a failed command — so the file's absence
-only ever means "Starbash has never run here", and the wizard would then never
-re-appear for a user who aborted it on the first screen.
+**As first built, the test was just the username**: `first_run(sb) = no
+`user.name``. It was the second of the two options this plan originally listed
+(config-file absence vs "not really set up"), chosen over the config-file check
+because the *file* is created by any `Starbash()` context — `sb info`, even a
+failed command — so its absence only ever means "Starbash has never run here",
+and a user who aborted the wizard on the first screen would never see it again.
+
+**Revised 2026-09-16: the test is the wizard's own checklist.** A name is only
+one of four requirements — the output folders, a raw-image folder and Siril are
+all equally required by the pages — so "has a name" declared a user set up who
+then had nowhere to write and nothing to process with. The single source of truth
+is now `setup_checklist(sb)` in `wizard.py`: a list of
+`(title, complete, what to do about it)` rows, which the *closing page* draws and
+`is_wizard_complete(sb)` folds into one bool::
+
+```python
+def is_wizard_complete(sb: Starbash) -> bool:
+    return all(complete for _title, complete, _hint in setup_checklist(sb))
+```
+
+`app.run()` asks it (`if not is_wizard_complete(sb): QTimer.singleShot(...)`) and
+`DonePage._checklist()` returns the same list, so **what the last page shows and
+what reopens the wizard cannot drift** — the failure mode of two lists is a tick
+beside a wizard that comes back every morning. The four rows, and the page each
+mirrors:
+
+| Row | Complete when | Mirrors |
+|---|---|---|
+| Your details | `user.name` is set | `YouPage.validatePage()` |
+| Output folders | a `master` **and** a `processed` repo exist | `FoldersPage.validatePage()` |
+| Your raw images | a raw-image repo exists at all | `ImagesPage.validatePage()` |
+| Tools | no **required** tool (Siril) is missing | `ToolsPage.isComplete()` |
+
+Two deliberate loosenesses, both to avoid re-asking a user who is fine:
+
+- The raw-image row wants a *folder*, not FITS files inside it — exactly the bar
+  `ImagesPage` enforces. Plenty of people keep lights a level down
+  (`raw/M31/lights`), which the page itself says is normal; making the file count
+  the start-up test would reopen the wizard on every launch for them.
+- Only **required** tools block, matching `ToolsPage` and *Finish*: a missing
+  *recommended* tool (GraXpert, StarNet, rc-astro) is a warning bar, not a
+  wizard.
 
 Consequences worth stating, because they shape §3.2:
 
-- The username is the wizard's completion marker, so page 2 **must** be blocking,
-  via `isComplete()` — *not* via a mandatory field, and §3.2 explains why the
-  asterisk form is actively wrong here. Otherwise a user who skipped through
-  would be asked again on the next launch, forever.
-- It is also why the *Welcome* page's copy is "every page can be skipped
-  **except your name**": a blanket "skip everything" promise is no longer true —
-  and after this change so is "…and the tools page" (§3.3).
+- The username is no longer the completion marker, but page 2 is still blocking
+  (via `isComplete()`, *not* a mandatory field — §3.2 explains why the asterisk
+  form is actively wrong here): every row of the checklist has exactly one page
+  that satisfies it, and a row that no page asks for would wedge the user out of
+  the window entirely.
+- The shipped *Welcome* copy makes no "every page can be skipped except your
+  name" promise ("This wizard will guide you through the initial setup."), which
+  is just as well: by §3.6.2/§3.6.3 the output folders and the raw-image folder
+  are required too.
 - A user who genuinely wants no name has the CLI's own out: it is not a
   supported state for the GUI, and `sb`'s CLI setup path keeps its current
   behaviour (this change does not touch `do_reinit`).
-- The check is a lookup in the already-open user repo, so `app.run()` can ask
-  *after* constructing `Starbash("gui")` — no ordering trick needed any more
-  (which also removes the "read it before the context creates the file" wart).
+- The check reads the already-open user repo plus the repo manager and the tool
+  registry, so `app.run()` can ask *after* constructing `Starbash("gui")` — no
+  ordering trick needed (which also removes the "read it before the context
+  creates the file" wart). All four probes are cheap and none of them scans a
+  folder: the two repo lookups are in memory, and `init_tools()` has already run
+  `Tool.preflight()` during `Starbash()` (app.py:210), so the tool statuses are
+  cached by the time `run()` asks.
 
 ### 5.5 The launch guard (headless guarantee)
 
@@ -487,39 +601,64 @@ Each phase is independently reviewable and leaves the suite green.
   `MainWindow.show_page_of_type` + `_apply_setup_action`, `selection.clear()` on
   "process all". Tests: gating, each action, the refactored
   `_on_reindex_requested`.
-- **Phase E — auto-show + bare `sb`.** `first_run(sb)`, `QTimer.singleShot` in
-  `app.run()`, `desktop_session_available()`, the `main.py` branch and
-  `--no-gui`, plus the doc lines and the rewritten/added test modules.
+- **Phase E — auto-show + bare `sb`.** `setup_checklist` + `is_wizard_complete(sb)`
+  (the start-up test folded out of the closing page's own list — §5.4),
+  `QTimer.singleShot` in `app.run()`, `desktop_session_available()`, the
+  `main.py` branch and `--no-gui`, plus the doc lines and the rewritten/added
+  test modules.
 - **Phase F — docs & memory bank.** `gui.md` §5.9 gets a pointer to this plan and
   its status row updated; `AGENTS.md` (GUI + CLI surface) and
   `activeContext.md`/`progress.md` note the change.
 
 ## 7. Testing plan
 
+The names below are the **shipped** ones — the table was written with working
+titles, and anyone reading the plan against the tests needs the real names. All are
+in `tests/unit/test_setup_wizard.py` unless another file is named.
+
 | Test | What it pins |
 |---|---|
-| `test_setup_wizard_pages_in_order` | `Next`/`Back` walk the pages; `Back` dead on page 1; `Finish` only on the last page; page 5 is skipped when no tool is missing. |
-| `test_setup_wizard_keeps_answers_when_going_back` | `IndependentPages`: type a name, go `Back` then `Next`, and it is still there (the default `cleanupPage()` would reset it — this test fails if the option is dropped). |
-| `test_setup_wizard_persists_preferences` (moved) | name/email/analytics keys — the CLI-compatible writes — still happen. |
-| `test_setup_wizard_requires_a_username` | With the name empty, *Next* on page 2 is disabled; typing one enables it. |
-| `test_setup_wizard_rerun_accepts_existing_name` | Open the wizard with `user.name` already saved: page 2 is complete on arrival (this is the test that fails if someone "simplifies" §3.2 into a `registerField("…*")` mandatory field). |
-| `test_setup_wizard_creates_output_repos` | With the checkbox on, a `master` **and** a `processed` repo exist afterwards (`get_repo_by_kind`), written through the real `add_local_repo`. |
-| `test_tools_page_blocks_without_siril` | Siril stubbed unavailable → `ToolsPage.isComplete()` is False and *Next* is disabled; the page names Siril and offers its `install_url`. |
-| `test_tools_page_recheck_clears_the_cached_probe` | Stub the cache as "unavailable", then make the probe succeed: after *Re-check* the row is satisfied. Fails if the page just re-reads `is_available`. |
-| `test_tools_page_recommended_gap_does_not_block` | Only StarNet missing → `isComplete()` True, but the row is still shown (advisory). |
-| `test_tools_page_ignore_writes_the_user_config` | *Ignore* on a recommended tool sets `tool.<key>.ignored` (as `_on_ignore_tool` does) and the row goes away. |
-| `test_images_page_adds_picked_folder` | `QFileDialog` stubbed → the real `add_repo_job` → the repo ref is in the user config and its FITS are indexed (assert resulting state, not "the job was called"). |
-| `test_images_page_reports_empty_folder` | A folder with no FITS leaves the item incomplete and shows the "no images found" line. |
-| `test_done_page_gates_actions` | Both action buttons disabled until the name + folders + images + required tools items are complete, enabled after; the caption names what is missing. |
-| `test_wizard_uses_qwizard_custom_buttons` | `wizard().button(CustomButton1)` **is** the page's *Process all* button and `CustomButton2` the *Pick a target* one (identity, not "not None" — Qt's placeholder is non-`None` already), both options are on, `FinishButton` reads "Finish", and a plain close leaves `action is None`. |
-| `test_wizard_chrome_matches_the_theme` | `wizardStyle()` is `ModernStyle`, the `LogoPixmap`/`WatermarkPixmap` roles are set from the packaged icon, and `BannerPixmap`/`BackgroundPixmap` are null — pins §3.1, so nobody reintroduces the two pixmaps that would paint an opaque background over the dark theme. |
-| `test_wizard_action_process_all_clears_selection_and_starts` | `_apply_setup_action("process_all")` leaves `selection.targets == []` on disk and shows the Processing page with a run under way (`page._worker is not None`, not "`start_run` was called"). |
-| `test_wizard_action_pick_target_navigates` | *Pick a target* shows the Targets page and starts no run. |
-| `test_first_run_detection` (Qt-free) | `first_run(sb)` is True with no `user.name` and False once one is set (isolated `paths` dir). |
-| `test_desktop_session_available_*` (Qt-free) | `STARBASH_NO_GUI=1` → False; `QT_QPA_PLATFORM=offscreen` → False; Linux with no `DISPLAY`/`WAYLAND_DISPLAY` → False; with `DISPLAY` → True. |
-| `test_bare_sb_falls_back_without_display` (`test_cli.py`) | No session → today's help output, exit 0; no-config case → the CLI setup questions. |
-| `test_bare_sb_launch_is_skipped_when_no_gui` (`test_gui_launch.py`) | The `main.py` branch calls `run_gui` only when the guard says so, and a `GuiUnavailableError` falls back instead of propagating. |
-| headless subprocess case (`test_cli_headless.py`) | Bare `sb` with `DISPLAY` stripped and `PySide6` unimportable imports no Qt module (and stays fast). |
+| `test_the_wizard_has_the_six_documented_pages` | The six ids exist, in order, with `WELCOME` as the start page. |
+| `test_next_id_skips_the_tools_page_when_nothing_is_missing` / `…_visits_the_tools_page_when_siril_is_missing` | The one dynamic edge in `nextId()`: page 4 → 6 with every tool present, page 4 → 5 when Siril is missing. |
+| `test_the_username_is_required` | Empty name → page 2 incomplete; typing one completes it (page 2 is the first-run test, so this is §5.4's hinge). |
+| `test_you_page_writes_the_same_keys_as_sb_user_setup` | `validatePage()` writes the CLI's keys through the real repos. |
+| `test_you_page_refuses_a_blank_name` / `test_you_page_shows_the_documented_analytics_defaults` / `test_the_email_checkbox_needs_an_email` | The page's own refusals and defaults — the email checkbox stays inert until there is an email. |
+| `test_the_left_pane_mark_is_centred` | **§3.6.1**: the label Qt built for the watermark is `AlignCenter` (found by `cacheKey`), and the logo's key differs, so the match is watermark-specific. |
+| `test_folders_page_creates_the_default_output_folders` | **§3.6.2**: the default radio is pre-selected, `isComplete()` is True, and `validatePage()` creates a `master` **and** a `processed` repo through the real `add_local_repo`; both radios then hide and the caption reads "You already have these". |
+| `test_folders_page_refuses_somewhere_else_with_no_folder` | **§3.6.2**: the custom radio with nothing picked → `isComplete()` *and* `validatePage()` False, no repo created, and the note says "Press *Choose folder…*". This is the case the old checkbox allowed. |
+| `test_folders_page_uses_the_folder_it_was_given` | **§3.6.2**: a stubbed `QFileDialog` → the pick ticks the custom radio itself, and `master/`+`processed/` are created *inside* the chosen folder and registered as repos. |
+| `test_images_page_reports_a_folder_of_fits_files` | The status line and the folder list report what the pick contains, before anything is added. |
+| `test_images_page_notices_a_folder_without_fits_files` | **§3.6.3**: a folder of JPEGs says "No FITS images … directly inside" but is still a complete answer — one level down (`raw/M31/lights`) is normal. |
+| `test_images_page_will_not_go_on_without_a_folder` | **§3.6.3**: nothing known and nothing picked → `isComplete()`/`validatePage()` False, the status names the requirement, and picking a folder unblocks it. |
+| `test_images_page_adds_the_chosen_folder_once` | **§3.6.3**: `validatePage()` registers the pick (synchronously — §5.1), and leaving the page again does not add the same folder twice. |
+| `test_tools_page_blocks_the_wizard_while_siril_is_missing` | Siril stubbed unavailable → `ToolsPage.isComplete()` False, so Qt disables *Next*; the page names Siril and offers its `install_url`. |
+| `test_tools_page_is_complete_when_everything_is_present` | The happy path — it stubs `tool_statuses`, so it does not depend on what happens to be installed on the machine running the suite. |
+| `test_tools_page_recheck_notices_a_tool_installed_meanwhile` | *Re-check* clears the cached probe (`Tool.invalidate_availability()`): fails if the page just re-reads `is_available`. |
+| `test_done_page_gates_the_actions_but_not_finish` | Only a required tool gates *Finish*; the other three rows gate the two action buttons. |
+| `test_done_page_enables_the_actions_once_the_checklist_is_ticked` | …and they come alive together once every row is ticked, with the caption naming what was missing. |
+| `test_the_closing_checklist_refreshes_when_it_is_visited_again` | `IndependentPages` means `initializePage()` runs once, so the checklist is `refresh()`ed from `currentIdChanged`. |
+| `test_the_closing_actions_start_disabled` | **§3.4 gating**: a freshly-built wizard has both custom buttons disabled, each with an explanatory tooltip — Qt builds them enabled and never consults `isComplete()`. |
+| `test_the_closing_actions_are_armed_on_the_last_page_only` | **§3.4 gating**: the checklist arms them on page 6, and a page change back to page 1 disarms them again. |
+| `test_the_custom_buttons_record_which_action_was_used` / `test_a_click_on_something_else_is_not_an_action` | The actions really are the wizard's own `CustomButton1`/`CustomButton2`, and only those two values become an action. |
+| `test_run_setup_dialog_reports_the_closing_action` / `…_returns_none_when_cancelled` | `run_setup_dialog()` hands the action back to `MainWindow` instead of navigating itself. |
+| `test_is_wizard_complete_needs_every_minimum` | **§5.4**: the start-up test asks each of the four minimums in turn — a username alone is *not* set up — and the raw-image row is satisfied by the *folder*, with only JPEGs inside it. |
+| `test_is_wizard_complete_needs_the_required_tools` | Siril still missing → not set up, with everything else in place: the one thing that can block. |
+| `test_the_last_page_and_the_start_up_test_share_one_definition` | `DonePage.blockers()` and `is_wizard_complete()` are the same list, before and after the minimums are met (the drift guard — two lists would show a tick beside a wizard that reopens). |
+| `test_a_bare_sb_launches_the_gui_in_a_desktop_session` … `test_an_offscreen_platform_is_not_a_desktop_session` (`test_gui_launch.py`) | The `desktop_session_available()` guard: the opt-out flag, the offscreen/minimal platform, and Linux needing `DISPLAY`/`WAYLAND_DISPLAY`. |
+| `test_a_broken_qt_install_falls_back_to_the_cli` (`test_gui_launch.py`) | `GuiUnavailableError` is caught and reported, never propagated. |
+| `test_run_opens_the_wizard_on_a_first_run` / `test_run_reopens_the_wizard_when_a_minimum_is_missing` / `test_run_skips_the_wizard_once_setup_is_complete` (`test_gui_launch.py`) | The `QTimer.singleShot` trigger: a first run gets the wizard, a user *with* a name but without output folders/image folder gets it again, and a user whose whole setup is complete is never asked again. |
+| `test_help_commands` (`test_cli.py`) | Bare `sb` without a session still prints the help output and exits 0, and `--no-gui` keeps exactly that behaviour whatever the session. |
+| `test_sb_info_works_when_qt_is_unavailable` / `test_cli_never_imports_qt` (`test_cli_headless.py`) | The headless guarantee: `DISPLAY` stripped and `PySide6` unimportable → the CLI still works and imports neither Qt nor the GUI package. |
+
+**Promised here but never shipped** — worth knowing before trusting the plan over
+the tests: a `wizardStyle()`/pixmap-roles test (only the watermark alignment is
+pinned, by `test_the_left_pane_mark_is_centred`), an *Ignore*-writes-the-user-config
+case, a *Back*-keeps-the-answers round trip (`IndependentPages` is only pinned
+indirectly), a recommended-tool-does-not-block case (covered only by
+`test_tools_page_is_complete_when_everything_is_present` stubbing every status), and
+the two `MainWindow._apply_setup_action` cases — *Process all* clearing the selection
+and starting a run, and *Pick a target* navigating. The actions are currently
+exercised only through `run_setup_dialog()`'s return value.
 
 Mark the wizard/launch tests `gui` (except the two Qt-free modules) so
 `-m "not gui"` still skips them; keep the Qt-free ones in the default set.

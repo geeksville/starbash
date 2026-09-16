@@ -2,7 +2,7 @@ coverage:
   status:
     project:
       default:
-        target: 50% #overall project/ repo coverage
+        target: 80% #overall project/ repo coverage
 
 github_checks:
     annotations: true
@@ -11,4 +11,7 @@ flags:
   unittests:
     carryforward: true
   integration:
+    paths:
+    # per https://docs.codecov.com/docs/carryforward-flags#how-carryforward-flags-work-a-motivating-example
+      - ".*"
     carryforward: true

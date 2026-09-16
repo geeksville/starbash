@@ -48,13 +48,16 @@ Implementation and design plans live in `doc/plans/*.md` and are tracked in git.
 - `doc/plans/gui-setup-wizard.md` — the GUI's first run end to end: the setup
   dialog becomes a six-page **`QWizard`** (welcome → you → output folders →
   raw-image folder picker → tools → checklist), page 2 requires a **username**
-  (which is also the first-run test, replacing the config-file check), page 5
+  (page 2 is blocking; the start-up test is *not* the name — see below), page 5
   **blocks on a missing required tool** (Siril) and needs a new
   `Tool.invalidate_availability()` for its *Re-check* button, and the last page's
   two closing actions (*Process all my targets* / *Pick a target*) stay disabled
   until the folders, the images and the required tools are in place. Also makes
-  bare `sb` open the GUI when a desktop session exists. **Proposed and revised
-  2026-09-15, awaiting review**; no code written. Design record: `gui.md` §5.9.
+  bare `sb` open the GUI when a desktop session exists. **Implemented
+  2026-09-16**; the start-up test was revised the same day from "no username" to
+  `is_wizard_complete(sb)` — the closing page's own checklist (name, output
+  folders, raw-image folder, required tools) folded into one bool, so a tick and a
+  re-opening wizard cannot disagree (plan §5.4). Design record: `gui.md` §5.9.
 - `doc/plans/gui-widget-teardown.md` — the *third* crash in that area (the xdist-only
   SIGSEGV that the Masters-tree tests made likely): a test's widgets were never
   destroyed, so a later cyclic collection destroyed them off the GUI thread. Fix: the

@@ -18,26 +18,15 @@ from starbash.interaction import set_interaction
 from starbash.ui.qt.desktop import DESKTOP_FILE_NAME, install_desktop_entry
 from starbash.ui.qt.interaction import QtUserInteraction
 from starbash.ui.qt.main_window import MainWindow
+from starbash.ui.qt.pages.wizard import is_wizard_complete
 from starbash.ui.qt.theme import apply_theme, load_app_icon
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["create_application", "first_run", "run"]
+__all__ = ["create_application", "is_wizard_complete", "run"]
 
 APP_NAME = "Starbash"
 ORG_NAME = "Starbash"
-
-
-def first_run(sb: Starbash) -> bool:
-    """True while Starbash does not yet know who the user is.
-
-    The username is the first-run test (see ``gui.md`` §5.4) rather than the
-    existence of a config file: a config can exist for a dozen other reasons, and
-    the name is the one thing every later feature assumes (it is credited in the
-    output metadata).  The setup wizard requires it on its second page, so a user
-    who cancels before then is still - correctly - on a first run.
-    """
-    return not str(sb.user_repo.get("user.name", "") or "").strip()
 
 
 def create_application(argv: list[str] | None = None) -> QApplication:
@@ -73,10 +62,13 @@ def run(argv: list[str] | None = None) -> int:
     set_interaction(QtUserInteraction(window))
     window.show()
 
-    # A first run opens the setup wizard as soon as the event loop is live: it
+    # An unfinished setup opens the wizard as soon as the event loop is live: it
     # centres itself on the window, and a modal dialog opened before exec() would
-    # have no loop to run it.
-    if first_run(sb):
+    # have no loop to run it.  The test is the wizard's own checklist - every
+    # minimum, not just "is there a name" - so a user whose output folders or
+    # image folder are still missing is asked again rather than handed a window
+    # that cannot process anything (doc/plans/gui-setup-wizard.md §5.4).
+    if not is_wizard_complete(sb):
         QTimer.singleShot(0, window.run_setup_wizard)
 
     try:

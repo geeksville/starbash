@@ -21,27 +21,69 @@ checklist) in `ui/qt/pages/wizard.py`, replacing the single-form `QDialog`.
   so a naive re-read kept reporting the old answer after the user installed Siril.
 - **Page 6 is the checklist.** Only the *Tools* row gates *Finish*; the other three
   gate the two custom closing buttons — Qt does **not** gate custom buttons on
-  `isComplete()`, so the page moves them itself in `refresh()`.
+  `isComplete()`, so `SetupWizard` disables them at construction and again on every
+  page change that is not the last, and `DonePage.refresh()` is the only thing
+  allowed to arm them (see §3.6.3 of the plan).
 - **Wiring:** `run_setup_dialog()` returns an action (`ACTION_PROCESS` /
   `ACTION_TARGETS` / `None`); `MainWindow.run_setup_wizard` + `_apply_setup_action`
   (reload context first, then `sb.selection.clear()` + `ProcessingPage.start_run()`)
-  and `show_page_of_type()`; `ui/qt/app.py` gained `first_run(sb)` (username-based,
-  *not* the config file) and schedules the wizard with `QTimer.singleShot(0, …)` after
-  `window.show()`. Bare `sb` opens the GUI (Qt-free `desktop_session_available()` in
-  `ui/qt/__init__.py`, honoured by `main.py`; `--no-gui` opts out), so an SSH box keeps
-  the CLI path.
-- **Tests:** `tests/unit/test_setup_wizard.py` (23 cases: the cached-probe *Re-check*
-  regression, `nextId` skips, per-page saving, checklist gating and `first_run`),
-  `tests/unit/test_gui_launch.py` (the bare-`sb` decision + the first-run trigger),
+  and `show_page_of_type()`; `ui/qt/app.py` schedules the wizard with
+  `QTimer.singleShot(0, …)` after `window.show()`, guarded by
+  **`is_wizard_complete(sb)`** — not by "is there a name" (revised 2026-09-16, §5.4
+  of the plan): `wizard.setup_checklist(sb)` is the single list of setup minimums
+  (`(title, complete, hint)` rows: your details / output folders / your raw images /
+  tools), the closing page draws it and `is_wizard_complete()` folds it into one
+  bool, so a tick and a re-opening wizard cannot disagree. The raw-image row wants a
+  *folder*, not FITS inside it, and only a **required** tool blocks — both to match
+  the pages and to avoid re-asking a user who is fine. Bare `sb` opens the GUI
+  (Qt-free `desktop_session_available()` in `ui/qt/__init__.py`, honoured by
+  `main.py`; `--no-gui` opts out), so an SSH box keeps the CLI path.
+- **Tests:** `tests/unit/test_setup_wizard.py` (31 cases: the cached-probe *Re-check*
+  regression, `nextId` skips, per-page saving, checklist gating, the watermark
+  centring, the folders/images `validatePage` refusals, the closing-button gating,
+  and three that pin `is_wizard_complete`/`setup_checklist` — each minimum in turn,
+  the required-tool gate, and that `DonePage.blockers()` is the very same list),
+  `tests/unit/test_gui_launch.py` (the bare-`sb` decision + three start-up triggers:
+  first run, "has a name but no folders", and fully set up),
   the two old wizard tests removed from `test_gui.py`, `--no-gui` added to
   `test_cli.py`.
+- **The three `attn ai` review notes were fixed the same day** (plan §3.6):
+  - *Welcome watermark.* ModernStyle paints `WatermarkPixmap` top-left in a
+    full-height label Qt builds *during* the first show, so
+    `_centre_pane_mark(wizard)` (called from `SetupWizard.showEvent()`) finds that
+    label by `QPixmap.cacheKey()` — the label's copy shares the watermark's key, the
+    logo's differs — and sets only its alignment to `AlignCenter`.
+  - *Output-folders page had a skip-an-answer path.* The checkbox's unticked state
+    counted as "I keep them elsewhere", so the wizard walked on with nowhere to
+    write. It is now two `QRadioButton`s (*the default folders*, pre-selected, or
+    *somewhere else* + *Choose folder…*); `isComplete()`/`validatePage()` refuse the
+    somewhere-else-with-no-folder answer, and picking a folder ticks the custom radio
+    itself.
+  - *Images page could be empty, and the closing buttons were live from page 1.*
+    `ImagesPage.isComplete()`/`validatePage()` now require **a folder** (not FITS
+    inside it — a folder of JPEGs only *warns*, since `raw/M31/lights` is normal),
+    and `SetupWizard._disable_action_buttons()` runs at construction and on every
+    non-`DONE` page change, because Qt creates custom buttons enabled and never
+    consults `isComplete()` for them (hiding them does not work either — Qt re-shows
+    them).
 - **Two traps found while testing:** `setCurrentId()` is a no-op until the wizard is
   *shown* (the tests `show()` it offscreen first); and a raw-image repo is **not**
   simply "anything `regular_repos` returns" — that list hides only a plain `"recipe"`,
   while the default recipes Starbash installs for itself are `"std-recipe"`, so
-  `_raw_image_repos()` filters an explicit kind set instead.
+  `_raw_image_repos()` filters an explicit kind set instead. A third, from the
+  follow-ups: `tools_ok` must patch `tool_statuses` as well as
+  `_required_tools_missing`, or a host without Siril fails the tools-page happy path.
 - **Verified 2026-09-16:** `just lint` → *0 errors, 0 warnings, 0 notes*; full suite
-  **1282 passed, 1 skipped**.
+  **1286 passed, 1 skipped**, the only failure being
+  `test_tool.py::TestSirilToolRun::test_siril_tool_run_with_empty_script` — that test
+  is deliberately mandatory (CI installs Siril) and this container has no `siril`
+  binary, so it is environmental, not a regression.
+- **Plan doc synced the same day:** `gui-setup-wizard.md` gained §3.6 (the three
+  follow-ups above), §5.1 now opens with "what shipped is not this" (the images
+  folder is added *synchronously* in `validatePage()` — no `add_repo_job`/worker), and
+  §7's test table was rewritten with the real test names (the original list used
+  working titles that never existed) plus a note listing what the plan promised but
+  never shipped.
 - **Next up:** nothing outstanding for this plan; the open questions elsewhere are the
   cancel-and-wait one in `qt-object-lifetimes.md` and phase 2 of `stage-roles.md`.
 

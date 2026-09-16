@@ -16,6 +16,9 @@ Design notes (see ``doc/plans/gui-setup-wizard.md``):
   this page's answers, so a half-finished wizard still leaves a usable config.
 * Each page saves as it is left, so cancelling is safe and the wizard can be
   re-run at any time from *File ▸ Run setup wizard…*.
+* :func:`setup_checklist` is the single definition of "set up": the last page
+  draws it and :func:`is_wizard_complete` - the test the GUI asks before opening
+  the wizard at start-up - folds it into one bool, so the two cannot disagree.
 * Only a **required** tool (Siril) can hold the wizard open; everything else on
   the closing checklist gates the two action buttons, not *Finish*.
 """
@@ -26,8 +29,8 @@ import logging
 from enum import IntEnum
 from pathlib import Path
 
-from PySide6.QtCore import QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices, QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -37,6 +40,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QRadioButton,
     QVBoxLayout,
     QWidget,
     QWizard,
@@ -58,7 +62,9 @@ __all__ = [
     "ACTION_TARGETS",
     "Page",
     "SetupWizard",
+    "is_wizard_complete",
     "run_setup_dialog",
+    "setup_checklist",
 ]
 
 #: Returned by :func:`run_setup_dialog` when the user chose *Process all my targets*.
@@ -132,6 +138,87 @@ def _raw_image_repos(sb: Starbash) -> list[Repo]:
     ]
 
 
+def setup_checklist(sb: Starbash) -> list[tuple[str, bool, str]]:
+    """Every setup minimum, as ``(title, complete, what to do about it)``.
+
+    This is the wizard's definition of "set up", and deliberately the **only**
+    one: the closing page draws this list, and :func:`is_wizard_complete` - the
+    test the GUI asks at start-up - folds the same list into a single bool.  Two
+    lists would drift, and the user would then be shown a tick beside a wizard
+    that reopens every morning.
+
+    Each row mirrors the page that asks for it, so the list cannot demand
+    something a page let through: the raw-image row wants a *folder*, exactly as
+    :meth:`ImagesPage.isComplete` does, and not FITS files inside it - plenty of
+    people keep their lights a level down (``raw/M31/lights``), and demanding
+    FITS here would re-ask them at every start.
+    """
+    repo = sb.user_repo
+    has_name = bool(str(repo.get("user.name", "") or "").strip())
+
+    manager = sb.repo_manager
+    has_folders = (
+        manager.get_repo_by_kind("master") is not None
+        and manager.get_repo_by_kind("processed") is not None
+    )
+
+    return [
+        ("Your details", has_name, "Enter your name on the About you page"),
+        (
+            "Output folders",
+            has_folders,
+            "Create your output folders on the Output folders page",
+        ),
+        (
+            "Your raw images",
+            bool(_raw_image_repos(sb)),
+            "Add the folder with your raw images first",
+        ),
+        (
+            "Tools",
+            not _required_tools_missing(),
+            "Install the missing tool, then press Re-check",
+        ),
+    ]
+
+
+def is_wizard_complete(sb: Starbash) -> bool:
+    """True when every setup minimum in :func:`setup_checklist` is met.
+
+    The GUI asks this at start-up instead of "is there a username?" (see
+    ``doc/plans/gui-setup-wizard.md`` §5.4): the name is only the first of the
+    wizard's four requirements, so a user who has one but no output folders - or
+    no image folder, or no Siril - has not finished setting Starbash up and gets
+    the wizard again rather than a window that cannot do anything.
+    """
+    return all(complete for _title, complete, _hint in setup_checklist(sb))
+
+
+def _centre_pane_mark(wizard: QWizard) -> None:
+    """Centre Qt's watermark mark in the wizard's left pane.
+
+    ModernStyle paints ``WatermarkPixmap`` at the **top-left** of a label that runs
+    the full height of the page body, which parked our telescope in the upper third
+    of the pane instead of its middle.
+
+    Qt owns that label and builds it in ``showEvent`` — after our constructor has
+    returned — so it is found by the pixmap we handed Qt (``QPixmap.cacheKey``
+    identifies the *contents*, and the label's copy of the watermark shares ours)
+    and only its alignment is changed.  An ``AlignCenter`` label keeps the mark
+    centred by itself as the window is resized or restyled.  A Qt that painted the
+    watermark some other way leaves this a no-op.
+    """
+    watermark = wizard.pixmap(QWizard.WizardPixmap.WatermarkPixmap)
+    if watermark.isNull():
+        return
+    for label in wizard.findChildren(QLabel):
+        mark = label.pixmap()
+        if mark.isNull() or mark.cacheKey() != watermark.cacheKey():
+            continue
+        if label.alignment() != Qt.AlignmentFlag.AlignCenter:
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+
 class SetupPage(QWizardPage):
     """Base class for the wizard's pages.
 
@@ -161,7 +248,8 @@ class WelcomePage(SetupPage):
         self.setTitle("Welcome to Starbash")
         self.setSubTitle("Starbash turns your raw astronomy frames into finished pictures.")
 
-        # attn ai: the logo pane should show our telescope a bit lower - so it appears centered
+        # The telescope in the left pane is Qt's watermark label, which Qt centres
+        # for us in SetupWizard.showEvent - see _centre_pane_mark.
 
         layout = QVBoxLayout(self)
         for text in (
@@ -224,7 +312,7 @@ class YouPage(SetupPage):
             self._include_email.setChecked(False)
 
     def isComplete(self) -> bool:  # noqa: N802 - Qt API
-        """A username is required; without one this is still a first run."""
+        """A username is required; without one the setup is unfinished."""
         return bool(self._name.text().strip())
 
     def validatePage(self) -> bool:  # noqa: N802 - Qt API
@@ -255,29 +343,64 @@ class FoldersPage(SetupPage):
         base = _output_folders_base()
         #: Whether the output folders are still missing; see :meth:`refresh`.
         self._missing = True
-        self._create = QCheckBox(f"Create the default output folders under {base}")
-        # Ticked by default: creating them is the documented "just do it" answer,
-        # and a user who keeps their output elsewhere can simply clear the box.
-        self._create.setChecked(self._missing_output_repos())
-        self._create.toggled.connect(self.refresh)
-        layout.addWidget(self._create)
+        #: Where a *custom* answer creates them (``None`` until one is picked).
+        self._custom_base: Path | None = None
+
+        # There is no "skip this page" answer: Starbash has nowhere to write without
+        # these folders, so the choice is the default place or one the user names.
+        # Creating the default stays pre-selected, which keeps the one-click path -
+        # read nothing, press Next - working exactly as before.
+        self._default_radio = QRadioButton(f"Create the default output folders under {base}")
+        self._default_radio.setChecked(self._missing_output_repos())
+        layout.addWidget(self._default_radio)
+
+        self._custom_radio = QRadioButton("Create them under a folder I choose instead")
+        layout.addWidget(self._custom_radio)
+
+        self._custom_row = QWidget()
+        row = QHBoxLayout(self._custom_row)
+        row.setContentsMargins(24, 0, 0, 0)
+        self._custom_path = QLabel()
+        self._custom_path.setWordWrap(True)
+        row.addWidget(self._custom_path, 1)
+        self._choose = QPushButton("Choose folder…")
+        self._choose.clicked.connect(self._on_choose)
+        row.addWidget(self._choose)
+        layout.addWidget(self._custom_row)
 
         self._paths = QLabel()
         self._paths.setWordWrap(True)
         layout.addWidget(self._paths)
 
-        # attn ai: this is not correct. on this page the user must either pick the default or click
-        # to open a file dialog to create a new outputdirectory somewhere else.
-        self._note = QLabel(
-            "Leaving this unticked is fine — it means you already keep your masters "
-            "and processed images somewhere, or you will add those folders later from "
-            "the Repositories page."
-        )
+        self._note = QLabel()
         self._note.setWordWrap(True)
         layout.addWidget(self._note)
         layout.addStretch(1)
 
+        # Connected after the initial state is set, so building the page does not
+        # fire a refresh (and a completeChanged) at a half-built widget.
+        self._default_radio.toggled.connect(self._on_choice_changed)
+
         self.refresh()
+
+    def _on_choice_changed(self, _checked: bool) -> None:
+        """Re-describe the answer, and let Qt re-evaluate *Next* (see isComplete)."""
+        self.refresh()
+        self.completeChanged.emit()
+
+    def _on_choose(self) -> None:
+        """Ask for the folder to create ``master``/``processed`` under."""
+        start = self._custom_base if self._custom_base is not None else get_user_documents_dir()
+        folder = QFileDialog.getExistingDirectory(
+            self, "Choose where to create your output folders", str(start)
+        )
+        if not folder:
+            return
+        # Picking a folder *is* choosing the custom answer, so tick it for them.
+        self._custom_base = Path(folder)
+        self._custom_radio.setChecked(True)
+        self.refresh()
+        self.completeChanged.emit()
 
     def _missing_output_repos(self) -> bool:
         """True when a master or processed output repo has not been created yet."""
@@ -298,44 +421,85 @@ class FoldersPage(SetupPage):
         return found
 
     def refresh(self) -> None:
-        """Report the folders that exist, or the paths the default would create.
+        """Report the folders that exist, or the paths the current answer creates.
 
-        Called on every visit *and* whenever the checkbox is toggled, so the
-        caption always describes what the current answer will do.
+        Called on every visit *and* whenever the answer changes, so the caption
+        always describes what the current answer will do.
         """
         existing = self._existing_paths()
-        missing = self._missing_output_repos()
-        base = _output_folders_base()
         # Asked of the world, not of the widget: while the wizard's window is not
         # shown yet, isVisible() would tell validatePage() there is nothing to do.
+        missing = self._missing_output_repos()
         self._missing = missing
 
-        # Do not fight the user: once the folders exist there is nothing to
-        # create, so the checkbox disappears rather than sitting there ticked.
-        self._create.setVisible(missing)
-        if missing:
-            listed = "\n".join(f"    • {base / kind}" for kind in ("master", "processed"))
-            self._paths.setText(f"Will create:\n{listed}")
-        else:
+        # Do not fight the user: once the folders exist there is nothing left to
+        # create, so the question disappears rather than sitting there answered.
+        self._default_radio.setVisible(missing)
+        self._custom_radio.setVisible(missing)
+
+        if not missing:
             listed = "\n".join(f"    • {kind}: {path}" for kind, path in existing.items())
             self._paths.setText(f"You already have these:\n{listed}")
+            self._custom_row.setVisible(False)
+            self._note.setVisible(False)
+            return
 
-        # An unticked box is a real answer ("I keep them elsewhere"), so say so.
-        self._note.setVisible(missing and not self._create.isChecked())
+        # Read from the radio, not from the widget's visibility: this runs while the
+        # wizard is still hidden in tests (and for a frame during a page change).
+        custom = self._custom_radio.isChecked()
+        chosen = self._custom_base if custom else None
+        self._custom_row.setVisible(custom)
+        self._custom_path.setText(str(chosen) if chosen is not None else "No folder picked yet")
+
+        if custom and chosen is None:
+            # The one answer this page refuses: no folder is no answer at all.
+            self._paths.setText("")
+            self._note.setText(
+                "Press “Choose folder…” — Starbash needs somewhere to write your "
+                "masters and finished images before it can go on."
+            )
+            self._note.setVisible(True)
+            return
+
+        base = chosen if chosen is not None else _output_folders_base()
+        listed = "\n".join(f"    • {base / kind}" for kind in ("master", "processed"))
+        self._paths.setText(f"Will create:\n{listed}")
+        self._note.setVisible(False)
+
+    def isComplete(self) -> bool:  # noqa: N802 - Qt API
+        """This page cannot be skipped: answer it, one way or the other.
+
+        Creating the default folders is the pre-selected answer, so a user who
+        reads nothing and presses *Next* still gets a working setup; the custom
+        radio only counts once a folder has actually been picked.
+        """
+        if not self._missing:
+            return True
+        if self._default_radio.isChecked():
+            return True
+        return self._custom_radio.isChecked() and self._custom_base is not None
 
     def validatePage(self) -> bool:  # noqa: N802 - Qt API
-        """Create the output repos the user left ticked.
+        """Create the output repos the answer calls for.
 
-        A folder that cannot be created is logged and skipped rather than raising:
-        the wizard must stay usable (the checklist on the last page reports what
-        is still missing), and the same creation is available from the
-        Repositories page.
+        Refuses only "somewhere else" with no folder picked, because there is
+        nothing to create.  A folder that cannot be created is logged and skipped
+        rather than raising: the wizard must stay usable (the checklist on the last
+        page reports what is still missing), and the same creation is available
+        from the Repositories page.
         """
-        if not (self._missing and self._create.isChecked()):
+        if not self._missing:
             return True
 
+        custom = self._custom_radio.isChecked()
+        chosen = self._custom_base if custom else None
+        if custom and chosen is None:
+            # Hold the wizard here and say why on the page itself.
+            self.refresh()
+            return False
+        base = chosen if chosen is not None else _output_folders_base()
+
         manager = self.sb.repo_manager
-        base = _output_folders_base()
         for kind in ("master", "processed"):
             if manager.get_repo_by_kind(kind) is not None:
                 continue
@@ -410,6 +574,8 @@ class ImagesPage(SetupPage):
                 "still add it, but check you picked the folder with your raw frames."
             )
         self.refresh()
+        # Picking a folder is what makes this page complete (see isComplete).
+        self.completeChanged.emit()
 
     def refresh(self) -> None:
         """List the raw-image folders and whether each really holds FITS files."""
@@ -429,34 +595,53 @@ class ImagesPage(SetupPage):
             self._list.setText("Your image folders:\n" + "\n".join(lines))
         else:
             self._list.setText(
-                "No sourceimage folders yet.  Choose the folder that holds your raw frames, "
-                "or skip this page and add it later."  # attn ai: this is not correct - to complete the wizard the user must pick at least one image folder.
+                "No source image folders yet.  Choose the folder that holds your raw "
+                "frames — Starbash has nothing to process without it."
             )
 
-    def validatePage(self) -> bool:  # noqa: N802 - Qt API
-        """Add the folder the user picked.
+    def isComplete(self) -> bool:  # noqa: N802 - Qt API
+        """A folder has to be here: Starbash cannot process anything without one.
 
-        A folder that cannot be added is reported in the page's status line but
-        does **not** block the wizard: the images may genuinely not be on this
-        machine yet, and being unable to leave this page would be a trap (the
-        closing checklist shows the item as still missing).
+        The requirement is the *folder*, not FITS files inside it —
+        :func:`_has_fits_images` only looks directly inside a folder, and plenty of
+        people keep their lights a level down (``raw/M31/lights``), so demanding
+        FITS here would trap the very people this page is for.
+        """
+        return bool(_raw_image_repos(self.sb)) or self._chosen is not None
+
+    def validatePage(self) -> bool:  # noqa: N802 - Qt API
+        """Add the folder the user picked, then require at least one folder.
+
+        A folder that cannot be added is reported in the page's status line and
+        does **not** count as an answer: the wizard stays on this page so the next
+        press of *Next* retries, rather than walking on with nothing to show for
+        the chosen folder.
         """
         chosen = self._chosen
-        if chosen is None:
-            return True
-        self._chosen = None
-        if str(chosen) in self._known_paths():
+        if chosen is not None and str(chosen) in self._known_paths():
+            self._chosen = None
             self._status.setText(f"{chosen} is already one of your image folders.")
+        elif chosen is not None:
+            try:
+                # No repo_type: a folder added without a type is a raw-image repo.
+                self.sb.add_local_repo(str(chosen))
+            except Exception as exc:  # noqa: BLE001 - report, never raise from a page
+                logger.warning(f"Could not add the image folder {chosen}: {exc}")
+                self._status.setText(f"Could not add {chosen}: {exc}")
+            else:
+                self._chosen = None
+                self._status.setText(f"Added {chosen}.")
+
+        if _raw_image_repos(self.sb):
             return True
-        try:
-            # No repo_type: a folder added without a type is a raw-image repo.
-            self.sb.add_local_repo(str(chosen))
-        except Exception as exc:  # noqa: BLE001 - report, never trap the user here
-            logger.warning(f"Could not add the image folder {chosen}: {exc}")
-            self._status.setText(f"Could not add {chosen}: {exc}")
-            return True
-        self._status.setText(f"Added {chosen}.")
-        return True
+
+        self.refresh()
+        if chosen is None:
+            self._status.setText(
+                "Starbash needs at least one folder with your raw frames.  Press "
+                "“Choose folder…” to point at it."
+            )
+        return False
 
 
 class ToolsPage(SetupPage):
@@ -610,41 +795,13 @@ class DonePage(SetupPage):
 
     # --- the checklist ----------------------------------------------------
     def _checklist(self) -> list[tuple[str, bool, str]]:
-        """``(title, complete, what to do about it)`` for every row."""
-        repo = self.sb.user_repo
-        has_name = bool(str(repo.get("user.name", "") or "").strip())
+        """``(title, complete, what to do about it)`` for every row.
 
-        manager = self.sb.repo_manager
-        has_folders = (
-            manager.get_repo_by_kind("master") is not None
-            and manager.get_repo_by_kind("processed") is not None
-        )
-
-        has_images = False
-        for raw_repo in _raw_image_repos(self.sb):
-            path = _repo_path(raw_repo)
-            if path is not None and _has_fits_images(path):
-                has_images = True
-                break
-
-        return [
-            ("Your details", has_name, "Enter your name on the About you page"),
-            (
-                "Output folders",
-                has_folders,
-                "Create your output folders on the Output folders page",
-            ),
-            (
-                "Your raw images",
-                has_images,
-                "Add the folder with your raw images first",
-            ),
-            (
-                "Tools",
-                not _required_tools_missing(),
-                "Install the missing tool, then press Re-check",
-            ),
-        ]
+        The rows are :func:`setup_checklist` - the very list
+        :func:`is_wizard_complete` folds into the GUI's start-up test - so what
+        the user is shown here and what reopens the wizard cannot drift apart.
+        """
+        return setup_checklist(self.sb)
 
     def blockers(self) -> list[str]:
         """The titles of the rows that are not ticked yet."""
@@ -662,17 +819,9 @@ class DonePage(SetupPage):
     def _action_buttons(self) -> list[QPushButton]:
         """The two closing-action buttons, as the wizard owns them."""
         wizard = self.wizard()
-        if wizard is None:
-            return []
-        buttons: list[QPushButton] = []
-        for which in (
-            QWizard.WizardButton.CustomButton1,
-            QWizard.WizardButton.CustomButton2,
-        ):
-            button = wizard.button(which)
-            if isinstance(button, QPushButton):
-                buttons.append(button)
-        return buttons
+        if isinstance(wizard, SetupWizard):
+            return wizard.action_buttons()
+        return []
 
     def refresh(self) -> None:
         """Repaint the checklist, and move the buttons with it."""
@@ -750,12 +899,28 @@ class SetupWizard(QWizard):
         # *Finish* stays the plain "just close" path.
         self.setOption(QWizard.WizardOption.HaveCustomButton1)
         self.setOption(QWizard.WizardOption.HaveCustomButton2)
-        # attn ai: these buttons should default to disabled.  only enable once all setup requirements are met.
-        # currently i see they start enabled then get disabled only once we reach a later setup page (bug)
         self.setButtonText(QWizard.WizardButton.CustomButton1, "Process all my targets")
         self.setButtonText(QWizard.WizardButton.CustomButton2, "Pick a target to process")
+        # Qt creates those two *enabled* and shows them on every page, and it never
+        # consults isComplete() for custom buttons - so without this the wizard
+        # offered a live "Process all my targets" on page 1 and only switched it off
+        # once a later page had been reached.  They are closing actions: the last
+        # page is the only place they belong, and DonePage.refresh() is the one thing
+        # allowed to arm them - see _disable_action_buttons.
+        self._disable_action_buttons()
         self.customButtonClicked.connect(self._on_custom_button)
         self.currentIdChanged.connect(self._on_current_id_changed)
+
+    # --- Qt window hooks --------------------------------------------------
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802 - Qt API
+        """Centre the mark in the wizard's left pane (see :func:`_centre_pane_mark`).
+
+        Qt builds that label *during* the first show, so this cannot be done in the
+        constructor; afterwards it stays put (an ``AlignCenter`` label re-centres
+        the mark itself as the window is resized).
+        """
+        super().showEvent(event)
+        _centre_pane_mark(self)
 
     # --- page flow --------------------------------------------------------
     def nextId(self) -> int:  # noqa: N802 - Qt API
@@ -778,6 +943,33 @@ class SetupWizard(QWizard):
         refresh = getattr(page, "refresh", None)
         if callable(refresh):
             refresh()
+        if page_id != int(Page.DONE):
+            # DonePage.refresh() (just above) is the only thing allowed to arm these.
+            self._disable_action_buttons()
+
+    def action_buttons(self) -> list[QPushButton]:
+        """The two closing-action buttons Qt owns (see :meth:`_disable_action_buttons`)."""
+        buttons: list[QPushButton] = []
+        for which in (
+            QWizard.WizardButton.CustomButton1,
+            QWizard.WizardButton.CustomButton2,
+        ):
+            button = self.button(which)
+            if isinstance(button, QPushButton):
+                buttons.append(button)
+        return buttons
+
+    def _disable_action_buttons(self) -> None:
+        """Switch the closing actions off, and say when they come alive.
+
+        Called at construction and on entering any page but the last, so a wizard
+        that has not got there yet never offers them.  Disabled rather than hidden:
+        Qt re-shows a hidden custom button on the next page change, and a greyed
+        button still explains itself through its tooltip.
+        """
+        for button in self.action_buttons():
+            button.setEnabled(False)
+            button.setToolTip("Finish the setup first — the last page has this action.")
 
     def _on_custom_button(self, which: object) -> None:
         """One of the two closing actions: remember which, then accept.
