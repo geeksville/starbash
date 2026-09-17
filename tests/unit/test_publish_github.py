@@ -158,10 +158,14 @@ def test_stage_tree_html_shows_defaults_grey_and_overrides_bold():
         ]
     )
 
-    assert '<span class="sb-stage-name">stack_osc</span>' in tree
+    assert (
+        '<a class="sb-stage-name" href="https://github.com/geeksville/starbash-recipes">stack_osc</a>'
+        in tree
+    )
     assert '<span class="sb-tool">siril</span>' in tree
     assert "Basic OSC stacking" in tree
-    assert '<a class="sb-recipe" href="https://github.com/geeksville/starbash-recipes">' in tree
+    # A stage without a browsable recipe URL stays plain (starremoval has none).
+    assert '<span class="sb-stage-name">starremoval</span>' in tree
     # A plain default is shown in the grey styling.
     assert '<span class="sb-default">= &quot;rej w 3 3&quot;</span>' in tree
     # An override is bold/accent, with the grey default it replaced beside it.

@@ -407,7 +407,7 @@ class GitHubService:
             {
                 "name": name,
                 # note: markdown is not supported in the description field
-                "description": "Semiautomatic (beta) image workflows by Starbash",
+                "description": "(mostly) automatic (beta) image workflows by Starbash",
                 "private": False,
                 # we want to make main ourselves
                 "auto_init": False,

@@ -73,6 +73,7 @@ _STAGE_TREE_CSS = """\
 .sb-stages ul{list-style:none;margin:.25rem 0;padding:0}
 .sb-stages .sb-stage{margin:.35rem 0;padding-left:1.1rem;border-left:2px solid rgba(128,150,180,.45)}
 .sb-stages .sb-stage-name{font-weight:600}
+.sb-stages a.sb-stage-name{color:inherit;text-decoration:underline dotted;text-underline-offset:.15em}
 .sb-stages .sb-tool,.sb-stages .sb-role,.sb-stages .sb-skip{display:inline-block;margin-left:.45rem;padding:.05rem .45rem;border:1px solid rgba(128,150,180,.55);border-radius:.7rem;font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;opacity:.85;vertical-align:.1em}
 .sb-stages .sb-skip{border-style:dashed}
 .sb-stages .sb-stage.excluded{opacity:.55}
@@ -126,15 +127,20 @@ def _param_row(param: Any) -> str:
 def _stage_row(stage: StageOption) -> list[str]:
     """The ``<li>`` for one stage: header line plus its parameter lines."""
     css = "sb-stage excluded" if stage.excluded else "sb-stage"
-    head = [f'<span class="sb-stage-name">{_esc(stage.name)}</span>']
+    # The stage name links to the recipe its TOML came from, when that recipe
+    # has a browsable (http(s)) URL; local/`pkg://` sources stay plain text.
+    recipe_url = str(stage.recipe_url) if stage.recipe_url else ""
+    if recipe_url.startswith("http"):
+        name_html = f'<a class="sb-stage-name" href="{_esc(recipe_url)}">{_esc(stage.name)}</a>'
+    else:
+        name_html = f'<span class="sb-stage-name">{_esc(stage.name)}</span>'
+    head = [name_html]
     if stage.tool:
         head.append(f'<span class="sb-tool">{_esc(stage.tool)}</span>')
     if stage.role:
         head.append(f'<span class="sb-role">{_esc(stage.role)}</span>')
     if stage.excluded:
         head.append('<span class="sb-skip">skipped</span>')
-    if stage.recipe_url and str(stage.recipe_url).startswith("http"):
-        head.append(f'<a class="sb-recipe" href="{_esc(stage.recipe_url)}">recipe source</a>')
     if stage.description:
         head.append(f'<span class="sb-stage-desc">{_esc(stage.description)}</span>')
 

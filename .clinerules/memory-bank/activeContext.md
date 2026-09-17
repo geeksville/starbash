@@ -16,8 +16,10 @@ tree of the processing stages with their parameters**:
   replaced; a legend explains the two.  Excluded stages stay visible but dimmed,
   struck through, with a dashed *skipped* pill — so the tree shows exactly which
   stages were used.  Stage headers also carry the recipe's declared `tool`
-  (e.g. *siril*) and `role` as pills, the stage description, and a *recipe
-  source* link when `recipe_url` is an http(s) URL.  All text is `html.escape`d.
+  (e.g. *siril*) and `role` as pills and the stage description.  **The stage
+  name itself is a link to the recipe its TOML came from** whenever
+  `recipe_url` is an http(s) URL (dotted underline, colour inherited); local or
+  `pkg://` sources render as plain text.  All text is `html.escape`d.
 - To feed it, `stage_declarations()` (`processed_target.py`) now also captures
   the recipe stage's `tool` (from `stage.tool.name`) and `role`, and
   `StageOption` gained additive `tool`/`role` fields that `stage_options()`
