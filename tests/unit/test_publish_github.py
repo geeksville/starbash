@@ -3,7 +3,10 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from starbash.publish.github import GitHubPublisher
+import tomlkit
+
+from starbash.processed_target import ParameterOption, StageOption
+from starbash.publish.github import GitHubPublisher, stage_tree_html
 
 
 def _publisher(tmp_path: Path) -> GitHubPublisher:
@@ -125,3 +128,176 @@ def test_publisher_generates_distinct_pages_for_legacy_targets(tmp_path):
     assert "$target" not in m31_post
     assert (site / "assets" / "targets" / "m-31" / "main.toml").exists()
     assert (site / "assets" / "targets" / "sh2-91" / "main.toml").exists()
+
+
+def test_stage_tree_html_shows_defaults_grey_and_overrides_bold():
+    """Recipe defaults render in the grey class, overrides in the accent class."""
+    tree = stage_tree_html(
+        [
+            StageOption(
+                name="stack_osc",
+                description="Basic OSC stacking",
+                excluded=False,
+                parameters=[
+                    ParameterOption(
+                        name="registration",
+                        description="Registration options",
+                        default="rej w 3 3",
+                    ),
+                    ParameterOption(name="framing", description=None, default="max", value="min"),
+                ],
+                recipe_url="https://github.com/geeksville/starbash-recipes",
+                tool="siril",
+            ),
+            StageOption(
+                name="starremoval",
+                description=None,
+                excluded=True,
+                parameters=[],
+            ),
+        ]
+    )
+
+    assert '<span class="sb-stage-name">stack_osc</span>' in tree
+    assert '<span class="sb-tool">siril</span>' in tree
+    assert "Basic OSC stacking" in tree
+    assert '<a class="sb-recipe" href="https://github.com/geeksville/starbash-recipes">' in tree
+    # A plain default is shown in the grey styling.
+    assert '<span class="sb-default">= &quot;rej w 3 3&quot;</span>' in tree
+    # An override is bold/accent, with the grey default it replaced beside it.
+    assert '<span class="sb-override">= &quot;min&quot;</span>' in tree
+    assert '<span class="sb-default">(default &quot;max&quot;)</span>' in tree
+    # Excluded stages stay visible but dimmed and marked skipped.
+    assert 'class="sb-stage excluded"' in tree
+    assert '<span class="sb-skip">skipped</span>' in tree
+    # The legend explains the two colours.
+    assert "recipe default" in tree
+    assert "override" in tree
+
+
+def test_stage_tree_html_escapes_recipe_and_target_text():
+    """Stage names, descriptions and values are HTML-escaped."""
+    tree = stage_tree_html(
+        [
+            StageOption(
+                name='evil<script>"stage"',
+                description="<&description>",
+                excluded=False,
+                parameters=[ParameterOption(name='p"name', description=None, default='"&<')],
+            )
+        ]
+    )
+
+    assert "<script>" not in tree
+    assert "<&description>" not in tree
+    assert "&amp;" in tree
+    assert "&lt;" in tree
+
+
+def test_stage_tree_html_is_empty_without_stages():
+    """A target with no recorded stages renders no tree at all."""
+    assert stage_tree_html([]) == ""
+
+
+def test_publisher_renders_recipe_defaults_and_target_overrides(tmp_path):
+    """The target page carries the stage tree, merging recipe declarations in."""
+    processed = tmp_path / "processed"
+    target = processed / "M 42"
+    metadata = target / ".starbash"
+    metadata.mkdir(parents=True)
+    (metadata / "main.toml").write_text(
+        "[repo]\n"
+        'kind = "processed-target"\n'
+        "[[stages]]\n"
+        'name = "stack_osc"\n'
+        "[[stages.overrides]]\n"
+        'name = "registration"\n'
+        'value = "rej w 4 4"\n'
+        "[[stages]]\n"
+        'name = "starremoval"\n'
+        "excluded = true\n"
+    )
+    (metadata / "about.toml").write_text('[about]\nsummary = "A target"\n[target]\nid = "M 42"\n')
+
+    recipe = SimpleNamespace(
+        config=tomlkit.parse(
+            "[[stages]]\n"
+            'name = "stack_osc"\n'
+            'description = "Basic OSC stacking"\n'
+            'tool.name = "siril"\n'
+            "[[stages.parameters]]\n"
+            'name = "registration"\n'
+            'default = "rej w 3 3"\n'
+            'description = "Registration options for Siril stacking"\n'
+            "[[stages.parameters]]\n"
+            'name = "framing"\n'
+            'default = "max"\n'
+        )
+    )
+    repo = SimpleNamespace(get_path=lambda: processed)
+    sb = SimpleNamespace(
+        repo_manager=SimpleNamespace(get_repos_by_kind=lambda kind: [repo]),
+        get_recipes=lambda: [recipe],
+    )
+
+    GitHubPublisher(sb, tmp_path / "site").publish()
+
+    post = (tmp_path / "site" / "targets" / "m-42.md").read_text()
+    assert '<div class="sb-stages">' in post
+    assert "stack_osc" in post
+    assert '<span class="sb-tool">siril</span>' in post
+    assert "Basic OSC stacking" in post
+    # Default in grey, override in the bold accent next to the default it replaced.
+    assert '<span class="sb-default">= &quot;max&quot;</span>' in post
+    assert '<span class="sb-override">= &quot;rej w 4 4&quot;</span>' in post
+    assert '<span class="sb-default">(default &quot;rej w 3 3&quot;)</span>' in post
+    # The excluded stage is visible but marked skipped.
+    assert 'class="sb-stage excluded"' in post
+    assert "starremoval" in post
+    assert '<span class="sb-skip">skipped</span>' in post
+
+
+def test_publisher_renders_stage_tree_without_recipe_repos(tmp_path):
+    """Stages are still listed when the context has no recipe declarations."""
+    processed = tmp_path / "processed"
+    target = processed / "M 42"
+    metadata = target / ".starbash"
+    metadata.mkdir(parents=True)
+    (metadata / "main.toml").write_text(
+        '[repo]\nkind = "processed-target"\n'
+        "[[stages]]\n"
+        'name = "stack_osc"\n'
+        "[[stages.overrides]]\n"
+        'name = "registration"\n'
+        'value = "rej w 4 4"\n'
+    )
+    (metadata / "about.toml").write_text('[about]\nsummary = "A target"\n[target]\nid = "M 42"\n')
+
+    _publisher(tmp_path).publish()
+
+    post = (tmp_path / "site" / "targets" / "m-42.md").read_text()
+    assert '<div class="sb-stages">' in post
+    assert "stack_osc" in post
+    assert '<span class="sb-override">= &quot;rej w 4 4&quot;</span>' in post
+
+
+def test_publisher_shows_target_coordinates(tmp_path):
+    """The page includes RA/Dec when the target metadata carries them."""
+    processed = tmp_path / "processed"
+    target = processed / "M 42"
+    metadata = target / ".starbash"
+    metadata.mkdir(parents=True)
+    (metadata / "main.toml").write_text('[repo]\nkind = "processed-target"\n')
+    (metadata / "about.toml").write_text(
+        "[about]\n"
+        'summary = "A target"\n'
+        "[target]\n"
+        'id = "M 42"\n'
+        'ra = "05 35 17.3"\n'
+        'dec = "-05 23 28"\n'
+    )
+
+    _publisher(tmp_path).publish()
+
+    post = (tmp_path / "site" / "targets" / "m-42.md").read_text()
+    assert "**Coordinates:** RA 05 35 17.3 / Dec -05 23 28" in post

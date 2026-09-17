@@ -9,9 +9,29 @@ description: {{ description | default('Processed Starbash target.', true) | tojs
 
 {{ about.summary | default('Processed astrophotography target.') }}
 
+{% if target.ra is defined and target.ra and target.ra != 'N/A' and target.dec is defined and target.dec and target.dec != 'N/A' %}
+
+**Coordinates:** RA {{ target.ra }} / Dec {{ target.dec }}
+
+{% endif %}
+
 {% for image in images %}
 ![{{ target.name }}]({{ image }})
 {% endfor %}
+
+## Workflow
+
+{% if stage_tree %}
+
+The stages used to process this target, with each stage's parameters:
+
+{{ stage_tree }}
+
+{% endif %}
+
+{% if workflow_url %}
+[View processing workflow]({{ workflow_url }})
+{% endif %}
 
 ## Sessions
 
@@ -35,8 +55,3 @@ description: {{ description | default('Processed Starbash target.', true) | tojs
 
 {% endfor %}
 
-## Workflow
-
-{% if workflow_url %}
-[View processing workflow]({{ workflow_url }})
-{% endif %}

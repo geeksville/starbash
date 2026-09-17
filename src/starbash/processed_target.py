@@ -85,6 +85,10 @@ class StageOption:
     parameters: list[ParameterOption]
     #: URL (``https://`` or ``file://``) of the recipe that declares this stage.
     recipe_url: str | None = None
+    #: Tool this stage runs (e.g. ``"siril"``), as declared by the recipe.
+    tool: str | None = None
+    #: Interchangeable role (e.g. ``"stack"``) the recipe declares, if any.
+    role: str | None = None
 
 
 @dataclass
@@ -189,7 +193,8 @@ def stage_declarations(recipes: Any) -> dict[str, dict[str, Any]]:
     Recipes are the authoritative source of a parameter's default and description
     (declared as ``[[stages.parameters]]``).  Scanning the recipe repos is cheap
     because their config is already loaded; later definitions win, mirroring repo
-    precedence.
+    precedence.  The stage's declared ``tool`` and optional ``role`` are carried
+    along too, for report rendering.
     """
     declarations: dict[str, dict[str, Any]] = {}
     for repo in recipes:
@@ -205,7 +210,14 @@ def stage_declarations(recipes: Any) -> dict[str, dict[str, Any]]:
             if not name:
                 continue
             entry = declarations.setdefault(
-                str(name), {"description": None, "parameters": {}, "recipe_url": None}
+                str(name),
+                {
+                    "description": None,
+                    "parameters": {},
+                    "recipe_url": None,
+                    "tool": None,
+                    "role": None,
+                },
             )
             if stage.get("description"):
                 entry["description"] = stage.get("description")
@@ -213,6 +225,11 @@ def stage_declarations(recipes: Any) -> dict[str, dict[str, Any]]:
             recipe_url = getattr(source, "url", None) if source is not None else None
             if recipe_url:
                 entry["recipe_url"] = str(recipe_url)
+            tool = stage.get("tool")
+            if isinstance(tool, dict) and tool.get("name"):
+                entry["tool"] = str(tool["name"])
+            if stage.get("role"):
+                entry["role"] = str(stage["role"])
             for param in stage.get("parameters") or []:
                 param_name = param.get("name")
                 if not param_name:
@@ -1027,6 +1044,8 @@ class ProcessedTarget:
                     excluded=bool(entry.get("excluded", False)),
                     parameters=parameters,
                     recipe_url=declared.get("recipe_url"),
+                    tool=declared.get("tool"),
+                    role=declared.get("role"),
                 )
             )
         return stages

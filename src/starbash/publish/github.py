@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import html
 import re
 import shutil
 import warnings
+from collections.abc import Sequence
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -16,7 +18,7 @@ from tomlkit.exceptions import ParseError
 
 from starbash import console
 from starbash.paths import get_publish_site_dir
-from starbash.processed_target import ProcessedTarget
+from starbash.processed_target import ProcessedTarget, StageOption, stage_declarations
 
 
 def slugify(value: str) -> str:
@@ -63,6 +65,117 @@ def equipment_rows(equipment: Any) -> list[dict[str, str | None]]:
     return rows
 
 
+#: Stylesheet for :func:`stage_tree_html`, scoped to its wrapper so it cannot
+#: fight the site theme.  Colours are tuned for the dark ``jekyll-theme-midnight``
+#: look: defaults are a muted grey-blue, overrides a bold amber accent.
+_STAGE_TREE_CSS = """\
+.sb-stages{margin:1.25em 0;font-size:.92rem;line-height:1.5}
+.sb-stages ul{list-style:none;margin:.25rem 0;padding:0}
+.sb-stages .sb-stage{margin:.35rem 0;padding-left:1.1rem;border-left:2px solid rgba(128,150,180,.45)}
+.sb-stages .sb-stage-name{font-weight:600}
+.sb-stages .sb-tool,.sb-stages .sb-role,.sb-stages .sb-skip{display:inline-block;margin-left:.45rem;padding:.05rem .45rem;border:1px solid rgba(128,150,180,.55);border-radius:.7rem;font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;opacity:.85;vertical-align:.1em}
+.sb-stages .sb-skip{border-style:dashed}
+.sb-stages .sb-stage.excluded{opacity:.55}
+.sb-stages .sb-stage.excluded .sb-stage-name{text-decoration:line-through}
+.sb-stages .sb-recipe{margin-left:.45rem;font-size:.78rem;opacity:.9}
+.sb-stages .sb-stage-desc{margin-left:.45rem;opacity:.7;font-size:.85rem}
+.sb-stages .sb-params{padding-left:1.35rem;margin:.1rem 0}
+.sb-stages .sb-param{margin:.05rem 0}
+.sb-stages .sb-pname{opacity:.92}
+.sb-stages .sb-default{color:#9fb0c3;font-weight:400}
+.sb-stages .sb-override{color:#ffb454;font-weight:700}
+.sb-stages .sb-legend{font-size:.8rem;opacity:.85;margin:.2rem 0 .6rem}"""
+
+
+def _display_value(value: Any) -> str:
+    """Render a parameter value the way its TOML line would be written."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return f'"{value}"'
+    return str(value)
+
+
+def _esc(value: Any) -> str:
+    """HTML-escape any value bound for the stage tree."""
+    return html.escape(str(value), quote=True)
+
+
+def _param_row(param: Any) -> str:
+    """One parameter line: grey default, or a bold amber override beside it."""
+    bits = ['<li class="sb-param"']
+    if param.description:
+        bits.append(f' title="{_esc(param.description)}"')
+    bits.append(f'><span class="sb-pname">{_esc(param.name)}</span>')
+    if param.is_overridden:
+        bits.append(f' <span class="sb-override">= {_esc(_display_value(param.value))}</span>')
+        if param.default is not None:
+            bits.append(
+                f' <span class="sb-default">(default {_esc(_display_value(param.default))})</span>'
+            )
+    elif param.default is not None:
+        bits.append(f' <span class="sb-default">= {_esc(_display_value(param.default))}</span>')
+    else:
+        bits.append(' <span class="sb-default">(no default)</span>')
+    bits.append("</li>")
+    return "".join(bits)
+
+
+def _stage_row(stage: StageOption) -> list[str]:
+    """The ``<li>`` for one stage: header line plus its parameter lines."""
+    css = "sb-stage excluded" if stage.excluded else "sb-stage"
+    head = [f'<span class="sb-stage-name">{_esc(stage.name)}</span>']
+    if stage.tool:
+        head.append(f'<span class="sb-tool">{_esc(stage.tool)}</span>')
+    if stage.role:
+        head.append(f'<span class="sb-role">{_esc(stage.role)}</span>')
+    if stage.excluded:
+        head.append('<span class="sb-skip">skipped</span>')
+    if stage.recipe_url and str(stage.recipe_url).startswith("http"):
+        head.append(f'<a class="sb-recipe" href="{_esc(stage.recipe_url)}">recipe source</a>')
+    if stage.description:
+        head.append(f'<span class="sb-stage-desc">{_esc(stage.description)}</span>')
+
+    lines = [f'<li class="{css}">', f'<div class="sb-stage-head">{" ".join(head)}</div>']
+    if stage.parameters:
+        lines.append('<ul class="sb-params">')
+        lines.extend(_param_row(param) for param in stage.parameters)
+        lines.append("</ul>")
+    lines.append("</li>")
+    return lines
+
+
+def stage_tree_html(stages: Sequence[StageOption]) -> str:
+    """Render a target's stages as an HTML tree for its report page.
+
+    Every stage the target records is shown, in order, with the parameters its
+    recipe declares: the recipe *defaults* render in muted grey, while values
+    this target *overrides* render in a bolder amber accent right beside the
+    default they replaced.  Excluded stages stay visible but dimmed and marked
+    "skipped", so the tree shows exactly which stages were used.
+
+    Returns ``""`` for a target with no recorded stages.
+    """
+    if not stages:
+        return ""
+
+    lines = [
+        '<div class="sb-stages">',
+        "<style>",
+        _STAGE_TREE_CSS,
+        "</style>",
+        '<div class="sb-legend">Parameters: <span class="sb-default">grey = recipe default</span>'
+        ' &middot; <span class="sb-override">amber = this target&rsquo;s override</span></div>',
+        '<ul class="sb-stage-list">',
+    ]
+    for stage in stages:
+        lines.extend(_stage_row(stage))
+    lines.extend(["</ul>", "</div>"])
+    return "\n".join(lines)
+
+
 class GitHubPublisher:
     """Generate a complete local Jekyll site from one processed repository."""
 
@@ -103,8 +216,26 @@ class GitHubPublisher:
         heroes = [path for path in images if path.name.lower().startswith("hero")]
         return heroes or images
 
-    def _targets(self, root: Path) -> list[tuple[Path, dict[str, Any]]]:
-        targets: list[tuple[Path, dict[str, Any]]] = []
+    def _stage_declarations(self) -> dict[str, dict[str, Any]]:
+        """Map stage name -> declared description/parameters from the recipe repos.
+
+        Best effort: contexts without ``get_recipes`` (bare front ends, tests)
+        get an empty map, and the report then simply omits recipe-declared
+        defaults while still showing the target's recorded stages.
+        """
+        get_recipes = getattr(self.sb, "get_recipes", None)
+        if not callable(get_recipes):
+            return {}
+        try:
+            return stage_declarations(get_recipes())
+        except Exception:  # noqa: BLE001 - a broken recipe repo must not kill the report
+            warnings.warn(
+                "Could not read recipe declarations; the report omits defaults", stacklevel=2
+            )
+            return {}
+
+    def _targets(self, root: Path) -> list[tuple[Path, dict[str, Any], ProcessedTarget]]:
+        targets: list[tuple[Path, dict[str, Any], ProcessedTarget]] = []
         for directory in sorted(
             (path for path in root.iterdir() if path.is_dir()),
             key=lambda path: path.name.lower(),
@@ -126,7 +257,7 @@ class GitHubPublisher:
                 document.update(plain(target.about))
                 document.update(plain(target.sessions))
                 document["_main_config"] = main_config
-                targets.append((directory, document))
+                targets.append((directory, document, target))
             except (OSError, ParseError) as exc:
                 warnings.warn(f"Skipping malformed target {metadata_dir}: {exc}", stacklevel=2)
         return targets
@@ -135,6 +266,7 @@ class GitHubPublisher:
         """Regenerate the complete site and return its root directory."""
         root = self._processed_root()
         targets = self._targets(root)
+        declarations = self._stage_declarations()
 
         # Wipe any previously generated site so stale files don't persist.
         if self.site_dir.exists():
@@ -178,7 +310,7 @@ class GitHubPublisher:
                 shutil.copyfileobj(source, destination)
             progress.update(task, description="Copied static assets", advance=1)
             index_targets: list[dict[str, Any]] = []
-            for directory, document in targets:
+            for directory, document, processed in targets:
                 about = document.get("about", {})
                 if not isinstance(about, dict):
                     about = {}
@@ -231,6 +363,7 @@ class GitHubPublisher:
                     )
                 page_images = [f"../../{url}" for url in image_urls]
                 seo_image = f"/{image_urls[0]}" if image_urls else None
+                stage_tree = stage_tree_html(processed.stage_options(declarations))
                 page_name = f"{slug}.md"
                 post = self.environment.get_template("target.md.jinja").render(
                     target={**target, "name": name},
@@ -240,6 +373,7 @@ class GitHubPublisher:
                     images=page_images,
                     image=seo_image,
                     sessions=sessions,
+                    stage_tree=stage_tree,
                     workflow_url=f"../../assets/targets/{slug}/main.toml",
                 )
                 (posts / page_name).write_text(post)

@@ -1,6 +1,42 @@
 # Active Context
 
-## Current work focus — GUI first-run setup wizard (**implemented 2026-09-16**, not committed)
+## Current work focus — richer per-target report pages (**implemented 2026-09-16**, not committed)
+
+The per-target markdown pages that `sb publish` / the GUI write to
+`site/targets/<slug>.md` (then upload to GitHub Pages) now carry a **pretty HTML
+tree of the processing stages with their parameters**:
+
+- Renderer: `stage_tree_html()` in `src/starbash/publish/github.py` (plus
+  `_param_row`/`_stage_row` helpers and the scoped `_STAGE_TREE_CSS`).  It turns
+  `ProcessedTarget.stage_options()` into a `<div class="sb-stages">` block that
+  embeds in the kramdown page (flush-left lines, no blank lines inside, so
+  kramdown passes it through raw).  **Recipe defaults render in a grey class
+  (`.sb-default`), per-target overrides in a bold amber accent
+  (`.sb-override`)**, with the grey default shown beside the override it
+  replaced; a legend explains the two.  Excluded stages stay visible but dimmed,
+  struck through, with a dashed *skipped* pill — so the tree shows exactly which
+  stages were used.  Stage headers also carry the recipe's declared `tool`
+  (e.g. *siril*) and `role` as pills, the stage description, and a *recipe
+  source* link when `recipe_url` is an http(s) URL.  All text is `html.escape`d.
+- To feed it, `stage_declarations()` (`processed_target.py`) now also captures
+  the recipe stage's `tool` (from `stage.tool.name`) and `role`, and
+  `StageOption` gained additive `tool`/`role` fields that `stage_options()`
+  populates (GUI consumers ignore unknown fields, so nothing else changed).
+- `GitHubPublisher.publish()` builds the declarations **once** via the new
+  guarded `_stage_declarations()` (`getattr(self.sb, "get_recipes", None)`; a
+  context without it — the tests' `SimpleNamespace` — gets `{}` and the report
+  just omits defaults), and `_targets()` now also returns the `ProcessedTarget`
+  per target instead of dropping it.  The template `target.md.jinja` renders
+  `{{ stage_tree }}` under the *Workflow* heading and also shows
+  **Coordinates: RA / Dec** when `about.toml` carries them (skipping the `"N/A"`
+  placeholder).
+- CSS colours are tuned for the site's dark `jekyll-theme-midnight` theme
+  (`_config.yml`): defaults `#9fb0c3`, overrides `#ffb454`.
+- Tests: six new cases in `tests/unit/test_publish_github.py` (tree classes,
+  escaping, empty-tree, publish with recipe declarations, publish without
+  recipes, coordinates).  Full suite 1342 passed / 1 skipped after `just lint`.
+
+## Previous work — GUI first-run setup wizard (**implemented 2026-09-16**, not committed)
 
 `doc/plans/gui-setup-wizard.md` is done: the GUI's first run is a six-page
 **`QWizard`** (welcome → you → output folders → raw-image folder picker → tools →
