@@ -353,6 +353,10 @@ class GitHubService:
             raise GitHubError(
                 "The GitHub refresh token has expired; run 'sb publish github --login' again"
             )
+        logger.warning(
+            "GitHub token refresh returned an unexpected response: %r",
+            self._safe_response(value),
+        )
         raise GitHubError("GitHub returned an unexpected token refresh response")
 
     def apply_token_response(self, value: dict[str, Any]) -> None:

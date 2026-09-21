@@ -119,7 +119,37 @@ Completion will take effect once you restart the terminal
 
 ```
 
-## Use
+## Supported telescope software
+
+* N.I.N.A. - tested, seems fairly okay.
+* Asiair - tested, seems fairly okay.
+* Seestar - tested, seems fairly okay.
+* Dwarf3 - tested but young and possibly buggy, please report bugs if you find them.
+* Ekos/Kstars - not tested; please try it and file a GitHub issue if you see any problems.
+
+## Supported tools (now)
+Starbash is a tool agnostic workflow manager.  But it wouldn't be possible without the folling great tools.
+
+* [Siril](https://siril.org/)
+* [Graxpert](https://graxpert.com/) - for background and noise elimination
+* [blur exterminator / noise exterminator](https://www.rc-astro.com/stand-alone-rc-astro-tools/)
+* [starnet](https://starnetastro.com/cli-tools/) - for star removal
+* [Python](https://www.python.org/) (you can add Python code to recipes if necessary)
+
+## Desktop GUI
+
+Prefer clicking to typing? Starbash ships a desktop app that
+covers the same ground as the CLI — browse sessions and preview frames, edit the
+selection, run the pipeline and watch every stage live, tweak per-target stage
+exclusions, manage repositories, and build the report site.
+
+```bash
+sb
+```
+
+## CLI
+
+** Warning: The following instructions are written wrt to the CLI.  The newer GUI can do all the same things - but easier/prettier.  So most users should use the GUI first **
 
 ### Initial setup
 
@@ -196,22 +226,6 @@ sb publish github               # Publish to github
 See the [GitHub publishing guide](doc/publish/github.md) for prerequisites,
 preview instructions, authentication, and troubleshooting.
 
-### Desktop GUI
-
-Prefer clicking to typing? Starbash ships a desktop app (built on PySide6) that
-covers the same ground as the CLI — browse sessions and preview frames, edit the
-selection, run the pipeline and watch every stage live, tweak per-target stage
-exclusions, manage repositories, and build the report site.
-
-```bash
-sb gui
-```
-
-PySide6 is installed with Starbash, so there is nothing extra to add. The GUI is
-optional in the sense that you can ignore it completely and keep driving Starbash
-from the command line: both front ends share the same selection, config and
-database, so you can mix them freely.
-
 ## Supported commands
 
 ### Repository Management
@@ -247,23 +261,6 @@ database, so you can mix them freely.
 - `sb process auto [SESSIONNUM]` - Automatic processing.  If session # is specified, process only that session; otherwise all selected sessions will be processed.
 - `sb process masters` - Generate master flats, darks, and biases from available raw frames in the current selection.
 
-## Supported telescope software
-
-* N.I.N.A. - tested, seems fairly okay.
-* Asiair - tested, seems fairly okay.
-* Seestar - tested, seems fairly okay.
-* Dwarf3 - tested but young and possibly buggy, please report bugs if you find them.
-* Ekos/Kstars - not tested; please try it and file a GitHub issue if you see any problems.
-
-## Supported tools (now)
-Starbash is a tool agnostic workflow manager.  But it wouldn't be possible without the folling great tools.
-
-* [Siril](https://siril.org/)
-* [Graxpert](https://graxpert.com/) - for background and noise elimination
-* [blur exterminator / noise exterminator](https://www.rc-astro.com/stand-alone-rc-astro-tools/)
-* [starnet](https://starnetastro.com/cli-tools/) - for star removal
-* [Python](https://www.python.org/) (you can add Python code to recipes if necessary)
-
 ## Credits
 * Various reddit users who submitted anonymous crash reports from alpha 1
 * [@codegistics](https://github.com/codegistics) for kindly donating Dwarf3 test data and invaluable debugging assistance.
@@ -291,5 +288,5 @@ However, in some of my other open-source projects, I've seen the current hell PR
 
 ## License
 
-Copyright 2025 Kevin Hester, kevinh@geeksville.com.
+Copyright 2025, 2026 Kevin Hester, kevinh@geeksville.com.
 Licensed under the [GPL v3](https://raw.githubusercontent.com/geeksville/starbash/refs/heads/main/LICENSE)

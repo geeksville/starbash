@@ -128,6 +128,26 @@ def test_refresh_access_token_sends_rotating_refresh_token():
     }
 
 
+def test_refresh_access_token_logs_unexpected_response_without_credentials(caplog):
+    service = GitHubService(
+        opener=lambda request: FakeResponse(
+            {
+                "error": "incorrect_client_credentials",
+                "error_description": "The client credentials are invalid",
+                "refresh_token": "secret-refresh-token",
+            }
+        )
+    )
+
+    with pytest.raises(GitHubError, match="unexpected token refresh response"):
+        service.refresh_access_token("client", "old-refresh")
+
+    assert "incorrect_client_credentials" in caplog.text
+    assert "The client credentials are invalid" in caplog.text
+    assert "<redacted>" in caplog.text
+    assert "secret-refresh-token" not in caplog.text
+
+
 def test_request_refreshes_once_after_401_and_persists_new_token():
     calls = 0
     refreshed = []
