@@ -80,6 +80,7 @@ We have a CLI interface also...
 
 ## Features coming soon
 
+* Fixed SHO/HOO auto post processing pipeline for dual narrowband OSC filters.  Currently everything after pallete recomposition looks bad for those workflows (prior stage outputs are all good though)
 * Recipe 'writers guide' documentation.  Currently iterating based on usage reports 😄
 * Support for mono-camera workflows (this alpha only includes osc recipes).
 * The target report can be used to auto-generate a human-friendly 'postable/shareable' report about that image.
