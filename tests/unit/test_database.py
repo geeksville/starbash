@@ -394,3 +394,68 @@ def test_repo_removal_summary():
         RepoRemoval(images=3, sessions=2).summary()
         == "Removed 3 indexed image(s) and 2 session(s)."
     )
+
+
+def test_repo_removals_add_up():
+    """A pass over several repos reports one total (``Starbash.reindex_repos``)."""
+    assert RepoRemoval(images=1, sessions=1) + RepoRemoval(images=2) == RepoRemoval(
+        images=3, sessions=1
+    )
+    assert RepoRemoval() + RepoRemoval() == RepoRemoval()
+
+
+# --- clearing one repo's index without losing the repo -----------------------
+def test_reset_repo_drops_the_index_but_keeps_the_repo(tmp_path: Path):
+    """``reset_repo`` empties what a repo indexed, and leaves the repo listed.
+
+    That is what makes ``sb repo reindex --clean`` a *full* re-read: the scan
+    skips any frame it already finds indexed, and builds a session only for one
+    it meets for the first time.
+    """
+    with Database(base_dir=tmp_path) as db:
+        repo_url = "file:///test/repo"
+
+        _index_frame(db, repo_url, "one.fit", "2025-01-01T20:00:00")
+        _index_frame(db, repo_url, "two.fit", "2025-01-01T20:05:00")
+        repo_id = db.get_repo_id(repo_url)
+        assert repo_id is not None
+
+        dropped = db.reset_repo(repo_url)
+
+        assert dropped == RepoRemoval(images=2, sessions=1)
+        assert db.len_table(Database.IMAGES_TABLE) == 0
+        assert db.len_table(Database.SESSIONS_TABLE) == 0
+
+        # ... but the repo itself is still known, so the scan can refill it.
+        assert db.get_repo_id(repo_url) == repo_id
+        assert db.len_table(Database.REPOS_TABLE) == 1
+
+
+def test_reset_repo_leaves_another_repo_alone(tmp_path: Path):
+    """Clearing one repo does not touch another repo's images or sessions."""
+    with Database(base_dir=tmp_path) as db:
+        cleaned = "file:///test/cleaned"
+        kept = "file:///test/kept"
+
+        _index_frame(db, cleaned, "c1.fit", "2025-01-01T20:00:00")
+        _index_frame(db, kept, "k1.fit", "2025-02-01T20:00:00")
+        _index_frame(db, kept, "k2.fit", "2025-02-01T20:05:00")
+
+        dropped = db.reset_repo(cleaned)
+
+        assert dropped == RepoRemoval(images=1, sessions=1)
+        assert db.get_image(kept, "k1.fit") is not None
+        assert db.get_image(kept, "k2.fit") is not None
+        assert len(db.search_session()) == 1
+
+
+def test_reset_repo_of_an_unknown_repo_changes_nothing(tmp_path: Path):
+    """Clearing a repo that was never indexed is a no-op, not an error."""
+    with Database(base_dir=tmp_path) as db:
+        _index_frame(db, "file:///test/repo", "one.fit", "2025-01-01T20:00:00")
+
+        assert db.reset_repo("file:///nonexistent/repo") == RepoRemoval()
+
+        # The indexed repo survived the attempt.
+        assert db.len_table(Database.IMAGES_TABLE) == 1
+        assert db.len_table(Database.SESSIONS_TABLE) == 1

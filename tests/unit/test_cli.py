@@ -395,6 +395,80 @@ def test_repo_reindex_by_url(setup_test_environment, tmp_path):
     result = runner.invoke(app, ["repo", "reindex", repo_url])
     assert result.exit_code == 0
     assert "Successfully reindexed" in result.stdout
+    # Nothing was dropped: a plain reindex keeps what it already indexed.
+    assert "Cleared the index" not in result.stdout
+
+
+def test_repo_reindex_clean_rebuilds_sessions(setup_test_environment, tmp_path):
+    """`sb repo reindex --clean` re-reads every frame and rebuilds its sessions.
+
+    A plain re-index leaves a session describing the headers it was first built
+    from, so a frame corrected on disk keeps a stale session forever.  `--clean`
+    drops the repo's rows first -- making every frame a first scan again -- and
+    says what it dropped.
+    """
+    from astropy.io import fits as astropy_fits
+
+    test_repo = tmp_path / "testrepo"
+    test_repo.mkdir()
+    hdu = astropy_fits.PrimaryHDU()
+    hdu.header["DATE-OBS"] = "2025-01-01T20:00:00"
+    hdu.header["IMAGETYP"] = "Light"
+    hdu.header["FILTER"] = "Ha"
+    hdu.header["OBJECT"] = "M42"
+    hdu.header["EXPTIME"] = 120.0
+    astropy_fits.HDUList([hdu]).writeto(test_repo / "one.fit", overwrite=True)
+
+    # `repo add` indexes the folder it was handed, so the session exists already.
+    assert runner.invoke(app, ["repo", "add", str(test_repo)]).exit_code == 0
+
+    # The filter is corrected on disk afterwards.
+    hdu.header["FILTER"] = "OIII"
+    astropy_fits.HDUList([hdu]).writeto(test_repo / "one.fit", overwrite=True)
+
+    result = runner.invoke(app, ["repo", "reindex", make_file_url(test_repo), "--clean"])
+
+    assert result.exit_code == 0
+    assert "Successfully reindexed" in result.stdout
+    assert (
+        "Cleared the index before scanning: Removed 1 indexed image(s) and 1 session(s)."
+        in result.stdout
+    )
+
+    # The session was rebuilt from the header that is on disk now.
+    with Database(base_dir=setup_test_environment["data_dir"]) as db:
+        sessions = db.search_session()
+        assert len(sessions) == 1
+        assert sessions[0][get_column_name(Database.FILTER_KEY)] == "OIII"
+        assert db.get_image(make_file_url(test_repo), "one.fit") is not None
+
+
+def test_repo_reindex_clean_all_repositories(setup_test_environment, tmp_path):
+    """`sb repo reindex --clean` with no repo cleans every repo in one pass."""
+    from astropy.io import fits as astropy_fits
+
+    for name, date in (("one", "2025-01-01T20:00:00"), ("two", "2025-02-01T20:00:00")):
+        repo_dir = tmp_path / name
+        repo_dir.mkdir()
+        hdu = astropy_fits.PrimaryHDU()
+        hdu.header["DATE-OBS"] = date
+        hdu.header["IMAGETYP"] = "Light"
+        hdu.header["FILTER"] = "Ha"
+        hdu.header["OBJECT"] = "M42"
+        hdu.header["EXPTIME"] = 120.0
+        astropy_fits.HDUList([hdu]).writeto(repo_dir / f"{name}.fit", overwrite=True)
+        assert runner.invoke(app, ["repo", "add", str(repo_dir)]).exit_code == 0
+
+    result = runner.invoke(app, ["repo", "reindex", "--clean"])
+
+    assert result.exit_code == 0
+    assert (
+        "Cleared the index before scanning: Removed 2 indexed image(s) and 2 session(s)."
+        in result.stdout
+    )
+
+    with Database(base_dir=setup_test_environment["data_dir"]) as db:
+        assert len(db.search_session()) == 2
 
 
 def test_repo_complete_by_num(setup_test_environment, tmp_path):

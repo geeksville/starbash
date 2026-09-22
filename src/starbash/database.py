@@ -81,6 +81,12 @@ class RepoRemoval:
     images: int = 0
     sessions: int = 0
 
+    def __add__(self, other: RepoRemoval) -> RepoRemoval:
+        """Total two removals, so a multi-repo pass can report one number."""
+        return RepoRemoval(
+            images=self.images + other.images, sessions=self.sessions + other.sessions
+        )
+
     def summary(self) -> str:
         """Return a one-line, human readable description of what changed."""
         dropped: list[str] = []
@@ -270,24 +276,19 @@ class Database:
         self._db.commit()
 
     # --- Convenience helpers for common repo operations ---
-    def remove_repo(self, url: str) -> RepoRemoval:
-        """Remove a repo record by URL, along with everything it contributed.
+    def _drop_repo_index(self, cursor: sqlite3.Cursor, url: str) -> RepoRemoval:
+        """Delete a repo's images and the sessions those images built.
 
-        This cascades to every image belonging to the repo, and to the sessions
-        those images built: a session is only ever fed by one repository, so once
-        its frames are gone there is nothing left for it to describe.
-
-        The relationship is: repos -> images (via repo_id) -> sessions (via
-        image_doc_id, the representative image a session was built from).
+        Shared by :meth:`remove_repo` (which then drops the repo row too) and
+        :meth:`reset_repo` (which keeps it, so the next scan starts clean).
 
         Args:
+            cursor: an open cursor on the application database.
             url: The repository URL (e.g., 'file:///path/to/repo')
 
         Returns:
             A :class:`RepoRemoval` counting the rows that were dropped.
         """
-        cursor = self._db.cursor()
-
         # Use a 3-way join to find and delete sessions that reference images from this repo
         # repo_url -> repo_id -> images.id -> sessions.image_doc_id
         cursor.execute(
@@ -313,14 +314,56 @@ class Database:
             """,
             (url,),
         )
-        images = cursor.rowcount
+        return RepoRemoval(images=cursor.rowcount, sessions=sessions)
+
+    def reset_repo(self, url: str) -> RepoRemoval:
+        """
+        Drop everything a repository contributed to the index, keeping the repo.
+
+        Used before a re-scan (``sb repo reindex --clean``): with the image rows
+        gone, every frame the scan meets is a *first* scan, which is the only time
+        :meth:`Starbash.add_image_and_session` builds a session for it.  A plain
+        re-index only refreshes the rows it finds, and never touches the sessions.
+
+        Args:
+            url: The repository URL (e.g., 'file:///path/to/repo')
+
+        Returns:
+            A :class:`RepoRemoval` counting the rows that were dropped.
+        """
+        cursor = self._db.cursor()
+        removal = self._drop_repo_index(cursor, url)
+
+        self._db.commit()
+
+        return removal
+
+    def remove_repo(self, url: str) -> RepoRemoval:
+        """Remove a repo record by URL, along with everything it contributed.
+
+        This cascades to every image belonging to the repo, and to the sessions
+        those images built: a session is only ever fed by one repository, so once
+        its frames are gone there is nothing left for it to describe.
+
+        The relationship is: repos -> images (via repo_id) -> sessions (via
+        image_doc_id, the representative image a session was built from).
+
+        Args:
+            url: The repository URL (e.g., 'file:///path/to/repo')
+
+        Returns:
+            A :class:`RepoRemoval` counting the rows that were dropped.
+        """
+        cursor = self._db.cursor()
+
+        removal = self._drop_repo_index(cursor, url)
 
         # Finally delete the repo itself
         cursor.execute(f"DELETE FROM {self.REPOS_TABLE} WHERE url = ?", (url,))
 
         self._db.commit()
 
-        return RepoRemoval(images=images, sessions=sessions)
+        return removal
 
     def upsert_repo(self, url: str) -> int:
         """Insert or update a repo record by unique URL.

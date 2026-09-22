@@ -52,7 +52,11 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   (the run's own view/page, the GUI Repositories page, and `ui/cli.py::ReindexView` for
   `sb repo reindex` / `sb repo add`). The core owns no display at all: `reindex_repos()`
   reports through the bus and nothing else, so a run's live view cannot be torn by a
-  second `track()` bar (see `doc/plans/cli-live-display.md`).
+  second `track()` bar (see `doc/plans/cli-live-display.md`). `sb repo reindex --clean`
+  additionally drops that repo's indexed images and sessions *before* scanning
+  (`Database.reset_repo()`, which shares `_drop_repo_index()` with `remove_repo()` but
+  keeps the repo row): a scan skips any frame it already has and builds a session only
+  on a frame's *first* index, so this is the only way to rebuild stale sessions.
 - **Tools**: `src/starbash/tool/` — runners for Siril (Flatpak, stdin script), GraXpert (CLI),
   Python (RestrictedPython sandbox), and rc-astro (BlurXTerminator `bxt` + NoiseXTerminator `nxt`
   CLI; always passes `--json` and streams JSON progress events onto the event bus via

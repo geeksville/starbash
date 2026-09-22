@@ -985,6 +985,64 @@ class TestReindexRepo:
                 app.reindex_repo(repo)
             assert "bad.fit" in caplog.text
 
+    def test_reindex_repo_clean_rebuilds_the_sessions(
+        self, setup_test_environment, mock_analytics, monkeypatch
+    ):
+        """``clean=True`` rebuilds the sessions a plain re-index leaves stale.
+
+        A re-index refreshes the image rows it finds, but a session is built only
+        the *first* time a frame is indexed -- so a header corrected on disk
+        updates the image while its session keeps describing the old value, and
+        nothing ever repairs it.  Dropping the repo's rows first makes every
+        frame a first scan again.
+        """
+        from astropy.io import fits as astropy_fits
+
+        import starbash
+        from starbash.database import RepoRemoval
+
+        with Starbash() as app:
+            test_repo = setup_test_environment["tmp_path"] / "test_repo"
+            test_repo.mkdir()
+            (test_repo / "starbash.toml").write_text("[repo]\nkind = 'images'\n")
+
+            fits_file = test_repo / "test.fit"
+            hdu = astropy_fits.PrimaryHDU()
+            hdu.header["DATE-OBS"] = "2023-10-15T20:30:00"
+            hdu.header["IMAGETYP"] = "Light"
+            hdu.header["FILTER"] = "Ha"
+            hdu.header["OBJECT"] = "M31"
+            astropy_fits.HDUList([hdu]).writeto(fits_file, overwrite=True)
+
+            repo = app.repo_manager.add_repo(make_file_url(test_repo))
+            app.reindex_repo(repo)
+
+            # The filter is corrected on disk...
+            hdu.header["FILTER"] = "OIII"
+            astropy_fits.HDUList([hdu]).writeto(fits_file, overwrite=True)
+
+            # ... and even a forced re-index only refreshes the image row: the
+            # session still describes the filter it was originally built from.
+            monkeypatch.setattr(starbash, "force_regen", True)
+            assert app.reindex_repo(repo) == RepoRemoval()
+            image = app.db.get_image(make_file_url(test_repo), "test.fit")
+            assert image is not None
+            assert image["FILTER"] == "OIII"
+            assert app.db.search_session()[0][get_column_name(Database.FILTER_KEY)] == "Ha"
+
+            # --clean drops the rows first, so the frame is a first scan again and
+            # its session is rebuilt from the header that is on disk now.
+            dropped = app.reindex_repo(repo, clean=True)
+
+            assert dropped == RepoRemoval(images=1, sessions=1)
+            sessions = app.db.search_session()
+            assert len(sessions) == 1
+            assert sessions[0][get_column_name(Database.FILTER_KEY)] == "OIII"
+
+            # The repo itself survived the clean, and was refilled by the scan.
+            assert app.db.get_repo_id(make_file_url(test_repo)) is not None
+            assert app.db.get_image(make_file_url(test_repo), "test.fit") is not None
+
 
 class TestReindexRepos:
     """Tests for the reindex_repos method."""
@@ -997,6 +1055,45 @@ class TestReindexRepos:
 
                 # Should call reindex_repo for each repo
                 assert mock_reindex.call_count == len(app.repo_manager.repos)
+
+    def test_reindex_repos_clean_rebuilds_every_repos_sessions(
+        self, setup_test_environment, mock_analytics
+    ):
+        """``clean`` reaches every repo in the pass, and the totals add up."""
+        from astropy.io import fits as astropy_fits
+
+        from starbash.database import RepoRemoval
+
+        def _night(name: str, date: str) -> Path:
+            """A repo holding one light frame, on its own night."""
+            repo_dir = setup_test_environment["tmp_path"] / name
+            repo_dir.mkdir()
+            hdu = astropy_fits.PrimaryHDU()
+            hdu.header["DATE-OBS"] = date
+            hdu.header["IMAGETYP"] = "Light"
+            hdu.header["FILTER"] = "Ha"
+            hdu.header["OBJECT"] = "M42"
+            hdu.header["EXPTIME"] = 120.0
+            astropy_fits.HDUList([hdu]).writeto(repo_dir / f"{name}.fit", overwrite=True)
+            return repo_dir
+
+        with Starbash() as app:
+            one = _night("one", "2025-01-01T20:00:00")
+            two = _night("two", "2025-02-01T20:00:00")
+            app.repo_manager.add_repo(make_file_url(one))
+            app.repo_manager.add_repo(make_file_url(two))
+
+            assert app.reindex_repos() == RepoRemoval()
+            assert len(app.db.search_session()) == 2
+
+            dropped = app.reindex_repos(clean=True)
+
+            assert dropped == RepoRemoval(images=2, sessions=2)
+
+            # Both repos were emptied and then refilled by the same pass.
+            assert len(app.db.search_session()) == 2
+            assert app.db.get_image(make_file_url(one), "one.fit") is not None
+            assert app.db.get_image(make_file_url(two), "two.fit") is not None
 
     def test_reindex_repos_reports_progress_on_the_event_bus(
         self, setup_test_environment, mock_analytics, monkeypatch

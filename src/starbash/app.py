@@ -828,7 +828,9 @@ class Starbash:
             # (otherwise invariants will get messed up)
             self._add_session(headers)
 
-    def reindex_repo(self, repo: Repo, subdir: str | None = None) -> None:
+    def reindex_repo(
+        self, repo: Repo, subdir: str | None = None, clean: bool = False
+    ) -> RepoRemoval:
         """Scan one repo's files into the database.
 
         Progress is *reported*, never drawn: the scan publishes
@@ -843,16 +845,29 @@ class Starbash:
         Args:
             repo: the repo to scan.
             subdir: scan only this subdirectory of the repo (for debugging).
+            clean: drop the repo's indexed images and sessions before scanning, so
+                every frame counts as a first scan and its session is (re)built.
+
+        Returns:
+            What ``clean`` dropped from the index -- empty when not cleaning.
         """
 
         # make sure this new repo is listed in the repos table
         self.repo_db_update()  # not really ideal, a more optimal version would just add the new repo
 
+        dropped = RepoRemoval()
         path = repo.get_path()
 
         repo_kind = repo.kind()
         if path and repo.is_scheme("file") and repo_kind != "recipe":
             logging.debug("Reindexing %s...", repo.url)
+
+            if clean:
+                # Wiping the repo's rows first is what makes the scan below a
+                # *full* re-read: it skips any frame already indexed, and only
+                # builds a session for one it meets for the first time.
+                dropped = self.db.reset_repo(repo.url)
+                logging.debug("Cleared the index for %s: %s", repo.url, dropped.summary())
 
             if subdir:
                 path = path / subdir
@@ -894,15 +909,25 @@ class Starbash:
                 {"repo": repo.url, "indexed": total_files},
             )
 
-    def reindex_repos(self) -> None:
+        return dropped
+
+    def reindex_repos(self, clean: bool = False) -> RepoRemoval:
         """Reindex all repositories managed by the RepoManager.
 
         Reports progress through the event bus only -- see :meth:`reindex_repo`.
+
+        Args:
+            clean: drop each repo's indexed images and sessions before scanning it.
+
+        Returns:
+            What ``clean`` dropped from the index across all repos.
         """
         logging.debug("Reindexing all repositories...")
 
+        dropped = RepoRemoval()
         for repo in self.repo_manager.repos:
-            self.reindex_repo(repo)
+            dropped += self.reindex_repo(repo, clean=clean)
+        return dropped
 
     def get_recipes(self) -> list[Repo]:
         """Get all recipe repos available, sorted by priority (lower number first).

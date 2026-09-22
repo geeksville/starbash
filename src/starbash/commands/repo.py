@@ -9,6 +9,7 @@ from toml_repo import Repo
 import starbash
 from starbash import console
 from starbash.app import Starbash
+from starbash.database import RepoRemoval
 from starbash.paths import get_user_documents_dir
 from starbash.ui.cli import ReindexView
 
@@ -192,6 +193,12 @@ def reindex(
             autocompletion=complete_repo_by_url,
         ),
     ] = None,
+    clean: bool = typer.Option(
+        False,
+        "--clean",
+        help="First drop the repo's indexed images and sessions, so every frame is "
+        "re-read from disk and its sessions are rebuilt.",
+    ),
 ) -> None:
     """
     Reindex a repository by number.
@@ -203,15 +210,20 @@ def reindex(
         # one in this file is the placeholder from starbash.__init__).  The view
         # must draw on the console the scan's own logging goes to.
         repo_to_reindex = repo_url_to_repo(sb, repo_url)
+        dropped = RepoRemoval()
 
         if repo_to_reindex is None:
             with ReindexView.for_console("Re-indexing repositories", starbash.console):
-                sb.reindex_repos()
+                dropped = sb.reindex_repos(clean=clean)
+            if clean:
+                console.print(f"Cleared the index before scanning: {dropped.summary()}")
         else:
             # Get the repo to reindex
             console.print(f"Reindexing repository: {repo_to_reindex.url}")
             with ReindexView.for_console(f"Re-indexing {repo_to_reindex.url}", starbash.console):
-                sb.reindex_repo(repo_to_reindex)
+                dropped = sb.reindex_repo(repo_to_reindex, clean=clean)
+            if clean:
+                console.print(f"Cleared the index before scanning: {dropped.summary()}")
             console.print(f"[green]Successfully reindexed repository {repo_to_reindex}[/green]")
 
 

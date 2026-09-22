@@ -1,6 +1,41 @@
 # Active Context
 
-## Current work focus — richer per-target report pages (**implemented 2026-09-16**, not committed)
+## Current work focus — `sb repo reindex --clean` (**implemented 2026-09-22**, not committed)
+
+`sb repo reindex` gained an optional `--clean` that drops the named repo's (or, with
+no argument, every repo's) indexed images and sessions *before* scanning, and prints
+what it dropped.  No GUI equivalent was added — deliberately CLI-only.
+
+- **Why it exists.** `Starbash.add_image()` skips any frame already in the `images`
+  table, and returns headers (hence a session update) only when the frame was *not*
+  found — `add_image_and_session()` comments this as "ONLY on first file scan
+  (otherwise invariants will get messed up)".  So a plain re-index can never repair a
+  session: a header corrected on disk updates the image row (with `--force`) while the
+  session keeps describing the value it was first built from.  Wiping the repo's rows
+  first makes every frame a first scan again.
+- **`Database.reset_repo(url)`** is the new primitive: it clears a repo's images and
+  the sessions those images built, but **keeps the `repos` row** so the scan can refill
+  it.  It shares the two DELETEs with `remove_repo()` through the new private
+  `_drop_repo_index(cursor, url) -> RepoRemoval`; `remove_repo()` then adds the repo-row
+  delete.  Both return the same `RepoRemoval(images=…, sessions=…)` the removal work
+  introduced, and `RepoRemoval.__add__` lets a multi-repo pass report one total.
+- **Plumbing.** `Starbash.reindex_repo(repo, subdir=None, clean=False)` and
+  `reindex_repos(clean=False)` both return a `RepoRemoval` (empty when not cleaning);
+  the reset happens inside the file-repo branch, right after `repo_db_update()` and
+  before the `rglob`.  `commands/repo.py::reindex` passes the flag through and prints
+  `Cleared the index before scanning: <summary>` after the `ReindexView` closes.
+  Existing callers (`Processing.reindex_if_needed()`, the GUI `reindex_job`) ignore the
+  new return value and are unchanged.
+- **Tests** (8 new; full suite 1363 passed / 1 skipped after `just lint`):
+  `test_database.py` — reset keeps the repo row, leaves another repo alone, is a no-op
+  for an unknown URL, and `RepoRemoval` totals add up; `test_app.py` —
+  `test_reindex_repo_clean_rebuilds_the_sessions` (a `FILTER` corrected on disk stays
+  `Ha` in the session after a *forced* re-index, becomes `OIII` after `clean=True`) and
+  `test_reindex_repos_clean_rebuilds_every_repos_sessions`; `test_cli.py` — the
+  single-repo and all-repo `--clean` invocations, plus an assertion that a plain
+  reindex prints no "Cleared" line.
+
+## Previous work — richer per-target report pages (**implemented 2026-09-16**)
 
 The per-target markdown pages that `sb publish` / the GUI write to
 `site/targets/<slug>.md` (then upload to GitHub Pages) now carry a **pretty HTML
