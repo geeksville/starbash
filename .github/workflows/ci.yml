@@ -157,8 +157,9 @@ jobs:
         run: |
           $version = poetry version -s
           poetry run pyinstaller --noconfirm --clean --windowed --onedir --name Starbash `
-            --icon src/starbash/assets/favicon.ico --collect-all starbash `
+            --icon src/starbash/assets/favicon.ico `
             --additional-hooks-dir packaging/pyinstaller `
+            --exclude-module astropy.visualization `
             src/starbash/ui/qt/launcher.py
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$version" packaging/windows/starbash.iss
 
