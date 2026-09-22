@@ -120,3 +120,16 @@ def test_package_resources_are_still_shipped_as_data(starbash_hook):
         "starbash/templates/target/processed",
         "starbash/assets",
     } <= destinations
+
+
+def test_xisf_metadata_is_bundled():
+    """``xisf.py`` reads ``importlib.metadata.version("xisf")`` at import time, so
+    the frozen bundle must carry its ``.dist-info`` or GraXpert dies with
+    ``PackageNotFoundError`` the moment it imports ``xisf`` (via
+    ``graxpert.astroimage``).  ``hook-xisf.py`` ships that metadata."""
+    hook = run_hook("hook-xisf.py")
+    destinations = {_normalise(dest) for _, dest in hook["datas"]}
+    assert any(dest.startswith("xisf-") and dest.endswith(".dist-info") for dest in destinations), (
+        "the bundle would drop xisf's .dist-info, so importlib.metadata.version('xisf') "
+        "fails at runtime in the frozen exe"
+    )
