@@ -167,11 +167,13 @@ jobs:
           #   --icon src/starbash/assets/favicon.ico `
           #   --additional-hooks-dir packaging/pyinstaller `
           #   --exclude-module astropy.visualization `
+          #   --hidden-import dbm.dumb `
           #   src/starbash/ui/qt/launcher.py
           poetry run pyinstaller --noconfirm --clean --console --debug=imports --onedir --name Starbash `
             --icon src/starbash/assets/favicon.ico `
             --additional-hooks-dir packaging/pyinstaller `
             --exclude-module astropy.visualization `
+            --hidden-import dbm.dumb `
             src/starbash/ui/qt/launcher.py
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$version" packaging/windows/starbash.iss
 

@@ -34,3 +34,22 @@ def test_gui_command_explains_how_to_fix_the_install():
     assert result.exit_code == 1
     assert "PySide6" in result.stdout
     assert "reinstall" in result.stdout.lower()
+
+
+def test_windows_launcher_configures_utf8_streams(monkeypatch):
+    """The packaged diagnostic console can render Unicode Rich output on Windows."""
+    from starbash.ui.qt import launcher
+
+    configured: list[tuple[str, str]] = []
+
+    class Stream:
+        def reconfigure(self, *, encoding: str, errors: str) -> None:
+            configured.append((encoding, errors))
+
+    monkeypatch.setattr(launcher.sys, "platform", "win32")
+    monkeypatch.setattr(launcher.sys, "stdout", Stream())
+    monkeypatch.setattr(launcher.sys, "stderr", Stream())
+
+    launcher._configure_windows_console()
+
+    assert configured == [("utf-8", "backslashreplace"), ("utf-8", "backslashreplace")]
