@@ -79,6 +79,21 @@ if os.environ.get("STARBASH_SKIP_QT_LOAD_CHECK") != "1":
     _fail_early_if_qt_cannot_load()
 
 
+def pytest_configure(config):
+    """Enable tracemalloc so ResourceWarnings carry an allocation traceback.
+
+    A leaked resource (an unclosed SQLite connection, say) only surfaces as a
+    ``ResourceWarning``, and by default that warning says nothing about *where* the
+    object was created - just "Enable tracemalloc to get traceback where the object
+    was allocated".  That is useless for chasing a leak that only reproduces on a
+    CI runner (Windows GC timing, say).  Turning tracemalloc on here means the next
+    such warning prints the allocation site directly.
+    """
+    import tracemalloc
+
+    tracemalloc.start()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def force_local_recipes_for_all_tests():
     """Force all tests to use local recipe submodule instead of remote recipes.
