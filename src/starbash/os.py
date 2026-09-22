@@ -26,7 +26,7 @@ def symlink_or_copy(src: str, dest: str) -> bool:
                 "We recommend enabling symlinks for better performance:\n"
                 "Enable Developer Mode in Windows 11 settings.\n"
                 "This allows for the creation of symbolic links without requiring elevated administrator privileges.\n"
-                "• Navigate to Settings > Privacy & security > For developers.\n"
+                "• Navigate to Settings > System > Advanced > For developers.\n"
                 '• Toggle the "Developer Mode" option to On.'
             )
             _symlink_warning_logged = True
