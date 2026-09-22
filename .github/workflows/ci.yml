@@ -156,7 +156,13 @@ jobs:
         shell: pwsh
         run: |
           $version = poetry version -s
-          poetry run pyinstaller --noconfirm --clean --windowed --onedir --name Starbash `
+          # Release build: remove diagnostics and hide the console window.
+          # poetry run pyinstaller --noconfirm --clean --windowed --onedir --name Starbash `
+          #   --icon src/starbash/assets/favicon.ico `
+          #   --additional-hooks-dir packaging/pyinstaller `
+          #   --exclude-module astropy.visualization `
+          #   src/starbash/ui/qt/launcher.py
+          poetry run pyinstaller --noconfirm --clean --console --debug=imports --onedir --name Starbash `
             --icon src/starbash/assets/favicon.ico `
             --additional-hooks-dir packaging/pyinstaller `
             --exclude-module astropy.visualization `

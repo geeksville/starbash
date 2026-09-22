@@ -10,4 +10,10 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy
 datas = collect_data_files("astropy")
 datas += copy_metadata("astropy")
 datas += copy_metadata("numpy")
-hiddenimports = collect_submodules("astropy.io.fits") + ["numpy.lib.recfunctions"]
+# Astropy selects the active CODATA/IAU datasets dynamically (for example,
+# ``astropy.constants.codata2022``), so PyInstaller cannot infer them from FITS.
+hiddenimports = (
+    collect_submodules("astropy.io.fits")
+    + collect_submodules("astropy.constants")
+    + ["numpy.lib.recfunctions"]
+)
