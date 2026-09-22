@@ -38,7 +38,7 @@ graxpert = {version = "^3.2.0a2", extras = ["cpuonly"]}
 # experimenting with siril-scripts/processing/VeraLux_HyperMetric_Stretch.py
 # pyqt6 is used *only* by those out-of-process siril scripts; Starbash itself never imports it,
 # so it can safely coexist with PySide6 (which the GUI *does* import).
-numpy = "2.2.6"
+numpy = ">=2.2.6"
 pyqt6 = "^6.10.1"
 # The desktop GUI (`sb gui`) binding. A normal dependency: the GUI is a first-class
 # way to drive Starbash. "Optional" only means users may keep using the CLI instead.
