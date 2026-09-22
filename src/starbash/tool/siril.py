@@ -10,7 +10,7 @@ from typing import Any
 
 from starbash import events
 from starbash.os import symlink_or_copy
-from starbash.tool.base import ExternalTool, ToolSeverity, tool_run
+from starbash.tool.base import ExternalTool, ToolSeverity, quote_executable, tool_run
 from starbash.tool.context import expand_context_unsafe, strip_comments
 
 logger = logging.getLogger(__name__)
@@ -117,7 +117,9 @@ class SirilTool(ExternalTool):
 
         siril_path = self.executable_path
         if siril_path == "org.siril.Siril":
-            siril_path = "flatpak run --command=siril-cli org.siril.Siril"
+            siril_command = "flatpak run --command=siril-cli org.siril.Siril"
+        else:
+            siril_command = quote_executable(siril_path)
 
         link_or_copy_to_dir(input_files, temp_dir)
 
@@ -136,6 +138,6 @@ class SirilTool(ExternalTool):
 
         # The `-s -` arguments tell Siril to run in script mode and read commands from stdin.
         # It seems like the -d command may also be required when siril is in a flatpak
-        cmd = f"{siril_path} -d {temp_dir} -s -"
+        cmd = f"{siril_command} -d {temp_dir} -s -"
 
         tool_run(cmd, temp_dir, script_content, timeout=self.timeout, log_out=log_out)

@@ -6,6 +6,7 @@ import io
 import logging
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -32,11 +33,19 @@ __all__ = [
     "tool_run_streaming",
     "tool_run_in_process",
     "publish_tool_progress",
+    "quote_executable",
 ]
 
 # If we want to ensure that child tools don't accidentally try to open GUI windows, we can set this flag.
 # This is especially useful to ensure that the tools will work in a headless environment (such as) github CI runners.
 force_no_gui = False
+
+
+def quote_executable(path: str) -> str:
+    """Quote an executable path for the platform shell used by tool runners."""
+    if sys.platform == "win32":
+        return subprocess.list2cmdline([path])
+    return shlex.quote(path)
 
 
 class ToolError(UserHandledError):

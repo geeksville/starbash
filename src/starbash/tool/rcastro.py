@@ -7,7 +7,13 @@ import os
 import re
 from typing import Any
 
-from starbash.tool.base import ExternalTool, ToolSeverity, publish_tool_progress, tool_run_streaming
+from starbash.tool.base import (
+    ExternalTool,
+    ToolSeverity,
+    publish_tool_progress,
+    quote_executable,
+    tool_run_streaming,
+)
 from starbash.tool.context import expand_context_unsafe
 
 logger = logging.getLogger(__name__)
@@ -117,7 +123,7 @@ class RCAstroTool(ExternalTool):
         ``Live``/``Progress`` would fight the observer's display for the console.
         """
         args = self.build_args(commands, context)
-        cmd = f"{self.executable_path} " + " ".join(args)
+        cmd = f"{quote_executable(self.executable_path)} " + " ".join(args)
 
         # rc-astro refuses to run if the output already exists; remove it first.
         try:

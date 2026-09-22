@@ -9,6 +9,7 @@ from starbash.tool.base import (
     ExternalTool,
     Tool,
     ToolSeverity,
+    quote_executable,
     tool_run,
     tool_run_in_process,
 )
@@ -101,6 +102,6 @@ class GraxpertExternalTool(ExternalTool):
             expanded = expand_context_unsafe(commands, context)
 
         # Arguments look similar to: graxpert -cmd background-extraction -output /tmp/testout tests/test_images/real_crummy.fits
-        cmd = f"{self.executable_path} {expanded}"
+        cmd = f"{quote_executable(self.executable_path)} {expanded}"
 
         tool_run(cmd, cwd, timeout=self.timeout, log_out=log_out)

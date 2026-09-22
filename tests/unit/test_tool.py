@@ -34,7 +34,7 @@ from starbash.tool import (
     tool_run,
     tools,
 )
-from starbash.tool.base import ExternalTool, tool_run_streaming
+from starbash.tool.base import ExternalTool, quote_executable, tool_run_streaming
 from starbash.tool.rcastro import parse_json_line
 from starbash.tool.siril import link_or_copy_to_dir
 
@@ -741,6 +741,16 @@ class TestToolSeverity:
 class TestToolRun:
     """Tests for tool_run function."""
 
+    def test_quote_executable_quotes_windows_paths_with_spaces(self, monkeypatch):
+        """Windows command shells need quoted executable paths with spaces."""
+        from starbash.tool import base
+
+        monkeypatch.setattr(base.sys, "platform", "win32")
+
+        assert quote_executable(r"C:\Program Files\Siril\bin\siril.exe") == (
+            r'"C:\Program Files\Siril\bin\siril.exe"'
+        )
+
     def test_tool_run_success(self):
         """Test successful tool execution."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -779,8 +789,9 @@ class TestToolRun:
             with pytest.raises(ToolError):
                 tool_run(f'{symlink_path} -c "pass"', temp_dir)
 
-            # Test with properly quoted path - this should work
-            tool_run(f'"{symlink_path}" -c "pass"', temp_dir)
+            # The shared tool helper quotes paths correctly before passing them
+            # to a shell-based external tool runner.
+            tool_run(f'{quote_executable(symlink_path)} -c "pass"', temp_dir)
 
     @pytest.mark.skipif(os.name == "nt", reason="Shell redirection syntax not supported on Windows")
     def test_tool_run_with_stderr_warning(self, caplog):
