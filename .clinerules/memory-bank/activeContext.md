@@ -1,6 +1,45 @@
 # Active Context
 
-## Current work focus — `sb repo reindex --clean` (**implemented 2026-09-22**, not committed)
+## Current work focus — the Windows exe must bundle the recipe helpers (**fixed 2026-09-22**, not committed)
+
+A `report_stack_osc` python stage failed inside the Windows exe with
+`ImportError: cannot import name 'report_registration' from 'starbash.recipes'
+(unknown location)` (`private/sb.log`).
+
+- **Cause.** `packaging/pyinstaller/hook-starbash.py` declared only
+  `datas = collect_data_files("starbash")`, and `collect_data_files` collects
+  *non*-Python files: the bundle got `starbash/recipes/README.md` and no modules
+  (verified — that call returns exactly one `recipes` entry).  Nothing in `src/`
+  imports `starbash.recipes` statically; only the recipe repos' TOML *script text*
+  does (`from starbash.recipes import report_registration`, `crop`, `osc`), so
+  PyInstaller's analysis could not see it.  Because the `recipes/` *directory*
+  existed (the README), Python resolved `starbash.recipes` as an **empty
+  namespace package** — which is what `(unknown location)` means.
+- **Fix.** The hook now also declares
+  `hiddenimports = collect_submodules("starbash.recipes") +
+  collect_submodules("starbash.siril")` (`starbash.siril` is a PEP 420 namespace
+  package with no `__init__.py` that only `recipes/report_registration.py`
+  imports).  The CI PyInstaller command is unchanged — it already passes
+  `--additional-hooks-dir packaging/pyinstaller`.  Wheel/pip installs were never
+  affected: poetry ships both directories (checked by unpacking a built wheel).
+- **Verified against a real frozen build** (Linux, ~30 s per build): a tiny entry
+  script that imports those modules *dynamically* — invisible to analysis, exactly
+  like the recipe text — dies with `ModuleNotFoundError` when bundled with the old
+  hook and prints `OK` with the new one; `PYZ-00.toc` then carries all four recipe
+  modules plus `starbash.siril.import_registration`.  They load from the PYZ:
+  `_internal/starbash/recipes/` still holds only the README, and
+  `_internal/starbash/siril/` does not exist at all.
+- **Tests** (6 new, `tests/unit/test_packaging_hooks.py`): execute the hook the way
+  PyInstaller does (`pytest.importorskip("PyInstaller")` — the `packaging` group is
+  non-optional, so CI has it) and assert that every `starbash.recipes` module *and*
+  every name the recipe TOMLs actually import is declared, that the declared names
+  really import, and that the data files still carry defaults/templates/assets but
+  no `.py`.  Four of them fail against the old hook.
+- **Docs**: `AGENTS.md` gained a *Windows exe packaging (PyInstaller)* section
+  (where the installer is built, the "declare what only a recipe script imports"
+  rule, and how to reproduce a bundling bug on Linux).
+
+## Previous work — `sb repo reindex --clean` (**implemented 2026-09-22**, not committed)
 
 `sb repo reindex` gained an optional `--clean` that drops the named repo's (or, with
 no argument, every repo's) indexed images and sessions *before* scanning, and prints

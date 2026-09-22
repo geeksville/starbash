@@ -133,6 +133,32 @@ populated (not reset) before the filter runs.
 - Run: `sb <command>` (via poetry venv)
 - Handy workflows live in `justfile` (e.g. `just process`, `just reinit`, `just select-*`).
 
+## Windows exe packaging (PyInstaller)
+
+CI builds a Windows installer (`Starbash-Setup-<version>.exe`) with PyInstaller +
+Inno Setup: the *Build Windows desktop installer* step in
+`.github/workflows/ci.yml`, the hooks in `packaging/pyinstaller/` (passed via
+`--additional-hooks-dir`), and `packaging/windows/starbash.iss`.
+
+- **Anything only a *recipe script* imports must be declared in
+  `packaging/pyinstaller/hook-starbash.py`.** Recipe stages are text inside the
+  recipe repos' TOML, so PyInstaller's analysis never sees their imports, and
+  `collect_data_files("starbash")` collects only *non*-Python files: it ships
+  `recipes/README.md`, which is enough for `starbash.recipes` to resolve as an
+  *empty namespace package* in the bundle. The python stage then dies with
+  `cannot import name 'report_registration' from 'starbash.recipes' (unknown
+  location)`. The hook therefore declares
+  `collect_submodules("starbash.recipes")` (+ `starbash.siril`, which only those
+  helpers import) as `hiddenimports`, and
+  `tests/unit/test_packaging_hooks.py` runs the hook and fails if a recipe helper
+  falls off that list.
+- Keep additions narrow: the hook deliberately avoids `--collect-all starbash`
+  (it imports every optional feature — see its docstring).
+- A bundling bug reproduces on Linux without building the GUI: bundle a tiny entry
+  script that imports the modules in question *dynamically* (so analysis cannot
+  see them) with `poetry run pyinstaller --onedir --additional-hooks-dir
+  packaging/pyinstaller <entry.py>`, then run the binary it produced.
+
 ## Interactive debugging (debugmcp MCP)
 
 This dev container ships the `debugmcp` MCP server, so a live bug can be chased
