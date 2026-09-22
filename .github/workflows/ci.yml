@@ -63,10 +63,10 @@ jobs:
           key: venv-${{ matrix.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       #----------------------------------------------
-      # install dependencies if cache does not exist
+      # Synchronize dependencies after restoring the cache. A cached environment
+      # may have been created by the production packaging step without dev tools.
       #----------------------------------------------
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --with dev
 
       #----------------------------------------------
