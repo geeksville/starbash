@@ -175,9 +175,12 @@ def remove(
             raise typer.Exit(code=1)
         repo_url = repo_to_remove.url
 
-        # Remove the repo reference from user config
-        sb.remove_repo_ref(repo_url)
+        # Remove the repo reference from user config.  That also drops everything
+        # the repo contributed to the index: its frames, and the sessions those
+        # frames built.
+        removal = sb.remove_repo_ref(repo_url)
         console.print(f"[green]Removed repository: {repo_url}[/green]")
+        console.print(removal.summary())
 
 
 @app.command()

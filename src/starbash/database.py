@@ -16,6 +16,7 @@ type ImageRow = dict[str, Any]
 
 __all__ = [
     "Database",
+    "RepoRemoval",
     "SearchCondition",
     "SessionRow",
     "ImageRow",
@@ -66,6 +67,31 @@ def metadata_to_camera_id(metadata: dict[str, Any]) -> str | None:
         camera_id = normalize_target_name(camera_id)
 
     return camera_id
+
+
+@dataclass(frozen=True)
+class RepoRemoval:
+    """What :meth:`Database.remove_repo` dropped from the index.
+
+    Args:
+        images: image rows deleted along with the repository.
+        sessions: sessions deleted, because every frame they held came from it.
+    """
+
+    images: int = 0
+    sessions: int = 0
+
+    def summary(self) -> str:
+        """Return a one-line, human readable description of what changed."""
+        dropped: list[str] = []
+        if self.images:
+            dropped.append(f"{self.images} indexed image(s)")
+        if self.sessions:
+            dropped.append(f"{self.sessions} session(s)")
+
+        if not dropped:
+            return "No indexed files or sessions were affected."
+        return "Removed " + " and ".join(dropped) + "."
 
 
 class Database:
@@ -244,18 +270,21 @@ class Database:
         self._db.commit()
 
     # --- Convenience helpers for common repo operations ---
-    def remove_repo(self, url: str) -> None:
-        """Remove a repo record by URL.
+    def remove_repo(self, url: str) -> RepoRemoval:
+        """Remove a repo record by URL, along with everything it contributed.
 
-        This will cascade delete all images belonging to this repo, and all sessions
-        that reference those images via image_doc_id.
+        This cascades to every image belonging to the repo, and to the sessions
+        those images built: a session is only ever fed by one repository, so once
+        its frames are gone there is nothing left for it to describe.
 
-        The relationship is: repos -> images (via repo_id) -> sessions (via image_doc_id).
-        Sessions have an image_doc_id field that points to a representative image.
-        We delete sessions whose representative image belongs to the repo being deleted.
+        The relationship is: repos -> images (via repo_id) -> sessions (via
+        image_doc_id, the representative image a session was built from).
 
         Args:
             url: The repository URL (e.g., 'file:///path/to/repo')
+
+        Returns:
+            A :class:`RepoRemoval` counting the rows that were dropped.
         """
         cursor = self._db.cursor()
 
@@ -274,6 +303,7 @@ class Database:
             """,
             (url,),
         )
+        sessions = cursor.rowcount
 
         # Delete all images from this repo (using repo_id from URL)
         cursor.execute(
@@ -283,11 +313,14 @@ class Database:
             """,
             (url,),
         )
+        images = cursor.rowcount
 
         # Finally delete the repo itself
         cursor.execute(f"DELETE FROM {self.REPOS_TABLE} WHERE url = ?", (url,))
 
         self._db.commit()
+
+        return RepoRemoval(images=images, sessions=sessions)
 
     def upsert_repo(self, url: str) -> int:
         """Insert or update a repo record by unique URL.

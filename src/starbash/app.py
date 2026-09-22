@@ -34,6 +34,7 @@ from starbash.check_version import check_version
 from starbash.database import (
     Database,
     ImageRow,
+    RepoRemoval,
     SearchCondition,
     SessionRow,
     get_column_name,
@@ -691,12 +692,20 @@ class Starbash:
         """
         return self._find_user_repo_ref(url) is not None
 
-    def remove_repo_ref(self, url: str) -> None:
+    def remove_repo_ref(self, url: str) -> RepoRemoval:
         """
         Remove a repository reference from the user configuration.
 
+        Also drops everything the repository contributed to the index: its image
+        rows, and the sessions those images built.  A session never spans
+        repositories, so all of its frames go with the repo and there is nothing
+        left for it to describe.
+
         Args:
             url: The repository URL to remove (e.g., 'file:///path/to/repo')
+
+        Returns:
+            A :class:`~starbash.database.RepoRemoval` describing what was dropped.
 
         Raises:
             UserHandledError: If the repository URL is not found in user configuration
@@ -708,11 +717,20 @@ class Starbash:
             # indexed rows would only force a pointless re-index later.
             raise UserHandledError(f"Repository '{url}' not found in user configuration.")
 
-        self.db.remove_repo(url)
+        removal = self.db.remove_repo(url)
         self.user_repo.config.get("repo-ref", []).remove(ref)
+
+        # Drop it from the in-memory manager too: everything that lists repos
+        # (``sb repo list``, the GUI's Repositories page) reads it, so without
+        # this the removed repository keeps showing until the app is restarted.
+        repo = self.repo_manager.get_repo_by_url(url)
+        if repo is not None:
+            self.repo_manager.repos.remove(repo)
 
         # Write the updated config
         self.user_repo.write_config()
+
+        return removal
 
     def _extend_image_header(self, headers: dict[str, Any], full_image_path: Path) -> bool:
         """Given a FITS header dictionary, possibly extend it with additional computed fields.

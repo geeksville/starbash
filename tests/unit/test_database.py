@@ -1,8 +1,9 @@
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from starbash.database import Database, get_column_name
+from starbash.database import Database, RepoRemoval, get_column_name
 
 
 def test_database_images_table(tmp_path: Path):
@@ -181,7 +182,7 @@ def test_remove_repo_nonexistent(tmp_path: Path):
     """Test that removing a non-existent repo doesn't raise an error."""
     with Database(base_dir=tmp_path) as db:
         # Try to remove a repo that doesn't exist
-        db.remove_repo("file:///nonexistent/repo")
+        assert db.remove_repo("file:///nonexistent/repo") == RepoRemoval()
 
         # Should not raise an error and tables should be empty
         assert db.len_table(Database.REPOS_TABLE) == 0
@@ -291,3 +292,105 @@ def test_session_telescop_matches_case_insensitively(tmp_path: Path):
         )
         assert found is not None
         assert found[get_column_name(Database.TELESCOP_KEY)] == "RigOne"
+
+
+# --- what a repo removal drops from the index ------------------------------
+def _index_frame(
+    db: Database,
+    repo_url: str,
+    path: str,
+    date_obs: str,
+    *,
+    imagetyp: str = "Light Frame",
+    filter: str = "Ha",
+    object: str = "M42",
+    telescop: str = "test-scope",
+    exptime: float = 120.0,
+) -> int:
+    """Index one frame and fold it into its session, the way :class:`Starbash` does.
+
+    Mirrors ``Starbash.add_image_and_session``/``_add_session``, so the sessions
+    under test are built the way the real index builds them.
+    """
+    record: dict[str, Any] = {
+        "path": path,
+        Database.DATE_OBS_KEY: date_obs,
+        Database.IMAGETYP_KEY: imagetyp,
+        Database.EXPTIME_KEY: exptime,
+        Database.FILTER_KEY: filter,
+        Database.OBJECT_KEY: object,
+        Database.TELESCOP_KEY: telescop,
+    }
+    image_id = db.upsert_image(record, repo_url)
+
+    new = {
+        get_column_name(Database.START_KEY): date_obs,
+        get_column_name(Database.END_KEY): date_obs,
+        get_column_name(Database.IMAGE_DOC_KEY): image_id,
+        get_column_name(Database.IMAGETYP_KEY): imagetyp,
+        get_column_name(Database.FILTER_KEY): filter,
+        get_column_name(Database.OBJECT_KEY): object,
+        get_column_name(Database.TELESCOP_KEY): telescop,
+        get_column_name(Database.NUM_IMAGES_KEY): 1,
+        get_column_name(Database.EXPTIME_TOTAL_KEY): exptime,
+        get_column_name(Database.EXPTIME_KEY): exptime,
+    }
+    db.upsert_session(new, existing=db.get_session(new))
+    return image_id
+
+
+def test_remove_repo_reports_what_it_dropped(tmp_path: Path):
+    """The removal reports how many rows went, so both front ends can say so."""
+    with Database(base_dir=tmp_path) as db:
+        repo_url = "file:///test/repo"
+
+        _index_frame(db, repo_url, "one.fit", "2025-01-01T20:00:00")
+        _index_frame(db, repo_url, "two.fit", "2025-01-01T20:05:00")
+        # A frame with no DATE-OBS never builds a session, so it counts as an image only.
+        db.upsert_image({"path": "headerless.fit"}, repo_url)
+
+        removal = db.remove_repo(repo_url)
+
+        assert removal == RepoRemoval(images=3, sessions=1)
+        assert db.get_repo_id(repo_url) is None
+        assert db.len_table(Database.IMAGES_TABLE) == 0
+        assert db.len_table(Database.SESSIONS_TABLE) == 0
+        assert db.search_image([]) == []
+        assert db.search_session() == []
+
+
+def test_remove_repo_leaves_another_repos_session_alone(tmp_path: Path):
+    """Only the removed repo's images and sessions go; a second repo is untouched."""
+    with Database(base_dir=tmp_path) as db:
+        gone = "file:///test/gone"
+        kept = "file:///test/kept"
+
+        # A different night, so the two repos hold separate sessions.
+        _index_frame(db, gone, "g1.fit", "2025-01-01T20:00:00")
+        _index_frame(db, kept, "k1.fit", "2025-02-01T20:00:00")
+        _index_frame(db, kept, "k2.fit", "2025-02-01T20:05:00")
+
+        sessions = db.search_session()
+        assert len(sessions) == 2
+        kept_session = next(s for s in sessions if s["start"].startswith("2025-02"))
+
+        removal = db.remove_repo(gone)
+
+        assert removal == RepoRemoval(images=1, sessions=1)
+        untouched = db.get_session_by_id(kept_session["id"])
+        assert untouched == {
+            k: v for k, v in kept_session.items() if k not in ("metadata", "repo_url")
+        }
+        assert db.len_table(Database.IMAGES_TABLE) == 2
+        assert db.get_image(kept, "k1.fit") is not None
+
+
+def test_repo_removal_summary():
+    """The summary line both front ends print after a removal."""
+    assert RepoRemoval().summary() == "No indexed files or sessions were affected."
+    assert RepoRemoval(images=3).summary() == "Removed 3 indexed image(s)."
+    assert RepoRemoval(sessions=2).summary() == "Removed 2 session(s)."
+    assert (
+        RepoRemoval(images=3, sessions=2).summary()
+        == "Removed 3 indexed image(s) and 2 session(s)."
+    )

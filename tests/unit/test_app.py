@@ -757,6 +757,58 @@ class TestRemoveRepoRef:
             # its images/sessions) from the database.
             assert app.db.get_repo_id(url) is not None
 
+    def test_remove_repo_ref_drops_the_repos_images_and_sessions(
+        self, setup_test_environment, mock_analytics
+    ):
+        """Removing a repo takes its indexed frames and their sessions with it.
+
+        A session never spans repositories, so once the frames that built it are
+        gone there is nothing left for it to describe - and nothing rebuilds a
+        session for an image that is already indexed, so leaving the row behind
+        would keep advertising frames that no longer exist.
+        """
+        from astropy.io import fits as astropy_fits
+
+        from starbash.database import RepoRemoval
+
+        def _light_repo(name: str, dates: list[str]) -> str:
+            repo_dir = setup_test_environment["tmp_path"] / name
+            repo_dir.mkdir()
+            for i, date in enumerate(dates):
+                hdu = astropy_fits.PrimaryHDU()
+                hdu.header["DATE-OBS"] = date
+                hdu.header["IMAGETYP"] = "Light"
+                hdu.header["FILTER"] = "Ha"
+                hdu.header["OBJECT"] = "M42"
+                hdu.header["TELESCOP"] = "rig-one"
+                hdu.header["EXPTIME"] = 120.0
+                astropy_fits.HDUList([hdu]).writeto(repo_dir / f"{name}{i}.fit", overwrite=True)
+            return str(repo_dir)
+
+        with Starbash() as app:
+            kept = _light_repo("kept", ["2025-01-01T20:00:00", "2025-01-01T20:05:00"])
+            gone = _light_repo("gone", ["2025-02-01T20:00:00", "2025-02-01T20:05:00"])
+            app.add_local_repo(kept)
+            app.add_local_repo(gone)
+
+            # Two different nights, so two separate sessions.
+            assert len(app.db.search_session()) == 2
+
+            removal = app.remove_repo_ref(make_file_url(gone))
+
+            assert removal == RepoRemoval(images=2, sessions=1)
+
+            gone_url = make_file_url(gone)
+            assert app.db.get_repo_id(gone_url) is None
+            assert app.db.get_image(gone_url, "gone0.fit") is None
+
+            # The surviving repo's session still describes exactly its own frames.
+            sessions = app.db.search_session()
+            assert len(sessions) == 1
+            assert sessions[0][get_column_name(Database.NUM_IMAGES_KEY)] == 2
+            paths = sorted(image["path"] for image in app.get_session_images(sessions[0]))
+            assert paths == ["kept0.fit", "kept1.fit"]
+
 
 class TestReindexRepo:
     """Tests for the reindex_repo method."""

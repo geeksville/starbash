@@ -17,6 +17,7 @@ import pytest
 pytest.importorskip("PySide6")
 
 from starbash import events  # noqa: E402
+from starbash.database import Database  # noqa: E402
 from starbash.ui.qt.pages.repositories import ADD_KINDS, RepositoriesPage  # noqa: E402
 from starbash.ui.qt.services import load_repos  # noqa: E402
 from starbash.url import make_file_url  # noqa: E402
@@ -256,3 +257,42 @@ def test_removing_a_managed_repo_leaves_the_user_config_alone(
     assert dumps(app_context.user_repo.config) == before
     assert app_context.is_repo_removable(input_repo) is True
     assert statuses == [f"{managed} is managed by Starbash and cannot be removed."]
+
+
+def test_removing_a_repo_reports_what_it_dropped(qtbot, app_context, bus, tmp_path: Path):
+    """Removing a repo reports how much of the index went with it.
+
+    The frames a repo contributed may have been folded into a session another
+    repo also feeds, so the page says what the removal actually did rather than
+    only echoing the URL back.
+    """
+    from astropy.io import fits as astropy_fits
+
+    repo_dir = (tmp_path / "lights").resolve()
+    repo_dir.mkdir()
+    hdu = astropy_fits.PrimaryHDU()
+    hdu.header["DATE-OBS"] = "2025-01-01T20:00:00"
+    hdu.header["IMAGETYP"] = "Light"
+    hdu.header["FILTER"] = "Ha"
+    hdu.header["OBJECT"] = "M42"
+    hdu.header["EXPTIME"] = 120.0
+    astropy_fits.HDUList([hdu]).writeto(repo_dir / "one.fit", overwrite=True)
+    url = make_file_url(repo_dir)
+    app_context.add_local_repo(str(repo_dir))
+    assert app_context.db.len_table(Database.SESSIONS_TABLE) == 1
+
+    page = RepositoriesPage(app_context, bus)
+    qtbot.addWidget(page)
+    page.refresh()
+
+    statuses: list[str] = []
+    page.status.connect(statuses.append)
+    page._table.selectRow(_row_for(page, url))
+    page._on_remove()
+
+    # The repo left the table, and its frame and session left the index.
+    assert url not in _urls(page)
+    assert app_context.db.get_repo_id(url) is None
+    assert app_context.db.len_table(Database.IMAGES_TABLE) == 0
+    assert app_context.db.len_table(Database.SESSIONS_TABLE) == 0
+    assert statuses == [f"Removed repository: {url} — Removed 1 indexed image(s) and 1 session(s)."]

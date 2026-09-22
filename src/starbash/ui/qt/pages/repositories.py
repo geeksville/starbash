@@ -181,13 +181,13 @@ class RepositoriesPage(Page):
             self.status.emit(f"{url} is managed by Starbash and cannot be removed.")
             return
         try:
-            self.sb.remove_repo_ref(url)
+            removal = self.sb.remove_repo_ref(url)
         except Exception as exc:  # noqa: BLE001 - report, don't crash
             self.show_error(f"Could not remove {url}: {exc}")
             return
         self.refresh()
         self.contextChanged.emit()
-        self.status.emit(f"Removed repository: {url}")
+        self.status.emit(f"Removed repository: {url} — {removal.summary()}")
 
     def _on_reindex(self) -> None:
         self._busy(True, "Re-indexing repositories…")

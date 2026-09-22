@@ -351,6 +351,37 @@ def test_repo_remove_by_url(setup_test_environment, tmp_path):
     assert "testrepo" not in list_after.stdout
 
 
+def test_repo_remove_reports_what_it_dropped(setup_test_environment, tmp_path):
+    """`sb repo remove` says how much of the index went with the repository.
+
+    A repo's frames may have been folded into a session another repo also feeds,
+    so the command reports what the removal actually did rather than just the URL.
+    """
+    from astropy.io import fits as astropy_fits
+
+    test_repo = tmp_path / "testrepo"
+    test_repo.mkdir()
+    hdu = astropy_fits.PrimaryHDU()
+    hdu.header["DATE-OBS"] = "2025-01-01T20:00:00"
+    hdu.header["IMAGETYP"] = "Light"
+    hdu.header["FILTER"] = "Ha"
+    hdu.header["OBJECT"] = "M42"
+    hdu.header["EXPTIME"] = 120.0
+    astropy_fits.HDUList([hdu]).writeto(test_repo / "one.fit", overwrite=True)
+
+    assert runner.invoke(app, ["repo", "add", str(test_repo)]).exit_code == 0
+
+    result = runner.invoke(app, ["repo", "remove", make_file_url(test_repo)])
+    assert result.exit_code == 0
+    assert "Removed repository" in result.stdout
+    assert "Removed 1 indexed image(s) and 1 session(s)." in result.stdout
+
+    # The session that only held this repo's frames went with it.
+    with Database(base_dir=setup_test_environment["data_dir"]) as db:
+        assert db.len_table(Database.IMAGES_TABLE) == 0
+        assert db.len_table(Database.SESSIONS_TABLE) == 0
+
+
 def test_repo_reindex_by_url(setup_test_environment, tmp_path):
     """Test 'starbash repo reindex URL' command - reindex a specific repo by URL."""
     # First add a test repo
