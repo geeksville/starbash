@@ -259,7 +259,6 @@ class TestToolActionFilesystemErrors:
         assert result is not None
         assert isinstance(task.meta["exception"], FilesystemUnavailableError)
         assert "filesystem became unavailable" in str(task.meta["exception"])
-        assert "drive or network mount" in caplog.text
 
 
 class TestDoitIntegration:

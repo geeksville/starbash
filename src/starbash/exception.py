@@ -31,7 +31,7 @@ class FilesystemUnavailableError(UserHandledError):
     def __init__(self, operation: str, cause: OSError) -> None:
         super().__init__(
             f"The filesystem became unavailable while {operation}. "
-            "Check that the drive or network mount is connected, then retry."
+            "Check that the drive is connected (and it is not out of space), then retry."
         )
         self.cause = cause
 

@@ -359,19 +359,19 @@ class ToolAction(BaseAction):
         if input_files:
             desc = f"({len(input_files)} input files)"
 
-        # Some tools might want us to pre merge all the input frames (siril merge command doesn't nicely work with images
-        # of different sizes etc).
-        stage_input: dict[Any, FileInfo] = context["stage_input"]
-        for fi in stage_input.values():
-            perhaps_merge_to(fi)
-
-        from starbash.processed_target import ProcessedTarget
-
-        pt: ProcessedTarget = self.task.meta["processed_target"]
-        logfile_path = pt.log_path
-
         logging.info(f"Running {self.tool.name} for {self.task.name} {desc}")
         try:
+            # Some tools might want us to pre merge all the input frames (siril merge command doesn't nicely work with images
+            # of different sizes etc).
+            stage_input: dict[Any, FileInfo] = context["stage_input"]
+            for fi in stage_input.values():
+                perhaps_merge_to(fi)
+
+            from starbash.processed_target import ProcessedTarget
+
+            pt: ProcessedTarget = self.task.meta["processed_target"]
+            logfile_path = pt.log_path
+
             with open(logfile_path, "a", encoding="utf-8") as logfile:
                 self.result = self.tool.run(
                     self.commands, context=context, cwd=self.cwd, log_out=logfile, **self.parameters
