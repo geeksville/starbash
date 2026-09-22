@@ -143,13 +143,19 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: df -h
 
-      - name: Install current version
-        run: poetry install
-
       - name: Install Inno Setup (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: choco install innosetup --no-progress --yes
+
+      - name: Run tests
+        env:
+          SENTRY_ENVIRONMENT: ci
+        run: poetry run pytest --cov --cov-report=term --cov-report=xml --junit-xml=pytest.xml
+
+      - name: Install production packaging dependencies (Windows)
+        if: matrix.os == 'windows-latest'
+        run: poetry sync --without dev --no-interaction
 
       - name: Build Windows desktop installer
         if: matrix.os == 'windows-latest'
@@ -176,11 +182,6 @@ jobs:
           name: Starbash Windows installer
           path: dist/Starbash-Setup-*.exe
           if-no-files-found: error
-
-      - name: Run tests
-        env:
-          SENTRY_ENVIRONMENT: ci
-        run: poetry run pytest --cov --cov-report=term --cov-report=xml --junit-xml=pytest.xml
 
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-latest'

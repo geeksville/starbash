@@ -53,7 +53,6 @@ ruff = ">=0.14.4"
 basedpyright = ">=1.33.0"
 # Qt widget testing for the `sb gui` desktop app (drives real widgets offscreen).
 pytest-qt = ">=4.4.0"
-pyinstaller = ">=6.17.0,<7.0.0"
 
 # Adds the `graph` command to doit (GraphViz output) for `sb process doit graph`.
 doit-graph = ">=0.3.0"
@@ -63,6 +62,9 @@ doit-graph = ">=0.3.0"
 library-skills = "^0.0.19"
 semble = {version = "^0.6.0", extras = ["mcp"]}
 imageio-ffmpeg = "^0.6.0"
+
+[tool.poetry.group.packaging.dependencies]
+pyinstaller = ">=6.17.0,<7.0.0"
 
 [tool.poetry.scripts]
 starbash = "starbash.main:app"

@@ -10,6 +10,13 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy
 datas = collect_data_files("astropy")
 datas += copy_metadata("astropy")
 datas += copy_metadata("numpy")
+# Astropy's PLY wrapper reads and may regenerate these tables beside its source
+# modules, so they must be available as files rather than only in the PYZ.
+datas += [
+    item
+    for item in collect_data_files("astropy", include_py_files=True)
+    if item[0].endswith(("_parsetab.py", "_lextab.py"))
+]
 # Astropy selects the active CODATA/IAU datasets dynamically (for example,
 # ``astropy.constants.codata2022``), so PyInstaller cannot infer them from FITS.
 hiddenimports = (
