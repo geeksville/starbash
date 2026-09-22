@@ -94,12 +94,18 @@ def test_recipe_helpers_reachable_only_from_scripts_are_declared(starbash_hook):
     assert "starbash.siril.import_registration" in declared
 
 
+def _normalise(dest: str) -> str:
+    """PyInstaller reports destinations with the host OS separator (backslashes on
+    Windows); normalise to forward slashes so the assertions are platform-neutral."""
+    return dest.replace("\\", "/")
+
+
 def test_data_files_alone_would_not_carry_the_helpers(starbash_hook):
     """Documents the trap: ``collect_data_files`` brings the README, never the code."""
     recipes_data = [
-        (Path(source).name, dest)
+        (Path(source).name, _normalise(dest))
         for source, dest in starbash_hook["datas"]
-        if dest == "starbash/recipes"
+        if _normalise(dest) == "starbash/recipes"
     ]
     assert recipes_data, "the recipes directory is no longer shipped as data at all"
     assert all(not name.endswith(".py") for name, _ in recipes_data)
@@ -107,7 +113,7 @@ def test_data_files_alone_would_not_carry_the_helpers(starbash_hook):
 
 def test_package_resources_are_still_shipped_as_data(starbash_hook):
     """The hook's original job (templates/defaults/assets) is unchanged."""
-    destinations = {dest for _, dest in starbash_hook["datas"]}
+    destinations = {_normalise(dest) for _, dest in starbash_hook["datas"]}
     assert {
         "starbash/defaults",
         "starbash/templates",
