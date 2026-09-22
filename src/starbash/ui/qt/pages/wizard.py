@@ -95,15 +95,6 @@ def _output_folders_base() -> Path:
     return get_user_documents_dir() / "repos"
 
 
-def _has_fits_images(path: Path) -> bool:
-    """True when ``path`` directly contains at least one FITS file."""
-    try:
-        entries = list(path.iterdir())
-    except OSError:
-        return False
-    return any(entry.is_file() and entry.suffix.lower() in _FITS_SUFFIXES for entry in entries)
-
-
 def _required_tools_missing() -> list[ToolStatus]:
     """The missing tools Starbash cannot work without (Siril, in practice)."""
     return [
@@ -583,13 +574,8 @@ class ImagesPage(SetupPage):
             return
 
         self._chosen = Path(folder)
-        if _has_fits_images(self._chosen):
-            self._status.setText(f"Found FITS images in {self._chosen}.")
-        else:
-            self._status.setText(
-                f"No FITS images (.fit/.fits) directly inside {self._chosen} — you can "
-                "still add it, but check you picked the folder with your raw frames."
-            )
+        self._status.setText(f"Raw images in {self._chosen}.")
+
         self.refresh()
         # Picking a folder is what makes this page complete (see isComplete).
         self.completeChanged.emit()
@@ -601,10 +587,7 @@ class ImagesPage(SetupPage):
         for repo in repos:
             path = _repo_path(repo)
             location = str(path) if path is not None else repo.url
-            if path is not None and not _has_fits_images(path):
-                lines.append(f"    ○ {location}  (no FITS files found here yet)")
-            else:
-                lines.append(f"    ✓ {location}")
+            lines.append(f"    ✓ {location}")
         if self._chosen is not None and str(self._chosen) not in self._known_paths():
             lines.append(f"    + {self._chosen}  (will be added when you continue)")
 

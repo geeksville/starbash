@@ -376,8 +376,8 @@ def _raw_paths(sb) -> list[str]:
     return paths
 
 
-def test_images_page_reports_a_folder_of_fits_files(wizard, monkeypatch, tmp_path):
-    """Picking a folder says what was found there, before anything is added."""
+def test_images_page_accepts_a_folder_of_fits_files(wizard, monkeypatch, tmp_path):
+    """Picking a raw-image folder reports it before anything is added."""
     folder = _make_fits_folder(tmp_path)
     monkeypatch.setattr(wizard_mod, "QFileDialog", _FakeFileDialog(str(folder)))
 
@@ -385,12 +385,13 @@ def test_images_page_reports_a_folder_of_fits_files(wizard, monkeypatch, tmp_pat
     assert isinstance(page, ImagesPage)
     page._on_choose()
 
-    assert "Found FITS images" in page._status.text()
+    assert f"Raw images in {folder}." == page._status.text()
     assert str(folder) in page._list.text()
+    assert page.isComplete() is True
 
 
-def test_images_page_notices_a_folder_without_fits_files(wizard, monkeypatch, tmp_path):
-    """A folder of JPEGs is reported as having no images, not silently accepted."""
+def test_images_page_accepts_a_folder_without_fits_files(wizard, monkeypatch, tmp_path):
+    """A chosen folder need not contain FITS files at its top level."""
     folder = tmp_path / "phone-photos"
     folder.mkdir()
     (folder / "IMG_1234.jpg").write_bytes(b"not a fits file")
@@ -400,10 +401,8 @@ def test_images_page_notices_a_folder_without_fits_files(wizard, monkeypatch, tm
     assert isinstance(page, ImagesPage)
     page._on_choose()
 
-    assert "No FITS images" in page._status.text()
-    # The warning is advice, not a refusal: plenty of people keep their lights a
-    # level down (raw/M31/lights), and refusing those would trap the very users
-    # this page exists for.
+    assert f"Raw images in {folder}." == page._status.text()
+    assert str(folder) in page._list.text()
     assert page.isComplete() is True
 
 
