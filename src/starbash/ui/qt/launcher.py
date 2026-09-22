@@ -16,9 +16,15 @@ def _configure_windows_console() -> None:
             stream.reconfigure(encoding="utf-8", errors="backslashreplace")
 
 
-def main() -> None:
-    """Start the desktop application and return Qt's exit status to Windows."""
+def main(argv: list[str] | None = None) -> None:
+    """Launch the GUI when bare, or dispatch supplied arguments to the CLI."""
     _configure_windows_console()
+    arguments = sys.argv[1:] if argv is None else argv
+    if arguments:
+        from starbash.main import app
+
+        app(args=arguments, prog_name="starbash")
+        return
     raise SystemExit(run_gui())
 
 

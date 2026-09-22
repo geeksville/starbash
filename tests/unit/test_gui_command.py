@@ -53,3 +53,22 @@ def test_windows_launcher_configures_utf8_streams(monkeypatch):
     launcher._configure_windows_console()
 
     assert configured == [("utf-8", "backslashreplace"), ("utf-8", "backslashreplace")]
+
+
+def test_launcher_dispatches_arguments_to_cli(monkeypatch):
+    """The packaged executable preserves Starbash's CLI commands and arguments."""
+    from starbash import main as main_module
+    from starbash.ui.qt import launcher
+
+    calls: list[tuple[list[str], str]] = []
+
+    def fake_app(*, args: list[str], prog_name: str) -> None:
+        calls.append((args, prog_name))
+
+    monkeypatch.setattr(main_module, "app", fake_app)
+    monkeypatch.setattr(launcher, "_configure_windows_console", lambda: None)
+    monkeypatch.setattr(launcher, "run_gui", lambda: pytest.fail("GUI should not launch"))
+
+    launcher.main(["process", "auto"])
+
+    assert calls == [(["process", "auto"], "starbash")]
