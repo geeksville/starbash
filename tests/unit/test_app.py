@@ -394,6 +394,9 @@ class TestStarbashLifecycle:
         with patch.object(app.db, "close") as mock_db_close:
             app.close()
             mock_db_close.assert_called_once()
+        # ``close`` was mocked above, so the real connection is still open - close
+        # it for real to avoid a ResourceWarning (unclosed database) at GC time.
+        app.db.close()
 
     def test_context_manager_enter(self, setup_test_environment, mock_analytics):
         """Test that __enter__ returns the app instance."""

@@ -263,11 +263,11 @@ def test_plain_row_accepts_sqlite_row(tmp_path):
 
     from starbash.ui.qt.models import plain_row
 
-    connection = sqlite3.connect(":memory:")
-    connection.row_factory = sqlite3.Row
-    row = connection.execute("SELECT 1 AS a, 'x' AS b").fetchone()
+    with sqlite3.connect(":memory:") as connection:
+        connection.row_factory = sqlite3.Row
+        row = connection.execute("SELECT 1 AS a, 'x' AS b").fetchone()
 
-    assert plain_row(row) == {"a": 1, "b": "x"}
+        assert plain_row(row) == {"a": 1, "b": "x"}
 
 
 def test_integration_column_renders_approximately_whole_minutes(qapp):
