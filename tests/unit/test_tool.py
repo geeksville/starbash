@@ -4,6 +4,7 @@ import configparser
 import logging
 import os
 import shutil
+import stat
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -28,11 +29,12 @@ from starbash.tool import (
     expand_context_unsafe,
     make_safe_globals,
     set_tool_ignored,
+    siril,
     strip_comments,
     tool_run,
     tools,
 )
-from starbash.tool.base import tool_run_streaming
+from starbash.tool.base import ExternalTool, tool_run_streaming
 from starbash.tool.rcastro import parse_json_line
 from starbash.tool.siril import link_or_copy_to_dir
 
@@ -483,6 +485,24 @@ class TestSirilTool:
         # We can't easily test the actual siril execution without mocking subprocess,
         # but we can verify the tool is instantiated correctly
         assert tool.name == "Siril"
+
+    def test_siril_tool_uses_windows_default_path(self, monkeypatch):
+        """Windows probes the default location used by the Siril installer."""
+        monkeypatch.setattr(siril.sys, "platform", "win32")
+
+        tool = SirilTool()
+
+        assert tool.commands[-1] == r"C:\Program Files\Siril\bin\siril.exe"
+
+
+def test_external_tool_uses_an_absolute_executable_path(tmp_path):
+    """An absolute command candidate works without needing to be on ``PATH``."""
+    executable = tmp_path / ("tool.exe" if os.name == "nt" else "tool")
+    executable.write_text("#!/bin/sh\n")
+    executable.chmod(executable.stat().st_mode | stat.S_IXUSR)
+    tool = ExternalTool("Test tool", [str(executable)], "https://example.test")
+
+    assert tool.executable_path == str(executable)
 
 
 class TestLinkOrCopyToDir:

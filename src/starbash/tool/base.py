@@ -780,7 +780,8 @@ class ExternalTool(Tool):
 
     Args:
         name: Name of the tool (e.g. "Siril" or "GraXpert") it is important that this matches the GUI name exactly
-        commands: List of possible command names to try to find the tool executable
+        commands: List of command names or absolute executable paths to try
+            when locating the tool
         install_url: URL to installation instructions for the tool
         severity: How important it is that this tool is installed (defaults to
             :attr:`ToolSeverity.OPTIONAL`, so a new tool is quiet until proven
@@ -864,8 +865,14 @@ class ExternalTool(Tool):
             as_path = os.pathsep.join(self.extra_dirs)
             paths.append(as_path)
 
+        for cmd in self.commands:
+            if os.path.isabs(cmd) and os.path.isfile(cmd) and os.access(cmd, os.X_OK):
+                return cmd
+
         for path in paths:
             for cmd in self.commands:
+                if os.path.isabs(cmd):
+                    continue
                 if shutil.which(cmd, path=path):
                     return cmd
 

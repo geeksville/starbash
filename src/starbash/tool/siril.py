@@ -3,6 +3,7 @@
 import io
 import logging
 import os
+import sys
 import textwrap
 from pathlib import Path
 from typing import Any
@@ -75,6 +76,8 @@ class SirilTool(ExternalTool):
             "siril",
             "Siril",
         ]
+        if sys.platform == "win32":
+            commands.append(r"C:\Program Files\Siril\bin\siril.exe")
 
         super().__init__(
             "Siril",
