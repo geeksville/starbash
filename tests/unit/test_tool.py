@@ -1477,6 +1477,25 @@ class TestStarnetTool:
         assert "Added starnet2" in caplog.text
         assert str(executable.resolve()) in caplog.text
 
+    def test_configures_starnet_from_windows_default_path(self, tmp_path, monkeypatch):
+        """Windows uses StarNet's default installer path when it is not on PATH."""
+        from starbash.tool import starnet
+
+        config_dir = self._make_config(tmp_path, "")
+        executable = tmp_path / "StarNet2" / "bin" / "starnet2.exe"
+        executable.parent.mkdir(parents=True)
+        executable.write_text("starnet")
+        tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
+        monkeypatch.setattr("shutil.which", lambda name: None)
+        monkeypatch.setattr(starnet.sys, "platform", "win32")
+        monkeypatch.setattr(starnet, "STARNET_WINDOWS_PATH", executable)
+
+        assert tool.is_available is True
+
+        parser = configparser.ConfigParser()
+        parser.read(config_dir / "config.1.4.ini")
+        assert parser.get("core", "starnet_exe") == str(executable.resolve())
+
     def test_does_not_overwrite_existing_starnet_config(self, tmp_path, monkeypatch):
         # Even a stale setting is left alone (only a blank one is ever filled in).
         # It no longer counts as configured, though - reporting it is the point.

@@ -2,6 +2,7 @@ import configparser
 import logging
 import os
 import shutil
+import sys
 from pathlib import Path
 
 from platformdirs import PlatformDirs
@@ -18,6 +19,18 @@ STARNET_INSTALL_URL = "https://starnetastro.com/cli-tools/"
 
 #: Siril's flatpak app id - also one of :class:`SirilTool`'s candidate commands.
 SIRIL_FLATPAK_APP_ID = "org.siril.Siril"
+
+#: Default executable location used by the Windows StarNet installer.
+STARNET_WINDOWS_PATH = Path(r"C:\Program Files\StarNet2\bin\starnet2.exe")
+
+
+def _find_starnet_executable() -> str | None:
+    """Find StarNet on ``PATH`` or at its standard Windows installer location."""
+    if path := shutil.which("starnet2"):
+        return path
+    if sys.platform == "win32" and STARNET_WINDOWS_PATH.is_file():
+        return str(STARNET_WINDOWS_PATH)
+    return None
 
 
 def _starnet_exe_usable(configured: str) -> bool:
@@ -162,7 +175,7 @@ class StarnetTool(SirilTool):
             logger.debug("Siril's starnet_exe %s no longer exists", dangling)
             return False
 
-        starnet_path = shutil.which("starnet2")
+        starnet_path = _find_starnet_executable()
         ini_path = self._siril_config_to_write(config_dirs)
         if not starnet_path or ini_path is None:
             # Nothing is configured, and there is nothing we can do about it - but say
@@ -171,7 +184,9 @@ class StarnetTool(SirilTool):
             logger.debug(
                 "No starnet_exe set in any Siril config (%s); starnet2 was %s",
                 ", ".join(str(config_dir) for config_dir in config_dirs) or "no directory found",
-                "found on the PATH" if starnet_path else "not found on the PATH",
+                "found on PATH or at the standard Windows path"
+                if starnet_path
+                else "not found on the PATH or at the standard Windows path",
             )
             return False
 
