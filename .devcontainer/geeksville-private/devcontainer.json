@@ -66,6 +66,8 @@
 		"source=/mnt/pool/big/kevinh/telescope/,destination=/mnt/pool/big/kevinh/telescope/,type=bind",
 		// My nTB fast SSD
 		"source=/mnt/big_stick/kevinh,destination=/mnt/fast_stick/,type=bind",
+		// my ssh config
+		"source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached,readonly",
 		// My RC-Astro config/license files
 		"source=${localEnv:HOME}${localEnv:USERPROFILE}/.config/RC-Astro,target=/home/vscode/.config/RC-Astro,type=bind,consistency=cached"
 	],
