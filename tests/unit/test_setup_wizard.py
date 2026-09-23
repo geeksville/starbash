@@ -482,11 +482,78 @@ def test_tools_page_recheck_notices_a_tool_installed_meanwhile(wizard, siril_mis
     siril_missing.available = True
     assert page.isComplete() is False
 
-    page._on_recheck()
+    page._on_recheck("siril")
 
     assert siril_missing.reprobes == 1
     assert page.isComplete() is True
     assert page.validatePage() is True
+
+
+def test_tools_page_recheck_reprobes_the_row_it_belongs_to(wizard, monkeypatch):
+    """A *recommended* tool's row must re-probe **that** tool, not just the gate.
+
+    StarNet gets a row (and a *Re-check* button) even though it does not hold the
+    wizard open, and the button used to invalidate only the tools that gate the page
+    (``severity >= REQUIRED``) - so its row read a cached answer for ever.  The real
+    ``StarnetTool`` makes that permanent: it caches in its own
+    ``_starnet_available``, which only its own ``invalidate_availability()`` drops.
+    """
+    siril = _CachedTool(severity=ToolSeverity.REQUIRED)
+    star = _CachedTool(severity=ToolSeverity.RECOMMENDED, name="StarNet", key="starnet")
+    monkeypatch.setattr(wizard_mod, "tools", {"siril": siril, "starnet": star})
+    monkeypatch.setattr(wizard_mod, "tool_statuses", lambda: [siril.status(), star.status()])
+
+    page = wizard.page_of_type(ToolsPage)
+    assert isinstance(page, ToolsPage)
+    page.refresh()
+
+    # The user installs StarNet while the page is open.
+    star.available = True
+    page._on_recheck("starnet")
+
+    assert star.reprobes == 1
+    assert siril.reprobes == 0  # the gate is not this row's business
+    assert page._status.text() == "Found StarNet."
+
+
+def test_leaving_the_tools_page_reprobes_every_tool(wizard, monkeypatch):
+    """*Next* has to be enough: a tool installed meanwhile must not stay "missing".
+
+    The main window's warning bar re-reads the very same cached probe results
+    (`ToolWarningPanel.refresh()`, via `reload_context()` the moment the wizard
+    closes), so an install the wizard did notice must not leave a stale bar behind on
+    the way out.  Every tool the page shows is re-probed when the page is left, not
+    just the ones that gate it.
+    """
+    siril = _CachedTool(severity=ToolSeverity.REQUIRED)
+    siril.available = True  # Siril is here; only StarNet is missing
+    star = _CachedTool(severity=ToolSeverity.RECOMMENDED, name="StarNet", key="starnet")
+    monkeypatch.setattr(wizard_mod, "tools", {"siril": siril, "starnet": star})
+    monkeypatch.setattr(wizard_mod, "tool_statuses", lambda: [siril.status(), star.status()])
+
+    page = wizard.page_of_type(ToolsPage)
+    assert isinstance(page, ToolsPage)
+    page.refresh()
+
+    # The user installs StarNet while the page is open, then simply presses Next.
+    star.available = True
+    assert page.validatePage() is True
+
+    assert star.reprobes == 1  # the *recommended* tool, which does not gate the page
+    assert siril.reprobes == 1
+    # What the warning bar reads next is the new answer, not the cached one.
+    assert star.status().available is True
+
+
+def test_tools_page_recheck_says_so_when_the_row_is_still_missing(wizard, siril_missing):
+    """Re-checking a row that is still not installed names that tool."""
+    page = wizard.page_of_type(ToolsPage)
+    assert isinstance(page, ToolsPage)
+
+    page._on_recheck("siril")
+
+    assert siril_missing.reprobes == 1
+    assert page._status.text() == "Still not found: Siril"
 
 
 # --- page 6: the checklist, and the two ways out ---------------------------

@@ -677,25 +677,45 @@ class ToolsPage(SetupPage):
 
     # --- probing ----------------------------------------------------------
     @staticmethod
-    def _recheck_required() -> list[ToolStatus]:
-        """Re-probe the required tools, then report which are still missing.
+    def _reprobe_tools() -> list[ToolStatus]:
+        """Drop **every** tool's cached probe, then report which gating tools are missing.
 
-        ``is_available`` caches its first answer, so a user who installs Siril
-        while this page is open would otherwise keep seeing "missing" forever.
+        ``is_available`` caches its first answer for the life of the process, so a
+        refresh that does not drop that cache keeps reporting whatever the first
+        probe saw - and this page exists to notice a tool the user installed while
+        the wizard was open.  All tools are re-probed, not just the ones that gate
+        the page: the cache is process-wide, and the main window's warning bar
+        re-reads it (`ToolWarningPanel.refresh()`) the moment the wizard closes, so a
+        StarNet installed during the wizard must not leave a stale bar behind.
+
+        Cheap enough for the GUI thread: every probe is a few filesystem lookups
+        (``shutil.which``/``Path.is_file``, plus StarNet reading Siril's config) and
+        no tool is ever executed to test it.
         """
         for tool in tools.values():
-            if tool.status().severity >= ToolSeverity.REQUIRED:
-                tool.invalidate_availability()
+            tool.invalidate_availability()
         return _required_tools_missing()
 
-    def _on_recheck(self) -> None:
-        """*Re-check* for one tool: forget the cached probe and repaint."""
-        missing = self._recheck_required()
+    def _on_recheck(self, key: str) -> None:
+        """*Re-check* one row's tool: forget its cached probe, re-probe, repaint.
+
+        Only the row's **own** tool is re-probed: re-checking used to invalidate just
+        the tools that gate the page, which left a *recommended* tool's row (StarNet
+        has a button too) reading a cached answer for ever.  ``_reprobe_tools()`` is
+        the wider path, taken when the page is left.
+        """
+        tool = tools.get(key)
+        if tool is not None:
+            tool.invalidate_availability()
+        # Read the status *now*, so the line below describes the re-probe rather
+        # than whatever refresh() saw before it.
+        status = next((s for s in tool_statuses() if s.key == key), None)
         self.refresh()
-        if missing:
-            self._status.setText(f"Still not found: {', '.join(t.name for t in missing)}")
-        else:
-            self._status.setText("Everything found — you can continue.")
+        if status is None:  # a key with no registered tool: the repaint says enough
+            return
+        self._status.setText(
+            f"Found {status.name}." if status.available else f"Still not found: {status.name}"
+        )
 
     def _on_install(self, url: str) -> None:
         """Open a tool's install page in the user's browser."""
@@ -727,7 +747,9 @@ class ToolsPage(SetupPage):
                 install.clicked.connect(lambda _checked=False, u=url: self._on_install(u))
                 line.addWidget(install)
             recheck = QPushButton("Re-check")
-            recheck.clicked.connect(lambda _checked=False: self._on_recheck())
+            # The row's own tool, not the page's gate: a *recommended* tool's row
+            # gets this button too, and only that tool's cache needs dropping.
+            recheck.clicked.connect(lambda _checked=False, k=status.key: self._on_recheck(k))
             line.addWidget(recheck)
 
         self._rows.addWidget(row)
@@ -760,8 +782,13 @@ class ToolsPage(SetupPage):
         return not _required_tools_missing()
 
     def validatePage(self) -> bool:  # noqa: N802 - Qt API
-        """Belt to :meth:`isComplete`'s braces, and the loud re-run failure."""
-        missing = self._recheck_required()
+        """Belt to :meth:`isComplete`'s braces, and the loud re-run failure.
+
+        Leaving the page re-probes *every* tool (see :meth:`_reprobe_tools`), which is
+        also what makes the main window's warning bar correct as soon as the wizard
+        closes: it re-reads the same cached answers.
+        """
+        missing = self._reprobe_tools()
         self.refresh()
         if not missing:
             return True

@@ -222,13 +222,57 @@ class StarnetTool(SirilTool):
                 self._starnet_available = True
         return self._starnet_available
 
+    def invalidate_availability(self) -> None:
+        """Forget the cached StarNet probe, so the next check re-probes.
+
+        This tool keeps its own cache (``_starnet_available``, plus
+        ``_starnet_dangling`` for a StarNet that has gone missing since the probe),
+        and ``is_available`` never reads ``ExternalTool._is_available``: the base
+        implementation would therefore clear Siril's cached answer while StarNet's
+        stayed behind.  The GUI setup wizard's *Re-check* button is the caller that
+        needs this - without the override it could never notice a StarNet installed
+        while the wizard was open.
+        """
+        self._starnet_available = None
+        # A stale path only describes the probe it was found in, so it goes with
+        # ``is_available``'s cached answer: a re-check that now succeeds must not
+        # keep reporting the last run's dead setting.
+        self._starnet_dangling = None
+        super().invalidate_availability()
+
     def missing_message(self) -> str:
-        """Explain which of the two StarNet prerequisites is missing."""
+        """Explain which of StarNet's prerequisites is missing.
+
+        Three cases need three different fixes, so they are checked in order: Siril
+        missing (nothing can run), StarNet missing (nothing to run), and StarNet
+        present but Siril not able to use it.  The install check is done here rather
+        than from the cached probe because "is StarNet installed *at all*" is
+        independent of what Siril's config says - a stale setting must not be
+        reported as an installed-but-misconfigured StarNet.
+        """
         if not super().is_available:
             # StarNet is a Siril plugin, so Siril has to come first.
             return (
                 f"StarNet is a Siril plugin, but Siril was not found.  Install Siril from "
                 f"{SIRIL_INSTALL_URL} and then StarNet from {self.install_url}"
+            )
+        if _find_starnet_executable() is None:
+            # No StarNet anywhere we look, so there is nothing for Siril to be pointed
+            # at yet and installing it is the only fix.
+            if self._starnet_dangling:
+                # Siril *does* name a StarNet, that install is simply gone - so the
+                # stale path is what the user will trip over.  Say both: the download
+                # to make, and the setting that is waiting for something else.
+                return (
+                    f"StarNet is not installed. Siril is configured to use "
+                    f"{self._starnet_dangling}, but that file no longer exists - install "
+                    f"StarNet from {self.install_url} and then point Siril at it "
+                    f"(Preferences > Miscellaneous)"
+                )
+            return (
+                f"StarNet is not installed. Starbash could not find a starnet2 executable "
+                f"on your PATH or in StarNet's usual install location; download and "
+                f"install it from {self.install_url}"
             )
         if self._starnet_dangling:
             return (

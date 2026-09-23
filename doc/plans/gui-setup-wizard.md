@@ -181,7 +181,9 @@ to per-page copies) so the two dynamic edges below live in one readable `switch`
   today, so §4 adds `Tool.invalidate_availability()` (a no-op on the base,
   `_is_available = None` on `ExternalTool`) and the *Re-check* button calls it for
   that tool before repainting the row. This is the one place in the wizard where
-  "just re-read it" is wrong.
+  "just re-read it" is wrong. A tool that caches its answer somewhere *else* has to
+  override `invalidate_availability()` for this to reach it — `StarnetTool` does
+  (`_starnet_available`), see §3.3.
 - **Pages 4 and 6 must re-read the world every time they are shown**, and this is
   *not* what `initializePage()` does here: we set `IndependentPages` (§3.1), whose
   documented meaning is that `initializePage()` is "only called the first time the
@@ -255,8 +257,22 @@ What the page shows per tool, reusing what already exists rather than new UI:
   gets the install link but does **not** block. A non-required missing tool also
   offers *Ignore*, which writes `tool.<key>.ignored` exactly as
   `MainWindow._on_ignore_tool` does, so the choice silences the CLI too.
-- A *Re-check* button per row clears that tool's cached availability and
-  re-probes (§3.1).
+- A *Re-check* button per row clears **that row's own** tool's cached availability
+  and re-probes (§3.1) — *not* the page's gating tools only. Re-checking is per tool
+  because the button sits on a row: a `RECOMMENDED` tool (StarNet) has a row and a
+  button too, so narrowing the invalidation to `severity >= REQUIRED` left its row
+  reading a cached answer for the rest of the session. The same trap exists on the
+  tool side, where a tool may keep a cache of its own beside `ExternalTool`'s
+  (`StarnetTool._starnet_available`, so it overrides
+  `Tool.invalidate_availability()`).
+- **Leaving the page re-probes *every* tool** (`validatePage()` →
+  `_reprobe_tools()`), for the same reason one step wider out: the probe results are
+  cached process-wide, and the main window's warning bar re-reads exactly those
+  answers (`ToolWarningPanel.refresh()`, via `reload_context()` as soon as the wizard
+  closes). Gating-only invalidation would leave a StarNet installed during the wizard
+  showing its old "missing" bar for the rest of the session unless the user happened
+  to press *Re-check* on that very row — *Next* has to be enough. It is cheap enough
+  for the GUI thread (filesystem lookups; no tool is ever executed to test it).
 
 Wording for the gate, kept next to the disabled button so it is never a mystery:
 *"Starbash needs Siril to calibrate and stack your images."* with the install link

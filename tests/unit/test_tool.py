@@ -1379,7 +1379,7 @@ class TestVeraluxFilter:
 
 
 class TestStarnetTool:
-    """Tests for StarnetTool.is_available (Siril StarNet plugin detection)."""
+    """Tests for StarnetTool.is_available / missing_message (Siril StarNet plugin detection)."""
 
     def _make_config(self, parent: Path, starnet_exe: str, version: str = "1.4") -> Path:
         """Create a Siril config directory under ``parent`` holding one versioned config file."""
@@ -1453,6 +1453,10 @@ class TestStarnetTool:
         message = tool.missing_message()
         assert gone_exe in message
         assert "no longer exists" in message
+        # The install is gone from the machine entirely (nothing on the PATH either),
+        # so the message has to lead with that - pointing Siril at "your StarNet
+        # install" would send the user looking for one that is not there.
+        assert "StarNet is not installed" in message
 
         # We must not silently rewrite a path the user (or we) chose - only a
         # blank setting is ever filled in.
@@ -1467,9 +1471,31 @@ class TestStarnetTool:
         assert tool.is_available is False
         # The explanation is now owned by missing_message() and reported at a log
         # level matching the tool's severity (see Tool.preflight), so a probe stays
-        # silent - the GUI/CLI decide how loud to be.
-        assert "StarNet is not enabled in Siril" in tool.missing_message()
+        # silent - the GUI/CLI decide how loud to be.  With no StarNet on the PATH
+        # either, the fix is to install it, not to configure Siril.
+        assert "StarNet is not installed" in tool.missing_message()
         assert tool.install_url == "https://starnetastro.com/cli-tools/"
+
+    def test_message_says_not_installed_only_when_starnet_is_really_absent(
+        self, tmp_path, monkeypatch
+    ):
+        """A StarNet we *can* find must not be reported as not installed.
+
+        Siril writes its config file the first time it runs, so a machine where
+        Starbash finds ``starnet2`` but there is no config file to record it in has
+        nothing left to fix on StarNet's side: telling the user to download it again
+        would be wrong, and the Siril-side setup is the real problem.
+        """
+        executable = self._make_exe(tmp_path)
+        config_dir = tmp_path / "siril"
+        config_dir.mkdir()
+        tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
+        monkeypatch.setattr("shutil.which", lambda name: str(executable))
+
+        assert tool.is_available is False
+        message = tool.missing_message()
+        assert "StarNet is not enabled in Siril" in message
+        assert "not installed" not in message
 
     def test_configures_starnet_from_path(self, tmp_path, monkeypatch, caplog):
         config_dir = self._make_config(tmp_path, "")
@@ -1521,6 +1547,13 @@ class TestStarnetTool:
         parser.read(config_dir / "config.1.4.ini")
         assert parser.get("core", "starnet_exe") == configured_path
 
+        # StarNet itself *is* installed (it is on the PATH above), so the message has
+        # to be the "this setting points at nothing" one - the opposite of the case
+        # where no StarNet can be found at all.
+        message = tool.missing_message()
+        assert configured_path in message
+        assert "not installed" not in message
+
     def test_unavailable_when_no_config_file(self, tmp_path, monkeypatch):
         config_dir = tmp_path / "siril"
         config_dir.mkdir()
@@ -1548,6 +1581,54 @@ class TestStarnetTool:
         monkeypatch.setattr(tool, "_starnet_configured", counting)
         assert tool.is_available is True
         assert calls["n"] == 0  # cached, not re-probed
+
+    # --- invalidating the cached probe (the wizard's *Re-check*) ---------------
+
+    def test_invalidate_availability_reprobes(self, tmp_path, monkeypatch):
+        """*Re-check* has to see a StarNet that was installed meanwhile.
+
+        ``is_available`` caches its first answer in ``_starnet_available`` - a field of
+        this class, which the inherited ``invalidate_availability()``
+        (``_is_available = None``) does not touch - so without the override the tool
+        would answer "missing" for the rest of the session.
+        """
+        config_dir = self._make_config(tmp_path, "")
+        tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
+        monkeypatch.setattr("shutil.which", lambda name: None)
+        assert tool.is_available is False
+
+        # The user installs StarNet while Starbash is running: it is on the PATH now.
+        executable = self._make_exe(tmp_path)
+        monkeypatch.setattr("shutil.which", lambda name: str(executable))
+        assert tool.is_available is False  # still the cached answer
+
+        tool.invalidate_availability()
+
+        assert tool.is_available is True
+
+    def test_invalidate_availability_clears_the_dangling_path(self, tmp_path, monkeypatch):
+        """A repaired setting stops being described as the dead path it used to be.
+
+        ``_starnet_dangling`` records what the *last* probe tripped over, so it has to
+        be dropped with the cached answer: otherwise a re-check that now succeeds would
+        still be carrying the stale path into the next ``missing_message()``.
+        """
+        gone_exe = str(tmp_path / "gone" / "starnet2")
+        config_dir = self._make_config(tmp_path, gone_exe)
+        tool = self._make_tool(monkeypatch, config_dir, siril_available=True)
+        executable = self._make_exe(tmp_path)
+        monkeypatch.setattr("shutil.which", lambda name: str(executable))
+
+        assert tool.is_available is False
+        assert gone_exe in tool.missing_message()
+        assert tool._starnet_dangling == gone_exe
+
+        # The user points Siril at the StarNet that is actually there.
+        self._make_config(tmp_path, str(executable))
+        tool.invalidate_availability()
+
+        assert tool.is_available is True
+        assert tool._starnet_dangling is None
 
     # --- which Siril config directory is read and written ----------------------
 

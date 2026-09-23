@@ -1,6 +1,57 @@
 # Active Context
 
-## Current work focus — the Windows exe must bundle the recipe helpers (**fixed 2026-09-22**, not committed)
+## Current work focus — StarNet says "not installed" when there is none (**implemented 2026-09-23**, not committed)
+
+`StarnetTool.missing_message()` gained a third case, checked **right after** the Siril
+one: when the live `_find_starnet_executable()` probe (`starnet2` on the PATH, or at
+the Windows installer's default path) finds nothing, the warning now says
+"StarNet is not installed … download and install it from <url>" instead of the old
+"StarNet is not enabled in Siril", which told the user to configure a StarNet that is
+not on the machine at all.
+
+- **Why the check is a live probe, not the cached config reading.** `starnet_exe` is
+  what Siril would *use*, not what is *installed*; a stale setting would otherwise be
+  reported as a present-but-misconfigured install.  Ordering is now: Siril missing →
+  StarNet missing → dangling `starnet_exe` → "not enabled in Siril".  With a stale
+  setting *and* no findable StarNet the two are combined - it leads with "not
+  installed" and still names the dead path, since that setting is what the user's next
+  attempt trips over.
+- **Tests** (`tests/unit/test_tool.py::TestStarnetTool`): the two existing
+  `missing_message()` assertions moved to the new text, one new test for the case that
+  must *not* say "not installed" (StarNet on the PATH, but no Siril config file to
+  record it in - the fix there is Siril-side), plus message assertions for the
+  StarNet-on-PATH-and-setting-stale case.  27 starnet tests green; full suite 1371
+  passed / 1 skipped with `just lint` clean.  (448 collection errors under
+  `private/processing/**` are this container's private-data I/O errors, not code.)
+- **Docs**: `doc/plans/tool-warnings.md` §*Honest probes* documents the new case, and
+  `doc/plans/gui-setup-wizard.md` §3.3/§4 the Re-check fix below.
+- **Second half, same day — the stale cache behind *Re-check*.**  Fixing the message
+  made the "still says missing after installing it" gap obvious, so it was fixed too:
+  `StarnetTool` caches in its *own* `_starnet_available` (never `_is_available`), so it
+  now overrides `invalidate_availability()` (dropping the cached answer *and*
+  `_starnet_dangling`, which only describes the probe it was found in); and the
+  wizard's per-row *Re-check* — which invalidated only `severity >= REQUIRED` tools,
+  leaving StarNet's row (a *recommended* tool that has a button of its own) reading a
+  cached answer for the rest of the session — now re-probes **its row's** tool:
+  `ToolsPage._on_recheck(key)`, wired in `_add_row`, reporting "Found <name>."/"Still
+  not found: <name>"; and leaving the page (`validatePage()` → `_reprobe_tools()`,
+  renamed from `_recheck_required`) now drops **every** tool's cache, not just the
+  gate's — the main window's warning bar re-reads those same cached answers the moment
+  the wizard closes (`reload_context()` → `ToolWarningPanel.refresh()`), so *Next* has
+  to be enough for a StarNet installed during the wizard, not just a click on that
+  row's *Re-check*.  Probes are filesystem lookups (no tool is ever executed to test
+  it), so re-running them on the GUI thread is cheap.
+  Tests: 2 new in `TestStarnetTool` (re-probe after invalidate; dangling cleared by
+  it), 3 new in `test_setup_wizard.py` (a *recommended* row re-probes its own tool and
+  not the gate; a still-missing row says so; leaving the page re-probes a *recommended*
+  tool so the warning bar cannot go stale) plus the existing Re-check test now passing
+  the row's key.
+- **Left alone** (not asked for; would be a UI addition): the main window's warning bar
+  has *Install*/*Ignore* but no *Re-check*, so a tool installed with the wizard closed
+  keeps its bar until the next `reload_context()` (a GUI restart, typically).  The
+  wizard is now the reliable path.
+
+## Previous work — the Windows exe must bundle the recipe helpers (**fixed 2026-09-22**, not committed)
 
 A `report_stack_osc` python stage failed inside the Windows exe with
 `ImportError: cannot import name 'report_registration' from 'starbash.recipes'

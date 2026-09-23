@@ -73,6 +73,34 @@ Starbash never rewrites a non-blank `starnet_exe`: auto-configuration fills in a
 blank one only, so repairing a stale value stays the user's decision - the
 warning just tells them how.
 
+`missing_message()` distinguishes three fixes, checked in order: Siril missing,
+StarNet **not installed**, then Siril not using a StarNet that is there.  The
+install check is a live `_find_starnet_executable()` probe (`starnet2` on the PATH
+or at StarNet's standard Windows installer path) rather than the cached
+config reading, because "is StarNet on this machine at all" is independent of what
+Siril's config says - without it, a stale `starnet_exe` was reported as if an
+install existed:
+
+> StarNet is not installed.  Starbash could not find a starnet2 executable on your
+> PATH or in StarNet's usual install location; download and install it from ...
+
+With *both* a stale setting and no StarNet findable, the message leads with "not
+installed" and still names the dead path, since that setting is what the user's
+next attempt trips over.
+
+**Re-checking a stale answer.**  ``is_available`` caches its first answer, so both
+front ends can drop that cache for a user who installs something while Starbash is
+open.  StarNet needed two fixes there:
+
+- ``StarnetTool`` caches in its **own** ``_starnet_available`` - the base
+  ``ExternalTool.invalidate_availability()`` clears ``_is_available``, which this
+  probe never reads - so it overrides the method, dropping that answer *and* the
+  ``_starnet_dangling`` path, which only describes the probe it was found in.
+- The wizard's per-row *Re-check* invalidated only the tools that gate the page
+  (``severity >= REQUIRED``), so StarNet's row - a *recommended* tool with a button
+  of its own - kept reading the cached answer for the rest of the session.  Each row
+  now re-probes its own tool (``ToolsPage._on_recheck(key)``).
+
 **Which config file is read (or written).**  Siril has two possible config homes,
 because a flatpak app cannot see `~/.config`: a native (distro/AppImage) install
 uses `~/.config/siril`, the flatpak app uses the config home inside its sandbox,
