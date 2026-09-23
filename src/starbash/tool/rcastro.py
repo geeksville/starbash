@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import sys
 from typing import Any
 
 from starbash.tool.base import (
@@ -66,6 +67,8 @@ class RCAstroTool(ExternalTool):
             # plenty of workflows never use them.
             ToolSeverity.OPTIONAL,
         )
+        if sys.platform == "win32":
+            self.commands.append(r"C:\Program Files\RC-Astro\CLI\rc-astro.exe")
 
     def set_defaults(self) -> None:
         super().set_defaults()
