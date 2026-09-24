@@ -1804,6 +1804,34 @@ class TestStarnetTool:
 
         assert tool._siril_config_dirs() == [same]
 
+    def test_native_config_dir_drops_the_author_folder(self, monkeypatch):
+        """``_siril_config_dir`` must pass ``appauthor=False`` to platformdirs.
+
+        On Windows platformdirs appends the app author (which defaults to the app
+        name) *and* the app name, so ``PlatformDirs("siril")`` would resolve to
+        ``AppData\\Local\\siril\\siril`` — a doubled folder.  Siril keeps its config
+        in ``AppData\\Local\\siril`` (single level), so the author directory must be
+        dropped.  ``appauthor`` is ignored on Linux/macOS, so this is safe everywhere.
+        """
+        from starbash.tool import starnet
+
+        captured: dict = {}
+
+        class _FakePlatformDirs:
+            def __init__(self, appname, **kwargs):
+                captured["appname"] = appname
+                captured["kwargs"] = kwargs
+
+            @property
+            def user_config_dir(self):
+                return "/fake/config/siril"
+
+        monkeypatch.setattr(starnet, "PlatformDirs", _FakePlatformDirs)
+
+        assert starnet.StarnetTool._siril_config_dir() == Path("/fake/config/siril")
+        assert captured["appname"] == "siril"
+        assert captured["kwargs"].get("appauthor") is False
+
 
 class TestRecipeParameterDefaults:
     """Check that recipe script parameter references are declared.

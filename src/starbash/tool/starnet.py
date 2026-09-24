@@ -66,8 +66,15 @@ class StarnetTool(SirilTool):
 
     @staticmethod
     def _siril_config_dir() -> Path:
-        """Location of the config directory of a natively installed Siril (OS-appropriate)."""
-        return Path(PlatformDirs("siril").user_config_dir)
+        """Location of the config directory of a natively installed Siril (OS-appropriate).
+
+        ``appauthor=False`` matters on Windows: platformdirs appends the app author
+        (which defaults to the app name) *and* the app name, so ``PlatformDirs("siril")``
+        would resolve to ``AppData\\Local\\siril\\siril``.  Siril keeps its config in
+        ``AppData\\Local\\siril`` (single level), so the author directory is dropped.
+        On Linux/macOS ``appauthor`` is ignored, so this is safe everywhere.
+        """
+        return Path(PlatformDirs("siril", appauthor=False).user_config_dir)
 
     @staticmethod
     def _siril_flatpak_config_dir() -> Path:
