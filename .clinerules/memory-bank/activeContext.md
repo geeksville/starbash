@@ -1,5 +1,56 @@
 # Active Context
 
+## Current work focus — the Windows integration job restored a `.venv` with no dev deps (**fixed 2026-09-30**)
+
+`integration-test (windows-latest)` died on the step's first command: `poetry run pytest`
+printed cmd.exe's `'pytest' is not recognized as an internal or external command` and exited 1
+before any test ran (so the log-artifact upload then warned "No files were found with the
+provided path").
+
+- **Root cause — a shared `.venv` cache key plus a skipped install.** `integration.yml` and
+  `ci.yml` build the *same* `actions/cache` key
+  (`venv-${{ matrix.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}`)
+  for `.venv`, and `poetry.toml` (tracked) pins the venv in-project
+  (`[virtualenvs] in-project = true`), so the restored `.venv` *is* the venv poetry uses.
+  `ci.yml`'s Windows job ends with `poetry sync --without dev` (to build the installer) and the
+  cache post-step then saves that dev-less `.venv`; `integration.yml` still carried
+  `if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'` on its
+  `poetry install --with dev`, so a cache hit skipped the install and pytest was simply absent.
+  **Only Windows failed**: that `sync --without dev` step is Windows-only, so the Linux/macOS
+  caches stayed complete. The poisoned key appeared on 2026-09-21, when `82d0968` bumped
+  3.12→3.14: a fresh key meant a ci.yml Windows cache *miss*, and the first save wrote the
+  stripped venv. (`integration.yml` is `workflow_dispatch`-only, so it sat waiting for the next
+  manual run.)
+- **Fix (three parts).** (1) Drop the `if:` from `integration.yml` → *Install dependencies* —
+  exactly what `c90180b` had already done to `ci.yml` for the same reason — with a comment
+  naming the shared key and the packaging step. (2) Stop the poisoning at the source: `ci.yml`'s
+  Windows job now runs `poetry install --with dev` *after* the installer is built
+  (`if: always()`, so it also runs when the build failed), which is the state the cache
+  post-step saves — the shared key is trustworthy again for every consumer, so no second
+  `venv-int-…` key was added (that would have meant three more ~450 MB caches instead of
+  fixing the invariant). (3) The Windows integration step now runs
+  `poetry run python -m pytest`, so a future missing dev group reports `No module named pytest`
+  rather than cmd.exe's opaque message.
+- **Why the error is so opaque.** poetry's `Env.execute()` sets `shell=True` on Windows, and
+  `Env._bin()` falls back to the **bare** word when `<venv>/Scripts/<tool>.exe` is missing, so
+  cmd.exe reports `'pytest'` (not a path) and poetry's own friendly `Command not found: pytest`
+  never appears (that is the non-Windows `os.execvpe` branch). Both branches were reproduced
+  locally with a scratch in-project venv that had no dev group — on Linux it silently ran
+  *another* venv's pytest from PATH, which is precisely why the missing-dependency state is so
+  easy to misread.
+- Verified: the workflow YAML parses and `Install dependencies` now has no `if`; a scratch
+  in-project venv reproduced the whole chain end to end (`poetry install --with dev` → the dev
+  dep is present, `poetry sync --without dev` → it is *gone*, `poetry install --with dev` →
+  back). No Python changed, so `just lint` was not run; confirming the Windows job itself needs
+  a `workflow_dispatch` run.
+- Also fixed while here: the Windows poetry bootstrap hardcoded
+  `%APPDATA%\Python\Python312\Scripts` long after `setup-python` moved to 3.14. It now asks the
+  interpreter (`sysconfig.get_path('scripts', 'nt_user')` — pip's own `--user` scheme on
+  Windows: `pip/_internal/locations/_sysconfig.py::_infer_user` builds `f"{os.name}_user"`),
+  falls back to finding `poetry.exe` under `%APPDATA%\Python` if it landed elsewhere
+  (`PYTHONUSERBASE`), and fails the step loudly if it is nowhere. Applied to **both** workflows,
+  which carry byte-identical copies of that step.
+
 ## Current work focus — a stage conflict excluded a stage *after* its consumers were built (**implemented 2026-09-30**)
 
 The integration workflow's `sb process auto` was failing to process target **m20**

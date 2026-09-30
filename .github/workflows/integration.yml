@@ -47,8 +47,22 @@ jobs:
           # pipx warns about spaces in paths (e.g., "C:\Program Files (x86)\pipx_bin").
           & python -m pip install --upgrade pip
           & python -m pip install --user poetry
-          # Add the user Scripts directory to PATH so poetry.exe is available
-          $scriptsPath = [System.IO.Path]::Combine($env:APPDATA, "Python", "Python312", "Scripts")
+          # Add the user Scripts directory to PATH so poetry.exe is available. Ask the
+          # interpreter where pip actually put it rather than hardcoding a version:
+          # this said "Python312" long after setup-python moved to 3.14 (the directory
+          # is %APPDATA%\Python\Python<major><minor>\Scripts - pip's "nt_user" scheme).
+          $scriptsPath = & python -c "import sysconfig; print(sysconfig.get_path('scripts', 'nt_user'))"
+          $scriptsPath = "$scriptsPath".Trim()
+          if (-not (Test-Path (Join-Path $scriptsPath "poetry.exe"))) {
+            # PYTHONUSERBASE or a preferred scheme could move it, so look before giving up.
+            $found = Get-ChildItem -Path (Join-Path $env:APPDATA "Python") -Filter poetry.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) {
+              $scriptsPath = $found.DirectoryName
+            } else {
+              Write-Host "ERROR: poetry.exe not found in $scriptsPath nor under $env:APPDATA\Python"
+              exit 1
+            }
+          }
           Add-Content -Path $env:GITHUB_PATH -Value $scriptsPath
           Write-Host "Added to PATH: $scriptsPath"
 
@@ -63,10 +77,17 @@ jobs:
           key: venv-${{ matrix.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       #----------------------------------------------
-      # Install dependencies if cache does not exist
+      # Synchronize dependencies after restoring the cache - never trust the cached
+      # .venv to be complete. This key is the same one ci.yml uses, and ci.yml's
+      # Windows job strips the dev group out of that venv (`poetry sync --without
+      # dev`) to build the installer, so a cache hit used to leave `poetry run
+      # pytest` with a venv that has no pytest at all ("'pytest' is not recognized
+      # as an internal or external command") - and poetry.toml pins the venv
+      # in-project (.venv), so the restored .venv *is* the one poetry uses.
+      # ci.yml now reinstalls the dev group before its job ends (that is the state
+      # the cache post-step saves); this step is the belt to that braces.
       #----------------------------------------------
       - name: Install dependencies
-        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --with dev
 
       #----------------------------------------------
@@ -266,7 +287,13 @@ jobs:
           STARBASH_LOG_DIR: ${{ runner.temp }}
         run: |
           $env:STARBASH_TEST_DATA = "$env:TEMP\test-data"
-          poetry run pytest -m integration -n 0 -v  --junit-xml=pytest.xml
+          # `python -m pytest`, not the `pytest` shim: it runs the venv's own
+          # interpreter, so a missing dev group reports "No module named pytest"
+          # instead of cmd.exe's opaque "'pytest' is not recognized as an internal
+          # or external command, operable program or batch file." (poetry sets
+          # shell=True on Windows, and falls back to the bare name when the
+          # executable is missing from the venv.)
+          poetry run python -m pytest -m integration -n 0 -v  --junit-xml=pytest.xml
 
       #----------------------------------------------
       # Post integration test log to job summary
