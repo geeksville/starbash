@@ -72,7 +72,7 @@ sb = "starbash.main:app"       # std alias for convenience
 
 [tool.pytest.ini_options]
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "slow: marks tests that take >10s in the default '-n auto' run (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests requiring /test-data (deselect with '-m \"not integration\"')",
     "gui: marks tests that build real Qt widgets (offscreen; deselect with '-m \"not gui\"')",
     "gui_integration: marks the scripted gui_integration movie runs (needs ffmpeg + /test-data; deselect with '-m \"not gui_integration\"')",

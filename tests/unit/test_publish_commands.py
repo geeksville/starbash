@@ -3,6 +3,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from typer.testing import CliRunner
 
 from starbash.main import app
@@ -50,6 +51,7 @@ def test_dry_run_does_not_require_a_credential(tmp_path):
     assert "Gemfile" not in result.stdout
 
 
+@pytest.mark.slow
 def test_github_login_starts_analytics_span():
     """GitHub device authentication is recorded as an analytics span."""
     from starbash.commands import publish

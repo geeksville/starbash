@@ -15,6 +15,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: The failure the CI runner produced: PySide6 present, its libEGL missing.
@@ -72,6 +74,7 @@ def test_a_missing_system_library_reports_the_fix(tmp_path):
         assert "apt-get" not in output
 
 
+@pytest.mark.slow
 def test_non_gui_tests_still_run_when_qt_cannot_load(tmp_path):
     """The documented workaround really works: no Qt, no pytest-qt, no GUI tests."""
     result = _run_pytest_with_broken_qt(

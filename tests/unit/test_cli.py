@@ -652,6 +652,7 @@ def test_user_help_commands():
     assert result.exit_code == 0
 
 
+@pytest.mark.slow
 def test_selection_commands(setup_test_environment):
     """Test 'starbash select' commands - should not crash."""
     # Clear any existing selection first
