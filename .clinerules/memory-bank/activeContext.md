@@ -1,5 +1,65 @@
 # Active Context
 
+## Current work focus — a stage conflict excluded a stage *after* its consumers were built (**implemented 2026-09-30**)
+
+The integration workflow's `sb process auto` was failing to process target **m20**
+in a way nothing noticed: the run exited 0, the results table had >= 10 `Success`
+rows, and only the raw log showed the damage —
+
+```
+Target 3/4: m20
+Processing 37 task(s)
+crop: crop_m20_i3
+Python Script Error ... No such file or directory: .../processed/m20/stacked_Sii.fits
+Success crop: crop_m20_i3        # the CLI log line; the doit task really failed
+```
+
+— after which every other m20 stage stayed `Pending` (the summary table's
+`crop_m20_i3` row is the only non-`Success`/`Pending` one, and it reads `Failed`).
+
+- **Root cause.** Two stages may claim the same output file
+  (`stack_single_duo` and `stack_dual_duo` both write `stacked_Ha.fits` /
+  `stacked_OIII.fits`).  `Processing.preflight_tasks()` kept the higher-priority
+  one and persisted the rest as `excluded = true` — but it ran *after*
+  `_stages_to_tasks()` had built the graph, and `common/crop.toml` multiplexes
+  over **every** `stack_.*` output (`after = "stack_.*"`, `multiplex = true`), so
+  the first pass had already created `crop_m20_i3` on `stacked_Sii.fits` — a file
+  only the losing `stack_dual_duo` produces.  doit treats the missing `file_dep`
+  as "needs running", the crop script dies on `FileNotFoundError`, the task fails
+  and doit abandons the rest of the target.  A *second* run is fine (by then
+  `select_stages()` drops the loser before any task exists) — the bug was
+  **first-run-only**.
+- **Fix.** The conflict code moved out of `preflight_tasks()` into
+  `Processing._exclude_conflicting_stages(pt, tasks) -> bool` (the same logic, now
+  also reporting whether it newly excluded anything), and `_job_to_tasks()` now
+  builds through `Processing._build_target_tasks(pt)`: select -> sort -> build ->
+  if a conflict excluded a stage, clear `doit.dicts` and build again.  Pass 2
+  re-runs `select_stages()` with the exclusion just recorded, so neither the loser
+  nor its consumers exist — exactly the graph a later run produces.  Each pass
+  excludes >= 1 more stage, so the loop terminates.
+- **Why not prune orphans instead.** Cascading a prune by `file_dep` cannot tell
+  "gone" from "now produced by the winner" (the loser's `stacked_Ha.fits` *is*
+  still produced), so it would have deleted the healthy `crop_m20_i1`/`i2` too; and
+  a consumer needing only *some* of the loser's files (`report_duo` reads the
+  shared `r_all_ha_.seq`) should keep running.  Excluding before the rebuild is
+  precise.
+- **Tests.** `tests/unit/test_processing.py::TestExcludeConflictingStages` (3) and
+  `::TestBuildTargetTasksConflictRebuild` (1: the graph is built twice, the loser's
+  consumer is gone, the winner's survive, nothing depends on `stacked_Sii.fits`).
+  `tests/integration/test_workflow.py::test_verify_process_auto_executes` now
+  asserts the summary table has **no** row matching `│ Failed │` — the failure was
+  invisible without it.
+- **Verified live** (no pytest, temp dirs + `/test-data/nina` + `repo add --master`
+  / `--processed` + `sb --force process masters`): first-run graph before = 36
+  tasks incl. the doomed `crop_m20_i3`, and running it executed *only* crop_i3
+  (`success=False`); after = 32 tasks and m20 processes end to end — 31 results,
+  **all** `success=True`, `SHO.fits`/`HOO.fits`/`merged_*`/thumbnails all written
+  and no task left referencing `stacked_Sii.fits`.  The one task that did not run
+  is `seqextract_haoiii_m20_s4`, whose only consumer was the excluded
+  `stack_dual_duo` — correctly unneeded now.  Re-building the same dir again
+  yields the same 32-task graph (idempotent).
+- Plan/design record: `doc/plans/stage-conflict-exclusion.md`.
+
 ## Current work focus — StarNet says "not installed" when there is none (**implemented 2026-09-23**, not committed)
 
 `StarnetTool.missing_message()` gained a third case, checked **right after** the Siril

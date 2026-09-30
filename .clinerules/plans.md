@@ -64,3 +64,12 @@ Implementation and design plans live in `doc/plans/*.md` and are tracked in git.
   teardown hook flushes the pending `DeferredDelete` events and collects widget garbage
   on the GUI thread, plus `workers.guard_callback` for job callbacks PySide cannot tie
   to a receiver (`partial`/lambda). **Implemented 2026-09-15.**
+- `doc/plans/stage-conflict-exclusion.md` — a stage conflict (two stages writing the
+  same target file, e.g. `stack_single_duo` vs `stack_dual_duo`) was resolved in
+  `preflight_tasks()` *after* the task graph was built, so the losing stage's
+  consumers survived — `crop` multiplexes over every `stack_.*` output, so a
+  first-run target got a `crop` task on a file nobody would create, failed, and the
+  whole target was abandoned. Fix: `_exclude_conflicting_stages()` returns "newly
+  excluded" and `_build_target_tasks()` rebuilds the graph until it is clean.
+  **Implemented 2026-09-30**; the integration auto-workflow test now also fails on any
+  `Failed` row in the summary table.

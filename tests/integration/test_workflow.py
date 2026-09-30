@@ -326,6 +326,17 @@ class TestProcessAutoWorkflow:
             f"Output:\n{output}"
         )
 
+        # A "Failed" status in the summary table means a task errored (or tried to
+        # consume a file a skipped stage never produced) and that stage - and
+        # everything after it - never completed.  The run's exit code stays 0 for
+        # that, so the table is the only place it shows up: fail the test here.
+        failed_rows = [line for line in output.split("\n") if re.search(r"│\s*Failed\s*│", line)]
+        assert not failed_rows, (
+            "Expected no failed stages in the auto-processing results, found:\n"
+            + "\n".join(failed_rows)
+            + f"\nOutput:\n{output}"
+        )
+
     def test_verify_workflow_completion(self, workflow_environment):
         """Verify the complete workflow has run successfully.
 

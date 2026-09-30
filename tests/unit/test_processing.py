@@ -1004,6 +1004,183 @@ class TestRemoveMissingToolTasks:
         assert len(warnings) == 1
 
 
+class TestExcludeConflictingStages:
+    """A target file may only be produced by one stage; the rest are excluded."""
+
+    #: Two stacking recipes that both claim stacked_Ha/stacked_OIII (the real
+    #: stack_single_duo/stack_dual_duo pair), plus the loser's extra channel.
+    _SINGLE = ["/out/stacked_Ha.fits", "/out/stacked_OIII.fits"]
+    _DUAL = ["/out/stacked_Ha.fits", "/out/stacked_OIII.fits", "/out/stacked_Sii.fits"]
+
+    @staticmethod
+    def _task(name: str, stage_name: str, targets: list[str]) -> dict:
+        return {
+            "name": name,
+            "file_dep": [],
+            "targets": list(targets),
+            "meta": {"stage": {"name": stage_name, "priority": 0}, "context": {}},
+        }
+
+    def _processing_with_target(self) -> tuple[Any, Any]:
+        from types import SimpleNamespace
+
+        from starbash.processing import Processing
+
+        # Bypass __init__; the method only relies on module-level helpers.
+        proc = Processing.__new__(Processing)
+        return proc, SimpleNamespace(default_stages={})
+
+    def test_lower_priority_producer_is_excluded(self):
+        """The stage that loses the conflict is recorded as excluded."""
+        from starbash.stages import is_excluded
+
+        proc, pt = self._processing_with_target()
+        single = self._task("stack_single_duo_m20", "stack_single_duo", self._SINGLE)
+        single["meta"]["stage"]["priority"] = 320
+        dual = self._task("stack_dual_duo_m20", "stack_dual_duo", self._DUAL)
+
+        newly = proc._exclude_conflicting_stages(pt, [single, dual])
+
+        assert newly is True
+        assert is_excluded(pt.default_stages, "stack_dual_duo")
+        assert not is_excluded(pt.default_stages, "stack_single_duo")
+
+    def test_no_conflict_reports_no_new_exclusion(self):
+        """One producer per file is the common case: nothing is excluded."""
+        from starbash.stages import is_excluded
+
+        proc, pt = self._processing_with_target()
+        single = self._task("stack_single_duo_m20", "stack_single_duo", self._SINGLE)
+
+        assert proc._exclude_conflicting_stages(pt, [single]) is False
+        assert not is_excluded(pt.default_stages, "stack_single_duo")
+
+    def test_second_pass_reports_nothing_new(self):
+        """Once the loser is excluded the rebuild converges (no infinite loop)."""
+        proc, pt = self._processing_with_target()
+        single = self._task("stack_single_duo_m20", "stack_single_duo", self._SINGLE)
+        single["meta"]["stage"]["priority"] = 320
+        dual = self._task("stack_dual_duo_m20", "stack_dual_duo", self._DUAL)
+
+        assert proc._exclude_conflicting_stages(pt, [single, dual]) is True
+        # The rebuilt graph contains only the winner, so there is nothing to do.
+        assert proc._exclude_conflicting_stages(pt, [single]) is False
+
+
+class TestBuildTargetTasksConflictRebuild:
+    """A conflict found while preflighting must not leave doomed consumers behind.
+
+    Regression: the conflict was resolved *after* the task graph was built, so a
+    consumer multiplexing over the losing stage's outputs survived (``crop``
+    multiplexes over every ``stack_.*`` output).  doit then ran that consumer
+    against a file nobody would create, the task failed, and the target was
+    abandoned.
+    """
+
+    HA = "/out/stacked_Ha.fits"
+    OIII = "/out/stacked_OIII.fits"
+    SII = "/out/stacked_Sii.fits"
+
+    @staticmethod
+    def _task(name: str, stage_name: str, targets: list[str], file_dep: list[str]) -> dict:
+        return {
+            "name": name,
+            "file_dep": list(file_dep),
+            "targets": list(targets),
+            "meta": {"stage": {"name": stage_name}, "context": {}},
+        }
+
+    def test_rebuild_drops_the_consumer_of_the_excluded_stage(self, monkeypatch):
+        from starbash.processing import Processing
+        from starbash.stages import is_excluded
+
+        catalog: list[dict[str, Any]] = [
+            {"name": "light", "priority": 100},
+            {
+                "name": "stack_single_duo",
+                "priority": 320,
+                "inputs": [{"kind": "job", "after": "light"}],
+            },
+            {"name": "stack_dual_duo", "inputs": [{"kind": "job", "after": "light"}]},
+            {
+                "name": "crop",
+                "inputs": [{"kind": "job", "after": "stack_.*", "multiplex": True}],
+            },
+        ]
+
+        class FakeDoit:
+            dicts: dict[str, Any] = {}
+
+            def set_tasks(self, tasks: list[dict]) -> None:
+                self.dicts = {t["name"]: t for t in tasks}
+
+        class FakePt:
+            def __init__(self) -> None:
+                self.default_stages: dict[str, Any] = {}
+                self.run_stages: list[dict] | None = None
+
+            def set_run_stages(self, stages: list[dict]) -> None:
+                self.run_stages = stages
+
+        def build(stages: list[dict]) -> None:
+            """Stand-in for _stages_to_tasks: one producer per surviving stack
+            stage, plus a crop task per file those producers will write."""
+            names = {s["name"] for s in stages}
+            tasks: list[dict] = []
+            if "stack_single_duo" in names:
+                tasks.append(
+                    self._task("stack_single_duo_m20", "stack_single_duo", [self.HA, self.OIII], [])
+                )
+            if "stack_dual_duo" in names:
+                tasks.append(
+                    self._task(
+                        "stack_dual_duo_m20",
+                        "stack_dual_duo",
+                        [self.HA, self.OIII, self.SII],
+                        [],
+                    )
+                )
+            produced = sorted({f for t in tasks for f in t["targets"]})
+            for index, produced_file in enumerate(produced):
+                tasks.append(
+                    self._task(
+                        f"crop_m20_i{index}",
+                        "crop",
+                        [f"/out/crop_{Path(produced_file).name}"],
+                        [produced_file],
+                    )
+                )
+            proc.doit.set_tasks(tasks)
+
+        proc: Any = Processing.__new__(Processing)
+        proc.doit = FakeDoit()
+        proc._tool_available = lambda name: True  # type: ignore[method-assign]
+        monkeypatch.setattr(type(proc), "stages", property(lambda self: catalog))
+
+        calls: list[int] = []
+
+        def build_and_count(stages: list[dict]) -> None:
+            calls.append(1)
+            build(stages)
+
+        proc._stages_to_tasks = build_and_count  # type: ignore[method-assign]
+        proc.preflight_tasks = lambda tasks: tasks  # type: ignore[method-assign]
+
+        pt = FakePt()
+        tasks = proc._build_target_tasks(pt)
+
+        # The graph was rebuilt once, with the loser of the conflict excluded...
+        assert len(calls) == 2
+        assert is_excluded(pt.default_stages, "stack_dual_duo")
+        names = {t["name"] for t in tasks}
+        assert "stack_dual_duo_m20" not in names
+        # ...so the crop task consuming its unique output is gone as well...
+        assert "crop_m20_i2" not in names
+        # ...while the winner's crops survive and nothing left depends on Sii.
+        assert {"crop_m20_i0", "crop_m20_i1"} <= names
+        assert all("stacked_Sii.fits" not in str(dep) for t in tasks for dep in t["file_dep"])
+
+
 class TestMastersNeededBy:
     """Tests for the masters_needed_by() dependency closure."""
 

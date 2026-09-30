@@ -452,7 +452,9 @@ The direction is settled (above), so role selection simply follows `sort_stages(
 Worth knowing for Option B's record: the stackers **do** conflict:
 `stack_single_duo` and `stack_dual_duo` both write `stacked_Ha.fits`/`stacked_OIII.fits`,
 and `preflight_tasks()` keeps `conflicting_stages[0]` — i.e. today `dual_duo` (330)
-beats `single_duo` (320).
+beats `single_duo` (320).  (That code now lives in
+`Processing._exclude_conflicting_stages()`, and it runs *before* the graph's
+consumers are built — see `doc/plans/stage-conflict-exclusion.md`.)
 
 * **(A) Keep the code's rule; use higher-wins for roles too. — CHOSEN.** Zero
   behaviour change, no recipe renumbering; `guide.md:157` fixed instead. (The

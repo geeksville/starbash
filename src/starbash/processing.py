@@ -861,7 +861,35 @@ class Processing(ProcessingLike):
 
         with ProcessedTarget(self, target) as pt:
             pt.config_valid = False  # assume our config is not worth writing
+            tasks = self._build_target_tasks(pt)
+            self.doit.set_tasks(tasks)
+            # self.doit.run(
+            #     [
+            #         "info",
+            #         "process_all",  # "stack_m20",  # seqextract_haoiii_m20_s35
+            #     ]
+            # )
+            # self.doit.run(["dumpdb"])
+            pt.config_valid = True  # our config is probably worth keeping
 
+    def _build_target_tasks(self, pt: ProcessedTarget) -> list[TaskDict]:
+        """Build a target's task graph, rebuilding it when a stage conflict appears.
+
+        Role selection happens *before* any task is created (so the branch of the
+        losing implementation never materialises), but a conflict over an output
+        *file* can only be seen once the tasks - and therefore the files they
+        claim - exist.  When the first pass has to exclude a stage, consumers
+        built in that pass were already given outputs it will never produce:
+        ``crop`` multiplexes over every ``stack_.*`` output, so a stacking recipe
+        that loses a conflict still shows up as a ``crop`` task on a file nobody
+        will create.  doit treats the missing file as "needs running", the task
+        runs and fails, and the rest of the target is abandoned.  So re-select
+        with the exclusion just recorded and build again - that second pass is
+        exactly the graph a subsequent run would produce.
+
+        Every pass excludes at least one more stage, so this terminates.
+        """
+        for _ in range(len(self.stages) + 1):
             # Pick one implementation per stage 'role' *before* any task is created,
             # so the branch of the losing implementation never materialises and
             # downstream stages follow the winner.  This is also what lets a recipe
@@ -877,6 +905,7 @@ class Processing(ProcessingLike):
             # Sort what survived: a consumer's 'after' may now name a role, or a
             # dropped role member (which redirects onto the winner).
             stages = sort_stages(selection.stages, resolve=selection.resolve)
+            self.doit.set_tasks([])  # a rebuild must not keep the previous pass's tasks
             self._stages_to_tasks(stages)
 
             # Every stage in the merged recipe catalog gets a candidate task, but
@@ -884,17 +913,15 @@ class Processing(ProcessingLike):
             # skips stages with insufficient inputs).  Record the relevant ones so
             # the live run tree lists only what applies to *this* target.
             candidate_tasks = self.tasks
-            pt.set_run_stages(tasks_to_stages(candidate_tasks))
+            if self._exclude_conflicting_stages(pt, candidate_tasks):
+                continue  # that pass still consumed the excluded stage; build again
 
-            self.doit.set_tasks(self.preflight_tasks(pt, candidate_tasks))
-            # self.doit.run(
-            #     [
-            #         "info",
-            #         "process_all",  # "stack_m20",  # seqextract_haoiii_m20_s35
-            #     ]
-            # )
-            # self.doit.run(["dumpdb"])
-            pt.config_valid = True  # our config is probably worth keeping
+            pt.set_run_stages(tasks_to_stages(candidate_tasks))
+            return self.preflight_tasks(candidate_tasks)
+
+        raise RuntimeError(  # pragma: no cover - each pass excludes at least one stage
+            "stage conflict resolution never converged"
+        )
 
     @property
     def stages(
@@ -1546,19 +1573,26 @@ class Processing(ProcessingLike):
 
         return [t for t in tasks if tool_available(t)]
 
-    def preflight_tasks(self, pt: ProcessedTarget, tasks: list[TaskDict]) -> list[TaskDict]:
-        # if user has excluded any stages, we need to respect that (remove matching stages)
-        tasks = remove_excluded_tasks(tasks)
+    def _exclude_conflicting_stages(self, pt: ProcessedTarget, tasks: list[TaskDict]) -> bool:
+        """Exclude all but one producer of each target file.
 
-        # drop any stages whose required tool isn't installed on this machine
-        tasks = self._remove_missing_tool_tasks(tasks)
+        A file may only be written by one stage.  When several stages claim the
+        same one (two stacking recipes that both produce ``stacked_Ha.fits``, say)
+        the first task - the list arrives in priority order - keeps it and every
+        other claimant is recorded as excluded in the target's (or the session's)
+        ``[[stages]]`` config, exactly as a user exclusion would be.
 
+        Returns True when a stage was newly excluded, because the task graph the
+        caller just built still contains *consumers* of that stage and has to be
+        rebuilt (see ``_build_target_tasks``).
+        """
         # multimap from target file to tasks that produce it
         target_to_tasks = MultiDict[TaskDict]()
         for task in tasks:
             for target in task.get("targets", []):
                 target_to_tasks.add(target, task)
 
+        newly_excluded = False
         # check for tasks that are writing to the same target (which is not allowed).  If we
         # find such tasks we'll have to pick ONE based on priority and let the user know in the future
         # they could pick something else.
@@ -1582,9 +1616,26 @@ class Processing(ProcessingLike):
                 session = task_to_session(producing_tasks[0])
                 if not session:
                     session = pt.default_stages
+                if any(
+                    not is_excluded(session, stage.get("name", "")) for stage in stages_to_exclude
+                ):
+                    newly_excluded = True
                 mark_excluded(session, stages_to_exclude)
 
-                tasks = remove_excluded_tasks(tasks)
+        return newly_excluded
+
+    def preflight_tasks(self, tasks: list[TaskDict]) -> list[TaskDict]:
+        """Apply the target's exclusions and tool availability to a built graph.
+
+        A stage that loses a conflict over an output file is handled earlier, by
+        ``_build_target_tasks``: that exclusion must be known *before* consumers
+        are built (see ``_exclude_conflicting_stages``).
+        """
+        # if user has excluded any stages, we need to respect that (remove matching stages)
+        tasks = remove_excluded_tasks(tasks)
+
+        # drop any stages whose required tool isn't installed on this machine
+        tasks = self._remove_missing_tool_tasks(tasks)
 
         set_used_stages_from_tasks(tasks)
 
