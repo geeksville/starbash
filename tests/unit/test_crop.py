@@ -14,17 +14,32 @@ class TestCropRectangle:
     def test_calculates_centered_eighty_percent_crop(self):
         assert crop.crop_rectangle(1000, 800) == (100, 80, 800, 640)
 
-    def test_full_percent_keeps_the_complete_image(self):
-        assert crop.crop_rectangle(101, 99, "100%", "100%") == (0, 0, 101, 99)
+    def test_full_percent_rounds_both_dimensions_to_a_multiple_of_16(self):
+        # 101x99 is not aligned, so each axis drops to 96 and the rectangle stays
+        # centered.
+        assert crop.crop_rectangle(101, 99, "100%", "100%") == (2, 1, 96, 96)
 
-    def test_uses_explicit_maximum_dimensions(self):
-        assert crop.crop_rectangle(1000, 800, 600, 400) == (200, 200, 600, 400)
+    def test_rounds_dimensions_down_to_the_nearest_multiple_of_16(self):
+        # 600 -> 592; 400 is already aligned.
+        assert crop.crop_rectangle(1000, 800, 600, 400) == (204, 200, 592, 400)
+
+    def test_rounds_percentage_dimensions_down_to_a_multiple_of_16(self):
+        # 85% of 1000 is 850, which drops to 848; 100% of 800 is already aligned.
+        assert crop.crop_rectangle(1000, 800, "85%", "100%") == (76, 0, 848, 800)
+
+    def test_rounds_height_down_to_a_multiple_of_16(self):
+        # 1000 -> 992 (x offset 4); 813 -> 800 (y offset 6).
+        assert crop.crop_rectangle(1000, 813, "100%", "100%") == (4, 6, 992, 800)
+
+    def test_leaves_already_aligned_dimensions_untouched(self):
+        assert crop.crop_rectangle(1000, 800, 800, 400) == (100, 200, 800, 400)
 
     def test_clamps_explicit_dimensions_to_source(self):
-        assert crop.crop_rectangle(1000, 800, 1200, 900) == (0, 0, 1000, 800)
+        # 1000 is not aligned, so a full-width request still yields 992.
+        assert crop.crop_rectangle(1000, 800, 1200, 900) == (4, 0, 992, 800)
 
     def test_accepts_numeric_strings_as_pixels(self):
-        assert crop.crop_rectangle(1000, 800, "600", "400") == (200, 200, 600, 400)
+        assert crop.crop_rectangle(1000, 800, "600", "400") == (204, 200, 592, 400)
 
     def test_supports_mixed_percentage_and_pixel_sizes(self):
         assert crop.crop_rectangle(1000, 800, "80%", 400) == (100, 200, 800, 400)
@@ -41,6 +56,25 @@ class TestCropRectangle:
     def test_rejects_crop_that_rounds_to_zero(self):
         with pytest.raises(ValueError, match="empty crop"):
             crop.crop_rectangle(1, 100, "0.5%")
+
+    def test_rejects_width_that_rounds_down_to_zero(self):
+        with pytest.raises(ValueError, match="empty crop"):
+            crop.crop_rectangle(1000, 800, 15, 400)
+
+    def test_rejects_height_that_rounds_down_to_zero(self):
+        with pytest.raises(ValueError, match="empty crop"):
+            crop.crop_rectangle(1000, 800, 400, 15)
+
+
+class TestRoundDownToMultiple:
+    """Tests for the dimension alignment helper."""
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [(101, 96), (96, 96), (95, 80), (16, 16), (15, 0), (0, 0)],
+    )
+    def test_rounds_down(self, value, expected):
+        assert crop.round_down_to_multiple(value, crop.CROP_MULTIPLE) == expected
 
 
 class TestCropFiles:

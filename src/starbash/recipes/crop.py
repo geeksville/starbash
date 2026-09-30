@@ -30,6 +30,16 @@ class CropSize:
 _PIXELS_RE = re.compile(r"[+]?[0-9]+")
 _PERCENT_RE = re.compile(r"[+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)%")
 
+# Crop dimensions are rounded down to a multiple of this so downstream tools that
+# require aligned widths/heights (StarNet, deconvolution and similar) work on the
+# cropped output. See ``crop_rectangle``.
+CROP_MULTIPLE = 16
+
+
+def round_down_to_multiple(value: int, multiple: int) -> int:
+    """Round ``value`` down to the nearest multiple of ``multiple``."""
+    return (value // multiple) * multiple
+
 
 def parse_crop_size(name: str, value: int | str) -> CropSize:
     """Parse a crop size parameter into pixels or a percentage.
@@ -74,7 +84,12 @@ def crop_rectangle(
     crop_width: int | str = "80%",
     crop_height: int | str = "80%",
 ) -> tuple[int, int, int, int]:
-    """Return a centered crop rectangle using the configured axis sizes."""
+    """Return a centered crop rectangle using the configured axis sizes.
+
+    Each generated dimension is rounded down to the nearest multiple of
+    :data:`CROP_MULTIPLE` (never up), so the requested size is preserved as
+    closely as possible while remaining aligned for downstream tools.
+    """
     if width <= 0 or height <= 0:
         raise ValueError(f"Image dimensions must be positive, got {width}x{height}")
 
@@ -84,10 +99,14 @@ def crop_rectangle(
         actual_width = int(width * parsed_width.value / 100)
     else:
         actual_width = min(width, int(parsed_width.value))
+    # Round each generated dimension down to an aligned multiple, so the request
+    # is honoured as closely as possible without exceeding it.
+    actual_width = round_down_to_multiple(actual_width, CROP_MULTIPLE)
     if parsed_height.unit == "percent":
         actual_height = int(height * parsed_height.value / 100)
     else:
         actual_height = min(height, int(parsed_height.value))
+    actual_height = round_down_to_multiple(actual_height, CROP_MULTIPLE)
 
     if actual_width < 1 or actual_height < 1:
         raise ValueError(f"Crop dimensions produce an empty crop for {width}x{height}")

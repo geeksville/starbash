@@ -249,8 +249,11 @@ each stacked FITS output. Its `crop_width` and `crop_height` parameters accept
 positive integers or numeric strings as maximum pixel dimensions, or strings
 ending in `%` to retain that percentage of the corresponding source
 dimension. Both default to `"80%"`; pixel values are clamped to the source
-dimensions and never enlarge an image. The axes may use different units. For
-example, a target can override the defaults with:
+dimensions and never enlarge an image. The axes may use different units. The
+generated width and height are each rounded **down** to the nearest multiple of
+16 so downstream tools that need aligned dimensions (StarNet, deconvolution and
+similar) work on the cropped output; a request that would round to zero is
+rejected. For example, a target can override the defaults with:
 
 ```toml
 [[stages.overrides]]
@@ -262,8 +265,9 @@ name = "crop_height"
 value = "90%"
 ```
 
-Use `"100%"` on both parameters to retain the complete image. The old
-`crop_percent` parameter is no longer supported.
+Use `"100%"` on both parameters to retain (almost) the complete image; the width
+and height are still rounded down to a multiple of 16. The old `crop_percent`
+parameter is no longer supported.
 
 ```toml
 [[stages.inputs]]
