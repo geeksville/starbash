@@ -3,7 +3,12 @@
 import io
 import logging
 import os
-from typing import Any
+import tempfile
+from pathlib import Path
+from typing import Any, cast
+
+import numpy as np
+from astropy.io import fits
 
 from starbash.tool.base import (
     ExternalTool,
@@ -18,6 +23,39 @@ from starbash.tool.context import expand_context_list, expand_context_unsafe
 logger = logging.getLogger(__name__)
 
 __all__ = ["GraxpertBuiltinTool", "GraxpertExternalTool"]
+
+
+def _input_range(path: Path) -> tuple[float, float]:
+    """Return the range of a finite, floating-point FITS image."""
+    with fits.open(path, memmap=True) as hdus:
+        primary = cast(fits.PrimaryHDU, hdus[0])
+        data = primary.data
+        if data is None or data.dtype.kind != "f":
+            raise ValueError(f"Background input must be a floating-point FITS image: {path}")
+        if not np.isfinite(data).all():
+            raise ValueError(f"Background input contains non-finite pixels: {path}")
+        return float(np.min(data)), float(np.max(data))
+
+
+def _write_scaled_input(source: Path, destination: Path, offset: float, scale: float) -> None:
+    """Prepare a float FITS within [0, 1] without losing the source header."""
+    with fits.open(source, memmap=True) as hdus:
+        primary = cast(fits.PrimaryHDU, hdus[0])
+        data = primary.data
+        assert data is not None
+        scaled = ((data.astype(np.float64) - offset) / scale).astype(np.float32)
+        fits.PrimaryHDU(scaled, header=primary.header).writeto(destination)
+
+
+def _restore_scaled_output(source: Path, destination: Path, offset: float, scale: float) -> None:
+    """Undo our input transform, retaining the metadata GraXpert generated."""
+    with fits.open(source, memmap=True) as hdus:
+        primary = cast(fits.PrimaryHDU, hdus[0])
+        data = primary.data
+        if data is None:
+            raise ValueError(f"GraXpert produced an empty FITS image: {source}")
+        restored = (data.astype(np.float64) * scale + offset).astype(np.float32)
+        fits.PrimaryHDU(restored, header=primary.header).writeto(destination, overwrite=True)
 
 
 class GraxpertBuiltinTool(Tool):
@@ -62,15 +100,55 @@ class GraxpertBuiltinTool(Tool):
         package_file = graxpert.__file__
         assert package_file is not None, "graxpert is a real package, so __file__ is set"
 
+        # Only the background recipe opts into range preservation. GraXpert's FITS
+        # loader otherwise rescales *all* pixels when even one is outside [0, 1].
+        preserve_range = kwargs.pop("preserve_input_range", None) == "true"
+        if not preserve_range:
+            self._run_api(api_run, expanded_args, kwargs, package_file, cwd, log_out)
+            return
+
+        if len(expanded_args) != 5 or expanded_args[:3] != [
+            "-cmd",
+            "background-extraction",
+            "-output",
+        ]:
+            raise ValueError("preserve_input_range requires a background-extraction input/output")
+        source = Path(expanded_args[4])
+        destination = Path(expanded_args[3])
+        minimum, maximum = _input_range(source)
+        offset = min(0.0, minimum)
+        scale = max(1.0, maximum - offset)
+        if scale == 1.0 and offset == 0.0:
+            self._run_api(api_run, expanded_args, kwargs, package_file, cwd, log_out)
+            return
+
+        # GraXpert writes the final result itself; its temporary files must be
+        # distinct per task and removed even if it fails.
+        with tempfile.TemporaryDirectory(prefix="starbash-bge-", dir=cwd) as tmp:
+            scaled_input = Path(tmp) / "input.fits"
+            scaled_output = Path(tmp) / "output.fits"
+            _write_scaled_input(source, scaled_input, offset, scale)
+            args = [*expanded_args[:3], str(scaled_output), str(scaled_input)]
+            self._run_api(api_run, args, kwargs, package_file, cwd, log_out)
+            _restore_scaled_output(scaled_output, destination, offset, scale)
+
+    @staticmethod
+    def _run_api(
+        api_run: Any,
+        args: list[str],
+        prefs: dict[str, Any],
+        package_file: str,
+        cwd: str,
+        log_out: io.TextIOWrapper | None,
+    ) -> None:
+        """Keep GraXpert log/progress events identical with or without scaling."""
         with tool_run_in_process(
-            f"graxpert {' '.join(expanded_args)}",
-            # Only GraXpert's own modules are republished; Starbash's log lines keep
-            # their usual handling (see tool_run_in_process).
+            f"graxpert {' '.join(args)}",
             source=os.path.dirname(package_file),
             cwd=cwd,
             log_out=log_out,
         ):
-            api_run(expanded_args, kwargs)
+            api_run(args, prefs)
 
 
 class GraxpertExternalTool(ExternalTool):

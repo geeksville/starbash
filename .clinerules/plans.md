@@ -73,3 +73,23 @@ Implementation and design plans live in `doc/plans/*.md` and are tracked in git.
   excluded" and `_build_target_tasks()` rebuilds the graph until it is clean.
   **Implemented 2026-09-30**; the integration auto-workflow test now also fails on any
   `Failed` row in the summary table.
+- `doc/plans/duo-palette-orange.md` — why duo (HaOiii/SiiOiii) `SHO.fits` / `HOO.fits`
+  come out orange. **Diagnosed 2026-10-14, not implemented.** GraXpert's FITS loader
+  min/max-rescales out-of-range images *before* background subtraction; it performs
+  background extraction for images already inside `[0,1]` too (the initial no-op
+  diagnosis was disproved by per-pixel measurements). Ha enters with max 1, OIII with
+  max 2.08, so only OIII changes scale. `palette/*.toml`'s `-rescale 0.0 1.0` is
+  global min→max pinned by stars and cannot undo this. The inverted `rmgreen` step
+  floors synthetic green at `(R+B)/2` and with default lightness preservation also
+  alters R/B; SHO/HOO additionally race on shared scratch names. **User decisions:**
+  use existing `just use-local-recipes` (already configured), fix scale *inside*
+  `background.toml`, keep background removal for all workflows including duo, and
+  keep today's `palette_sho` naming/mapping. The user approved removing inverted
+  `rmgreen` and no automatic channel matching. On request, `palette/sho.toml` now
+  offers optional median-anchored, highlight-tapered `green_strength`/`blue_strength`
+  (defaults 1.0 originally; user tried 2/8, then tuned recipe defaults to
+  green=2/blue=4). `red_suppression` (user default 0.5) deweights Ha signal in
+  proportion to the stronger above-median boosted OIII or **real Sii** signal;
+  synthetic green is ignored as a mask because it includes Ha. Real-Siril tests
+  cover green-only and blue-only emission, overlap, and the synthetic fallback.
+  The separate BXT channel scale loss remains unresolved.

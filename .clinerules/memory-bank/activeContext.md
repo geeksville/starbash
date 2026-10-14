@@ -1,5 +1,98 @@
 # Active Context
 
+## Current work focus — real-Sii and OIII gated red suppression in SHO (**implemented 2026-10-14**)
+
+In the local `starbash-recipes/palette/sho.toml`, the user experimented with
+`green_strength=2` / `blue_strength=8` and saw violet OIII-rich areas. The user
+subsequently adjusted the recipe defaults to **green=2, blue=4.0,
+red_suppression=0.5**; do not revert them. Previous ngc7822 sample at blue=8
+had R≈4.80e-4 and B≈5.57e-4 in blue-bright pixels, so overlap causes violet.
+`red_suppression` now weights against `max(b, g)` where
+`b=max(B-median(B),0)` and `g=max(G-median(G),0)` **only for real Sii**.
+Without real Sii, synthetic green includes Ha and must not suppress Ha-only
+nebula: g=0. Red subtraction is
+`strength * max(R-median(R),0) * max(b,g)/(red_signal+max(b,g)+1e-6) * (1-R)`.
+The optional strength 0 disables this; default 0.5 was set by the user.
+Real-Siril tests cover green-only Sii, OIII-only, overlap without double-counting,
+Ha-only, sky, white stars, and synthetic green, at explicitly set strengths
+(including the former blue=8 experiment) rather than pinning user defaults.
+`just lint` and focused tests pass. No live target was regenerated for this
+adjustment. See `doc/plans/duo-palette-orange.md`; BXT scale loss is separate.
+
+## Current work focus — optional sky-anchored SHO channel strengths (**implemented 2026-10-14**)
+
+`starbash-recipes/palette/sho.toml` now has `green_strength` (Sii or synthetic)
+and `blue_strength` (OIII), each defaulting to 1.0 for no change. Only pixels
+above the channel median are boosted with a highlight-tapered rational curve
+(`t=max(x-b,0)/(1-b)`, `boost = x+(1-b)*(k*t/(1+(k-1)*t)-t)`), *after* the
+existing `-rescale`. For single-duo targets blue boost happens **after** green
+was synthesized, so it cannot change the green blend. R is unchanged. For
+ngc7822, recommend per-target green=1.5/blue=2.0 as a starting point only;
+do not set universal boost defaults or rerun the big target without request.
+`tests/unit/test_sho_palette.py` drives the actual Siril recipe on tiny real
+Sii and synthetic-green fixtures, testing sky/nebula/white and independent
+controls. `just lint` and 109 focused tests passed; no live processing done for
+this new feature. Details in `doc/plans/duo-palette-orange.md`. The ~2x OIII/Sii
+BXT scale loss found below remains unresolved; palette boost is not its repair.
+
+## Current work focus — duo SHO/HOO palette comes out orange (**live follow-up 2026-10-14**)
+
+**New finding from the user's 12:23 `sb process auto`:** the target now has
+SiiOiii sessions and all four channel pipelines (`stacked_Sii.fits`,
+`nx_bx_bk_crop_stacked_Sii.fits`, etc.). The palette's channel mapping is
+**R=Ha, G=Sii or synthetic, B=OIII**, so blue is OIII, not Sii. The run-log
+showed `palette_sho` input only Ha/OIII despite the `_Sii` file. In
+`starbash-recipes/palette/sho.toml` the optional Sii input's `FILTER=SiiOiii`
+metadata requirement inspected inherited *HaOiii* from the shared dual-duo
+upstream task, excluding its actual `_Sii` output. Removed that gate; only
+`filename = "_Sii"` remains. Added regression in
+`tests/unit/test_processing.py`. Live task graph now includes all three
+`nx_bx_bk_crop_stacked_{Ha,OIII,Sii}.fits` as `palette_sho` dependencies.
+Scoped `sb process doit run -s` rebuilt only SHO + starnet/VeraLux/merge/SHO
+JPEGs; completed. `SHO.fits`'s R/G/B match scratch SHO_Ha/SHO_SynGreen/SHO_OIII
+exactly; green uses real Sii now. **Blue is still weak**: BXT changes OIII
+median ~3.23e-4 → 1.60e-4, Sii ~3.34e-4 → 1.50e-4, Ha ~3.47e-4 → 3.43e-4.
+Faint-pixel BXT output/input ratios ≈0.4987 OIII (input max 1.9996), ≈0.4542
+Sii (max 2.1870), ≈0.9978 Ha (max 0.98): suggests a second max-dependent
+normalisation at BXT. Siril palette `-rescale` then subtracts each channel's
+minimum; blue ends up p50 ~2.23e-5 vs red 8.83e-5. BXT has **not** been
+changed; investigate loader/controlled sample and ask user before expanding
+scope. Details and measurements recorded in `doc/plans/duo-palette-orange.md`.
+
+
+
+`doc/plans/duo-palette-orange.md` holds the full evidence, corrections and
+implementation plan. The user chose: `just use-local-recipes` (and `sb repo list`
+confirms `file:///workspaces/starbash/starbash-recipes` already active); fix
+`graxpert/background.toml` instead of the stack; background subtraction runs on
+**every** workflow, including each duo channel; keep `palette_sho` and its current
+mapping/output name. SCNR and extra palette balancing still await answers; the
+plan explains them and recommends removing inverted SCNR and not adding a second
+channel normalisation by default.
+
+**Important correction to the previous diagnosis:** `max <= 1` does NOT mean
+GraXpert background subtraction no-ops! Installed
+`.venv/lib/python3.12/site-packages/graxpert/astroimage.py:67-73` conditionally
+min/max-rescales data outside `[0,1]`; `graxpert/background_extraction.py:155-169`
+subtracts a model and adds its mean back. Earlier near-zero *mean* input-output
+difference was mistakenly read as no-op. Per-pixel standard deviation of the Ha
+cut's difference is 5.43e-5, proving a real spatial correction. OIII has
+max > 1 so GraXpert rescales its entire image before subtraction, breaking the
+matched stacked-channel scale. Ha max=1/OIII max=2.08; `bk_` medians 3.02e-4 vs
+1.10e-4. The original diagnosis of *where the colour skew appears* remains
+correct, but the cause is GraXpert's conditional rescaling, not skipped work.
+
+`-rescale 0.0 1.0` in the palette is global min-max pinned by stars and cannot
+restore OIII's scale. `invert → rmgreen → invert` (SCNR average neutral with Lab
+lightness preservation) mutates R/B and floors G at `(R+B)/2`, undoing the green
+blend for this target. Also `palette_sho` and `palette_hoo` share `results.fit`,
+`Ha.fit`, `OIII.fit` in one `process_dir` and can race. VeraLux preserves the
+bad colour ratios. Implementation phases: isolate before/after measurements,
+fix range-preserving background wrapper, defer any *extra* palette balance until
+measured on corrected output, resolve SCNR, make palette scratch names unique,
+add spatial-correction/scale-preservation tests. The user's `justfile` edits were
+already present; do not change or revert them. No recipe code has been changed.
+
 ## Current work focus — the Windows integration job restored a `.venv` with no dev deps (**fixed 2026-09-30**)
 
 `integration-test (windows-latest)` died on the step's first command: `poetry run pytest`

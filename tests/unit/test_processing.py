@@ -167,7 +167,53 @@ class TestPaletteRecipes:
         assert inputs["ha"]["requires"][-1]["value"] == 1
         assert inputs["oiii"]["requires"][-1]["value"] == 1
         assert inputs["sii"]["optional"] is True
-        assert inputs["sii"]["requires"][0]["value"] == ["SiiOiii"]
+        assert [(r["kind"], r["value"]) for r in inputs["sii"]["requires"]] == [
+            ("filename", "_Sii")
+        ]
+
+    def test_sho_finds_real_sii_even_when_upstream_inherits_ha_filter(self):
+        """A dual-duo output is selected by its _Sii name, not HaOiii provenance."""
+        from starbash.doit import FileInfo
+        from starbash.processing import Processing
+
+        stage = self._load("sho.toml")["stages"][0]
+        sii_input = next(item for item in stage["inputs"] if item["name"] == "sii")
+        processing = Processing.__new__(Processing)
+        processing.stage = {"inputs": [{"after": "denoise"}]}
+        processing.processed_target = None
+        processing.context = {"default_metadata": {}}
+        prior_tasks = []
+        for channel in ("Ha", "OIII", "Sii"):
+            path = f"nx_bx_bk_crop_stacked_{channel}.fits"
+            prior_tasks.append(
+                {
+                    "name": f"noise_exterminator_{channel}",
+                    "meta": {
+                        "stage": {"name": "noise_exterminator"},
+                        "context": {
+                            "default_metadata": {"FILTER": "HaOiii"},
+                            "input": {
+                                0: FileInfo(
+                                    image_rows=[
+                                        {"abspath": f"/tmp/bx_{path}", "path": f"bx_{path}"}
+                                    ]
+                                )
+                            },
+                            "output": FileInfo(
+                                base="/tmp", image_rows=[{"abspath": f"/tmp/{path}", "path": path}]
+                            ),
+                        },
+                    },
+                }
+            )
+        processing._get_prior_tasks = lambda stage: prior_tasks
+
+        real_sii = processing._import_from_prior_stages(sii_input)
+        assert real_sii.image_rows is not None
+        assert [row["path"] for row in real_sii.image_rows] == ["nx_bx_bk_crop_stacked_Sii.fits"]
+        processing._get_prior_tasks = lambda stage: prior_tasks[:2]
+        missing_sii = processing._import_from_prior_stages(sii_input)
+        assert missing_sii.image_rows == []
 
     def test_hoo_requires_separate_ha_and_oiii_inputs(self):
         stage = self._load("hoo.toml")["stages"][0]

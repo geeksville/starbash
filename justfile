@@ -40,7 +40,7 @@ install-starnet:
 install-rc-astro:
     #!/usr/bin/env bash
     [ -f /usr/local/bin/rc-astro ] && exit 0
-    wget -O /tmp/rcastro.sh https://www.rc-astro-cdn.com/clients/2.6.9/rc-astro-cli-2.6.9-linux-x64.sh
+    wget -O /tmp/rcastro.sh https://www.rc-astro-cdn.com/clients/2.6.10/rc-astro-cli-2.6.10-linux-x64.sh
     chmod a+x /tmp/rcastro.sh
     /tmp/rcastro.sh
     sudo /tmp/rc-astro-cli/install.sh
@@ -155,7 +155,8 @@ select-current:
     sb select any
     #sb select target "ngc6888"
     #sb select target "sh2-91"
-    sb select target m101
+    #sb select target m101
+    sb select target ngc7822
 
 # test target that has Si and HaOiii filters
 select-si-ha:
