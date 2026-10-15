@@ -153,13 +153,16 @@ For each multiplexed input/output pair, generate commands equivalent to:
 
 1. `load "<input>"`
 2. `crop <x> <y> <width> <height>`
-3. `rotate <rotate_deg> -interp=lanczos4` when `rotate_deg != 0`
+3. `rotate <angle> -interp=lanczos4 [-nocrop]` when the angle is not a full turn,
+   where `angle` is `rotate_deg` normalized into `[0, 360)` and `-nocrop` is
+   added for exact quarter turns (see "C3: exact quarter turns" below)
 4. `save "<output>"`
 
 The order is deliberately crop then rotate. Do not use `boxselect` for this
 stage: the explicit `crop` command makes the selected geometry unambiguous.
-Do not add `-nocrop`; users who want to retain the complete image use
-`crop_percent = 100`.
+Do not add `-nocrop` for an arbitrary angle; users who want to retain the
+complete image use `crop_percent = 100`. Exact quarter turns are the exception,
+because Siril's default would otherwise throw away most of the rotated image.
 
 The command builder must quote paths consistently and avoid overwriting the
 input. If Siril creates intermediate files in `process_dir`, use safe
@@ -274,7 +277,9 @@ in the normal test environment.
 - Default crop geometry retains a centered 90% of both dimensions.
 - `crop_percent = 100` retains the complete image without a separate `nocrop`
   setting.
-- `rotate_deg` defaults to zero; non-zero rotations use `-interp=lanczos4`.
+- `rotate_deg` defaults to zero; non-zero rotations use `-interp=lanczos4`. An
+  exact quarter turn is a lossless, whole-canvas rotation (see C3), so 90 and 270
+  swap the output width and height.
 - `.fit` and `.fits` input extensions are preserved.
 - Invalid parameters fail before Siril is invoked with actionable errors.
 - Downstream stages that previously consumed stack outputs consume crop outputs.
@@ -440,6 +445,92 @@ Update `tests/unit/test_crop.py` and recipe wiring tests to cover:
 - absence of the `crop_percent` parameter and its script argument;
 - migration of representative existing `main.toml` files, including an
   idempotent second run.
+
+
+# stage c3: exact quarter turns
+
+## Status
+
+**C3 implemented.**
+
+Reported symptom: with `rotate_deg = 90` the `crop_...` output kept the crop
+dimensions instead of swapping width and height (a 95%x80% crop of a landscape
+frame stayed landscape and looked squeezed).
+
+## Why it happened
+
+Siril's `rotate degree [-nocrop] [-interp=] [-noclamp]` command is *crop-to-fit*
+by default: it rotates the pixels and then fits the result back into the source
+rectangle (`GetMatrixReframe(..., cropped=1, ...)` keeps `area.w`/`area.h`), so
+`rotate 90` on a 640x360 image saves a 640x360 image with the rotated corners
+discarded. Starbash never passed `-nocrop`, per the C1 decision above, so a
+rotation could never change the canvas.
+
+Measured on Siril 1.4.4 with a 640x360 fixture (the real-Siril test in
+`tests/unit/test_crop.py::TestCropFilesWithSiril` asserts the same behaviour):
+
+| command | 640x360 input |
+|---|---|
+| `rotate 90 -interp=lanczos4` | 640x360 (unchanged -- the bug) |
+| `rotate 90 -interp=lanczos4 -nocrop` | 360x640 |
+| `rotate 270 -interp=lanczos4 -nocrop` | 360x640 |
+| `rotate 180 -interp=lanczos4 -nocrop` | 640x360 |
+| `rotate 12 -interp=lanczos4` | 640x360 |
+
+Two further Siril behaviours were confirmed at the same time and are now handled:
+
+- `rotate` accepts only `[0, 360)`. A negative angle (`rotate -7`) or `360`
+  prints `Angle ... not allowed` / `Angle is 0.0 or 360.0 degrees. Doing
+  nothing...` and **aborts the whole script** ("Exiting batch processing"), so
+  the C1-era `rotate -7 -interp=lanczos4` broke any negative `rotate_deg`.
+- `-nocrop` at an exact quarter turn is a *pixel-exact* permutation: for 90, 180
+  and 270 degrees the resampled output matches `numpy.rot90` bit-for-bit, for odd
+  and even widths, heights and sums, and for extreme aspect ratios (a 0.5-pixel
+  mis-alignment would make Lanczos4 blur the whole frame; it does not happen).
+  Measured with fixture values inside `[0, 1]` so Siril's FITS loader leaves them
+  alone: an out-of-range image is instead scaled by 1/65535 on load
+  (pre-existing, linear and unrelated to the rotation -- undoing that factor, the
+  output is still an exact permutation).
+
+## Decision
+
+`crop.py` normalizes the angle into `[0, 360)` (a full turn is a no-op, logged at
+info when the user's value changed) and, for exact multiples of 90 degrees, adds
+`-nocrop`. That keeps the whole rotated canvas: 90/270 swap width and height
+(which is what a user means by "rotate 90"), while 180 keeps the dimensions.
+
+Arbitrary angles keep crop-to-fit, because a rotated rectangle cannot fill a
+larger one without black corners and the C1 rule is that this stage must not grow
+the canvas (a crop stage that grows an image would feed black borders into every
+downstream tool). So `-nocrop` is still not a user-facing option.
+
+The canvas swap is safe for the shipped pipeline: every file that gets compared
+with a crop output also derives from that same crop stage, so they all change
+dimensions together (the starless/starmask pair, for instance, comes from a single
+`starnet` run over the crop-derived palette output). Verified the stage graph in
+`starbash-recipes`: `crop` follows `stack_.*` and every later stage -- the GraXpert
+stages, rc-astro, the palettes, `merge_stars`, `thumbnail` -- follows `crop`
+(directly or transitively) or only reads a stack's `.seq` for reporting. The
+in-between `veralux` stage (another recipe repo) likewise follows the palette.
+
+## Files changed
+
+- `src/starbash/recipes/crop.py` -- `normalize_rotation()`, `is_quarter_turn()`,
+  `rotation_command()`; `crop_files()` emits one shared rotate command.
+- `tests/unit/test_crop.py` -- command-builder unit tests plus a real-Siril
+  `TestCropFilesWithSiril` class (skipped where Siril is absent) asserting the
+  output dimensions and pixel-exact rotation.
+- `starbash-recipes/common/crop.toml` -- the `rotate_deg` description now states
+  the normalization and the 90/270 dimension swap.
+- `doc/toml/guide.md` -- the same in the crop section of the TOML guide.
+
+## Note for existing targets
+
+The stage fingerprint (`_stage_fingerprint`) hashes the recipe script, the tool
+and the effective parameters -- not the Python helper the script calls. An
+already-cropped target therefore still has an up-to-date `crop` task and must have
+its `crop_...` outputs deleted (or `rotate_deg` changed) for the corrected crop to
+be regenerated.
 
 Run the focused crop and recipe tests first, then the complete test suite.
 Optionally run the existing Siril integration test to confirm that the default

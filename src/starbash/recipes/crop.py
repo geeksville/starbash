@@ -35,6 +35,16 @@ _PERCENT_RE = re.compile(r"[+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)%")
 # cropped output. See ``crop_rectangle``.
 CROP_MULTIPLE = 16
 
+# Siril only accepts ``rotate`` angles in [0, 360) and aborts the whole script
+# ("Angle ... not allowed. Should be between 0.0 and 360.0.") on anything else,
+# so angles are normalized before being emitted. See ``normalize_rotation``.
+FULL_TURN_DEGREES = 360.0
+
+# An exact multiple of this is a quarter turn. Such a rotation is a pixel-exact
+# permutation of the source pixels and fills its bounding rectangle completely,
+# so Siril can keep the whole rotated canvas. See ``rotation_command``.
+QUARTER_TURN_DEGREES = 90.0
+
 
 def round_down_to_multiple(value: int, multiple: int) -> int:
     """Round ``value`` down to the nearest multiple of ``multiple``."""
@@ -76,6 +86,44 @@ def parse_crop_size(name: str, value: int | str) -> CropSize:
     if pixels <= 0:
         raise ValueError(f"{name} must be a positive pixel value, got {value!r}")
     return CropSize("pixels", pixels)
+
+
+def normalize_rotation(rotate_deg: int | float) -> float:
+    """Return ``rotate_deg`` mapped into the ``[0, 360)`` range Siril accepts.
+
+    Siril rejects negative and 360-and-above angles, aborting the whole script,
+    so ``-90`` becomes ``270`` and ``360`` becomes ``0`` (i.e. no rotation).
+    """
+    return float(rotate_deg) % FULL_TURN_DEGREES
+
+
+def is_quarter_turn(angle: float) -> bool:
+    """Return True when ``angle`` is an exact multiple of 90 degrees."""
+    return angle % QUARTER_TURN_DEGREES == 0.0
+
+
+def rotation_command(rotate_deg: int | float) -> str | None:
+    """Return the Siril ``rotate`` command for ``rotate_deg``, or None to skip it.
+
+    Siril's default is to fit the rotated image back into the *source* rectangle, so
+    ``rotate 90`` on a 640x360 image saves 640x360 again -- the corners of the
+    rotation are silently dropped, which is not what "rotate 90 degrees" means.
+
+    For an exact quarter turn the rotated image fills its bounding rectangle with
+    no black corners and the transform is a pixel-exact permutation, so ``-nocrop``
+    is added and the output keeps the whole rotated canvas: 90 and 270 degrees swap
+    the output width and height, while 180 degrees does not (all three are
+    lossless). Any other angle keeps Siril's crop-to-fit behavior, because a
+    rotated rectangle cannot fill a larger one without black corners, and the
+    designer's rule is that a crop stage must not grow the canvas.
+    """
+    angle = normalize_rotation(rotate_deg)
+    if angle == 0.0:
+        return None  # Siril treats a 0/360 degree rotation as an error, not a no-op
+    options = "-interp=lanczos4"
+    if is_quarter_turn(angle):
+        options += " -nocrop"
+    return f"rotate {angle:g} {options}"
 
 
 def crop_rectangle(
@@ -122,7 +170,15 @@ def crop_files(
     crop_width: int | str = "80%",
     crop_height: int | str = "80%",
 ) -> None:
-    """Crop and rotate each input FITS file into its corresponding output."""
+    """Crop and rotate each input FITS file into its corresponding output.
+
+    The crop rectangle (see :func:`crop_rectangle`) is applied first, then the
+    rotation, and the angle is normalized into ``[0, 360)``. An exact quarter turn
+    keeps the whole rotated canvas, so ``rotate_deg = 90`` (or ``270``) swaps the
+    output width and height; any other angle is rotated inside the crop
+    rectangle's dimensions, discarding the rotated corners. See
+    :func:`rotation_command`.
+    """
     if not input_paths or not output_paths:
         raise ValueError("crop_files requires at least one input and output path")
     if len(input_paths) != len(output_paths):
@@ -133,6 +189,17 @@ def crop_files(
         raise ValueError(f"rotate_deg must be numeric, got {rotate_deg!r}")
     if not math.isfinite(rotate_deg):
         raise ValueError(f"rotate_deg must be finite, got {rotate_deg!r}")
+
+    rotate_command = rotation_command(rotate_deg)
+    if rotate_command:
+        normalized = normalize_rotation(rotate_deg)
+        if normalized != rotate_deg:
+            logger.info(
+                "Normalizing rotation %g degrees to %g (Siril only accepts 0-360)",
+                rotate_deg,
+                normalized,
+            )
+        logger.debug("Rotating by %g degrees using '%s'", normalized, rotate_command)
 
     commands: list[str] = []
     for input_path, output_path in zip(input_paths, output_paths, strict=True):
@@ -146,8 +213,8 @@ def crop_files(
                 f"crop {crop_x} {crop_y} {actual_width} {actual_height}",
             ]
         )
-        if rotate_deg != 0:
-            commands.append(f"rotate {rotate_deg:g} -interp=lanczos4")
+        if rotate_command:
+            commands.append(rotate_command)
         commands.append(f'save "{output_path}"')
 
     process_dir = context.get("process_dir")

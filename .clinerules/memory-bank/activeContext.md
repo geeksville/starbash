@@ -1,5 +1,29 @@
 # Active Context
 
+## Current work focus — crop `rotate_deg` now keeps quarter turns whole (**implemented 2026-10-14**)
+
+The user reported that `rotate_deg = 90` in `private/processed/ngc7822/.starbash/main.toml`
+left the `crop_...` output at the crop dimensions. Cause: Siril's `rotate` is
+*crop-to-fit* by default (it fits the rotated image back into the source
+rectangle via `GetMatrixReframe(cropped=1)`), and Starbash never passed `-nocrop`,
+so a rotation could never change the canvas. Measured on the local Siril 1.4.4:
+`rotate 90` keeps 640x360; `rotate 90 -nocrop` gives 360x640, and passing
+`-nocrop` for an exact quarter turn is a **pixel-exact** permutation (matches
+`numpy.rot90` for odd/even dims and sums; 180 and 270 too). Also measured: Siril
+accepts only `[0, 360)` and **aborts the whole script** on negative angles or 360 --
+so the old `rotate -7 -interp=lanczos4` (and `rotate_deg = -90`) broke the crop
+completely. Fix in `src/starbash/recipes/crop.py`: `normalize_rotation()`
+(`% 360`; a full turn is a no-op, logged at info when the user's value changed),
+`is_quarter_turn()`, `rotation_command()` (adds `-nocrop` only for exact
+multiples of 90). Arbitrary angles still crop-to-fit -- the stage must not grow
+the canvas with black corners. Tests: command-builder units plus
+`TestCropFilesWithSiril` (real Siril, skipped when absent) asserting dimensions and
+lossless pixels. Docs: `doc/design/crop.md` §C3, `doc/toml/guide.md`, and the
+`rotate_deg` description in `starbash-recipes/common/crop.toml`. `just lint`
+clean; 255 focused tests pass. **Existing targets need their `crop_...` outputs
+deleted** to regenerate (`_stage_fingerprint` hashes the recipe script/params, not
+the Python helper the script calls, so the old crop task still looks up to date).
+
 ## Current work focus — real-Sii and OIII gated red suppression in SHO (**implemented 2026-10-14**)
 
 In the local `starbash-recipes/palette/sho.toml`, the user experimented with

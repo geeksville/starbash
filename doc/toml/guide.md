@@ -269,6 +269,22 @@ Use `"100%"` on both parameters to retain (almost) the complete image; the width
 and height are still rounded down to a multiple of 16. The old `crop_percent`
 parameter is no longer supported.
 
+`rotate_deg` (default `0`) rotates each cropped output. The angle is normalized
+into `0..360` before it reaches Siril (which rejects negative and `>= 360` values
+and aborts the whole script), so `-90` means `270` and `360` is a no-op. An exact
+`90`, `180` or `270` keeps the **whole** rotated image -- 90 and 270 therefore swap
+the output width and height, while `180` keeps them -- and is a lossless
+pixel-for-pixel rotation. Any other angle is rotated *inside* the crop
+rectangle, discarding the rotated corners (Siril's own crop-to-fit default), so it
+never adds black borders. Nothing needs to be configured for the common "my
+landscape stack should be portrait" case beyond `rotate_deg = 90`:
+
+```toml
+[[stages.overrides]]
+name = "rotate_deg"
+value = 90
+```
+
 ```toml
 [[stages.inputs]]
 kind = "job"
