@@ -10,7 +10,9 @@ stored credential) rather than from anything the user types.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QUrl
+import html
+
+from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -25,6 +27,7 @@ from starbash.paths import get_publish_site_dir
 from starbash.ui.qt.jobs import github_identity_job, publish_github_job
 from starbash.ui.qt.pages.base import Page
 from starbash.ui.qt.widgets.busy_indicator import Spinner
+from starbash.ui.qt.widgets.file_links import open_with_status
 from starbash.ui.qt.widgets.github_login import run_github_setup
 
 __all__ = ["PublishPage"]
@@ -87,9 +90,17 @@ class PublishPage(Page):
         self._progress.setVisible(False)
         layout.addWidget(self._progress)
 
-        self._status = QLabel(f"Site directory: {get_publish_site_dir()}")
+        # The status line is rich text so a published site's URL can be a real,
+        # clickable link (see _set_status).  Every message is HTML-escaped first, so
+        # plain text still shows exactly as written.
+        self._status = QLabel()
         self._status.setObjectName("PageSubtitle")
         self._status.setWordWrap(True)
+        self._status.setTextFormat(Qt.TextFormat.RichText)
+        self._status.setOpenExternalLinks(False)
+        self._status.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        self._status.linkActivated.connect(self._on_status_link)
+        self._set_status(f"Site directory: {get_publish_site_dir()}")
         layout.addWidget(self._status)
 
         hint = QLabel(PUBLISH_HINT)
@@ -135,7 +146,7 @@ class PublishPage(Page):
         self._spinner.start()
         self._progress.setRange(0, 0)  # indeterminate until the first step arrives
         self._progress.setVisible(True)
-        self._status.setText("Generating the report site...")
+        self._set_status("Generating the report site...")
         self.start_job(
             publish_github_job,
             on_progress=self._on_publish_progress,
@@ -149,15 +160,15 @@ class PublishPage(Page):
             description, completed, total = payload
             self._progress.setRange(0, int(total))
             self._progress.setValue(int(completed))
-            self._status.setText(str(description))
+            self._set_status(str(description))
         else:
-            self._status.setText(str(payload))
+            self._set_status(str(payload))
 
     def _on_published(self, result: object) -> None:
         """Finish, or open the setup dialog when GitHub is not ready yet."""
         payload = result if isinstance(result, dict) else {}
         if payload.get("needs_sign_in") or payload.get("needs_install"):
-            self._status.setText(str(payload.get("message", "GitHub needs one more step.")))
+            self._set_status(str(payload.get("message", "GitHub needs one more step.")))
             self._idle_controls()
             installed = run_github_setup(self, start_at_install=bool(payload.get("needs_install")))
             if installed:
@@ -172,7 +183,7 @@ class PublishPage(Page):
             # (this also fills in a credential that predates the recorded name).
             self._username.setText(owner)
         self._pages_url = str(payload.get("pages_url", ""))
-        self._finish_publish(str(payload.get("message", "Published.")))
+        self._finish_publish(str(payload.get("message", "Published.")), link=self._pages_url)
 
     def _on_publish_failed(self, message: str) -> None:
         self._finish_publish(f"Publishing failed: {message}")
@@ -182,15 +193,40 @@ class PublishPage(Page):
         self._publish.setEnabled(True)
         self._spinner.stop()
 
-    def _finish_publish(self, message: str) -> None:
-        """Put the page back to rest once a publish attempt is over."""
+    def _finish_publish(self, message: str, link: str = "") -> None:
+        """Put the page back to rest once a publish attempt is over.
+
+        ``link`` is the published site's URL, when there is one; the message's own
+        mention of it becomes a clickable link (see :meth:`_set_status`).
+        """
         self._idle_controls()
         self._progress.setVisible(False)
-        self._status.setText(message)
+        self._set_status(message, link)
         self.status.emit(message)
         # Opening the site is only meaningful once a publish has produced one; a
         # failed *later* publish keeps the link to the site that is already up.
         self._open_site.setEnabled(bool(self._pages_url))
+
+    def _set_status(self, message: str, link: str = "") -> None:
+        """Show ``message`` in the rich-text status label, linking ``link``.
+
+        The message is HTML-escaped first - the label is rich text, so plain text
+        must not be read as markup.  When the message already names ``link`` (as the
+        publish job's message does) that mention becomes the anchor, so the line
+        still reads as a sentence rather than repeating the URL.
+        """
+        text = html.escape(message, quote=False)
+        if link:
+            plain = html.escape(link, quote=False)
+            if plain in text:
+                text = text.replace(
+                    plain, f'<a href="{html.escape(link, quote=True)}">{plain}</a>', 1
+                )
+        self._status.setText(text)
+
+    def _on_status_link(self, url: str) -> None:
+        """Open a link the user clicked in the status line."""
+        open_with_status(url, self.status.emit)
 
     def _on_open_site(self) -> None:
         """Open the published Pages site in the user's browser."""

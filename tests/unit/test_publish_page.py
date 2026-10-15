@@ -369,3 +369,48 @@ def test_a_failed_publish_is_reported_and_the_page_is_usable_again(
     assert page._open_site.isEnabled() is False
     assert page._progress.isHidden()
     assert page._status.text() == "Publishing failed: GitHub rejected the upload"
+
+
+def test_the_published_message_links_the_pages_url(qtbot, app_context, recorded, monkeypatch):
+    """The URL the job reports is a real link in the status line, not bare text."""
+    from starbash.ui.qt.widgets import file_links
+
+    monkeypatch.setattr(publish_page, "publish_github_job", lambda *args: {})
+    opened: list[str] = []
+    monkeypatch.setattr(file_links, "open_link", lambda url: opened.append(url) or True)
+    page = _page(qtbot, app_context)
+
+    url = "https://octocat.github.io/starbash-public/"
+    page._publish.click()
+    recorded[-1].finish(
+        {
+            "owner": "octocat",
+            "pages_url": url,
+            # The message the shared job really produces: it names the URL itself.
+            "message": f"Published 3 files to {url} ... it should be live in a few minutes.",
+        }
+    )
+
+    # The message's own mention of the URL is turned into an anchor in place.
+    assert f'<a href="{url}">{url}</a>' in page._status.text()
+
+    # Activating that link opens the site in the browser.
+    page._status.linkActivated.emit(url)
+    assert opened == [url]
+
+
+def test_a_message_without_the_pages_url_stays_plain(qtbot, app_context, recorded, monkeypatch):
+    """A message that does not name the URL is not decorated with a link."""
+    monkeypatch.setattr(publish_page, "publish_github_job", lambda *args: {})
+    page = _page(qtbot, app_context)
+
+    page._publish.click()
+    recorded[-1].finish(
+        {
+            "owner": "octocat",
+            "pages_url": "https://octocat.github.io/starbash-public/",
+            "message": "Published 3 files.",
+        }
+    )
+
+    assert page._status.text() == "Published 3 files."

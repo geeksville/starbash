@@ -1033,7 +1033,13 @@ App-install steps, sharing the publish sequence with the CLI.
     returns a `pages_url` (`https://<owner>.github.io/starbash-public/`), which it
     opens; a later failed publish keeps the link to the live site.  The
     *Generate report site* and *Open site folder* buttons were removed (generating
-    without publishing was a dead end) — so `publish_job` is gone too.
+    without publishing was a dead end) — so `publish_job` is gone too;
+  - the status line is **rich text** so the pages URL in the success message
+    (`"Published N files to <url> ..."`) is a clickable link *in place* (user
+    request): `_set_status()` HTML-escapes every message, then turns the message's
+    own mention of `_pages_url` into an `<a href>` anchor (no URL → left plain;
+    never appended, so a URL-less message stays unchanged).  `linkActivated` goes
+    through `open_with_status` (the same helper Targets uses).
 - **Tests**: `tests/unit/test_github_publish.py` (core sequence, plus the
   credential round trip / TOML fallback / pre-`login` back-compat and the
   login-preserving rotation), `tests/unit/test_github_jobs.py` (new: the identity
