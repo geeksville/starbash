@@ -6,7 +6,7 @@ import re
 import shutil
 from collections import OrderedDict
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -59,6 +59,7 @@ class FileInfo:
     image_rows: list[ImageRow] | None = None  # List of individual files (if applicable)
     provenance: dict[str, int] | None = None  # Generated basename -> source image ID
     sequence_provenance: dict[str, list[int]] | None = None  # Sequence -> source IDs in order
+    producers: dict[str, str] = field(default_factory=dict)  # output path -> producing task
     definition: InputDef | None = (
         None  # The input (or output) definition that produced this FileInfo
     )
@@ -207,6 +208,33 @@ def doit_post_process(task_dict: TaskDict) -> None:
     add_action(task_dict, closure)
 
 
+def _sequence_member_files(base_dir: Path, sequence_file: Path) -> list[Path]:
+    """The FITS files a Siril sequence names, in member order.
+
+    Members are ``<stem>_<index>.fit`` (or ``.fits``). A glob of ``<stem>*``
+    also matches a later stage that reused the stem: the broadband convert
+    wrote 4832 ``bkg_pp_light_s233_*.fits`` beside the 89 ``.fit`` members, and
+    rewrote the ``.seq`` to claim those 4832. The header is therefore not the
+    membership. One extension is the sequence; when both exist the smaller set
+    is the original and the larger one is the rewrite.
+    """
+    stem = sequence_file.stem
+    by_extension: dict[str, list[Path]] = {}
+    for extension in (".fit", ".fits"):
+        numbered = []
+        for path in base_dir.glob(f"{stem}*{extension}"):
+            match = re.fullmatch(rf"{re.escape(stem)}(\d+){extension}", path.name)
+            if match:
+                numbered.append((int(match.group(1)), path))
+        if numbered:
+            by_extension[extension] = [path for _, path in sorted(numbered)]
+    if not by_extension:
+        return []
+    if len(by_extension) == 1:
+        return next(iter(by_extension.values()))
+    return min(by_extension.values(), key=len)
+
+
 def merge_to(base_name: str, fi: FileInfo) -> None:
     """Merge all input files in fi into a single sequence named base_name.
 
@@ -232,12 +260,13 @@ def merge_to(base_name: str, fi: FileInfo) -> None:
     for short_path in fi.short_paths:
         path = Path(short_path)
 
-        # If it's a .seq file, find all FITS files with that prefix
+        # If it's a .seq file, collect the members it declares. A prefix glob
+        # also matches frames a later stage wrote with the same stem.
         if path.suffix == ".seq":
-            seq_prefix = path.stem
-            pattern1 = str(base_dir / f"{seq_prefix}*.fit")
-            pattern2 = str(base_dir / f"{seq_prefix}*.fits")
-            matching_files = sorted(glob.glob(pattern1) + glob.glob(pattern2))
+            sequence_file = base_dir / path.name
+            matching_files = [
+                str(member) for member in _sequence_member_files(base_dir, sequence_file)
+            ]
             source_ids = (fi.sequence_provenance or {}).get(path.name)
             if source_ids is None and path.name.endswith("_.seq"):
                 source_ids = (fi.sequence_provenance or {}).get(f"{path.stem}.seq")

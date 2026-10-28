@@ -1,5 +1,66 @@
 # Active Context
 
+## Current work focus — broadband stars on a narrowband plate (**implemented 2026-10-28, not run on a real target**)
+
+`doc/plans/multistar.md` phases 1–3 are in the tree. A new `stack_broadband`
+stage (no `role = "stack"`, or `select_stages` drops it) registers broadband
+lights to the existing `_Ha` plate and writes `stacked_bb.fits`. `merge_stars`
+optionally projects `crop_stacked_bb.fits` through the existing starnet mask;
+`background` and `palette_broadband` exclude `stacked_bb` by filename.
+
+The Siril order is not the one the plan first guessed, and each deviation was
+measured against Siril 1.4.4. Do not collapse it back into one script:
+
+- `convert`, not `link`, writes the sequence `setref` can load. It reads every
+  FITS file in the working directory, so the plate is copied into the broadband
+  directory and Siril is started with `-d` there. A scripted `cd` does not move
+  the sequence lookup.
+- `setref` precedes `register`. Doing it after rewrites the reference member's
+  registration data. A bare `register <name>` is rejected, so the pin case uses
+  `-noclamp` instead of `-2pass`.
+- The script stops after `register`. `seqapplyreg` aborts while the reference
+  index is unset, and `unselect` clears it, so the second script unselects the
+  plate and pins it again before applying. `write_reference_identity()` records
+  the reference's own identity in the last `R0` row first.
+- The plate is then unselected in the *applied* sequence and the stack uses
+  `-filter-included`. `setref` forced it included, so filtering the original
+  sequence would stack it.
+- The plate input follows `stack_(dual_duo|single_duo|osc)`, not `stack_.*`.
+  The broad pattern matches `stack_broadband` itself, and `crop` follows this
+  stage, so the graph becomes a cycle that also strands every later stage.
+
+`just lint` is clean and `tests/unit/test_broadband.py` (20 tests, including a
+real Siril run) passes. **Not yet run on `ngc7822`**, which was the point of
+keeping this off the dual-duo stage: a full `sb process auto` would redo that
+stack. The next step is a run that builds only the new stage.
+
+The first real `sb process auto` did not create the task at all. Two planning
+bugs, both fixed 2026-10-28:
+
+- `_import_from_prior_stages()` followed the stage's first `after` for every
+  input. The plate is first, so the lights filter ran against
+  `stacked_Ha.fits` and the stage was skipped. Each input now follows its own
+  `after`.
+- `light.*` declares `bkg_pp_light` for a duo night too. Extraction rewrites
+  that night but publishes only the new names, so the lights input follows
+  both stages and drops a light output whose session has a
+  `seqextract_haoiii` task. On `ngc7822` the rebuilt task depends only on the
+  existing `stacked_Ha.fits` and `bkg_pp_light_s233_.seq`. The plate's
+  producing task is recorded on the input, which replaced the separate `duo`
+  input.
+
+A later clean run failed in **`stack_osc`**, not `stack_broadband` (that stage
+stayed pending). `merge_to()` globbed `<stem>*`, and the earlier broadband
+convert had written 4832 `bkg_pp_light_s233_*.fits` beside the 89 `.fit`
+members and rewritten the `.seq` to claim them. `stack_osc` then converted
+5367 frames from every night and Siril rejected the empty `osc_.seq`. Fixed
+2026-10-28: `_sequence_member_files()` collects numbered members of one
+extension and, when both exist, the smaller set. `stack_osc` now follows
+`(?:seqextract_haoiii|light.*)` with a `^bkg_pp_light` filter, so an extracted
+night is not stacked as colour. The leftover frames are still in
+`~/.cache/starbash/processing/ngc7822` and are no longer inputs; a rerun of
+`stack_osc` (then `stack_broadband`) is still required.
+
 ## Current work focus — crop `rotate_deg` now keeps quarter turns whole (**implemented 2026-10-14**)
 
 The user reported that `rotate_deg = 90` in `private/processed/ngc7822/.starbash/main.toml`

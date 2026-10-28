@@ -494,6 +494,27 @@ class TestSirilTool:
 
         assert tool.commands[-1] == r"C:\Program Files\Siril\bin\siril.exe"
 
+    def test_script_pins_the_fits_extension(self, monkeypatch, tmp_path):
+        """Siril appends its saved extension to an extension-less -out path.
+
+        The master templates name ``.fit``. A preference of ``.fits`` writes a
+        different file, and the task then records a path that was never created.
+        """
+        captured: dict[str, str] = {}
+
+        def fake_run(cmd, cwd, script, timeout, log_out):
+            captured["script"] = script
+
+        monkeypatch.setattr(siril, "tool_run", fake_run)
+        monkeypatch.setattr(siril, "link_or_copy_to_dir", lambda files, dest: None)
+        tool = SirilTool()
+        monkeypatch.setattr(type(tool), "executable_path", property(lambda self: "siril"))
+
+        tool._run(str(tmp_path), "stack frames -out={output}", {"output": "master.fit"})
+
+        script = captured["script"]
+        assert script.index("setext fit") < script.index("stack frames")
+
 
 def test_external_tool_uses_an_absolute_executable_path(tmp_path):
     """An absolute command candidate works without needing to be on ``PATH``."""

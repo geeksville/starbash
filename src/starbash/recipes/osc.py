@@ -3,9 +3,13 @@
 
 import logging
 import os
+import shutil
+from pathlib import Path
 from typing import Any
 
+from starbash.doit import _sequence_member_files
 from starbash.exception import NotEnoughFilesError
+from starbash.fits import read_dimensions
 from starbash.tool import tools
 
 siril = tools["siril"]
@@ -34,6 +38,67 @@ def _get_param(name: str, default: str) -> str:
     if value is None:
         return default  # parameter not declared/overridden
     return str(value)  # an explicitly empty override is meaningful (e.g. disable drizzle)
+
+
+def register_and_stack_commands(
+    sequence: str,
+    output_file: str,
+    *,
+    drizzle: str = "",
+    framing: str = "cog",
+    filtering: str = "",
+    rejection: str = "rej w 3 3",
+    stack_options: str = "-norm=addscale -output_norm -32b",
+    reference_index: int | None = None,
+    stack_filter: str = "",
+) -> str:
+    """Siril commands that register ``sequence`` and stack the registered result.
+
+    ``reference_index`` is Siril's 1-based sequence member. Passing it pins the
+    registration to that member (``setref``) instead of letting ``-2pass`` choose
+    one. ``-2pass`` and an explicit reference are mutually exclusive: two-pass
+    registration replaces the reference it was given.
+
+    ``stack_filter`` is how a caller keeps a pinned reference out of the stack.
+    ``setref`` forces its member back to included, so stacking "included" frames
+    would put the reference in the result.
+    """
+    pin_reference = ""
+    two_pass = "-2pass"
+    if reference_index is not None:
+        if reference_index < 1:
+            raise ValueError(f"Siril reference indexes start at 1, got {reference_index}")
+        # The caller has already put the reference in the sequence. setref only
+        # chooses a member; it cannot name a file that is not one. It also has to
+        # precede register: setref after register rewrites the reference member's
+        # registration data, and seqapplyreg then aborts on that null matrix.
+        # unselect follows it and clears the reference, so a caller that stacks
+        # without the plate re-issues setref after that unselect.
+        pin_reference = f"setref {sequence} {reference_index}\n"
+        # Siril strips each script line, so a bare "register <name>" has no
+        # argument and is rejected. -noclamp is a no-op here (these frames are
+        # already inside the range) and it keeps the command valid without
+        # -2pass, which would replace the reference we are about to pin.
+        two_pass = "-noclamp"
+    return f"""
+        {pin_reference}
+        register {sequence} {two_pass}
+        {f"unselect {sequence} {reference_index} {reference_index}" if reference_index else ""}
+
+        # Stack the OUTPUT of seqapplyreg (r_{sequence}), not the pre-registration
+        # sequence. Siril's stack only accepts shift-only registration data;
+        # multi-session sequences contain rotation, i.e. full homographies, which
+        # stack rejects. The applied output has identity H matrices. framing=cog/min
+        # gives every frame one shared output size; framing=max sizes each frame
+        # independently and the stack then aborts on a one-pixel difference.
+        seqapplyreg {sequence} {drizzle} -framing={framing} {filtering}
+
+        # Winsorized sigma clipping rejects a pixel that is bright in one frame and
+        # sky in the others, which is what an airplane or satellite trail is.
+        stack r_{sequence} {rejection} {stack_options} {stack_filter} -out={output_file}
+
+        mirrorx_single {output_file}
+        """
 
 
 def make_stacked(
@@ -106,29 +171,13 @@ def make_stacked(
     framing = _get_param("framing", "cog")
     filtering = _get_param("filtering", "")
 
-    # Siril commands for registration and stacking. We run this in process_dir.
-    commands += f"""
-        # We use -2pass to select the best possible reference frame for others to register against
-        # because that frame might get filtered out which breaks stacking.
-        register {registration_input} -2pass
-
-        # Apply the registration (with optional drizzle). We stack the OUTPUT of
-        # seqapplyreg (r_{registration_input}), not the pre-registration sequence, because
-        # Siril's stack only supports shift-only registration data; multi-session merges
-        # contain rotation, i.e. full homographies, which stack rejects ("registration
-        # data with more than simple shifts"). The applied output has identity H matrices,
-        # which stack accepts. See the framing comment above for why framing=cog/min is
-        # required (uniform output sizes). Filtering here keeps a record of dropped frames.
-        seqapplyreg {registration_input} {drizzle} -framing={framing} {filtering}
-
-        # Winsorized Sigma Clipping (w 3 3) with Average rejection to nuke airplane/satellite trails.
-        # Trail pixels are bright statistical outliers vs same pixel in other frames, so sigma high 3.0
-        # rejects them and averages dark sky from other frames into those spots. Gold standard for >15-20 frames.
-        # If faint ghost survives, lower sigma high to 2.5.
-        stack r_{registration_input} rej w 3 3 -norm=addscale -output_norm -32b -out={output_file}
-
-        mirrorx_single {output_file}
-        """
+    commands += register_and_stack_commands(
+        registration_input,
+        output_file,
+        drizzle=drizzle,
+        framing=framing,
+        filtering=filtering,
+    )
 
     siril.run(commands, context=context, cwd=context["process_dir"])
 
@@ -258,3 +307,264 @@ def osc_process(has_ha_oiii: bool, has_sii_oiii: bool) -> None:
 
     assert channel_num >= 1, "At least one channel should have been processed"
     make_renormalize(channel_num, ha_base=ha_base, oiii_base=oiii_base, sii_base=sii_base)
+
+
+# A duo night is rewritten by seqextract_haoiii into these two sequences. A
+# broadband night is not, so its calibrated sequence keeps the light name.
+_DUO_SEQUENCE_MARKERS = ("Ha_bkg", "OIII_bkg")
+_BROADBAND_SEQUENCE_MARKER = "bkg_pp_light"
+
+# The duo stack's registration options. A broadband plate has to use the same
+# ones or seqapplyreg gives it a different canvas than stacked_Ha.fits.
+# The duo stack drizzles, and every member of that sequence is CFA. This one
+# pins a debayered Ha plate, which has no Bayer pattern. Siril 1.4.4 then
+# crashes in seqapplyreg -drizzle (do_kernel_square / free(): corrupted
+# unsorted chunks) after logging a CFA mismatch against the plate. Framing
+# still has to match the duo stack; drizzle must not.
+_DUO_DRIZZLE = "-drizzle"
+_DUO_FRAMING = "cog"
+_DUO_FILTERING = "-filter-wfwhm=80% -filter-round=80% -filter-bkg=80%"
+
+
+def _input_paths(name: str, suffix: str) -> list[Path]:
+    """Full paths of one named stage input whose filename ends with ``suffix``."""
+    file_info = context.get("input", {}).get(name)
+    if file_info is None:
+        return []
+    return [path for path in file_info.full_paths if path.name.endswith(suffix)]
+
+
+def _duo_plate() -> bool:
+    """Whether the plate came from a duo stack rather than a plain OSC stack.
+
+    The two stacks register differently, and this plate has to copy the one
+    that produced it. The producing task is recorded while the input is
+    imported; its name is ``stack_dual_duo`` or ``stack_single_duo``.
+    """
+    file_info = context.get("input", {}).get("ha")
+    producers = getattr(file_info, "producers", {}) if file_info is not None else {}
+    return any("duo" in name for name in producers.values())
+
+
+def write_reference_identity(sequence_file: Path) -> None:
+    """Give the reference member the identity matrix its alignment actually is.
+
+    A frame used as the reference is not aligned to anything, so Siril records an
+    identity for it and then will not export it while the reference index is
+    unset. Once ``setref`` has named the member, that identity is a legal matrix
+    (it is what an accepted registration writes for its own reference). This
+    records it so the export can include the plate and the shape check can
+    compare it. The reference is the last member, which is the last ``R0`` row.
+    """
+    lines = sequence_file.read_text().splitlines()
+    for index in range(len(lines) - 1, -1, -1):
+        if lines[index].startswith("R0 "):
+            parts = lines[index].split()
+            # The row is statistics, then "H", then the nine matrix coefficients.
+            marker = parts.index("H")
+            parts[marker + 1 : marker + 10] = ["1", "0", "0", "0", "1", "0", "0", "0", "1"]
+            lines[index] = " ".join(parts)
+            sequence_file.write_text("\n".join(lines) + "\n")
+            return
+    raise ValueError(f"Sequence '{sequence_file.name}' has no registration row to fix")
+
+
+def _prepare_broadband_sequence(sequence_file: Path, plate: Path) -> tuple[Path, str, int]:
+    """Copy one sequence into a directory that contains nothing else.
+
+    ``convert`` reads every FITS file in its working directory. The shared
+    process directory holds every night, so converting there turns 89 Tri
+    frames into thousands and then fails while registering a frame from another
+    night. The copy is what ``convert`` rewrites; the original sequence stays
+    as the stage found it.
+
+    The ``.seq`` header is not the membership. A previous convert rewrote
+    ``bkg_pp_light_s233_.seq`` to claim 4832 frames and left dangling links
+    under that stem. The members are the numbered files of one extension.
+    """
+    sequence = fix_sequence_name(sequence_file.name)
+    frames = _sequence_member_files(sequence_file.parent, sequence_file)
+    if not frames:
+        raise NotEnoughFilesError(
+            f"Broadband sequence {sequence_file.name} has no frames", [sequence_file.name]
+        )
+    work = sequence_file.parent / "broadband"
+    if work.exists():
+        shutil.rmtree(work)
+    work.mkdir()
+    for index, frame in enumerate(frames, start=1):
+        # Number from the member order, not the source suffix. A rewritten
+        # sequence can leave gaps, and convert needs a contiguous run.
+        shutil.copy(frame, work / f"{sequence}_{index:05d}{frame.suffix}")
+    reference = len(frames) + 1
+    # convert writes <name>.fits and, when the source already has that name,
+    # replaces the file with a link to itself. The lights are .fit, so they
+    # survive; the plate has to join as .fit too or the reference member is
+    # gone before register reads it.
+    plate_frame = work / f"{sequence}_{reference:05d}.fit"
+    shutil.copy(plate, plate_frame)
+    return work, sequence, len(frames)
+
+
+def broadband_stack_commands(
+    sequence: str,
+    frame_count: int,
+    plate: Path,
+    lights_dir: Path,
+    output_file: Path,
+    *,
+    drizzle: str = "",
+    framing: str = _DUO_FRAMING,
+    filtering: str = _DUO_FILTERING,
+) -> tuple[str, str, str]:
+    """Register ``sequence`` against ``plate`` and stack every other member.
+
+    The plate is copied in as the last member and pinned with ``setref``. Siril
+    numbers members from 1, so a sequence of ``frame_count`` lights has its
+    reference at ``frame_count + 1``. ``unselect`` clears that pin, so the second
+    script sets it again after the plate has been dropped from the selection.
+    ``setref`` forces its member included; stacking the included members of the
+    *applied* sequence is what keeps the plate out of the result.
+
+    ``convert`` writes the sequence ``setref`` loads, and it reads every FITS file
+    in the working directory, which is why the plate is copied in here rather
+    than the sequence being built in the shared process directory. The first
+    script stops after ``register``: the reference's own matrix is an identity,
+    and ``seqapplyreg`` aborts on it until :func:`write_reference_identity` has
+    recorded that identity. The caller then runs the second script.
+    """
+    if frame_count < 1:
+        raise ValueError(f"Broadband sequence '{sequence}' has no frames to stack")
+    reference = frame_count + 1
+    plate_frame = lights_dir / f"{sequence}_{reference:05d}.fit"
+    if not plate_frame.exists():
+        shutil.copy(plate, plate_frame)
+    register, apply = register_and_stack_commands(
+        sequence,
+        "bb_stack",
+        drizzle=drizzle,
+        framing=framing,
+        filtering=filtering,
+        reference_index=reference,
+        stack_filter="-filter-included",
+    ).split("\n        seqapplyreg", 1)
+    # The plate is a member while the lights are aligned to it. unselect clears
+    # the reference, so it is pinned again before the apply. The third script
+    # stacks. It does not unselect the plate: seqapplyreg keeps the original
+    # file numbers and drops rejected frames, so the plate's image index is
+    # only known once that sequence exists. The caller reads it and unselects
+    # before stacking.
+    return (
+        f"""
+        convert {sequence} -out=.
+        {register.split("unselect", 1)[0]}
+        """,
+        f"""
+        unselect {sequence} {reference} {reference}
+        setref {sequence} {reference}
+        seqapplyreg{apply.split("\n        stack ", 1)[0]}
+        """,
+        f"""
+        stack {apply.split("\n        stack ", 1)[1]}
+        load bb_stack
+        update_key FILTER Broadband "Broadband stars registered to the narrowband plate"
+        save "{output_file}"
+        """,
+    )
+
+
+def applied_member_index(sequence_file: Path, file_number: int) -> int:
+    """1-based image index of ``file_number`` in an applied Siril sequence.
+
+    ``seqapplyreg`` keeps the source file number in each ``I`` row and omits
+    rejected frames, so the image index is the row's position, not the file
+    number. ``unselect`` wants that index.
+    """
+    indexes = [
+        int(parts[1])
+        for line in sequence_file.read_text().splitlines()
+        if (parts := line.split()) and parts[0] == "I" and len(parts) >= 2
+    ]
+    try:
+        return indexes.index(file_number) + 1
+    except ValueError as error:
+        raise ValueError(
+            f"Applied sequence '{sequence_file.name}' has no image {file_number}"
+        ) from error
+
+
+def assert_reference_kept_shape(plate: Path, applied_reference: Path) -> None:
+    """Fail before saving when registration exported the plate at a new size.
+
+    The applied reference is the plate itself, warped onto the registration
+    framing. A different shape means the broadband stack is not on the plate the
+    crop stage will line the other channels up to.
+    """
+    expected = read_dimensions(plate)
+    actual = read_dimensions(applied_reference)
+    if actual != expected:
+        raise ValueError(
+            f"Registered reference {applied_reference.name} is {actual[0]}x{actual[1]}, "
+            f"but the plate {plate.name} is {expected[0]}x{expected[1]}. "
+            "The broadband stack would not match the narrowband plates."
+        )
+
+
+def stack_broadband() -> None:
+    """Stack broadband lights onto the narrowband plate as ``stacked_bb.fits``.
+
+    The stage is skipped, rather than failed, when a target has no broadband
+    sequence: an ordinary duo target must be unchanged. The plate and the
+    sequence are both required inputs, so this only runs when both resolved.
+    """
+    plates = _input_paths("ha", "_Ha.fits")
+    if len(plates) != 1:
+        raise NotEnoughFilesError(
+            f"Broadband stacking needs exactly one _Ha plate, found {len(plates)}",
+            [plate.name for plate in plates],
+        )
+    plate = plates[0]
+
+    # merge_to = "bb" has already gathered every broadband sequence into one
+    # directory of links. One sequence is linked directly instead.
+    merged = _input_paths("lights", "bb_.seq")
+    sequences = merged or [
+        path
+        for path in _input_paths("lights", ".seq")
+        if _BROADBAND_SEQUENCE_MARKER in path.name
+        and not any(marker in path.name for marker in _DUO_SEQUENCE_MARKERS)
+    ]
+    if len(sequences) != 1:
+        raise NotEnoughFilesError(
+            f"Broadband stacking needs exactly one sequence, found {len(sequences)}",
+            [sequence.name for sequence in sequences],
+        )
+    sequence_file = sequences[0]
+    work, sequence, frame_count = _prepare_broadband_sequence(sequence_file, plate)
+
+    output = Path(context["output"].base) / "stacked_bb.fits"
+    register, apply, stack = broadband_stack_commands(
+        sequence,
+        frame_count,
+        plate,
+        work,
+        output,
+        drizzle=_get_param("drizzle", ""),
+        framing=_get_param("framing", _DUO_FRAMING if _duo_plate() else "max"),
+        filtering=_get_param("filtering", _DUO_FILTERING if _duo_plate() else "-filter-wfwhm=80%"),
+    )
+    siril.run(register, context=context, cwd=str(work))
+    write_reference_identity(work / f"{sequence}_.seq")
+    siril.run(apply, context=context, cwd=str(work))
+    plate_index = applied_member_index(work / f"r_{sequence}_.seq", frame_count + 1)
+    siril.run(
+        f"unselect r_{sequence} {plate_index} {plate_index}\n{stack}",
+        context=context,
+        cwd=str(work),
+    )
+
+    applied = work / f"r_{sequence}_{frame_count + 1:05d}.fit"
+    if not applied.exists():
+        applied = applied.with_suffix(".fits")
+    assert_reference_kept_shape(plate, applied)
+    logger.info(f"Saved broadband plate registered to {plate.name} at {output}")

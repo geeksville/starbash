@@ -376,6 +376,10 @@ class TestMergeToReportsProgress:
         frames = 26
         for index in range(1, frames + 1):
             (lights / f"light_{index:04d}.fits").touch()
+        (lights / "light_.seq").write_text(
+            "S 'light_' 1 26 26 4 -1\n"
+            + "".join(f"I {index} 1\n" for index in range(1, frames + 1))
+        )
         info = FileInfo(
             base=str(lights),
             full=lights / "light_.seq",
@@ -400,3 +404,33 @@ class TestMergeToReportsProgress:
         assert len(merged) == frames
         assert merged[:2] == ["in_00001.fits", "in_00002.fits"]
         assert merged[-1] == f"in_{frames:05d}.fits"
+
+    def test_a_rewritten_sequence_does_not_swallow_the_original(self, tmp_path):
+        """A later convert can reuse the stem and rewrite the .seq header.
+
+        ``bkg_pp_light_s233_`` had 89 ``.fit`` members. The broadband convert
+        wrote 4832 ``.fits`` with the same stem and rewrote the sequence to
+        claim them. A prefix glob then stacks every night.
+        """
+        work = tmp_path / "process"
+        work.mkdir()
+        for index in range(1, 4):
+            (work / f"bkg_pp_light_s233_{index:05d}.fit").write_text("original")
+        for index in range(1, 8):
+            (work / f"bkg_pp_light_s233_{index:05d}.fits").write_text("rewrite")
+        (work / "bkg_pp_light_s233_conversion.txt").write_text("not a frame")
+        # The rewritten header claims the larger set. Membership must not trust it.
+        (work / "bkg_pp_light_s233_.seq").write_text("S 'bkg_pp_light_s233_' 1 7 7 5 -1\n")
+        info = FileInfo(
+            base=str(work),
+            full=work / "bkg_pp_light_s233_.seq",
+            image_rows=[
+                {"abspath": str(work / "bkg_pp_light_s233_.seq"), "path": "bkg_pp_light_s233_.seq"}
+            ],
+        )
+
+        merge_to("in", info)
+
+        merged = sorted(path.name for path in (work / "in").iterdir())
+        assert merged == ["in_00001.fits", "in_00002.fits", "in_00003.fits"]
+        assert (work / "in" / "in_00001.fits").read_text() == "original"

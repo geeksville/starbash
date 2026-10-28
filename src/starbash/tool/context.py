@@ -178,6 +178,19 @@ def my__import__(
     return __import__(name, globals, locals, fromlist, level)
 
 
+def _siril_line(file_info: Any, template: str, path: Any = None) -> str:
+    """A Siril command that disappears when its optional input resolved nothing.
+
+    Defined here, rather than imported, because the Siril tool imports this
+    module. The two have to agree on the rule: an empty input emits nothing, and
+    ``%s`` in the template is the file. See ``starbash.tool.siril.siril_line``.
+    """
+    paths = getattr(file_info, "full_paths", None) or []
+    if not paths:
+        return ""
+    return template.replace("%s", str(path if path is not None else paths[0]))
+
+
 def make_safe_globals(extra_globals: dict = {}) -> dict:
     """Generate a set of RestrictedPython globals for AstoGlue exec/eval usage"""
     # Define the global and local namespaces for the restricted execution.
@@ -244,6 +257,7 @@ def make_safe_globals(extra_globals: dict = {}) -> dict:
         "sum": sum,
         "abs": abs,  # Note: abs is already in safe_builtins, but explicit is better
         "round": round,  # Note: round is already in safe_builtins
+        "siril_line": _siril_line,
     }
     builtins.update(extras)
 

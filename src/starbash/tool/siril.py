@@ -15,7 +15,26 @@ from starbash.tool.context import expand_context_unsafe, strip_comments
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["SirilTool", "SIRIL_INSTALL_URL"]
+
+def siril_line(file_info: Any, template: str, path: Path | str | None = None) -> str:
+    """A Siril command that disappears when its optional input resolved nothing.
+
+    A script is text by the time Siril reads it, so it cannot test whether a
+    file exists. Recipes expand ``{siril_line(input["broadband"], 'load "%s"', path)}``
+    and the recipe engine substitutes ``path`` before this is called. An optional
+    input is an empty ``FileInfo`` when nothing matched, which is the only signal
+    the recipe has; the command is then an empty line rather than a ``load`` of a
+    path that is not there. ``%s`` is the placeholder rather than ``{path}``:
+    the recipe engine would try to evaluate the braces itself. It is replaced
+    literally, because a PixelMath expression also contains ``%``.
+    """
+    paths = getattr(file_info, "full_paths", None) or []
+    if not paths:
+        return ""
+    return template.replace("%s", str(path if path is not None else paths[0]))
+
+
+__all__ = ["SirilTool", "SIRIL_INSTALL_URL", "siril_line"]
 
 #: Where the user can download Siril.
 SIRIL_INSTALL_URL = "https://siril.org/"
@@ -123,10 +142,13 @@ class SirilTool(ExternalTool):
 
         link_or_copy_to_dir(input_files, temp_dir)
 
-        # We dedent here because the commands are often indented multiline strings
+        # We dedent here because the commands are often indented multiline strings.
+        # setext pins the extension Siril appends to an extension-less -out path.
+        # Its saved preference may be .fits, and the master templates name .fit.
         script_content = textwrap.dedent(
             f"""
             requires 1.4.0 1.5.0
+            setext fit
             {textwrap.dedent(strip_comments(expanded))}
             """
         )

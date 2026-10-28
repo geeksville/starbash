@@ -68,7 +68,7 @@ class TestImportFromPriorStages:
     def _run_import(
         self,
         requires: list[dict],
-        prior_tasks: list[dict],
+        prior_tasks: list[dict] | dict,
         optional: bool = False,
     ):
         from starbash.processing import Processing
@@ -77,7 +77,8 @@ class TestImportFromPriorStages:
         processing.stage = {"inputs": [{"after": "upstream"}]}
         processing.processed_target = None
         processing.context = {"default_metadata": {}}
-        processing._get_prior_tasks = lambda stage: prior_tasks
+        processing._built_tasks = []
+        processing._get_prior_tasks = lambda stage, input=None: prior_tasks
         return processing._import_from_prior_stages(
             {"kind": "job", "requires": requires, "optional": optional}
         )
@@ -128,6 +129,16 @@ class TestImportFromPriorStages:
             "output_0.fits",
             "output_1.fits",
         ]
+
+    def test_a_single_prior_task_is_not_unpacked(self):
+        """A non-multiplexed prior stage comes back as one task, not a list."""
+        result = self._run_import(
+            [{"kind": "filename", "value": "output_"}],
+            self._task(0),
+        )
+
+        assert result.image_rows is not None
+        assert [row["path"] for row in result.image_rows] == ["output_0.fits"]
 
     def test_min_count_still_rejects_an_input_group_when_insufficient(self):
         """A named input group still fails when its own aggregate is too small."""
@@ -206,12 +217,12 @@ class TestPaletteRecipes:
                     },
                 }
             )
-        processing._get_prior_tasks = lambda stage: prior_tasks
+        processing._get_prior_tasks = lambda stage, input=None: prior_tasks
 
         real_sii = processing._import_from_prior_stages(sii_input)
         assert real_sii.image_rows is not None
         assert [row["path"] for row in real_sii.image_rows] == ["nx_bx_bk_crop_stacked_Sii.fits"]
-        processing._get_prior_tasks = lambda stage: prior_tasks[:2]
+        processing._get_prior_tasks = lambda stage, input=None: prior_tasks[:2]
         missing_sii = processing._import_from_prior_stages(sii_input)
         assert missing_sii.image_rows == []
 

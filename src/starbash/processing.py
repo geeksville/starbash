@@ -282,6 +282,7 @@ class Processing(ProcessingLike):
         self.results: list[ProcessingResult] = []
 
         self._stages_cache: list[StageDict] | None = None  # Cache for stages property
+        self._built_tasks: list[TaskDict] = []
         #: What role selection decided for the current job (see doc/plans/stage-roles.md).
         self._stage_selection: StageSelection | None = None
         #: The target whose tasks are currently executing (for live log attribution).
@@ -825,6 +826,7 @@ class Processing(ProcessingLike):
     def _add_task(self, task: TaskDict) -> None:
         """Add a task to the doit task list."""
         self.doit.add_task(task)
+        self._built_tasks.append(task)
 
     def _run_jobs(self) -> None:
         # add a default task to run all the other tasks
@@ -1033,17 +1035,27 @@ class Processing(ProcessingLike):
         # the correct session specific files
         self.context.pop("input", None)
 
-    def _get_prior_tasks(self, stage: StageDict) -> TaskDict | list[TaskDict] | None:
+    def _get_prior_tasks(
+        self, stage: StageDict, input: InputDef | None = None
+    ) -> TaskDict | list[TaskDict] | None:
         """Get the prior tasks for the given stage based on the 'after' input definition.
 
         Args:
             stage: The stage definition from TOML
+            input: The input whose ``after`` to follow.  A stage may consume several
+                producers (the plate from ``stack_dual_duo``, the lights from
+                ``light.*``); without this, every input follows the first ``after``
+                and a later block is filtered against the wrong files.
         Returns:
             Note: this function will return a single TaskDict if the prior stage was not
             multiplexed, otherwise a list of TaskDicts for each multiplexed task.
             Or None if no "after" keyword was found."""
         inputs: list[InputDef] = stage.get("inputs", [])
-        input_with_after = next((inp for inp in inputs if "after" in inp), None)
+        input_with_after = (
+            input
+            if input is not None and "after" in input
+            else next((inp for inp in inputs if "after" in inp), None)
+        )
 
         if not input_with_after:
             return None
@@ -1398,9 +1410,10 @@ class Processing(ProcessingLike):
         image_rows: dict[
             str, ImageRow
         ] = {}  # We use a dict[abspath -> imagerow] because there might be duplicate outputs from prior stages
+        producers: dict[str, str] = {}
 
         assert self.stage
-        prior_tasks = self._get_prior_tasks(self.stage)
+        prior_tasks = self._get_prior_tasks(self.stage, input=input)
         if not prior_tasks:
             raise ValueError("Input definition with 'after' must refer to a valid prior stage.")
 
@@ -1482,6 +1495,7 @@ class Processing(ProcessingLike):
                                     )
                                 for img in output_rows:
                                     image_rows[img["abspath"]] = img
+                                    producers[img["abspath"]] = task["name"]
                     except NotEnoughFilesError as e:
                         child_exception = e  # In case we need to raise later
                         # just because one prior task doesn't have what we need, we shouldn't stop looking
@@ -1493,6 +1507,31 @@ class Processing(ProcessingLike):
 
         if filename_requires and len(image_rows) == 0 and not input.get("optional", False):
             # Prior outputs existed but none matched the filename filter; skip this stage.
+            raise NotEnoughFilesError(
+                "No prior stage outputs matched the input filename filter", []
+            )
+
+        image_rows = {
+            path: row
+            for path, row in image_rows.items()
+            if not self._light_was_extracted(producers.get(path, ""), prior_tasks, input)
+        }
+        earlier = prior_tasks if isinstance(prior_tasks, list) else [prior_tasks]
+        graph = [
+            task
+            for task in [*earlier, *getattr(self, "_built_tasks", [])]
+            if isinstance(task, dict) and isinstance(task.get("meta"), dict)
+        ]
+        produced_by = {
+            row["abspath"]: task["name"]
+            for task in graph
+            if isinstance(output := task["meta"]["context"].get("output"), FileInfo)
+            for row in output.image_rows or []
+        }
+        image_rows = self._prefer_later_matches(image_rows, produced_by, graph)
+        if filename_requires and len(image_rows) == 0 and not input.get("optional", False):
+            # Prior outputs existed but none matched the filename filter, or
+            # every match belonged to a night channel extraction rewrote.
             raise NotEnoughFilesError(
                 "No prior stage outputs matched the input filename filter", []
             )
@@ -1533,6 +1572,83 @@ class Processing(ProcessingLike):
             definition=input,
             provenance=provenance,
             sequence_provenance=sequence_provenance or None,
+            producers=producers,
+        )
+
+    @staticmethod
+    def _prefer_later_matches(
+        image_rows: dict[str, ImageRow],
+        producers: dict[str, str],
+        prior_tasks: list[TaskDict],
+    ) -> dict[str, ImageRow]:
+        """Drop a match only when a later match was produced from it.
+
+        ``after = "(denoise|crop)"`` matches both. Denoise consumes blur, and
+        blur consumes the crop, so the chain has to be walked: the blend wants
+        the processed file. A named reference (the Ha plate ``stack_broadband``
+        reads) is not input 0, so it is not a file this output replaces.
+        """
+        by_name = {task["name"]: task for task in prior_tasks}
+
+        def transformed_by(task_name: str) -> set[str]:
+            task = by_name.get(task_name)
+            if task is None:
+                return set()
+            task_inputs = task["meta"]["context"].get("input", {})
+            return {
+                row["abspath"]
+                for key in (0, "0")
+                if isinstance(file_info := task_inputs.get(key), FileInfo)
+                for row in file_info.image_rows or []
+            }
+
+        earlier: set[str] = set()
+        for path, task_name in producers.items():
+            if path not in image_rows:
+                continue
+            pending = transformed_by(task_name) - {path}
+            seen: set[str] = set()
+            while pending:
+                candidate = pending.pop()
+                if candidate in seen:
+                    continue
+                seen.add(candidate)
+                if candidate in image_rows:
+                    earlier.add(candidate)
+                    continue
+                producer = producers.get(candidate)
+                if producer:
+                    pending.update(transformed_by(producer) - {candidate})
+        if earlier and set(image_rows) - earlier:
+            return {path: row for path, row in image_rows.items() if path not in earlier}
+        return image_rows
+
+    def _light_was_extracted(
+        self, task_name: str, prior_tasks: list[TaskDict], input: InputDef
+    ) -> bool:
+        """Whether channel extraction rewrote the session that produced this file.
+
+        A light stage declares ``bkg_pp_light`` for every night. Extraction
+        rewrites a duo night but publishes only the new names, so the original
+        is still a light output. An input that follows both stages and asks for
+        the original name means the nights extraction left alone.
+        """
+        if not task_name.startswith("light") or "seqextract_haoiii" not in str(
+            input.get("after", "")
+        ):
+            return False
+        session_id = next(
+            (
+                task["meta"]["context"].get("session", {}).get("id")
+                for task in prior_tasks
+                if task["name"] == task_name
+            ),
+            None,
+        )
+        return any(
+            task_to_stage(task).get("name") == "seqextract_haoiii"
+            and task["meta"]["context"].get("session", {}).get("id") == session_id
+            for task in prior_tasks
         )
 
     @staticmethod
