@@ -12,7 +12,7 @@ USER root
 # libxcb-cursor0 is needed for Qt6
 RUN apt-get update && apt-get -y install --no-install-recommends \
         python3 python3-pip python3-venv python-is-python3 python3-tk sudo git flatpak sqlitebrowser libxcb-cursor0 \
-        graphviz ruby-full build-essential zlib1g-dev
+        graphviz ruby-full build-essential zlib1g-dev ripgrep
 
 # Create a non-root user if one doesn't exist, and give it sudo rights
 RUN if ! id -u ${USERNAME} > /dev/null 2>&1; then \
