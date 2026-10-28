@@ -115,3 +115,7 @@ Rules of thumb:
 - Prefer targeted file listing and inspection over searching binary or large
   generated files.
 
+## if you need to 'grep'
+
+The devcontainer you are running in includes 'ripgrep'.  So you might prefer to use 'rg' rather
+than 'grep' - it is much faster.
