@@ -43,6 +43,19 @@ __all__ = [
 LOG_TAIL_LINES = 8
 
 
+def _canonical_dependency_path(path: str) -> str:
+    """Collapse ``.fit``/``.fits`` so dependency edges match either spelling.
+
+    Local copy of :func:`starbash.fits.canonical_fits_path`: this module is
+    deliberately dependency-free and cannot import it.
+    """
+    lower = path.lower()
+    for suffix in (".fit", ".fits"):
+        if lower.endswith(suffix):
+            return path[: -len(suffix)] + ".fit"
+    return path
+
+
 class RunStatus(StrEnum):
     """The state of a stage or task within a run."""
 
@@ -479,13 +492,13 @@ class RunState:
         for stage in self._stages.values():
             for task in stage.tasks:
                 for target in task.targets:
-                    producer.setdefault(target, stage.name)
+                    producer.setdefault(_canonical_dependency_path(target), stage.name)
 
         for stage in self._stages.values():
             deps: set[str] = set()
             for task in stage.tasks:
                 for dep in task.file_dep:
-                    other = producer.get(dep)
+                    other = producer.get(_canonical_dependency_path(dep))
                     if other and other != stage.name:
                         deps.add(other)
             stage.dependencies = sorted(deps)

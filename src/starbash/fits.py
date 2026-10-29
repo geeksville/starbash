@@ -5,7 +5,52 @@ from typing import Any
 
 from astropy.io import fits
 
-__all__ = ["read_dimensions", "read_fits_header"]
+__all__ = [
+    "canonical_fits_path",
+    "read_dimensions",
+    "read_fits_header",
+    "resolve_fits_variant",
+]
+
+#: Siril appends its *saved* extension (``.fit`` or ``.fits``, per the user's
+#: ``config.1.4.ini``) to an extension-less ``-out`` path. A recipe that names
+#: ``master_bias_gain100.fit`` therefore gets ``...gain100.fits`` on a machine
+#: whose preference is ``.fits`` -- and recording the declared path would point
+#: doit and the DB at a file that was never created. We deliberately do *not*
+#: pin this with ``setext``: it calls ``writeinitfile()``, persisting the
+#: preference into Siril's shared user config, so parallel runs race on that
+#: file (Windows CI: ``save`` failing with "already exists?"). Instead every
+#: lookup treats the two spellings as the same file.
+FITS_VARIANT_SUFFIXES = (".fit", ".fits")
+
+
+def resolve_fits_variant(path: str | Path) -> Path:
+    """Return the on-disk spelling of a FITS path, trying ``.fit``/``.fits``.
+
+    Returns ``path`` itself when it exists (or has no FITS suffix); otherwise
+    returns the existing sibling with the other spelling, or ``path`` unchanged
+    when neither exists.
+    """
+    candidate = Path(path)
+    if candidate.exists() or candidate.suffix.lower() not in FITS_VARIANT_SUFFIXES:
+        return candidate
+    sibling = candidate.with_suffix(".fits" if candidate.suffix.lower() == ".fit" else ".fit")
+    return sibling if sibling.exists() else candidate
+
+
+def canonical_fits_path(path: str | Path) -> str:
+    """Canonical key for comparing FITS paths: collapses ``.fit``/``.fits``.
+
+    Dict lookups keyed on ``abspath`` (producers, image_rows, doit
+    file_dep/target matching) must agree whether Siril wrote ``.fit`` or
+    ``.fits``. Non-FITS paths pass through unchanged.
+    """
+    text = str(path)
+    lower = text.lower()
+    for suffix in FITS_VARIANT_SUFFIXES:
+        if lower.endswith(suffix):
+            return text[: -len(suffix)] + ".fit"
+    return text
 
 
 def _json_safe(value: Any) -> Any:

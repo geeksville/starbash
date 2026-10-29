@@ -15,10 +15,12 @@ from starbash.doit import (
     StarbashDoit,
     ToolAction,
     cleanup_temporaries,
+    doit_post_process,
     merge_to,
     my_builtin_task,
 )
 from starbash.exception import FilesystemUnavailableError
+from starbash.fits import canonical_fits_path, resolve_fits_variant
 from starbash.url import make_file_url
 
 
@@ -230,6 +232,98 @@ class TestCleanupTemporaries:
             assert outside.exists()
         finally:
             outside.unlink(missing_ok=True)
+
+
+class TestResolveFitsVariant:
+    """Siril appends its *saved* extension to extension-less ``-out`` paths."""
+
+    def test_returns_path_when_it_exists(self, tmp_path):
+        target = tmp_path / "master_bias_gain100.fit"
+        target.write_bytes(b"data")
+
+        assert resolve_fits_variant(target) == target
+
+    def test_returns_existing_sibling_with_other_spelling(self, tmp_path):
+        (tmp_path / "master_bias_gain100.fits").write_bytes(b"data")
+
+        assert resolve_fits_variant(tmp_path / "master_bias_gain100.fit") == (
+            tmp_path / "master_bias_gain100.fits"
+        )
+
+    def test_returns_declared_path_when_neither_spelling_exists(self, tmp_path):
+        declared = tmp_path / "master_bias_gain100.fit"
+
+        assert resolve_fits_variant(declared) == declared
+
+    def test_non_fits_paths_pass_through(self, tmp_path):
+        target = tmp_path / "frames.seq"
+        target.write_text("seq")
+
+        assert resolve_fits_variant(target) == target
+
+    def test_canonical_key_collapses_fit_and_fits(self):
+        assert canonical_fits_path("/masters/master_bias_gain100.fit") == canonical_fits_path(
+            "/masters/master_bias_gain100.fits"
+        )
+        assert canonical_fits_path("/work/frames.seq") == "/work/frames.seq"
+
+    def test_post_process_records_the_file_siril_actually_wrote(self, tmp_path):
+        """The reported failure: declared ``.fit``, Siril wrote ``.fits``."""
+        written = tmp_path / "master_bias_gain100.fits"
+        written.write_bytes(b"data")
+        recorded: list[Path] = []
+
+        sb = MagicMock()
+        sb.add_image.side_effect = lambda repo, path, **kwargs: recorded.append(Path(path))
+        repo = MagicMock()
+        repo.kind.return_value = "master"
+        output = FileInfo(base=str(tmp_path), full=tmp_path / "master_bias_gain100.fit")
+        output.repo = repo
+
+        task_dict = {
+            "name": "master_bias",
+            "actions": [],
+            "meta": {"context": {"output": output}, "processing": MagicMock(sb=sb)},
+        }
+        doit_post_process(task_dict)
+        closure = task_dict["actions"][-1]
+        closure([])
+
+        assert recorded == [written]
+
+    def test_normalize_renames_sibling_to_declared_spelling(self, tmp_path):
+        """After a tool run the on-disk file matches the declared target."""
+        from starbash.doit import _normalize_declared_outputs
+
+        written = tmp_path / "master_bias_gain100.fits"
+        written.write_bytes(b"data")
+        declared = tmp_path / "master_bias_gain100.fit"
+        output = FileInfo(
+            base=str(tmp_path),
+            image_rows=[{"abspath": str(declared), "path": declared.name}],
+        )
+        task_dict = {"meta": {"context": {"output": output}}}
+
+        _normalize_declared_outputs(task_dict)
+
+        assert declared.exists()
+        assert not written.exists()
+        assert output.image_rows == [{"abspath": str(declared), "path": declared.name}]
+
+    def test_normalize_leaves_matching_spelling_alone(self, tmp_path):
+        """No rename when Siril wrote the declared spelling."""
+        from starbash.doit import _normalize_declared_outputs
+
+        declared = tmp_path / "master_bias_gain100.fit"
+        declared.write_bytes(b"data")
+        output = FileInfo(
+            base=str(tmp_path),
+            image_rows=[{"abspath": str(declared), "path": declared.name}],
+        )
+
+        _normalize_declared_outputs({"meta": {"context": {"output": output}}})
+
+        assert declared.exists()
 
 
 class TestToolActionFilesystemErrors:

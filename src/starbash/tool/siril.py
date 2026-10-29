@@ -142,13 +142,10 @@ class SirilTool(ExternalTool):
 
         link_or_copy_to_dir(input_files, temp_dir)
 
-        # We dedent here because the commands are often indented multiline strings.
-        # setext pins the extension Siril appends to an extension-less -out path.
-        # Its saved preference may be .fits, and the master templates name .fit.
+        # We dedent here because the commands are often indented multiline strings
         script_content = textwrap.dedent(
             f"""
             requires 1.4.0 1.5.0
-            setext fit
             {textwrap.dedent(strip_comments(expanded))}
             """
         )

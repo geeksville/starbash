@@ -45,6 +45,7 @@ from starbash.exception import (
     raise_missing_repo,
 )
 from starbash.filtering import FallbackToImageException, filter_by_requires
+from starbash.fits import canonical_fits_path
 from starbash.preferences import auto_reindex_enabled
 from starbash.processed_target import ProcessedTarget
 from starbash.processing_like import ProcessingLike
@@ -227,19 +228,20 @@ def masters_needed_by(
 
     Returns:
         The set of needed master output paths, normalised with
-        :func:`os.path.realpath` so symlinked/relative spellings still match.
+        :func:`os.path.realpath` so symlinked/relative spellings still match,
+        then :func:`canonical_fits_path` so ``.fit``/``.fits`` spellings match.
     """
     needed: set[str] = set()
     for task in target_tasks:
         for dep in task.get("file_dep", None) or []:
-            needed.add(os.path.realpath(str(dep)))
+            needed.add(canonical_fits_path(os.path.realpath(str(dep))))
 
     # Map every produced master path to the task that produces it, so the
     # closure below can follow a needed output back to its own inputs.
     producers: dict[str, TaskDict] = {}
     for task in master_tasks:
         for output in task.get("targets", None) or []:
-            producers[os.path.realpath(str(output))] = task
+            producers[canonical_fits_path(os.path.realpath(str(output)))] = task
 
     frontier = list(needed)
     while frontier:
@@ -247,7 +249,7 @@ def masters_needed_by(
         if task is None:
             continue
         for dep in task.get("file_dep", None) or []:
-            normalised = os.path.realpath(str(dep))
+            normalised = canonical_fits_path(os.path.realpath(str(dep)))
             if normalised not in needed:
                 needed.add(normalised)
                 frontier.append(normalised)
@@ -1494,8 +1496,12 @@ class Processing(ProcessingLike):
                                         {"requires": filename_requires}, output_rows
                                     )
                                 for img in output_rows:
-                                    image_rows[img["abspath"]] = img
-                                    producers[img["abspath"]] = task["name"]
+                                    # Key on the canonical spelling so a consumer
+                                    # asking for ``.fit`` still matches when Siril
+                                    # wrote ``.fits`` (or vice versa).
+                                    key = canonical_fits_path(img["abspath"])
+                                    image_rows[key] = img
+                                    producers[key] = task["name"]
                     except NotEnoughFilesError as e:
                         child_exception = e  # In case we need to raise later
                         # just because one prior task doesn't have what we need, we shouldn't stop looking
@@ -1523,7 +1529,7 @@ class Processing(ProcessingLike):
             if isinstance(task, dict) and isinstance(task.get("meta"), dict)
         ]
         produced_by = {
-            row["abspath"]: task["name"]
+            canonical_fits_path(row["abspath"]): task["name"]
             for task in graph
             if isinstance(output := task["meta"]["context"].get("output"), FileInfo)
             for row in output.image_rows or []
@@ -1596,7 +1602,7 @@ class Processing(ProcessingLike):
                 return set()
             task_inputs = task["meta"]["context"].get("input", {})
             return {
-                row["abspath"]
+                canonical_fits_path(row["abspath"])
                 for key in (0, "0")
                 if isinstance(file_info := task_inputs.get(key), FileInfo)
                 for row in file_info.image_rows or []

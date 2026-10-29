@@ -494,11 +494,14 @@ class TestSirilTool:
 
         assert tool.commands[-1] == r"C:\Program Files\Siril\bin\siril.exe"
 
-    def test_script_pins_the_fits_extension(self, monkeypatch, tmp_path):
-        """Siril appends its saved extension to an extension-less -out path.
+    def test_siril_tool_does_not_rewrite_the_saved_extension(self, monkeypatch, tmp_path):
+        """No ``setext`` in generated scripts: it persists to Siril's user config.
 
-        The master templates name ``.fit``. A preference of ``.fits`` writes a
-        different file, and the task then records a path that was never created.
+        ``process_set_ext`` calls ``writeinitfile()``, so the preference leaks
+        out of the script into ``config.1.4.ini``. Parallel pytest workers then
+        race on that shared file, and a ``save`` that reuses a name can fail
+        with ``FITS error: failed to create new file (already exists?)`` when
+        another worker's write lands mid-script (Windows CI, sho palette).
         """
         captured: dict[str, str] = {}
 
@@ -512,8 +515,7 @@ class TestSirilTool:
 
         tool._run(str(tmp_path), "stack frames -out={output}", {"output": "master.fit"})
 
-        script = captured["script"]
-        assert script.index("setext fit") < script.index("stack frames")
+        assert "setext" not in captured["script"]
 
 
 def test_external_tool_uses_an_absolute_executable_path(tmp_path):

@@ -9,7 +9,7 @@ from typing import Any
 
 from starbash.doit import _sequence_member_files
 from starbash.exception import NotEnoughFilesError
-from starbash.fits import read_dimensions
+from starbash.fits import read_dimensions, resolve_fits_variant
 from starbash.tool import tools
 
 siril = tools["siril"]
@@ -563,8 +563,6 @@ def stack_broadband() -> None:
         cwd=str(work),
     )
 
-    applied = work / f"r_{sequence}_{frame_count + 1:05d}.fit"
-    if not applied.exists():
-        applied = applied.with_suffix(".fits")
+    applied = resolve_fits_variant(work / f"r_{sequence}_{frame_count + 1:05d}.fit")
     assert_reference_kept_shape(plate, applied)
     logger.info(f"Saved broadband plate registered to {plate.name} at {output}")

@@ -9,6 +9,7 @@ import pytest
 from astropy.io import fits
 
 from starbash.doit import FileInfo
+from starbash.fits import resolve_fits_variant
 from starbash.tool import tools
 
 RECIPE = Path(__file__).resolve().parents[2] / "starbash-recipes" / "palette" / "sho.toml"
@@ -125,7 +126,10 @@ def test_red_suppression_reduces_violet_without_dimming_ha_only_nebula(
     # than adding green + blue and over-suppressing Ha where both overlap.
     # Siril's median(Image) differs slightly from numpy's median(FITS), hence
     # compare the mask with a tolerance rather than the complete red equation.
-    companion_data = fits.getdata(tmp_path / "softened" / "SHO_Companion.fit")
+    # Siril appends its saved extension (.fit/.fits) to extension-less save
+    # names, so resolve whichever spelling it actually wrote.
+    companion_path = resolve_fits_variant(tmp_path / "softened" / "SHO_Companion.fit")
+    companion_data = fits.getdata(companion_path)
     assert companion_data is not None
     companion = np.asarray(companion_data)
     blue_signal = max(float(neutral[2, 6, 6]) - float(np.median(neutral[2])), 0.0)

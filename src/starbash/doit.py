@@ -22,6 +22,7 @@ from starbash import InputDef, events
 from starbash.database import ImageRow
 from starbash.doit_types import TaskDict
 from starbash.exception import FilesystemUnavailableError, UserHandledError
+from starbash.fits import FITS_VARIANT_SUFFIXES, resolve_fits_variant
 from starbash.os import symlink_or_copy
 from starbash.paths import get_user_cache_dir
 from starbash.tool.base import Tool
@@ -172,6 +173,49 @@ def cleanup_temporaries(stage: Any, context: dict[str, Any]) -> None:
                 logging.warning(f"Failed to remove temporary {match_path}: {e}")
 
 
+def _normalize_declared_outputs(task_dict: TaskDict) -> None:
+    """Rename on-disk FITS siblings to the declared output spelling.
+
+    Siril appends its *saved* extension (``.fit``/``.fits``) to an
+    extension-less ``-out`` path, so a recipe declaring ``master.fit`` gets
+    ``master.fits`` on machines whose preference is ``.fits``. Doit checks its
+    ``targets`` by exact path; a spelling mismatch makes every run look
+    out-of-date (or, for masters, makes ``add_image`` index a file that was
+    never created). After the tool runs, bring the on-disk file to the
+    declared spelling.
+    """
+    context = (task_dict.get("meta", {}) or {}).get("context", {})
+    output = context.get("output")
+    rows: list[ImageRow] = []
+    if isinstance(output, FileInfo):
+        rows = list(output.image_rows or [])
+        candidates = [Path(img["abspath"]) for img in rows if img.get("abspath")]
+        if output.full is not None and not rows:
+            candidates = [Path(output.full)]
+    else:
+        candidates = []
+    for declared in candidates:
+        if declared.suffix.lower() not in FITS_VARIANT_SUFFIXES or declared.exists():
+            continue
+        sibling = declared.with_suffix(".fits" if declared.suffix.lower() == ".fit" else ".fit")
+        if sibling.exists():
+            try:
+                sibling.rename(declared)
+            except OSError:
+                logging.warning(
+                    "FITS sibling %s exists but could not be renamed to declared %s",
+                    sibling,
+                    declared,
+                )
+            else:
+                logging.debug("Renamed %s to declared output %s", sibling, declared)
+    if isinstance(output, FileInfo) and output.image_rows:
+        for img in output.image_rows:
+            resolved = resolve_fits_variant(img.get("abspath", ""))
+            if str(resolved) != img.get("abspath"):
+                img["abspath"] = str(resolved)
+
+
 def doit_post_process(task_dict: TaskDict) -> None:
     """Do after execution processing
 
@@ -198,9 +242,12 @@ def doit_post_process(task_dict: TaskDict) -> None:
 
             # The generated files might not have propagated all of the metadata (because we added it after FITS import)
             extra_metadata = context.get("metadata", {})
+            # Siril appends its *saved* extension (.fit/.fits) to an
+            # extension-less -out path, so the declared output may name a
+            # sibling of the file Siril actually wrote.
             sb.add_image(
                 output.repo,
-                output.full,
+                resolve_fits_variant(output.full),
                 force=True,
                 extra_metadata=extra_metadata,
             )
@@ -405,6 +452,9 @@ class ToolAction(BaseAction):
                 self.result = self.tool.run(
                     self.commands, context=context, cwd=self.cwd, log_out=logfile, **self.parameters
                 )
+            # Siril may have written a FITS sibling (.fits for a declared .fit);
+            # bring it to the declared spelling before doit checks its targets.
+            _normalize_declared_outputs(self.task.meta)
         except OSError as e:
             error = FilesystemUnavailableError(
                 f"running {self.tool.name} for task '{self.task.name}'", e
