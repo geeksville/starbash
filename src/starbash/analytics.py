@@ -72,7 +72,7 @@ def analytics_setup(allowed: bool = False, user_email: str | None = None) -> Non
         )
         sentry_sdk.init(
             dsn="https://e9496a4ea8b37a053203a2cbc10d64e6@o209837.ingest.us.sentry.io/4510264204132352",
-            send_default_pii=True,
+            data_collection={},
             enable_logs=True,
             traces_sample_rate=1.0,
             disabled_integrations=[

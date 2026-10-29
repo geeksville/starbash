@@ -52,7 +52,6 @@ class TestAnalyticsSetup:
         mock_init.assert_called_once()
         call_kwargs = mock_init.call_args.kwargs
         assert "dsn" in call_kwargs
-        assert call_kwargs["send_default_pii"] is True
         assert call_kwargs["enable_logs"] is True
         assert call_kwargs["traces_sample_rate"] == 1.0
 
