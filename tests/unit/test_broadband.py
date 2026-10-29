@@ -376,7 +376,7 @@ def _merge_context(broadband: FileInfo, stretch: float = 1000) -> dict:
             0: FileInfo(image_rows=[{"abspath": str(starless), "path": starless.name}]),
             "broadband": broadband,
         },
-        "parameters": SimpleNamespace(stretch=stretch),
+        "parameters": SimpleNamespace(stretch=stretch, star_residual_removal=0.85),
         "output": FileInfo(
             image_rows=[{"abspath": "/tmp/merged_SHO.fits", "path": "merged_SHO.fits"}]
         ),
@@ -508,7 +508,12 @@ class TestMergeStarsBroadband:
 
         before_stretch = expanded.split("asinh -human", 1)[0]
         assert "load starmask" in before_stretch
-        assert "pm " not in before_stretch
+        # With no plate the residual star light is knocked out of the starless
+        # and the mask is flattened to a neutral luminance stencil.
+        assert 'pm "min($starless$ * (1 - 0.85 *' in before_stretch
+        assert "split r g b" in before_stretch
+        assert "rgbcomp luma luma luma -out=starmask_flat" in before_stretch
+        assert '"$broadband_rgb$"' not in before_stretch
         assert "asinh -human 1000" in expanded
 
     def test_present_plate_is_projected_through_the_mask(self, tmp_path: Path):
@@ -521,12 +526,15 @@ class TestMergeStarsBroadband:
 
         masked = expanded.split("asinh -human", 1)[0]
         assert f'load "{plate}"' in masked
-        assert "rgbcomp broadband broadband broadband" in masked
-        assert 'pm "$broadband_rgb$ * $starmask$"' in masked
+        # The neutral stencil (luma flatten) precedes the broadband branch.
+        assert masked.index("rgbcomp luma luma luma") < masked.index(f'load "{plate}"')
+        # The plate is multiplied by the *neutral* luminance stencil, not the
+        # coloured palette mask, so the star colour stays natural.
+        assert 'pm "$broadband_rgb$ * $starmask_flat$"' in masked
         assert (
             masked.index(f'load "{plate}"')
-            < masked.index("rgbcomp")
-            < masked.index("pm ")
+            < masked.index("rgbcomp broadband broadband broadband")
+            < masked.index('pm "$broadband_rgb$ * $starmask_flat$"')
             < masked.rindex("save starmask")
         )
 

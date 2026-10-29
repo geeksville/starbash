@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from astropy.io import fits
 
 __all__ = [
@@ -10,6 +11,7 @@ __all__ = [
     "read_dimensions",
     "read_fits_header",
     "resolve_fits_variant",
+    "signal_scale",
 ]
 
 #: Siril appends its *saved* extension (``.fit`` or ``.fits``, per the user's
@@ -102,3 +104,32 @@ def read_dimensions(file_path: str | Path) -> tuple[int, int]:
         raise ValueError(f"FITS image '{file_path}' has invalid dimensions: {width}x{height}")
 
     return width, height
+
+
+def signal_scale(file_path: str | Path, q: float = 99) -> float:
+    """Return ``1 / (Pq - median)`` for a palette channel, its bright reference.
+
+    The SHO/HOO palettes rescale each channel by this inverse span so that a
+    duo-stack OIII/Sii channel's nebulosity is not crushed by a star-pinned
+    global max: ``(x - median) * scale`` maps the channel's own Pq onto 1 while
+    leaving the sky (at/below the median) at zero.  ``q`` is the percentile of
+    the reference (default 99), which lands above the nebula but below the few
+    saturated star cores (see doc/plans/duo-palette-orange.md).
+
+    Raises:
+        ValueError: If the image is not a finite float FITS, or has no signal
+            above its median (everything within [median, median]).
+    """
+    with fits.open(str(file_path), memmap=True) as hdul:
+        primary: Any = hdul[0]
+        data = primary.data
+        if data is None or data.dtype.kind != "f":
+            raise ValueError(f"Palette channel must be a floating-point FITS image: {file_path}")
+        if not np.isfinite(data).all():
+            raise ValueError(f"Palette channel contains non-finite pixels: {file_path}")
+        median = float(np.median(data))
+        reference = float(np.percentile(data, q))
+    span = reference - median
+    if span <= 0:
+        raise ValueError(f"Palette channel has no above-median signal: {file_path}")
+    return 1.0 / span

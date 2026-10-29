@@ -12,6 +12,8 @@ from RestrictedPython.compile import compile_restricted
 from RestrictedPython.Guards import guarded_unpack_sequence, safe_builtins
 from RestrictedPython.PrintCollector import PrintCollector as _PrintCollector
 
+from starbash.fits import resolve_fits_variant, signal_scale
+
 logger = logging.getLogger(__name__)
 
 __all__ = [
@@ -258,6 +260,14 @@ def make_safe_globals(extra_globals: dict = {}) -> dict:
         "abs": abs,  # Note: abs is already in safe_builtins, but explicit is better
         "round": round,  # Note: round is already in safe_builtins
         "siril_line": _siril_line,
+        # FITS palette channels normalize by their own P99 signal span; exposed
+        # here (like siril_line) so the SHO/HOO recipes can read it per channel
+        # at script-expansion time. See starbash.fits.signal_scale.
+        "signal_scale": signal_scale,
+        # Resolve the on-disk spelling of a FITS path (.fit vs .fits); recipes
+        # whose tools write one or the other per the user's Siril config use it
+        # to avoid stale-shadowed intermediates (doc/plans/duo-palette-orange.md).
+        "resolve_fits_variant": resolve_fits_variant,
     }
     builtins.update(extras)
 

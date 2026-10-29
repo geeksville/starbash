@@ -2,11 +2,63 @@
 
 ## Status
 
-**Diagnosed 2026-10-14, not yet implemented.** Reproduced target: `ngc7822`
-(`private/processed/ngc7822/`). User decisions: use `just use-local-recipes`;
-fix input-range handling in `background.toml`; background extraction must run on
-all workflows including duo; retain the `palette_sho` name and current channel
-mapping. **Implementation decision 2026-10-14:** remove inverted SCNR; do not add a second channel match. Use the user's live Starbash configuration for validation, never force a full stack/recalibration run. Scope reprocessing to background and later tasks via doit after checking the graph (the current graph has three `seqextract_haoiii` tasks marked for rebuild).
+**Diagnosed 2026-10-14; the background range fix and SHO colour controls are
+implemented; the BXT range fix and palette normalization were implemented
+2026-10-29.** Reproduced target: `ngc7822` (`private/processed/ngc7822/`).
+User decisions: use `just use-local-recipes`; fix input-range handling in
+`background.toml`; background extraction must run on all workflows including
+duo; retain the `palette_sho` name and current channel mapping.
+**Implementation decision 2026-10-14:** remove inverted SCNR; do not add a
+second channel match. Use the user's live Starbash configuration for
+validation, never force a full stack/recalibration run. Scope reprocessing to
+background and later tasks via doit after checking the graph (the current graph
+has three `seqextract_haoiii` tasks marked for rebuild).
+
+**2026-10-29: the purple middle (ngc7635) — three layer stack.**  The
+red-suppression knob could not produce a blue middle on its own.  Iterating on
+the live target found, in order:
+
+1. **rc-astro range preservation** (the unresolved BXT scale loss): `bxt` and
+   `nxt` stages now map out-of-range inputs into `[0,1]` themselves and remap
+   the output back (`src/starbash/tool/ranges.py`, `rcastro.py`,
+   `test_rcastro_range.py`).  On ngc7635 the rebuilt `nx_*_OIII.fits` median
+   returned from 0.00096 to 0.00304.  Necessary but insufficient: the palette's
+   per-channel `-rescale 0 1` is pinned by each channel's own global max, so it
+   absorbs a restored global scale.
+2. **Palette per-channel signal normalization** (the "channel matching" the
+   user had declined in Q5, proven to be the blocker).  The palette now
+   sky-anchors each channel to its median and scales to its own P99
+   (`signal_reference`, default 0.1, keeps the top-1% from blowing out):
+   `starbash.fits.signal_scale` exposed to recipes like `siril_line`.  The
+   boost/companion/suppression anchor at the zero sky (Siril's `median()` jumps
+   onto the signal once ~half the pixels clip to 0).  `signal_reference` was
+   added after the first version (p99->1.0) blew out ~1% of every channel.
+3. **Definitive root cause of repeated "unchanged" runs: stale `.fit` scratch
+   shadowing.**  The processing scratch dir still held `*.fit` intermediates
+   from when the user's Siril config wrote `.fit` (before it was switched to
+   `.fits`).  Siril resolves a `$name$` PixelMath operand (or relative `load`)
+   that has no in-memory image by loading `name.fit` **first** — so every pm
+   silently read stale Oct-28-era files.  Proof: the same round-2 script
+   produced correct output in a clean directory and stale-looking output in the
+   busy cwd; moving the stale `*.fit` files aside made the palette match the
+   prediction exactly (mid p90 R/B 0.53).  Same shadowing corrupted `starnet`
+   (hardcoded `load "..._<stem>.fit"`, fixed via
+   `resolve_fits_variant(str(process_dir) + ...)`) and the merge's `load
+   results`.
+
+Post-fix ngc7635: whole-frame merged median B=0.37 vs R=0.004, centre 50 px
+white, blue middle; `HOO.toml` unchanged (still the old rescale; a follow-up if
+desired).
+
+**2026-10-29 (stars):** stars came out blue because NGC 7635 has **no broadband
+sessions** (HaOiii/SiiOiii only), so `merge_stars`' optional broadband input
+resolved empty and the star layer fell back to the palette mask, whose stars
+carry the SHO hue — and the stretched starless also kept blue-tinted starnet
+residuals.  `merge_stars.toml` now (a) builds a **neutral stencil** from the
+mask's per-pixel luminance and uses it in both branches (the broadband branch
+no longer multiplies the plate by the coloured mask), and (b) knocks residual
+star light out of the starless under the mask (`star_residual_removal`).
+Verified end-to-end through real Siril in `tests/unit/test_merge_stars.py`.
 
 ## Summary
 

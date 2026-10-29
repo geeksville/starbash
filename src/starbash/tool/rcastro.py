@@ -6,6 +6,8 @@ import logging
 import os
 import re
 import sys
+import tempfile
+from pathlib import Path
 from typing import Any
 
 from starbash.tool.base import (
@@ -16,6 +18,7 @@ from starbash.tool.base import (
     tool_run_streaming,
 )
 from starbash.tool.context import expand_context_unsafe
+from starbash.tool.ranges import _input_range, _restore_scaled_output, _write_scaled_input
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +53,30 @@ def parse_json_line(line: str) -> dict | None:
     if not isinstance(obj, dict):
         return None
     return obj
+
+
+def _parse_single_input_output(args: list[str]) -> tuple[str | None, str | None]:
+    """Return ``(input, output)`` paths for a single-input rc-astro subcommand.
+
+    The recipe stages wrap ``bxt``/``nxt`` with exactly one positional FITS input
+    and one ``--output`` path (plus ``--flag`` options).  Anything else returns
+    ``(None, None)`` so the caller runs it unwrapped.
+    """
+    if not any(tok in ("bxt", "nxt") for tok in args):
+        return None, None
+    output_path: str | None = None
+    try:
+        out_idx = args.index("--output")
+        output_path = args[out_idx + 1]
+    except (ValueError, IndexError):
+        return None, None
+    input_path: str | None = None
+    for token in args:
+        if token.startswith("--") or token in ("bxt", "nxt") or token == output_path:
+            continue
+        input_path = token
+        break
+    return input_path, output_path
 
 
 class RCAstroTool(ExternalTool):
@@ -111,21 +138,13 @@ class RCAstroTool(ExternalTool):
             args = ["--json", *args]
         return args
 
-    def _run(
+    def _stream(
         self,
+        args: list[str],
         cwd: str,
-        commands: str | list[str],
-        context: dict = {},
-        log_out: io.TextIOWrapper | None = None,
-        **kwargs: Any,
+        log_out: io.TextIOWrapper | None,
     ) -> None:
-        """Execute rc-astro with the specified command line arguments.
-
-        Progress is published on the event bus rather than drawn here: the CLI's
-        ``ProcessingView`` and the GUI both render it, and a tool-owned Rich
-        ``Live``/``Progress`` would fight the observer's display for the console.
-        """
-        args = self.build_args(commands, context)
+        """Run one rc-astro command line, publishing JSON progress on the bus."""
         cmd = f"{quote_executable(self.executable_path)} " + " ".join(args)
 
         # rc-astro refuses to run if the output already exists; remove it first.
@@ -166,3 +185,49 @@ class RCAstroTool(ExternalTool):
             log_out=log_out,
             stdout_mime="json",
         )
+
+    def _run(
+        self,
+        cwd: str,
+        commands: str | list[str],
+        context: dict = {},
+        log_out: io.TextIOWrapper | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Execute rc-astro with the specified command line arguments.
+
+        Progress is published on the event bus rather than drawn here: the CLI's
+        ``ProcessingView`` and the GUI both render it, and a tool-owned Rich
+        ``Live``/``Progress`` would fight the observer's display for the console.
+
+        With ``preserve_input_range = "true"`` (the bxt/nxt recipe stages), a
+        duo-stack OIII/Sii channel whose max exceeds 1 is mapped into [0, 1]
+        before the run and remapped back afterwards: rc-astro's FITS loader
+        otherwise silently min/max-rescales out-of-range images and never
+        restores the scale, leaving OIII at ~1/3 of Ha's intensity
+        (see doc/plans/duo-palette-orange.md).
+        """
+        args = self.build_args(commands, context)
+
+        if kwargs.pop("preserve_input_range", None) == "true":
+            input_path, output_path = _parse_single_input_output(args)
+            if input_path and output_path:
+                minimum, maximum = _input_range(Path(input_path))
+                offset = min(0.0, minimum)
+                scale = max(1.0, maximum - offset)
+                if scale != 1.0 or offset != 0.0:
+                    # rc-astro writes the final result itself; its temporary files
+                    # must be distinct per task and removed even if it fails.
+                    with tempfile.TemporaryDirectory(prefix="starbash-rca-", dir=cwd) as tmp:
+                        scaled_input = Path(tmp) / "input.fits"
+                        scaled_output = Path(tmp) / "output.fits"
+                        _write_scaled_input(Path(input_path), scaled_input, offset, scale)
+                        rewritten = [a if a != input_path else str(scaled_input) for a in args]
+                        rewritten = [
+                            a if a != output_path else str(scaled_output) for a in rewritten
+                        ]
+                        self._stream(rewritten, cwd, log_out)
+                        _restore_scaled_output(scaled_output, Path(output_path), offset, scale)
+                    return
+
+        self._stream(args, cwd, log_out)

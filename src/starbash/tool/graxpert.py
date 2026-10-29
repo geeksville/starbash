@@ -5,10 +5,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, cast
-
-import numpy as np
-from astropy.io import fits
+from typing import Any
 
 from starbash.tool.base import (
     ExternalTool,
@@ -19,43 +16,11 @@ from starbash.tool.base import (
     tool_run_in_process,
 )
 from starbash.tool.context import expand_context_list, expand_context_unsafe
+from starbash.tool.ranges import _input_range, _restore_scaled_output, _write_scaled_input
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["GraxpertBuiltinTool", "GraxpertExternalTool"]
-
-
-def _input_range(path: Path) -> tuple[float, float]:
-    """Return the range of a finite, floating-point FITS image."""
-    with fits.open(path, memmap=True) as hdus:
-        primary = cast(fits.PrimaryHDU, hdus[0])
-        data = primary.data
-        if data is None or data.dtype.kind != "f":
-            raise ValueError(f"Background input must be a floating-point FITS image: {path}")
-        if not np.isfinite(data).all():
-            raise ValueError(f"Background input contains non-finite pixels: {path}")
-        return float(np.min(data)), float(np.max(data))
-
-
-def _write_scaled_input(source: Path, destination: Path, offset: float, scale: float) -> None:
-    """Prepare a float FITS within [0, 1] without losing the source header."""
-    with fits.open(source, memmap=True) as hdus:
-        primary = cast(fits.PrimaryHDU, hdus[0])
-        data = primary.data
-        assert data is not None
-        scaled = ((data.astype(np.float64) - offset) / scale).astype(np.float32)
-        fits.PrimaryHDU(scaled, header=primary.header).writeto(destination)
-
-
-def _restore_scaled_output(source: Path, destination: Path, offset: float, scale: float) -> None:
-    """Undo our input transform, retaining the metadata GraXpert generated."""
-    with fits.open(source, memmap=True) as hdus:
-        primary = cast(fits.PrimaryHDU, hdus[0])
-        data = primary.data
-        if data is None:
-            raise ValueError(f"GraXpert produced an empty FITS image: {source}")
-        restored = (data.astype(np.float64) * scale + offset).astype(np.float32)
-        fits.PrimaryHDU(restored, header=primary.header).writeto(destination, overwrite=True)
 
 
 class GraxpertBuiltinTool(Tool):

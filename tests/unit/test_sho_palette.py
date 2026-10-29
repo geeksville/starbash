@@ -29,7 +29,11 @@ def _channel(base: float, *, channel: str) -> np.ndarray:
     elif channel == "OIII":
         pixels[24:29, 20:25] = base + 0.10
     pixels[0, 0] = 0.0
-    pixels[-1, -1] = 1.0
+    pixels[-1, -1] = 10.0  # a white star: bright enough to clamp at 1 in the palette
+    # (keep max <= ~10: Siril's median() collapses to 0 above a ~20 outlier)
+    # A star halo above every nebula patch: the palette's P99 reference must
+    # land above the features under test, or they would clip at 1.
+    pixels[2:5, 27:31] = base + 0.5
     return pixels
 
 
@@ -46,7 +50,12 @@ def _run_sho(
         stage = tomllib.load(recipe)["stages"][0]
     defaults = {p["name"]: p["default"] for p in stage["parameters"]}
     # Defaults are recipe/user choices; each test explicitly sets its controls.
-    assert {"green_strength", "blue_strength", "red_suppression"} <= defaults.keys()
+    assert {
+        "green_strength",
+        "blue_strength",
+        "red_suppression",
+        "signal_reference",
+    } <= defaults.keys()
     inputs: dict[str, FileInfo] = {}
     for name, base in (("ha", 0.3), ("oiii", 0.08), ("sii", 0.12)):
         if name == "sii" and not has_sii:
@@ -67,6 +76,7 @@ def _run_sho(
             green_strength=green_strength,
             blue_strength=blue_strength,
             red_suppression=red_suppression,
+            signal_reference=0.1,
         ),
     }
     tools["siril"].run(stage["script"], context=context, cwd=str(tmp_path))
@@ -138,7 +148,9 @@ def test_red_suppression_reduces_violet_without_dimming_ha_only_nebula(
     )
     assert float(companion[6, 6]) == pytest.approx(max(green_signal, blue_signal), abs=0.002)
     if has_sii:
-        assert float(companion[6, 6]) < green_signal + blue_signal - 0.02
+        # The stronger signal wins (not their sum); the 0.002 slack tracks the
+        # fixture's value scale, which the palette's P99 normalization shrinks.
+        assert float(companion[6, 6]) < green_signal + blue_signal - 0.002
     # The sky pedestal and a red-only nebula retain their original red values.
     np.testing.assert_allclose(softened[0, 2, 2], neutral[0, 2, 2], atol=1e-6)
     np.testing.assert_allclose(softened[0, 26, 6], neutral[0, 26, 6], atol=1e-6)
@@ -168,3 +180,78 @@ def test_real_sii_green_strength_controls_red_suppression(tmp_path: Path) -> Non
     # It cannot change suppression in the OIII-only or Ha-only areas.
     np.testing.assert_allclose(strong_green[0, 26, 22], weak_green[0, 26, 22], atol=1e-6)
     np.testing.assert_allclose(strong_green[0, 26, 6], weak_green[0, 26, 6], atol=1e-6)
+
+
+def _run_sho_with_low_sky(
+    tmp_path: Path,
+    *,
+    has_sii: bool,
+    red_suppression: float,
+    ha_patch: float = 0.70,
+    oiii_patch: float = 0.30,
+    base: float = 0.01,
+) -> np.ndarray:
+    """Like _run_sho, but on sky-like bases so Ha's excess over its median is
+    the dominant term (the regime the actual palette operates in after rescale)."""
+    tmp_path.mkdir(parents=True)
+    with RECIPE.open("rb") as recipe:
+        stage = tomllib.load(recipe)["stages"][0]
+    inputs: dict[str, FileInfo] = {}
+    for name, above in (("ha", ha_patch), ("oiii", oiii_patch), ("sii", oiii_patch)):
+        if name == "sii" and not has_sii:
+            inputs[name] = FileInfo(image_rows=[])
+            continue
+        pixels = np.full((32, 32), base, dtype=np.float32)
+        pixels[4:12, 4:12] = base + above  # shared bright Ha + OIII patch
+        if name == "ha":
+            pixels[24:29, 4:9] = base + ha_patch  # Ha-only patch, companion is zero
+        pixels[0, 0] = 0.0
+        pixels[-1, -1] = 10.0  # white star: clamps to 1 under the normalization
+        # Star halo above the test patch, so the P99 reference does not clip it.
+        pixels[25:29, 25:29] = base + 0.8
+        suffix = {"ha": "Ha", "oiii": "OIII", "sii": "Sii"}[name]
+        path = tmp_path / f"nx_bx_bk_crop_stacked_{suffix}.fits"
+        fits.PrimaryHDU(pixels).writeto(path)
+        inputs[name] = FileInfo(image_rows=[{"abspath": str(path), "path": path.name}])
+
+    output = tmp_path / "SHO.fits"
+    context = {
+        "input": inputs,
+        "output": FileInfo(image_rows=[{"abspath": str(output), "path": output.name}]),
+        "parameters": SimpleNamespace(
+            ha_weight=0.4,
+            oiii_weight=0.6,
+            green_strength=2.0,
+            blue_strength=8.0,
+            red_suppression=red_suppression,
+            signal_reference=0.1,
+        ),
+    }
+    tools["siril"].run(stage["script"], context=context, cwd=str(tmp_path))
+    return np.asarray(fits.getdata(output)).copy()
+
+
+@pytest.mark.parametrize("has_sii", [True, False], ids=["real-sii", "synthetic-green"])
+def test_red_suppression_turns_bright_ha_patches_blue(tmp_path: Path, has_sii: bool) -> None:
+    """A bright Ha patch with strong boosted blue loses its red at full strength.
+
+    The old ``(1 - Ha)`` star mask throttled exactly this regime: the brighter
+    Ha was, the less the companion could suppress it.  The all-channel
+    ``(1 - min(R, G, B))`` mask only shields pixels bright in *every* channel,
+    so Ha-bright/blue-bright cloudy regions can finally go blue.
+    """
+    neutral = _run_sho_with_low_sky(tmp_path / "neutral", has_sii=has_sii, red_suppression=0.0)
+    half = _run_sho_with_low_sky(tmp_path / "half", has_sii=has_sii, red_suppression=0.5)
+    strong = _run_sho_with_low_sky(tmp_path / "strong", has_sii=has_sii, red_suppression=1.0)
+
+    pixel = (4 + (12 - 4) // 2, 4 + (12 - 4) // 2)
+    # Red drops monotonically with strength and falls below the boosted blue.
+    assert neutral[0, *pixel] > half[0, *pixel] > strong[0, *pixel] >= 0
+    assert strong[0, *pixel] < strong[2, *pixel]
+    assert np.isfinite(strong).all()
+    assert 0 <= strong.min() <= strong.max() <= 1
+    # The sky, the Ha-only patch (no companion) and the white corner stay put.
+    np.testing.assert_allclose(strong[0, 2, 2], neutral[0, 2, 2], atol=1e-6)
+    np.testing.assert_allclose(strong[0, 0, 0], neutral[0, 0, 0], atol=1e-6)
+    np.testing.assert_allclose(strong[0, 26, 6], neutral[0, 26, 6], atol=1e-6)
+    np.testing.assert_allclose(strong[:, -1, -1], neutral[:, -1, -1], atol=1e-6)
