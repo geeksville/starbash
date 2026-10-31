@@ -57,7 +57,10 @@ to calibrate and stack images per target. CLI-first (Typer), commands `sb` / `st
   (`Database.reset_repo()`, which shares `_drop_repo_index()` with `remove_repo()` but
   keeps the repo row): a scan skips any frame it already has and builds a session only
   on a frame's *first* index, so this is the only way to rebuild stale sessions.
-- **Tools**: `src/starbash/tool/` — runners for Siril (Flatpak, stdin script), GraXpert (CLI),
+- **Tools**: `src/starbash/tool/` — runners for Siril (Flatpak, stdin script), GraXpert (in-process
+  `api_run`; `GraxpertBuiltinTool._run_api` resets GraXpert's module-global denoise cache before every
+  call, because the cmdline/API path skips the GUI events that would clear it — a stale cache from an
+  earlier target's differently-sized frame is a cross-target numpy broadcast error),
   Python (RestrictedPython sandbox), and rc-astro (BlurXTerminator `bxt` + NoiseXTerminator `nxt`
   CLI; always passes `--json` and streams JSON progress events onto the event bus via
   `tool_run_streaming`). When a tool's stdout is a *machine-readable* protocol

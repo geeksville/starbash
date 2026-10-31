@@ -7,3 +7,6 @@
 [submodule "toml-repo"]
 	path = toml-repo
 	url = https://github.com/geeksville/toml-repo.git
+[submodule "GraXpert"]
+	path = GraXpert
+	url = https://github.com/geeksville/GraXpert

@@ -4,7 +4,7 @@ import sys
 import tomllib
 import types
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -13,6 +13,26 @@ from astropy.io import fits
 from starbash.tool.graxpert import GraxpertBuiltinTool
 
 RECIPES = Path(__file__).resolve().parents[2] / "starbash-recipes"
+
+
+def _fake_graxpert(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, api_run: Any
+) -> types.ModuleType:
+    """Install a stand-in ``graxpert`` package (with its ``denoising`` submodule).
+
+    The built-in tool imports ``graxpert.api_run`` and, since the denoise-cache
+    fix, ``graxpert.denoising.reset_cached_denoised_image`` before every run.
+    The stand-in must therefore provide both, or the import fails.
+    """
+    denoising = types.ModuleType("graxpert.denoising")
+    denoising.reset_cached_denoised_image = lambda event: None  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "graxpert.denoising", denoising)
+
+    graxpert = types.ModuleType("graxpert")
+    graxpert.__file__ = str(tmp_path / "graxpert" / "__init__.py")
+    graxpert.api_run = api_run  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "graxpert", graxpert)
+    return graxpert
 
 
 def _run_background(
@@ -41,10 +61,7 @@ def _run_background(
             output_header["BG-EXTR"] = "GraXpert"
             fits.PrimaryHDU(corrected, header=output_header).writeto(args[3])
 
-    graxpert = types.ModuleType("graxpert")
-    graxpert.__file__ = str(tmp_path / "graxpert" / "__init__.py")
-    graxpert.api_run = api_run  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "graxpert", graxpert)
+    _fake_graxpert(monkeypatch, tmp_path, api_run)
 
     GraxpertBuiltinTool().run(
         ["-cmd", "background-extraction", "-output", str(target), str(source)],
@@ -94,10 +111,11 @@ def test_background_keeps_scale_and_gradient(
 def test_background_rejects_nonfinite_image(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    graxpert = types.ModuleType("graxpert")
-    graxpert.__file__ = str(tmp_path / "graxpert" / "__init__.py")
-    graxpert.api_run = lambda *args: pytest.fail("GraXpert must not run")  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "graxpert", graxpert)
+    _fake_graxpert(
+        monkeypatch,
+        tmp_path,
+        lambda *args: pytest.fail("GraXpert must not run"),
+    )
     source = tmp_path / "source.fits"
     fits.PrimaryHDU(np.array([[np.nan, 1]], dtype=np.float32)).writeto(source)
     with pytest.raises(ValueError, match="non-finite"):
@@ -112,15 +130,12 @@ def test_failed_background_keeps_prior_output_and_cleans_scratch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Never replace a previously good bk_* when the AI step fails."""
-    graxpert = types.ModuleType("graxpert")
-    graxpert.__file__ = str(tmp_path / "graxpert" / "__init__.py")
 
     def failed_run(args: list[str], prefs: dict[str, object]) -> None:
         assert Path(args[4]).is_file()
         raise RuntimeError("model failed")
 
-    graxpert.api_run = failed_run  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "graxpert", graxpert)
+    _fake_graxpert(monkeypatch, tmp_path, failed_run)
     source = tmp_path / "source.fits"
     target = tmp_path / "target.fits"
     fits.PrimaryHDU(np.array([[0.1, 2]], dtype=np.float32)).writeto(source)
@@ -151,3 +166,48 @@ def test_recipe_opts_in_and_sho_does_not_apply_scnr() -> None:
     assert "rgbcomp SHO_Ha SHO_SynGreen SHO_OIII -out=SHO_results" in sho
     assert "rgbcomp HOO_Ha HOO_Green HOO_OIII -out=HOO_results" in hoo
     assert "load SHO_results" in sho and "load HOO_results" in hoo
+
+
+def test_each_run_resets_graxpert_denoise_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """In-process runs must not blend against GraXpert's cross-call denoise cache.
+
+    GraXpert's ``denoise`` keeps the last result in a module-global cache and
+    only resets it on GUI events (load image / calculate) that the cmdline/API
+    path never emits.  A second denoise task on a differently-sized frame in the
+    same process (several targets in one ``sb process auto``) would otherwise
+    short-circuit into ``np.where(input, cached, input)`` and fail with a
+    broadcast ValueError.  The tool must reset the cache before every call.
+    """
+    reset_calls: list[object] = []
+
+    def reset_cached_denoised_image(event: object) -> None:
+        reset_calls.append(event)
+
+    denoising = types.ModuleType("graxpert.denoising")
+    denoising.reset_cached_denoised_image = reset_cached_denoised_image  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "graxpert.denoising", denoising)
+
+    graxpert = types.ModuleType("graxpert")
+    graxpert.__file__ = str(tmp_path / "graxpert" / "__init__.py")
+    runs: list[list[str]] = []
+
+    def api_run(args: list[str], prefs: dict[str, object]) -> None:
+        runs.append(args)
+        # The reset must happen before GraXpert runs, not after.
+        assert reset_calls, "denoise cache was not reset before api_run"
+
+    graxpert.api_run = api_run  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "graxpert", graxpert)
+
+    GraxpertBuiltinTool()._run_api(
+        api_run,
+        ["-cmd", "denoising", "-output", str(tmp_path / "out.fits"), str(tmp_path / "in.fits")],
+        {"ai_version": "3.0.2"},
+        graxpert.__file__,
+        str(tmp_path),
+        None,
+    )
+    assert len(reset_calls) == 1
+    assert len(runs) == 1

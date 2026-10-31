@@ -431,6 +431,13 @@ def test_builtin_graxpert_publishes_its_log_output(monkeypatch, tmp_path, record
     setattr(stub, "api_run", fake_api_run)  # noqa: B010 - a stub module, not a real import
     monkeypatch.setitem(sys.modules, "graxpert", stub)
 
+    # The built-in tool also resets GraXpert's module-global denoise cache before
+    # every run (see docstring in starbash/tool/graxpert.py), so the stub needs
+    # the denoising submodule that function lives in.
+    denoising = types.ModuleType("graxpert.denoising")
+    setattr(denoising, "reset_cached_denoised_image", lambda event: None)  # noqa: B010
+    monkeypatch.setitem(sys.modules, "graxpert.denoising", denoising)
+
     commands = ["-cmd", "deconv-obj", "-output", "out.fits", "in.fits"]
     GraxpertBuiltinTool().run(commands, context={}, cwd=str(tmp_path), ai_version="1.0.1")
 

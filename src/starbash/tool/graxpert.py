@@ -113,6 +113,18 @@ class GraxpertBuiltinTool(Tool):
             cwd=cwd,
             log_out=log_out,
         ):
+            # GraXpert's ``denoise`` keeps the last result in a module-global
+            # ``cached_denoised_image`` so its GUI can re-blend when the strength
+            # slider moves, and resets it only on GUI events (load image /
+            # calculate) that the cmdline/API path never emits.  A later denoise
+            # task on a differently-sized frame in the same process (several
+            # targets in one run) would then hit
+            # ``np.where(input, cached, input)`` with mismatched shapes and die
+            # with a numpy broadcast ValueError.  A one-shot tool call gains
+            # nothing from the cross-call cache, so reset it before every run.
+            from graxpert.denoising import reset_cached_denoised_image
+
+            reset_cached_denoised_image(None)
             api_run(args, prefs)
 
 

@@ -1,5 +1,48 @@
 # Active Context
 
+## Current work focus — GraXpert in-process denoise cache leaks across targets (**fixed 2026-10-31**)
+
+The integration workflow's `sb process auto` failed a `grax-denoise` stage with
+`operands could not be broadcast together with shapes (3328,4992,1) (1824,3104,3)
+(3328,4992,1)` — a numpy `ValueError` caught by `doit.py` and logged as "Skipping
+run due to:…". Not an onnxruntime shape bug: the three shapes are exactly
+`np.where(input, cached, input)` inside GraXpert's
+`blend_images()` (`GraXpert/graxpert/denoising.py:157`).
+
+- **Root cause.** `denoise()` keeps the last result in the module-global
+  `cached_denoised_image` (added for the GUI, so moving the strength slider
+  re-blends without re-running the model) and resets it only on GUI events
+  (`LOAD_IMAGE_REQUEST`/`CALCULATE_REQUEST`/`APPLY_CROP_REQUEST`/
+  `DENOISE_AI_VERSION_CHANGED`). The cmdline/API path (`DenoiseCmdlineTool` →
+  `api_run`, which is exactly what Starbash's `GraxpertBuiltinTool` uses) emits
+  none of them, so the cache survives across tasks in one process. The first
+  `grax-denoise` task caches its frame (dwarf3/IC 434 is RGB → `(1824,3104,3)`);
+  the next task on a differently-sized frame (M 20 mono → `(3328,4992,1)`)
+  short-circuits into `blend_images(input, cached, …)` and the broadcast fails.
+  Reproduced with two `denoise()` calls of different sizes in one process.
+- **Why it "used to work".** Starbash ran GraXpert as a subprocess until
+  `b2f32d5` (2025-12-04, "use local graxpert while in dev") switched to in-process
+  `api_run`; a fresh interpreter per call isolated the cache. Nothing else in
+  GraXpert's 3.x switch is involved — the `3.0.2` model (`gen_input_image`
+  `(batch,256,256,3)`, dynamic `output` `Transposeoutput_dim_*`) is correct for
+  the tile loop.
+- **Fix** (`src/starbash/tool/graxpert.py`): `GraxpertBuiltinTool._run_api` —
+  the single choke point every in-process GraXpert call passes through — calls
+  `graxpert.denoising.reset_cached_denoised_image(None)` before `api_run`. A
+  one-shot tool invocation gains nothing from the cross-call cache, so this is
+  free. Covers the CLI and the GUI (both run the same in-process path).
+- **Test** (`tests/unit/test_graxpert_background.py`):
+  `test_each_run_resets_graxpert_denoise_cache` fakes `graxpert` +
+  `graxpert.denoising` in `sys.modules` and asserts the reset fires before
+  `api_run`; the file's other fakes moved to a shared `_fake_graxpert()` helper
+  that also provides the `denoising` submodule (their bare `graxpert` fakes would
+  otherwise now fail on the import). Verified with the **real model**: two
+  `GraxpertBuiltinTool().run(…)` denoise calls (RGB 400×300, then mono 250×350)
+  in one process both succeed; the second previously raised the broadcast error.
+- **Not done**: no upstream GraXpert fix (the vendored submodule would deserve a
+  `DenoiseCmdlineTool` reset too), and BGE has no such cache (`background_extraction.py`
+  is clean), so `bk_*` stages were never affected.
+
 ## Current work focus — GitHub token refresh double-uses the refresh token (**fixed 2026-10-31**)
 
 `sb publish github` failed with `GitHubError: GitHub returned an unexpected

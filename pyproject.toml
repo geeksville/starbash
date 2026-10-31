@@ -32,7 +32,6 @@ toml-repo = "^0.1.7"
 
 # Note: to use graxpert from the local tree rather than pypi use:
 # graxpert = {path = "GraXpert", extras = ["cpuonly"], develop = true}
-graxpert = {version = "^3.2.0a3", extras = ["cpuonly"]}
 
 # The following two libs are only needed for the (temporary) experiment of running siril scripts directly...
 # experimenting with siril-scripts/processing/VeraLux_HyperMetric_Stretch.py
@@ -43,6 +42,7 @@ pyqt6 = "^6.10.1"
 # The desktop GUI (`sb gui`) binding. A normal dependency: the GUI is a first-class
 # way to drive Starbash. "Optional" only means users may keep using the CLI instead.
 pyside6 = "^6.11.2"
+graxpert = {version = "^3.2.0a3", extras = ["cpuonly"]}
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=8.4.2,<10.0.0"

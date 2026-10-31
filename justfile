@@ -216,6 +216,8 @@ db-browse-gui:
 
 # instead of pulling graxpert from pypi, use the local checkout
 use-graxpert-local:
+    # dont use stale build info - force it to rebuild from setup.py
+    rm -rf GraXpert/graxpert.egg-info GraXpert/build
     poetry add --editable ./GraXpert --extras cpuonly
 
 use-graxpert-pypi:
