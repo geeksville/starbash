@@ -39,7 +39,9 @@ def _run_bxt(
         stdout_mime: str | None = None,
     ) -> None:
         calls.append(cmd)
-        argv = shlex.split(cmd)
+        # posix=False keeps backslashes intact, so Windows paths (``C:\\...``)
+        # survive the round-trip; the default POSIX mode eats them as escapes.
+        argv = shlex.split(cmd, posix=False)
         sub_idx = next(i for i, t in enumerate(argv) if t in ("bxt", "nxt"))
         input_path = Path(argv[sub_idx + 1])
         out_path = Path(argv[argv.index("--output") + 1])
