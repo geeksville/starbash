@@ -9,6 +9,7 @@ import pytest
 from astropy.io import fits
 
 from starbash.doit import FileInfo
+from starbash.fits import resolve_fits_variant
 from starbash.tool import tools
 
 RECIPE = Path(__file__).resolve().parents[2] / "starbash-recipes" / "post" / "merge_stars.toml"
@@ -73,7 +74,11 @@ def test_residual_tint_is_removed_and_stars_stay_neutral(tmp_path: Path) -> None
     assert _star_ratio(full) == pytest.approx(1.0, abs=0.1)
     assert _star_ratio(half) < _star_ratio(none)
     # The intermediate starless is dimmed under the star mask when removing.
-    half_starless = np.asarray(fits.getdata(tmp_path / "half" / "starless.fits"), dtype=float)
+    # Siril writes extension-less ``save`` names with the user's configured FITS
+    # extension (``.fit`` on a fresh config, ``.fits`` elsewhere), so resolve
+    # whichever spelling it actually wrote (see fits.resolve_fits_variant).
+    half_starless_path = resolve_fits_variant(tmp_path / "half" / "starless.fits")
+    half_starless = np.asarray(fits.getdata(half_starless_path), dtype=float)
     assert float(half_starless[0, 16, 16]) < 0.2  # was 0.60 before the dim
     # The sky is untouched (mask ~ 0 there) and the result stays in range.
     assert full[0, 2, 2] == pytest.approx(none[0, 2, 2], abs=1e-6)
