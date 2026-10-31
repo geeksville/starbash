@@ -68,6 +68,9 @@ class GitHubService:
         self.refresh_token = refresh_token
         self.client_id = client_id
         self.on_token_refresh = on_token_refresh
+        #: The most recent token response applied, kept so callers can reconstruct
+        #: the credential in effect after an automatic 401 refresh.
+        self.last_token_response: dict[str, Any] | None = None
         self._refresh_lock = threading.Lock()
 
     @staticmethod
@@ -360,7 +363,12 @@ class GitHubService:
         raise GitHubError("GitHub returned an unexpected token refresh response")
 
     def apply_token_response(self, value: dict[str, Any]) -> None:
-        """Replace the in-memory token and persist the rotated credentials."""
+        """Replace the in-memory token and persist the rotated credentials.
+
+        The raw response is remembered so a caller can reconstruct the credential
+        that an automatic 401 refresh put in effect (see ``refresh_if_needed``).
+        """
+        self.last_token_response = value
         self.token = str(value["access_token"])
         self.refresh_token = (
             str(value["refresh_token"]) if value.get("refresh_token") else self.refresh_token

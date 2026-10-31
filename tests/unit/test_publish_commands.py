@@ -139,3 +139,49 @@ def test_github_upload_starts_analytics_span_and_reports_the_url(tmp_path):
     start_span.assert_called_once_with(name="github", op="upload")
     service.update_branch.assert_called_once_with("owner", "starbash-public", "commit-sha")
     service.configure_pages.assert_called_once_with("owner", "starbash-public")
+
+
+def test_github_publish_refreshes_the_token_before_the_first_api_call(tmp_path):
+    """The stored refresh token is consumed exactly once, before any API call.
+
+    The old order asked GitHub for the account first: an expired access token made
+    that request 401 and auto-refresh (rotating and *persisting* a new pair), and
+    the explicit refresh that followed then reused the now-consumed refresh token,
+    which GitHub rejects as ``incorrect_client_credentials``.  Refresh first, as
+    the GUI's publish job already does, so the refresh token is used once, on the
+    credential the service still believes in.
+    """
+    from starbash.commands import publish
+    from starbash.publish.credentials import GitHubCredential
+
+    (tmp_path / "index.html").write_text("site")
+    span = MagicMock()
+    service = MagicMock()
+    order: list[str] = []
+
+    def refresh_then_continue(service_, credential_, *, client_id=None):
+        order.append("refresh")
+        return credential_
+
+    service.user.side_effect = lambda: (order.append("user"), {"login": "owner"})[1]
+    service.app_is_installed.return_value = True
+    service.repository.return_value = {"name": "starbash-public"}
+    service.branch_exists.return_value = True
+    service.create_blob.return_value = "blob-sha"
+    service.create_tree.return_value = "tree-sha"
+    service.create_commit.return_value = "commit-sha"
+
+    with (
+        patch.object(publish, "_rewrite", return_value=tmp_path),
+        patch.object(
+            publish,
+            "GitHubCredentialStore",
+            return_value=MagicMock(load=MagicMock(return_value=GitHubCredential("token"))),
+        ),
+        patch.object(publish, "_credential_service", return_value=service),
+        patch.object(publish, "analytics_start_span", return_value=span),
+        patch.object(publish, "refresh_if_needed", side_effect=refresh_then_continue),
+    ):
+        publish._publish_github(False, False)
+
+    assert order == ["refresh", "user"]

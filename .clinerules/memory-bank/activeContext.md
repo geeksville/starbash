@@ -1,5 +1,47 @@
 # Active Context
 
+## Current work focus — GitHub token refresh double-uses the refresh token (**fixed 2026-10-31**)
+
+`sb publish github` failed with `GitHubError: GitHub returned an unexpected
+token refresh response` carrying `{'error': 'incorrect_client_credentials',
+'error_description': 'The client_id and/or client_secret passed are incorrect.'}`
+after the access token expired. **Not** a missing `client_secret`: the app is a
+GitHub App using the device flow, and GitHub's docs
+(`refreshing-user-access-tokens`) make `client_secret` "Required **unless** the
+user access token was generated using the device flow" — verified live, the exact
+no-secret refresh request succeeds. The mechanism, confirmed by repro:
+
+- 401 auto-refresh consumes the refresh token. `GitHubService._request_once`
+  refreshes on a 401 and `apply_token_response` **rotates** the pair, so the
+  stored refresh token is single-use (GitHub rotates it on every refresh).
+- Reusing a consumed refresh token makes GitHub answer
+  `incorrect_client_credentials`, not `bad_refresh_token` — that confusing
+  mapping is the reason the git history is littered with "improve GitHub token
+  refresh logging" commits.
+- The CLI called `service.user()` (line 215) **before** `refresh_if_needed()`:
+  an expired access token made `user()` 401 → auto-refresh (persisting a new
+  pair) → the explicit refresh then reused the dead token → the error. The GUI
+  job (`publish_github_job`) already used the safe order.
+
+Fix (3 parts, all `just lint`-clean, all github tests + full suite green):
+
+1. `commands/publish.py::_publish_github` — call `refresh_if_needed` *before*
+   `service.user()`, matching the GUI job.
+2. `github_publish.py::refresh_if_needed` — defence in depth: if the service
+   already holds a newer token (`service.token != credential.access_token`, i.e.
+   a 401 auto-refresh already happened), return the credential rebuilt from
+   `service.last_token_response` instead of refreshing again.
+3. `github_service.py` — `apply_token_response` now records the raw response as
+   `self.last_token_response` so (2) can reconstruct it.
+
+New/updated tests: `test_refresh_if_needed_uses_a_rotation_a_request_already_made`,
+`test_github_publish_refreshes_the_token_before_the_first_api_call` (orders the
+calls), and the existing refresh test now pins `service.token` so the mock
+matches the guard. Diagnostics consumed the stored refresh token; the rotated
+pair was restored through `GitHubCredentialStore` afterwards (keyring
+unavailable → `~/.config/starbash/github-creds.toml`, `ghu_`/`ghr_` pair, ~8h /
+~181d).
+
 ## Current work focus — broadband stars on a narrowband plate (**implemented 2026-10-28, not run on a real target**)
 
 `doc/plans/multistar.md` phases 1–3 are in the tree. A new `stack_broadband`

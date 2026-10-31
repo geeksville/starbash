@@ -212,8 +212,13 @@ def _publish_github(dry_run: bool, login: bool) -> None:
     if not dry_run:
         assert credential is not None
         service = _credential_service(credential)
-        owner = str(service.user()["login"])
+        # Rotate an expired token *before* the first API call.  Asking GitHub for
+        # the account first would 401 an expired token, make the service
+        # auto-refresh - consuming the stored refresh token - and then leave
+        # refresh_if_needed below to reuse the now-dead token, which GitHub
+        # rejects as incorrect_client_credentials.
         refresh_if_needed(service, credential, client_id=CLIENT_ID)
+        owner = str(service.user()["login"])
 
     site = _rewrite(owner) if owner else _rewrite()
     files = collect_site_files(site)

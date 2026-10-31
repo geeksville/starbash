@@ -118,10 +118,22 @@ def refresh_if_needed(
     happened (already persisted by the service's ``on_token_refresh``), otherwise
     ``credential`` unchanged.  Callers that want to store anything beside the token
     (the account name, say) must save what they get back, not the stale argument.
+
+    A request made before this call may already have rotated the credential: the
+    service auto-refreshes on a 401 and *consumes* the stored refresh token while
+    doing so.  Reusing ``credential.refresh_token`` then would make GitHub reject
+    the already-used token (``incorrect_client_credentials``), so when the service
+    already holds a newer token this function returns the credential from that
+    earlier rotation instead of refreshing again.
     """
     if credential.needs_refresh() and credential.refresh_token:
-        value = service.refresh_access_token(client_id, credential.refresh_token)
-        service.apply_token_response(value)
+        if service.token == credential.access_token:
+            value = service.refresh_access_token(client_id, credential.refresh_token)
+            service.apply_token_response(value)
+        else:
+            value = service.last_token_response
+            if value is None:
+                return credential
         return replace(GitHubCredential.from_token_response(value), login=credential.login)
     return credential
 

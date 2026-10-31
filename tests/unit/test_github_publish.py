@@ -325,6 +325,7 @@ def test_refresh_if_needed_only_refreshes_an_expired_token():
     beside it without resurrecting the expired token it passed in.
     """
     service = MagicMock()
+    service.token = "stale"  # the service still holds the credential's own token
     service.refresh_access_token.return_value = {"access_token": "fresh"}
 
     live = GitHubCredential("live", refresh_token="refresh", login="octocat")
@@ -354,3 +355,35 @@ def test_refresh_if_needed_ignores_an_expired_token_without_a_refresh_token():
     refresh_if_needed(service, expired, client_id="client")
 
     service.refresh_access_token.assert_not_called()
+
+
+def test_refresh_if_needed_uses_a_rotation_a_request_already_made():
+    """A 401 auto-refresh consumes the refresh token; the explicit call must not reuse it.
+
+    Refreshing twice with the same refresh token makes GitHub answer
+    ``incorrect_client_credentials`` (a consumed token looks like wrong client
+    credentials), so when the service already holds a newer token the helper
+    returns the credential from that earlier rotation instead of trying again.
+    """
+    service = MagicMock()
+    service.token = "new-access"
+    service.refresh_token = "new-refresh"
+    service.last_token_response = {
+        "access_token": "new-access",
+        "refresh_token": "new-refresh",
+        "expires_in": 28800,
+    }
+    expired = GitHubCredential(
+        "old-access",
+        refresh_token="old-refresh",
+        access_token_expires_at=time.time() - 1,
+        login="octocat",
+    )
+
+    refreshed = refresh_if_needed(service, expired, client_id="client")
+
+    service.refresh_access_token.assert_not_called()
+    service.apply_token_response.assert_not_called()
+    assert refreshed.access_token == "new-access"
+    assert refreshed.refresh_token == "new-refresh"
+    assert refreshed.login == "octocat"
