@@ -156,9 +156,9 @@ select-current:
     #sb select target "ngc6888"
     #sb select target "sh2-91"
     #sb select target m101
-    #sb select target ngc7822
+    sb select target ngc7822
     # a good smallish duo test
-    sb select target ngc7635
+    #sb select target ngc7635
 
 # test target that has Si and HaOiii filters
 select-si-ha:
