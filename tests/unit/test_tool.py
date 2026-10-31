@@ -1210,6 +1210,27 @@ class TestStarnetRecipe:
         assert names[0].startswith("starless_")
         assert names[1].startswith("starmask_")
 
+    def test_loads_scratch_outputs_without_a_fits_extension(self):
+        """The starless/starmask re-load must not hardcode .fit or .fits.
+
+        Siril writes the starnet scratch files (starless_<stem>, starmask_<stem>)
+        with its own configured extension, which is unknown at script-expansion
+        time.  Loading by basename with NO extension lets Siril resolve the
+        spelling itself - the same configured extension it just used to write
+        the files - and never picks a stale sibling with the other spelling.
+        A '.fit'-suffixed load used to fail on machines whose preference is
+        '.fits' (the integration run: "Error opening image .../starless_*.fit:
+        file not found or not supported.").
+        """
+        doc = self._load_recipe()
+        script = doc["stages"][0]["script"]
+        assert 'load "{str(process_dir)}/starless_{input[0].full_paths[0].stem}"' in script
+        assert 'load "{str(process_dir)}/starmask_{input[0].full_paths[0].stem}"' in script
+        # Belt and braces: no scratch load may carry a .fit/.fits suffix at all.
+        for line in script.splitlines():
+            if ("starless_" in line or "starmask_" in line) and "load" in line:
+                assert ".fit" not in line and ".fits" not in line, line
+
     def test_stage_sorts_after_sho(self):
         from starbash.stages import sort_stages
 
