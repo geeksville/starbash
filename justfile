@@ -94,9 +94,12 @@ use-remote-cache:
 use-usb-cache:
     #!/usr/bin/env bash
     target=/mnt/fast_stick/starbash/cache
-    mkdir -p "$target"
+    tmp_target=/mnt/fast_stick/starbash/tmp
+    mkdir -p "$target" "$tmp_target"
     mkdir -p ~/.cache
     [ "$(readlink ~/.cache/starbash)" = "$target" ] || { rm -rf ~/.cache/starbash && ln -s "$target" ~/.cache/starbash; }
+    # ~/.cache/starbash is the symlink above, so this creates cache/tmp -> /mnt/fast_stick/starbash/tmp
+    [ "$(readlink ~/.cache/starbash/tmp)" = "$tmp_target" ] || { rm -rf ~/.cache/starbash/tmp && ln -s "$tmp_target" ~/.cache/starbash/tmp; }
 
 # keep the config/cache files in the workspace so that it lives even if the container is recreated
 use-workspace-config:
@@ -293,6 +296,15 @@ site-view: site-rewrite site-serve
 test-slow: test process-one
 
 test-integration:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # If the USB cache's tmp symlink is in place, point TMPDIR at it so Python's
+    # temp usage (pytest tmp dirs, tool scratch files, ...) stays off the /tmp
+    # filesystem, which fills up during the integration runs.
+    if [ -L "$HOME/.cache/starbash/tmp" ] && [ -d "$HOME/.cache/starbash/tmp" ]; then
+        export TMPDIR="$HOME/.cache/starbash/tmp"
+        echo "test-integration: using TMPDIR=$TMPDIR"
+    fi
     poetry run pytest -m integration -n 0 -v
 
 # record the end-to-end GUI movie (tests/gui_integration), then open it
